@@ -1350,43 +1350,53 @@ function spalla() {
     },
 
     async selectWhatsAppChat(chat) {
+      console.log('[WA] selectWhatsAppChat called with:', { name: chat?.name || chat?.pushName, id: chat?.id });
+
+      if (!chat || !chat.id) {
+        console.warn('[WA] Invalid chat object');
+        return;
+      }
+
       this.ui.whatsappSelectedChat = chat;
       this.ui.whatsappLoading = true;
-      console.log('[WA] Selecting chat:', { name: chat.name || chat.pushName, id: chat.id });
+
+      // CLEAR messages IMMEDIATELY
+      this.data.whatsappMessages = [];
+      console.log('[WA] Cleared messages, now fetching...');
 
       try {
+        const remoteJid = chat.remoteJid || chat.id;
         const url = `${EVOLUTION_CONFIG.BASE_URL}/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`;
-        console.log('[WA] Fetching messages from:', url, 'for remoteJid:', chat.remoteJid || chat.id);
+
+        console.log('[WA] POST to:', url);
+        console.log('[WA] Body: remoteJid=' + remoteJid + ', limit=50');
 
         const res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_CONFIG.API_KEY },
-          body: JSON.stringify({ remoteJid: chat.remoteJid || chat.id, limit: 50 }),
+          body: JSON.stringify({ remoteJid: remoteJid, limit: 50 }),
         });
 
-        console.log('[WA] Response status:', res.status, 'ok:', res.ok);
+        console.log('[WA] Response status:', res.status);
 
         if (res.ok) {
           const data = await res.json();
-          console.log('[WA] Raw response:', data);
-
-          // Evolution API v2 can return { messages: { records: [...] } } or just an array
           const msgs = data.messages?.records || data.messages || (Array.isArray(data) ? data : []);
-          console.log('[WA] Parsed messages count:', Array.isArray(msgs) ? msgs.length : 0);
-
           const reversedMsgs = (Array.isArray(msgs) ? msgs : []).reverse();
-          // Force reactivity - use splice to trigger Alpine updates
-          this.data.whatsappMessages.splice(0);
-          this.data.whatsappMessages.push(...reversedMsgs);
-          console.log('[WA] Final messages in state:', this.data.whatsappMessages.length);
+
+          console.log('[WA] Got', reversedMsgs.length, 'messages, assigning to state...');
+
+          // Assign directly
+          this.data.whatsappMessages = reversedMsgs;
+
+          console.log('[WA] State now has:', this.data.whatsappMessages.length, 'messages');
         } else {
-          throw new Error(`HTTP ${res.status}`);
+          console.error('[WA] Bad response:', res.status);
         }
       } catch (e) {
-        console.error('[Spalla] WA messages fetch error:', e.message, e);
-        this.toast(`Erro ao carregar mensagens: ${e.message}`, 'error');
-        this.data.whatsappMessages = [];
+        console.error('[WA] Error:', e.message);
       }
+
       this.ui.whatsappLoading = false;
       this.$nextTick(() => {
         const el = document.getElementById('wa-messages-end');
