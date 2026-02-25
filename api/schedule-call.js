@@ -10,10 +10,10 @@ export default async function handler(req, res) {
     const { mentorado, mentorado_id, tipo, data, horario, duracao, email, notas } = req.body;
 
     const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
-    // Fix timezone: data comes as dd/mm/yyyy, convert to ISO and add timezone offset
+    // Data comes as dd/mm/yyyy, convert to ISO format (yyyy-mm-dd)
     const [dia, mes, ano] = data.split('/');
-    const isoDate = `${ano}-${mes}-${dia}T${horario}:00`;
-    const startTime = new Date(isoDate).toISOString().split('.')[0];
+    const isoDate = `${ano}-${mes}-${dia}`;
+    const startTime = `${isoDate}T${horario}:00`;
 
     // Create Zoom meeting
     let zoom_meeting = null;
