@@ -460,6 +460,7 @@ SELECT
   m.id,
   m.nome,
   m.instagram,
+  m.email,
   m.cohort,
 
   -- PROGRESSO
