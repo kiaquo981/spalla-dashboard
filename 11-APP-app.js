@@ -552,6 +552,9 @@ function spalla() {
           ]);
           if (mentees.data?.length) {
             this.data.mentees = mentees.data;
+            // DEBUG: Log primeiro mentorado com email
+            console.log('[Spalla] First mentee:', this.data.mentees[0]);
+            console.log('[Spalla] Email field exists?', 'email' in this.data.mentees[0]);
           } else {
             console.warn('[Spalla] Supabase mentees empty, using demo');
             this.loadDemoData();
