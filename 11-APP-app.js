@@ -1544,11 +1544,19 @@ function spalla() {
 
     onMentoradoSelect() {
       const nome = this.scheduleForm.mentorado;
-      if (!nome) return;
+      console.log('[Spalla] onMentoradoSelect called with:', nome);
+      if (!nome) {
+        console.log('[Spalla] No mentorado selected');
+        return;
+      }
+      console.log('[Spalla] Looking for mentorado in', this.data.mentees?.length || 0, 'mentees');
       const m = this.data.mentees.find(x => x.nome === nome);
       if (m) {
+        console.log('[Spalla] Found mentorado:', m.nome, '- email:', m.email);
         this.scheduleForm.mentorado_id = m.id || '';
         this.scheduleForm.email = m.email || '';
+      } else {
+        console.warn('[Spalla] Mentorado not found:', nome);
       }
     },
 
