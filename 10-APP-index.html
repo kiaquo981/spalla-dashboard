@@ -1419,7 +1419,14 @@
                 </div>
 
                 <label>Mentorado *</label>
-                <select x-model="scheduleForm.mentorado" class="modal__select" @change="onMentoradoSelect()">
+                <select x-model="scheduleForm.mentorado" class="modal__select" @change="
+                  const m = this.data.mentees.find(x => x.nome === this.scheduleForm.mentorado);
+                  if (m) {
+                    this.scheduleForm.mentorado_id = m.id || '';
+                    this.scheduleForm.email = m.email || '';
+                    console.log('[Spalla] Email filled:', m.email);
+                  }
+                ">
                   <option value="">-- Selecione --</option>
                   <template x-for="name in menteeNames" :key="name">
                     <option :value="name" x-text="name"></option>
