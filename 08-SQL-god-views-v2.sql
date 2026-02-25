@@ -505,19 +505,18 @@ SELECT
   
   -- CONTRATO & FINANCEIRO
   m.contrato_assinado,
-  CASE 
+  CASE
     WHEN m.status_financeiro = 'atrasado' THEN 'atrasado'
     WHEN m.status_financeiro = 'em_dia' THEN 'em_dia'
     WHEN m.status_financeiro = 'quitado' THEN 'quitado'
     ELSE 'sem_contrato'
   END AS status_financeiro,
-  p.nome AS produto_nome
+  m.produto_nome
 
 FROM mentorados m
 LEFT JOIN wa_stats wa ON wa.mentorado_id = m.id
 LEFT JOIN call_stats cs ON cs.mentorado_id = m.id
 LEFT JOIN tarefa_stats ts ON ts.mentorado_id = m.id
-LEFT JOIN produtos p ON m.produto_id = p.id
 WHERE m.ativo = true AND m.cohort IS DISTINCT FROM 'tese'
 ORDER BY
   CASE m.fase_jornada
