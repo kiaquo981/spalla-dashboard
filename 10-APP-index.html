@@ -1510,8 +1510,8 @@
                   <span x-text="'[DEBUG] Msgs count: ' + (data.whatsappMessages?.length || 0)"></span>
                 </div>
               </div>
-              <div class="wa-chat__messages" x-show="ui.whatsappSelectedChat">
-                <template x-for="(msg, mi) in data.whatsappMessages" :key="mi">
+              <div class="wa-chat__messages" x-show="ui.whatsappSelectedChat" :key="ui.whatsappSelectedChat?.id + ':' + data.whatsappMessages.length">
+                <template x-for="(msg, mi) in data.whatsappMessages" :key="ui.whatsappSelectedChat?.id + ':' + mi">
                   <div class="wa-bubble" :class="{ 'wa-bubble--me': msg.key?.fromMe }">
                     <div class="wa-bubble__sender" x-show="!msg.key?.fromMe" x-text="msg.pushName || 'Desconhecido'"></div>
                     <div class="wa-bubble__text" x-text="getWaMessageText(msg)"></div>
