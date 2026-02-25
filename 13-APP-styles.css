@@ -317,7 +317,7 @@ img { max-width: 100%; display: block; }
   color: #fff;
   text-transform: uppercase;
   letter-spacing: 1px;
-  padding: var(--sp-6) var(--sp-4) var(--sp-4);
+  padding: var(--sp-8) var(--sp-5) var(--sp-6);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
