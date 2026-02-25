@@ -1,15 +1,5 @@
 {
   "buildCommand": "echo 'Static SPA - no build'",
   "outputDirectory": ".",
-  "public": true,
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "$API_BACKEND_URL/api/$1"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/10-APP-index.html"
-    }
-  ]
+  "public": true
 }
