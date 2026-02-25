@@ -487,7 +487,7 @@ function spalla() {
 
     async _loadWaProfilePics() {
       try {
-        const res = await fetch(`/api/evolution-proxy/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
+        const res = await fetch(`/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
         });
         if (!res.ok) return;
@@ -671,7 +671,7 @@ function spalla() {
         let chats = this.data.whatsappChats;
         // If chats not loaded yet, fetch them
         if (!chats || chats.length === 0) {
-          const res = await fetch(`/api/evolution-proxy/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
+          const res = await fetch(`/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
           });
           if (res.ok) chats = await res.json();
@@ -683,7 +683,7 @@ function spalla() {
         if (!chat) return;
 
         // Fetch last 10 messages
-        const res = await fetch(`/api/evolution-proxy/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
+        const res = await fetch(`/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ where: { key: { remoteJid: chat.remoteJid || chat.id } }, limit: 10 }),
@@ -1280,7 +1280,7 @@ function spalla() {
     async fetchWhatsAppChats() {
       this.ui.whatsappLoading = true;
       try {
-        const res = await fetch(`/api/evolution-proxy/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
+        const res = await fetch(`/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({}),
@@ -1313,7 +1313,7 @@ function spalla() {
       this.ui.whatsappSelectedChat = chat;
       this.ui.whatsappLoading = true;
       try {
-        const res = await fetch(`/api/evolution-proxy/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
+        const res = await fetch(`/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ where: { key: { remoteJid: chat.remoteJid || chat.id } }, limit: 50 }),
@@ -1342,7 +1342,7 @@ function spalla() {
       const msg = this.ui.whatsappMessage.trim();
       this.ui.whatsappMessage = '';
       try {
-        const res = await fetch(`/api/evolution-proxy/message/sendText/${EVOLUTION_CONFIG.INSTANCE}`, {
+        const res = await fetch(`/api/evolution/message/sendText/${EVOLUTION_CONFIG.INSTANCE}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ number: this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id, text: msg }),
