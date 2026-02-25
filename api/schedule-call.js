@@ -10,14 +10,22 @@ export default async function handler(req, res) {
     const { mentorado, mentorado_id, tipo, data, horario, duracao, email, notas } = req.body;
     console.log('[Schedule] Request:', { mentorado, tipo, data, horario, duracao, email });
 
-    const [dia, mes, ano] = data.split('/');
-    const isoDate = `${ano}-${mes}-${dia}`;
+    // Data can be either dd/mm/yyyy or yyyy-mm-dd format
+    let isoDate;
+    if (data.includes('/')) {
+      const [dia, mes, ano] = data.split('/');
+      isoDate = `${ano}-${mes}-${dia}`;
+    } else {
+      isoDate = data; // Already in yyyy-mm-dd format
+    }
     const startTime = `${isoDate}T${horario}:00`;
+    console.log('[Schedule] Parsed date:', { input: data, isoDate, startTime });
     const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
 
     let zoomResult = null, calendarResult = null;
 
     try {
+      console.log('[Schedule] Calling Zoom API:', `${baseUrl}/api/zoom`);
       const zRes = await fetch(`${baseUrl}/api/zoom`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -28,11 +36,13 @@ export default async function handler(req, res) {
         }),
       });
       zoomResult = await zRes.json();
+      console.log('[Schedule] Zoom result:', zoomResult);
     } catch (e) {
-      console.error('[Schedule] Zoom failed:', e.message);
+      console.error('[Schedule] Zoom exception:', e.message);
     }
 
     try {
+      console.log('[Schedule] Calling Calendar API:', `${baseUrl}/api/calendar`);
       const cRes = await fetch(`${baseUrl}/api/calendar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -44,8 +54,9 @@ export default async function handler(req, res) {
         }),
       });
       calendarResult = await cRes.json();
+      console.log('[Schedule] Calendar result:', calendarResult);
     } catch (e) {
-      console.error('[Schedule] Calendar failed:', e.message);
+      console.error('[Schedule] Calendar exception:', e.message);
     }
 
     return res.status(200).json({
