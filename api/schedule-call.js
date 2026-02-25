@@ -11,15 +11,31 @@ export default async function handler(req, res) {
     console.log('[Schedule] Request:', { mentorado, tipo, data, horario, duracao, email });
 
     // Data can be either dd/mm/yyyy or yyyy-mm-dd format
-    let isoDate;
+    let isoDate, dataFormatada;
     if (data.includes('/')) {
       const [dia, mes, ano] = data.split('/');
       isoDate = `${ano}-${mes}-${dia}`;
+      dataFormatada = data; // Keep as dd/mm/yyyy
     } else {
       isoDate = data; // Already in yyyy-mm-dd format
+      const [ano, mes, dia] = data.split('-');
+      dataFormatada = `${dia}/${mes}/${ano}`; // Convert to dd/mm/yyyy
     }
     const startTime = `${isoDate}T${horario}:00`;
     console.log('[Schedule] Parsed date:', { input: data, isoDate, startTime });
+
+    // Format event title: [Case] Nome - Tipo de Reunião - Data
+    const tiposReuniao = {
+      'acompanhamento': 'Reunião de Acompanhamento',
+      'onboarding': 'Reunião de Onboarding',
+      'diagnóstico': 'Reunião de Diagnóstico',
+      'diagnostico': 'Reunião de Diagnóstico',
+      'planejamento': 'Reunião de Planejamento',
+      'consulta': 'Consulta',
+      'mentoria': 'Mentoria',
+    };
+    const tipoReuniao = tiposReuniao[tipo?.toLowerCase()] || `Reunião de ${tipo}`;
+    const eventTitle = `[Case] ${mentorado} - ${tipoReuniao} - ${dataFormatada}`;
 
     let zoomResult = null, calendarResult = null;
     let zoomError = null, calendarError = null;
@@ -53,7 +69,7 @@ export default async function handler(req, res) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          topic: `Mentoria ${tipo} - ${mentorado}`,
+          topic: eventTitle,
           type: 2,
           start_time: startTime,
           duration: duracao,
@@ -134,7 +150,7 @@ export default async function handler(req, res) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          summary: `Mentoria ${tipo} - ${mentorado}`,
+          summary: eventTitle,
           start: { dateTime: startDate.toISOString(), timeZone: 'America/Sao_Paulo' },
           end: { dateTime: endDate.toISOString(), timeZone: 'America/Sao_Paulo' },
           description: email ? `Participante: ${email}` : '',
