@@ -24,8 +24,8 @@ export default async function handler(req, res) {
 
     let zoomResult = null, calendarResult = null;
 
+    // Zoom
     try {
-      console.log('[Schedule] Calling Zoom API:', `${baseUrl}/api/zoom`);
       const zRes = await fetch(`${baseUrl}/api/zoom`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -35,14 +35,15 @@ export default async function handler(req, res) {
           duration: duracao,
         }),
       });
-      zoomResult = await zRes.json();
-      console.log('[Schedule] Zoom result:', zoomResult);
+      const zData = await zRes.text();
+      console.log('[Schedule] Zoom status:', zRes.status, 'body:', zData);
+      if (zRes.ok) zoomResult = JSON.parse(zData);
     } catch (e) {
-      console.error('[Schedule] Zoom exception:', e.message);
+      console.error('[Schedule] Zoom error:', e);
     }
 
+    // Calendar
     try {
-      console.log('[Schedule] Calling Calendar API:', `${baseUrl}/api/calendar`);
       const cRes = await fetch(`${baseUrl}/api/calendar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -53,10 +54,11 @@ export default async function handler(req, res) {
           email,
         }),
       });
-      calendarResult = await cRes.json();
-      console.log('[Schedule] Calendar result:', calendarResult);
+      const cData = await cRes.text();
+      console.log('[Schedule] Calendar status:', cRes.status, 'body:', cData);
+      if (cRes.ok) calendarResult = JSON.parse(cData);
     } catch (e) {
-      console.error('[Schedule] Calendar exception:', e.message);
+      console.error('[Schedule] Calendar error:', e);
     }
 
     return res.status(200).json({
