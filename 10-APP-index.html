@@ -1413,10 +1413,7 @@
                 </div>
 
                 <label>Mentorado *</label>
-                <select x-model="scheduleForm.mentorado" class="modal__select" @change="
-                  const found = this.data.mentees.find(m => m.nome === scheduleForm.mentorado);
-                  if (found) { scheduleForm.mentorado_id = found.id || ''; scheduleForm.email = found.email || ''; } else { scheduleForm.mentorado_id = ''; }
-                ">
+                <select x-model="scheduleForm.mentorado" class="modal__select" @change="onMentoradoSelect()">
                   <option value="">-- Selecione --</option>
                   <template x-for="name in menteeNames" :key="name">
                     <option :value="name" x-text="name"></option>

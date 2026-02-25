@@ -1542,6 +1542,16 @@ function spalla() {
       return calls;
     },
 
+    onMentoradoSelect() {
+      const nome = this.scheduleForm.mentorado;
+      if (!nome) return;
+      const m = this.data.mentees.find(x => x.nome === nome);
+      if (m) {
+        this.scheduleForm.mentorado_id = m.id || '';
+        this.scheduleForm.email = m.email || '';
+      }
+    },
+
     getScheduleBlock(nome) {
       if (!nome) return null;
       const m = this.data.mentees.find(x => x.nome === nome);
