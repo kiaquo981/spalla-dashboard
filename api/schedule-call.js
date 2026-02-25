@@ -198,15 +198,27 @@ export default async function handler(req, res) {
         body: JSON.stringify(calendarBody),
       });
 
-      let event = await eventRes.json();
-      console.log('[Schedule] Calendar full response:', JSON.stringify(event));
-      console.log('[Schedule] Calendar response:', {
+      const eventText = await eventRes.text();
+      console.log('[Schedule] Calendar HTTP Status:', eventRes.status);
+      console.log('[Schedule] Calendar HTTP OK:', eventRes.ok);
+      console.log('[Schedule] Calendar Raw Response:', eventText);
+
+      let event;
+      try {
+        event = JSON.parse(eventText);
+      } catch (e) {
+        console.error('[Schedule] Failed to parse Calendar response as JSON:', e.message);
+        throw new Error(`Invalid JSON from Calendar API: ${eventText.substring(0, 200)}`);
+      }
+
+      console.log('[Schedule] Calendar Parsed JSON:', {
         status: eventRes.status,
         ok: eventRes.ok,
         hasId: !!event.id,
         eventId: event.id || 'NO ID',
         hasError: !!event.error,
-        errorMessage: event.error?.message || 'NO ERROR'
+        errorMessage: event.error?.message || 'NO ERROR',
+        keys: Object.keys(event)
       });
 
       // If first attempt failed with attendees, try without
