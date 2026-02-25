@@ -108,7 +108,7 @@
   --t-slow: 350ms;
 
   /* Layout */
-  --sidebar-w: 260px;
+  --sidebar-w: 300px;
   --sidebar-collapsed-w: 72px;
   --topbar-h: 64px;
   --content-max-w: 1440px;
