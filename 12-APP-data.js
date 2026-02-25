@@ -7,7 +7,7 @@
 const EVOLUTION_CONFIG = {
   BASE_URL: 'https://evolution.manager01.feynmanproject.com',
   INSTANCE: 'produ02',
-  API_KEY: localStorage.getItem('evolution_api_key') || '07826A779A5C-4E9C-A978-DBCD5F9E4C97',
+  API_KEY: (typeof localStorage !== 'undefined' && localStorage.getItem('evolution_api_key')) || '07826A779A5C-4E9C-A978-DBCD5F9E4C97',
 };
 
 // ===== GOOGLE DRIVE FOLDERS =====
@@ -1429,3 +1429,9 @@ const DEMO_TASKS = [
 
 // All mentee names for dropdowns
 const ALL_MENTEE_NAMES = DEMO_MENTEES.map(m => m.nome).filter(n => !['Karine Canabrava', 'Letícia Oliveira', 'Flávia Nantes'].includes(n)).sort();
+
+// ===== INITIALIZATION LOG =====
+console.log('[Spalla] data.js loaded successfully');
+console.log('[Spalla] DEMO_MENTEES count:', DEMO_MENTEES.length);
+console.log('[Spalla] DOSSIER_PIPELINE count:', DOSSIER_PIPELINE.length);
+console.log('[Spalla] DOSSIER_STATUS_CONFIG keys:', Object.keys(DOSSIER_STATUS_CONFIG));

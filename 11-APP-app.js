@@ -667,7 +667,7 @@ function spalla() {
         const firstName = nome.split(' ')[0].toLowerCase();
         let chats = this.data.whatsappChats;
         // If chats not loaded yet, fetch them
-      const chatName = (chats || []).find(c => (c.pushName || c.name || "").toLowerCase().includes(nome.toLowerCase()));
+        if (!chats || chats.length === 0) {
           const res = await fetch(`/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
           });
@@ -844,8 +844,6 @@ function spalla() {
     _cacheTasksLocal() {
       try { localStorage.setItem(CONFIG.TASKS_STORAGE_KEY, JSON.stringify(this.data.tasks)); } catch (e) {}
     },
-
-    const VALID_COLS = Object.keys(formData).filter(k => !k.startsWith("_"));
 
     async _sbDeleteTask(taskId) {
       if (!sb) return;
@@ -1459,12 +1457,12 @@ function spalla() {
       return this.data.mentees
         .filter(m => {
           if (!m.ultima_call_data) return true;
-          const dias = Math.floor((hoje - parseDateStr(m.ultima_call_data).getTime()) / 86400000);
+          const dias = Math.floor((hoje - this._parseDate(m.ultima_call_data).getTime()) / 86400000);
           return dias > 30;
         })
-      const d = parseDateStr(m.ultima_call_data); const dias = d ? Math.floor((hoje - d.getTime()) / 86400000) : null;
+        .map(m => ({
           ...m,
-          dias: m.ultima_call_data ? Math.floor((hoje - parseDateStr(m.ultima_call_data).getTime()) / 86400000) : null,
+          dias: m.ultima_call_data ? Math.floor((hoje - this._parseDate(m.ultima_call_data).getTime()) / 86400000) : null,
         }))
         .sort((a, b) => (b.dias || 999) - (a.dias || 999));
     },
@@ -1948,3 +1946,20 @@ function spalla() {
 }
 
 // ===== DEMO DATA moved to data.js =====
+
+// ===== INITIALIZATION LOG =====
+console.log('[Spalla] app.js loaded successfully');
+console.log('[Spalla] spalla() function defined:', typeof spalla === 'function');
+console.log('[Spalla] DOSSIER_PIPELINE available:', typeof DOSSIER_PIPELINE !== 'undefined');
+console.log('[Spalla] DOSSIER_STATUS_CONFIG available:', typeof DOSSIER_STATUS_CONFIG !== 'undefined');
+
+// Auto-init Alpine if it's already loaded
+if (typeof window.Alpine !== 'undefined' && window.Alpine.start) {
+  console.log('[Spalla] Alpine already loaded, scheduling init...');
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+      console.log('[Spalla] Calling Alpine.start()...');
+      window.Alpine.start();
+    }, 100);
+  });
+}

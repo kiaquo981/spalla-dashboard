@@ -14,10 +14,28 @@
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a,#1e293b,#0f172a);font-family:'Inter',sans-serif;color:#10b981;font-size:24px;font-weight:800; }
     #loading-fallback span { animation:pulse 1.5s infinite; }
     @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.5} }
+
+    /* Fallback: force app to show after 8s if Alpine fails */
+    @media (prefers-reduced-motion: no-preference) {
+      #app { transition: opacity 0.3s ease; }
+    }
   </style>
 </head>
 <body>
   <div id="loading-fallback"><span>Spalla</span></div>
+
+  <script>
+    // Global error catcher BEFORE everything
+    window.addEventListener('error', (e) => {
+      console.error('[Spalla] Global error:', e.message, e.filename, e.lineno);
+    });
+
+    window.addEventListener('unhandledrejection', (e) => {
+      console.error('[Spalla] Unhandled promise rejection:', e.reason);
+    });
+
+    console.log('[Spalla] Error listeners attached');
+  </script>
 
   <div id="app" x-data="spalla()" style="display:none">
 
@@ -1702,22 +1720,74 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="data.js?v=29"></script>
   <script src="app.js?v=29"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
   <script>
+    // Aggressive debugging
+    console.log('[Spalla] === PAGE LOAD STARTED ===');
+
+    // Check if scripts are loaded
+    setTimeout(() => {
+      console.log('[Spalla] 100ms - spalla() defined?', typeof spalla === 'function');
+      console.log('[Spalla] 100ms - DOSSIER_PIPELINE defined?', typeof DOSSIER_PIPELINE !== 'undefined');
+      console.log('[Spalla] 100ms - window.Alpine defined?', typeof window.Alpine !== 'undefined');
+      console.log('[Spalla] 100ms - window.supabase defined?', typeof window.supabase !== 'undefined');
+    }, 100);
+
+    // Alpine initialization listeners
     document.addEventListener('alpine:init', () => {
-      console.log('[Spalla] Alpine initialized');
+      console.log('[Spalla] ✅ Alpine initialized successfully');
       document.getElementById('loading-fallback')?.remove();
       document.getElementById('app').style.display = '';
     });
-    document.addEventListener('DOMContentLoaded', () => {
-      setTimeout(() => {
-        if (document.getElementById('loading-fallback')) {
-          console.warn('[Spalla] Force-showing app');
-          document.getElementById('loading-fallback')?.remove();
-          document.getElementById('app').style.display = '';
-        }
-      }, 2000);
+
+    document.addEventListener('alpine:reinit', () => {
+      console.log('[Spalla] Alpine reinit triggered');
     });
+
+    // Fallback: if Alpine doesn't init within 5s, force show
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('[Spalla] DOMContentLoaded fired');
+
+      setTimeout(() => {
+        const loadingEl = document.getElementById('loading-fallback');
+        const appEl = document.getElementById('app');
+
+        console.log('[Spalla] 5s timeout - checking state...');
+        console.log('[Spalla] - loadingEl visible?', loadingEl ? 'yes' : 'no');
+        console.log('[Spalla] - appEl visible?', appEl?.style.display);
+        console.log('[Spalla] - Alpine started?', window.Alpine?.start ? 'yes' : 'no');
+
+        if (loadingEl) {
+          console.warn('[Spalla] ⚠️  FORCING app to show (Alpine timeout after 5s)');
+          loadingEl.style.display = 'none';
+          if (appEl) appEl.style.display = '';
+
+          // Try to start Alpine manually
+          if (window.Alpine && window.Alpine.start) {
+            try {
+              console.log('[Spalla] Attempting manual Alpine.start()...');
+              window.Alpine.start();
+              console.log('[Spalla] ✅ Manual Alpine.start() succeeded');
+            } catch (e) {
+              console.error('[Spalla] ❌ Manual Alpine.start() failed:', e.message);
+            }
+          }
+        }
+      }, 5000);
+    });
+
+    // Super aggressive fallback at 8s
+    setTimeout(() => {
+      const loadingEl = document.getElementById('loading-fallback');
+      if (loadingEl && loadingEl.style.display !== 'none') {
+        console.error('[Spalla] ❌ CRITICAL: Still showing loading fallback at 8s!');
+        loadingEl.style.display = 'none';
+        const appEl = document.getElementById('app');
+        if (appEl) appEl.style.display = '';
+      }
+    }, 8000);
+
+    console.log('[Spalla] Script block initialized. Waiting for scripts...');
   </script>
 </body>
 </html>
