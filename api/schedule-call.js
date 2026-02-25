@@ -141,9 +141,33 @@ export default async function handler(req, res) {
       const startDate = new Date(startTime);
       const endDate = new Date(startDate.getTime() + duracao * 60000);
 
-      console.log('[Schedule] Creating Calendar event:', { summary: eventTitle, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
+      // Build description with all details
+      const descriptionLines = [
+        `=== DETALHES DA REUNIÃO ===`,
+        `Horário: ${horario}`,
+        `Duração: ${duracao} minutos`,
+        `Data: ${dataFormatada}`,
+        ``,
+        `=== PARTICIPANTES ===`,
+        email ? `Mentorado: ${mentorado} (${email})` : `Mentorado: ${mentorado}`,
+        `Coordenador: Queila Trizotti (queila.trizotti@gmail.com)`,
+        `Admin: adm@allindigitalmarketing.com.br`,
+        ``,
+        `=== LINK ZOOM ===`,
+        `${zoomResult?.join_url || 'Link do Zoom será adicionado após criação'}`,
+        ``,
+        notas ? `=== NOTAS ===\n${notas}` : ''
+      ].filter(line => line !== '').join('\n');
 
-      const eventRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1', {
+      console.log('[Schedule] Creating Calendar event:', { summary: eventTitle, startDate: startDate.toISOString(), endDate: endDate.toISOString(), attendees: [email, 'queila.trizotti@gmail.com', 'adm@allindigitalmarketing.com.br'] });
+
+      // Build attendees list
+      const attendees = [];
+      if (email) attendees.push({ email, responseStatus: 'needsAction' });
+      attendees.push({ email: 'queila.trizotti@gmail.com', responseStatus: 'needsAction' });
+      attendees.push({ email: 'adm@allindigitalmarketing.com.br', responseStatus: 'needsAction', organizer: true });
+
+      const eventRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&supportsAttachments=true', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${tokenData.access_token}`,
@@ -153,7 +177,8 @@ export default async function handler(req, res) {
           summary: eventTitle,
           start: { dateTime: startDate.toISOString(), timeZone: 'America/Sao_Paulo' },
           end: { dateTime: endDate.toISOString(), timeZone: 'America/Sao_Paulo' },
-          description: email ? `Participante: ${email}` : '',
+          description: descriptionLines,
+          attendees: attendees,
           conferenceData: {
             createRequest: {
               requestId: `meet-${Date.now()}`,
