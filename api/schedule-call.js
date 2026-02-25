@@ -199,11 +199,14 @@ export default async function handler(req, res) {
       });
 
       let event = await eventRes.json();
+      console.log('[Schedule] Calendar full response:', JSON.stringify(event));
       console.log('[Schedule] Calendar response:', {
         status: eventRes.status,
         ok: eventRes.ok,
         hasId: !!event.id,
-        fullResponse: JSON.stringify(event).substring(0, 500)
+        eventId: event.id || 'NO ID',
+        hasError: !!event.error,
+        errorMessage: event.error?.message || 'NO ERROR'
       });
 
       // If first attempt failed with attendees, try without
@@ -231,7 +234,8 @@ export default async function handler(req, res) {
         });
 
         event = await eventRes2.json();
-        console.log('[Schedule] Retry response:', { status: eventRes2.status, ok: eventRes2.ok, hasId: !!event.id });
+        console.log('[Schedule] Retry FULL response:', JSON.stringify(event));
+        console.log('[Schedule] Retry response:', { status: eventRes2.status, ok: eventRes2.ok, hasId: !!event.id, eventId: event.id || 'NO ID' });
 
         if (!event.id) {
           throw new Error(`Calendar creation failed even without attendees: ${JSON.stringify(event)}`);
