@@ -1,4 +1,12 @@
 export default async function handler(req, res) {
+  const slug = req.query.slug;
+  const path = Array.isArray(slug) ? '/' + slug.join('/') : '/' + (slug || '');
+
+  // Only handle /api/evolution/* requests
+  if (!path.startsWith('/evolution')) {
+    return res.status(404).json({ error: 'Not found', path });
+  }
+
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -6,16 +14,8 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    // Extract path from request URL (e.g., /api/evolution/chat/findChats/produ02 → /chat/findChats/produ02)
-    const path = req.url.replace('/api/evolution', '');
     const url = `https://evolution.manager01.feynmanproject.com${path}`;
-
-    console.log('[Evolution] Proxying:', {
-      method: req.method,
-      path,
-      url,
-      body: req.body ? 'present' : 'empty',
-    });
+    console.log('[Evolution] Proxying:', { method: req.method, path, url });
 
     const body = req.method !== 'GET' && req.method !== 'HEAD'
       ? (typeof req.body === 'string' ? req.body : JSON.stringify(req.body))
@@ -34,7 +34,6 @@ export default async function handler(req, res) {
     console.log('[Evolution] Response:', {
       status: response.status,
       contentType: response.headers.get('content-type'),
-      textLength: text.length,
     });
 
     res.setHeader('Content-Type', response.headers.get('content-type') || 'application/json');
