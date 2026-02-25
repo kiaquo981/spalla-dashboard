@@ -498,7 +498,8 @@ function spalla() {
           text: [c.name, c.pushName, c.subject].filter(Boolean).join(' ').toLowerCase(),
           pic: c.profilePicUrl,
         }));
-    // TODO: Add Supabase realtime subscriptions here for live updates
+        // TODO: Add Supabase realtime subscriptions here for live updates
+        for (const m of (this.data.mentees || [])) {
           if (!m.nome || pics[m.nome]) continue;
           const nameLower = m.nome.toLowerCase();
           const firstName = nameLower.split(' ')[0];
