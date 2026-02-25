@@ -1599,13 +1599,16 @@ function spalla() {
         });
 
         const result = await resp.json();
+        console.log('[Schedule] Full response:', result);
 
-        if (result.zoom?.join_url) {
-          this.toast('Call agendada! Zoom + Calendar criados', 'success');
-        } else if (result.calendar?.event_id) {
-          this.toast('Call agendada no Calendar (Zoom nao configurado)', 'success');
-          const json = await res.json().catch(() => ({ error: "Invalid response" }));
-          this.toast('Call registrada (integracoes pendentes)', 'warning');
+        if (result.zoom?.id && result.calendar?.id) {
+          this.toast('✅ Zoom + Calendar criados!', 'success');
+        } else if (result.zoom?.id) {
+          this.toast('✅ Zoom criado (Calendar pendente)', 'warning');
+        } else if (result.calendar?.id) {
+          this.toast('✅ Calendar criado (Zoom pendente)', 'warning');
+        } else {
+          this.toast('✅ Call registrada (Zoom/Calendar pendentes)', 'warning');
         }
 
         // Store locally for immediate UI update
