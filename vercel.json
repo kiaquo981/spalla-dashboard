@@ -4,6 +4,10 @@
   "public": true,
   "rewrites": [
     {
+      "source": "/api/:path*",
+      "destination": "/api/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/10-APP-index.html"
     }
