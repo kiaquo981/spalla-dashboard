@@ -34,7 +34,13 @@
       console.error('[Spalla] Unhandled promise rejection:', e.reason);
     });
 
+    // API Base URL configuration
+    // In production (Vercel), use relative URLs (empty string means current origin)
+    // In development (localhost), can use localhost if needed
+    window.API_BASE_URL = '';
+
     console.log('[Spalla] Error listeners attached');
+    console.log('[Spalla] API_BASE_URL:', window.API_BASE_URL || '(using relative URLs)');
   </script>
 
   <div id="app" x-data="spalla()" style="display:none">
