@@ -20,57 +20,144 @@ export default async function handler(req, res) {
     }
     const startTime = `${isoDate}T${horario}:00`;
     console.log('[Schedule] Parsed date:', { input: data, isoDate, startTime });
-    const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
 
     let zoomResult = null, calendarResult = null;
+    let zoomError = null, calendarError = null;
 
-    // Zoom
-    let zoomError = null;
+    // ============ ZOOM INLINE ============
     try {
-      const zRes = await fetch(`${baseUrl}/api/zoom`, {
+      console.log('[Schedule] Creating Zoom meeting...');
+
+      // Step 1: Get Zoom token
+      const tokenRes = await fetch('https://zoom.us/oauth/token', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Authorization': `Basic ${Buffer.from('fvNVWKX_SumngWI1kQNhg:zsgo0Xjtih8Yn2B0SLPVTK5J0Jh3WO9g').toString('base64')}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'grant_type=account_credentials&account_id=DXq-KNA5QuSpcjG6UeUs0Q',
+      });
+
+      const tokenData = await tokenRes.json();
+      console.log('[Schedule] Zoom token:', { status: tokenRes.status, ok: tokenRes.ok, hasToken: !!tokenData.access_token });
+
+      if (!tokenData.access_token) {
+        throw new Error(`No Zoom token: ${JSON.stringify(tokenData)}`);
+      }
+
+      // Step 2: Create meeting
+      const meetRes = await fetch('https://api.zoom.us/v2/users/me/meetings', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tokenData.access_token}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           topic: `Mentoria ${tipo} - ${mentorado}`,
+          type: 2,
           start_time: startTime,
           duration: duracao,
+          timezone: 'America/Sao_Paulo',
         }),
       });
-      const zData = await zRes.text();
-      console.log('[Schedule] Zoom status:', zRes.status, 'body:', zData);
-      if (zRes.ok) {
-        zoomResult = JSON.parse(zData);
+
+      const meeting = await meetRes.json();
+      console.log('[Schedule] Zoom meeting:', { status: meetRes.status, id: meeting.id });
+
+      if (meeting.id) {
+        zoomResult = { success: true, id: meeting.id, join_url: meeting.join_url };
       } else {
-        zoomError = `Zoom returned ${zRes.status}: ${zData}`;
+        throw new Error(`No meeting ID: ${JSON.stringify(meeting)}`);
       }
     } catch (e) {
       zoomError = e.message;
-      console.error('[Schedule] Zoom error:', e);
+      console.error('[Schedule] Zoom error:', e.message);
     }
 
-    // Calendar
-    let calendarError = null;
+    // ============ GOOGLE CALENDAR INLINE ============
     try {
-      const cRes = await fetch(`${baseUrl}/api/calendar`, {
+      console.log('[Schedule] Creating Google Calendar event...');
+
+      if (!process.env.GOOGLE_SERVICE_ACCOUNT) {
+        throw new Error('GOOGLE_SERVICE_ACCOUNT not configured');
+      }
+
+      const cred = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
+
+      // Create JWT token manually
+      const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+      const now = Math.floor(Date.now() / 1000);
+      const payload = Buffer.from(JSON.stringify({
+        iss: cred.client_email,
+        scope: 'https://www.googleapis.com/auth/calendar',
+        aud: 'https://oauth2.googleapis.com/token',
+        exp: now + 3600,
+        iat: now,
+      })).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+
+      // Import crypto
+      const { createSign } = await import('crypto');
+      const sig = createSign('RSA-SHA256')
+        .update(`${header}.${payload}`)
+        .sign(cred.private_key, 'base64')
+        .replace(/=/g, '')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_');
+
+      const jwt = `${header}.${payload}.${sig}`;
+      console.log('[Schedule] JWT created');
+
+      // Get token
+      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+      });
+
+      const tokenData = await tokenRes.json();
+      console.log('[Schedule] Calendar token:', { status: tokenRes.status, ok: tokenRes.ok, hasToken: !!tokenData.access_token });
+
+      if (!tokenData.access_token) {
+        throw new Error('No Calendar token: ' + JSON.stringify(tokenData));
+      }
+
+      // Create event
+      const startDate = new Date(startTime);
+      const endDate = new Date(startDate.getTime() + duracao * 60000);
+
+      console.log('[Schedule] Creating Calendar event:', { summary: `Mentoria ${tipo} - ${mentorado}`, startDate, endDate });
+
+      const eventRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tokenData.access_token}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           summary: `Mentoria ${tipo} - ${mentorado}`,
-          start_time: startTime,
-          duration: duracao,
-          email,
+          start: { dateTime: startDate.toISOString(), timeZone: 'America/Sao_Paulo' },
+          end: { dateTime: endDate.toISOString(), timeZone: 'America/Sao_Paulo' },
+          attendees: email ? [{ email }] : [],
+          conferenceData: {
+            createRequest: {
+              requestId: `meet-${Date.now()}`,
+              conferenceSolution: { key: { conferenceSolutionKey: 'hangoutsMeet' } },
+            },
+          },
         }),
       });
-      const cData = await cRes.text();
-      console.log('[Schedule] Calendar status:', cRes.status, 'body:', cData);
-      if (cRes.ok) {
-        calendarResult = JSON.parse(cData);
+
+      const event = await eventRes.json();
+      console.log('[Schedule] Calendar event:', { status: eventRes.status, id: event.id, link: event.htmlLink });
+
+      if (event.id) {
+        calendarResult = { success: true, id: event.id, link: event.htmlLink };
       } else {
-        calendarError = `Calendar returned ${cRes.status}: ${cData}`;
+        throw new Error(`No event ID: ${JSON.stringify(event)}`);
       }
     } catch (e) {
       calendarError = e.message;
-      console.error('[Schedule] Calendar error:', e);
+      console.error('[Schedule] Calendar error:', e.message);
     }
 
     // Save to Supabase
@@ -101,13 +188,14 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       message: `✅ Call scheduled for ${mentorado}`,
-      zoom: zoomResult || null,
-      zoomError: zoomError || null,
-      calendar: calendarResult || null,
-      calendarError: calendarError || null,
+      zoom: zoomResult,
+      zoomError,
+      calendar: calendarResult,
+      calendarError,
       scheduled: { mentorado_id, tipo, data: isoDate, horario, duracao, email, notas },
     });
   } catch (error) {
+    console.error('[Schedule] Fatal error:', error.message);
     return res.status(500).json({ error: error.message });
   }
 }
