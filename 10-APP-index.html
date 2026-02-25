@@ -1505,6 +1505,10 @@
               <div class="wa-chat__header" x-show="ui.whatsappSelectedChat">
                 <div class="avatar avatar--sm avatar--success" x-text="avatarInitials(getWaChatName(ui.whatsappSelectedChat))"></div>
                 <h3 x-text="getWaChatName(ui.whatsappSelectedChat)"></h3>
+                <div style="font-size: 10px; color: #999; margin-top: 4px;">
+                  <span x-text="'[DEBUG] Chat ID: ' + (ui.whatsappSelectedChat?.id || 'null')"></span><br>
+                  <span x-text="'[DEBUG] Msgs count: ' + (data.whatsappMessages?.length || 0)"></span>
+                </div>
               </div>
               <div class="wa-chat__messages" x-show="ui.whatsappSelectedChat">
                 <template x-for="(msg, mi) in data.whatsappMessages" :key="mi">
