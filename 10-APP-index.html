@@ -1396,8 +1396,8 @@
 
                 <label>Mentorado *</label>
                 <select x-model="scheduleForm.mentorado" class="modal__select" @change="
-                  const found = _menteesWithEmail.find(m => m.nome === scheduleForm.mentorado);
-                  if (found) { scheduleForm.email = found.email || ''; scheduleForm.mentorado_id = found.id || ''; }
+                  const found = this.data.mentees.find(m => m.nome === scheduleForm.mentorado);
+                  if (found) { scheduleForm.mentorado_id = found.id || ''; scheduleForm.email = found.email || ''; } else { scheduleForm.mentorado_id = ''; }
                 ">
                   <option value="">-- Selecione --</option>
                   <template x-for="name in menteeNames" :key="name">
@@ -1699,9 +1699,9 @@
   </div>
 
   <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="data.js?v=29"></script>
   <script src="app.js?v=29"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" async></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
   <script>
     document.addEventListener('alpine:init', () => {

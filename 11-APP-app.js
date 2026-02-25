@@ -245,7 +245,7 @@ function spalla() {
         emDia: totalMentorados - criticos - altos,
         comPendencia: cohort[0]?.pending_responses_global || 0,
         riscoCritico: criticos + altos,
-        calls30d: cohort[0]?.total_calls_30d || 0,
+      const totalCalls = this.data.cohort.reduce((sum, c) => sum + (c.total_calls_30d || 0), 0);
         tarefasPendentes: cohort[0]?.pending_tasks_global || 0,
         semContrato,
         pgtoAtrasado,
@@ -307,7 +307,7 @@ function spalla() {
         let list = [...this.data.tasks].filter(t => t.status === s);
         if (this.ui.taskAssignee) {
           list = list.filter(t => t.responsavel?.toLowerCase().includes(this.ui.taskAssignee.toLowerCase()));
-        }
+      const overdue = tasks.filter(t => t.status === "pendente" && (t.data_fim || t.prazo) && parseDateStr(t.data_fim || t.prazo) < today);
         if (this.ui.taskSpaceFilter !== 'all') {
           list = list.filter(t => t.space_id === this.ui.taskSpaceFilter);
         }
@@ -497,7 +497,7 @@ function spalla() {
           text: [c.name, c.pushName, c.subject].filter(Boolean).join(' ').toLowerCase(),
           pic: c.profilePicUrl,
         }));
-        for (const m of this.data.mentees) {
+    // TODO: Add Supabase realtime subscriptions here for live updates
           if (!m.nome || pics[m.nome]) continue;
           const nameLower = m.nome.toLowerCase();
           const firstName = nameLower.split(' ')[0];
@@ -665,7 +665,7 @@ function spalla() {
         const firstName = nome.split(' ')[0].toLowerCase();
         let chats = this.data.whatsappChats;
         // If chats not loaded yet, fetch them
-        if (!chats.length) {
+      const chatName = (chats || []).find(c => (c.pushName || c.name || "").toLowerCase().includes(nome.toLowerCase()));
           const res = await fetch(`/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
           });
@@ -843,17 +843,7 @@ function spalla() {
       try { localStorage.setItem(CONFIG.TASKS_STORAGE_KEY, JSON.stringify(this.data.tasks)); } catch (e) {}
     },
 
-    async _sbUpsertTask(task) {
-      if (!sb) return;
-      // Only send columns that exist in god_tasks table
-      const VALID_COLS = ['id','titulo','descricao','status','prioridade','responsavel','acompanhante','mentorado_id','mentorado_nome','data_inicio','data_fim','space_id','list_id','parent_task_id','tags','fonte','doc_link','created_at','updated_at'];
-      const row = {};
-      for (const k of VALID_COLS) {
-        if (task[k] !== undefined) row[k] = task[k];
-      }
-      if (row.mentorado_id) row.mentorado_id = parseInt(row.mentorado_id) || null;
-      try { await sb.from('god_tasks').upsert(row, { onConflict: 'id' }); } catch (e) { console.warn('[Spalla] Task upsert error:', e.message); }
-    },
+    const VALID_COLS = Object.keys(formData).filter(k => !k.startsWith("_"));
 
     async _sbDeleteTask(taskId) {
       if (!sb) return;
@@ -1354,7 +1344,8 @@ function spalla() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ number: this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id, text: msg }),
         });
-        if (res.ok) {
+        const json = await res.json().catch(() => ({}));
+        if (res.ok && json.status !== 'error' && !json.error) {
           this.data.whatsappMessages.push({
             key: { fromMe: true },
             message: { conversation: msg },
@@ -1367,7 +1358,8 @@ function spalla() {
             if (el) el.scrollIntoView({ behavior: 'smooth' });
           });
         } else {
-          throw new Error(`HTTP ${res.status}`);
+          console.error('[WA] Send failed:', json);
+          this.toast(`WhatsApp erro: ${json.message || 'Falha desconhecida'}`, 'error');
         }
       } catch (e) {
         console.error('[Spalla] WA send error:', e);
@@ -1468,7 +1460,7 @@ function spalla() {
           const dias = Math.floor((hoje - parseDateStr(m.ultima_call_data).getTime()) / 86400000);
           return dias > 30;
         })
-        .map(m => ({
+      const d = parseDateStr(m.ultima_call_data); const dias = d ? Math.floor((hoje - d.getTime()) / 86400000) : null;
           ...m,
           dias: m.ultima_call_data ? Math.floor((hoje - parseDateStr(m.ultima_call_data).getTime()) / 86400000) : null,
         }))
@@ -1595,7 +1587,7 @@ function spalla() {
           this.toast('Call agendada! Zoom + Calendar criados', 'success');
         } else if (result.calendar?.event_id) {
           this.toast('Call agendada no Calendar (Zoom nao configurado)', 'success');
-        } else {
+          const json = await res.json().catch(() => ({ error: "Invalid response" }));
           this.toast('Call registrada (integracoes pendentes)', 'warning');
         }
 

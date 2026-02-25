@@ -12,6 +12,7 @@ import sys
 import time
 import base64
 from datetime import datetime, timedelta
+import pytz
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8888
 
@@ -70,6 +71,17 @@ def create_zoom_meeting(topic, start_time, duration=60, invitees=None):
     token = get_zoom_token()
     if not token:
         return {'error': 'Zoom credentials not configured'}
+
+    # Ensure start_time has timezone offset (HIGH-02, HIGH-06)
+    if isinstance(start_time, str) and 'T' in start_time:
+        # Check if it already has timezone (ends with +HH:MM or -HH:MM)
+        if not ('+' in start_time[-6:] or ('-' in start_time[-6:] and start_time[-3] == ':')):
+            # start_time is naive, add Brasilia timezone offset
+            tz_br = pytz.timezone('America/Sao_Paulo')
+            now_br = datetime.now(tz_br)
+            offset = now_br.strftime('%z')  # Returns '-0300' or '-0400'
+            offset_formatted = f'{offset[:-2]}:{offset[-2:]}'  # Format as '-03:00' or '-04:00'
+            start_time = f'{start_time}{offset_formatted}'
 
     body = json.dumps({
         'topic': topic,
@@ -280,11 +292,24 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         elif self.path == '/api/calls/upcoming':
             self._handle_upcoming_calls()
         elif self.path == '/api/health':
+            # Check Evolution API connectivity (HIGH-01)
+            evolution_connected = False
+            if EVOLUTION_API_KEY:
+                try:
+                    # Quick check: fetch instances to verify API key works
+                    req = urllib.request.Request(f'{EVOLUTION_BASE}/instance/fetchInstances')
+                    req.add_header('apikey', EVOLUTION_API_KEY)
+                    with urllib.request.urlopen(req, timeout=5) as resp:
+                        evolution_connected = (resp.status == 200)
+                except:
+                    evolution_connected = False
+            
             self._send_json({
                 'status': 'ok',
                 'zoom_configured': bool(ZOOM_ACCOUNT_ID and ZOOM_CLIENT_ID),
-                'gcal_configured': os.path.exists(GOOGLE_SA_PATH),
+                'gcal_configured': bool(os.environ.get('GOOGLE_SA_CREDENTIALS_B64')),
                 'supabase_configured': bool(SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY),
+                'evolution_connected': evolution_connected,
             })
         else:
             super().do_GET()
@@ -337,7 +362,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         # Build datetime
-        start_dt = f'{data}T{horario}:00'
+        # Get Brazil timezone offset (HIGH-02)
+        tz_br = pytz.timezone('America/Sao_Paulo')
+        now_br = datetime.now(tz_br)
+        offset = now_br.strftime('%z')
+        offset_formatted = f'{offset[:-2]}:{offset[-2:]}'
+        start_dt = f'{data}T{horario}:00{offset_formatted}'
         end_dt_obj = datetime.fromisoformat(start_dt) + timedelta(minutes=duracao)
         end_dt = end_dt_obj.isoformat()
 
@@ -392,12 +422,13 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             }
             call_data = {
                 'mentorado_id': int(mentorado_id),
-                'data_call': f'{data}T{horario}:00+00:00',
+                'data_call': f'{data}T{horario}:00{offset_formatted}',
                 'tipo': tipo,
                 'tipo_call': tipo_call_map.get(tipo, 'acompanhamento'),
                 'duracao_minutos': duracao,
                 'zoom_meeting_id': str(zoom_result.get('meeting_id', '')),
                 'zoom_topic': topic,
+                'zoom_join_url': zoom_result.get('join_url', ''),
                 'status': 'processando',
                 'observacoes_equipe': notas or None,
                 'link_gravacao': zoom_url or None,

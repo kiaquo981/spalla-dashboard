@@ -253,3 +253,20 @@ CREATE POLICY "Allow service role full access" ON public.analises_whatsapp FOR A
 -- =============================================================================
 -- Done! Schema ready.
 -- =============================================================================
+-- Fix overly permissive RLS policies
+
+-- God Tasks: Allow service role full access, anon/auth read-only
+DROP POLICY IF EXISTS "god_tasks_all" ON god_tasks;
+CREATE POLICY "god_tasks_service_full" ON god_tasks 
+  FOR ALL USING (current_user_id() = auth.uid() OR auth.role() = 'service_role') 
+  WITH CHECK (auth.role() = 'service_role');
+CREATE POLICY "god_tasks_read" ON god_tasks 
+  FOR SELECT USING (auth.role() IN ('authenticated', 'service_role'));
+
+-- Mentorados: Service role full, anon/auth read only
+DROP POLICY IF EXISTS "Allow read access" ON public.marcos_mentorado;
+DROP POLICY IF EXISTS "Allow service role full access" ON public.marcos_mentorado;
+CREATE POLICY "marcos_service_full" ON public.marcos_mentorado 
+  FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
+CREATE POLICY "marcos_read" ON public.marcos_mentorado 
+  FOR SELECT USING (auth.role() IN ('authenticated', 'service_role'));
