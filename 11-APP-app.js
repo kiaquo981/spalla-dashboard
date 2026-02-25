@@ -1599,7 +1599,17 @@ function spalla() {
         });
 
         const result = await resp.json();
-        console.log('[Schedule] Full response:', result);
+        console.log('[Schedule] ===== FULL RESPONSE =====');
+        console.log('[Schedule] Success:', result.success);
+        console.log('[Schedule] Message:', result.message);
+        console.log('[Schedule] Zoom ID:', result.zoom?.id);
+        console.log('[Schedule] Zoom URL:', result.zoom?.join_url);
+        console.log('[Schedule] Zoom Error:', result.zoomError);
+        console.log('[Schedule] ===== CALENDAR DETAILS =====');
+        console.log('[Schedule] Calendar ID:', result.calendar?.id);
+        console.log('[Schedule] Calendar Link:', result.calendar?.link);
+        console.log('[Schedule] Calendar Error:', result.calendarError);
+        console.log('[Schedule] ===== FULL RESPONSE OBJECT =====', result);
 
         if (result.zoom?.id && result.calendar?.id) {
           this.toast('✅ Zoom + Calendar criados!', 'success');
