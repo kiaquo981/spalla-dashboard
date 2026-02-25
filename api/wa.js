@@ -25,6 +25,7 @@ export default async function handler(req, res) {
       }
       url = `https://evolution.manager01.feynmanproject.com/chat/findMessages/produ02`;
       body = JSON.stringify({ remoteJid, limit: limit || 50 });
+      console.log(`[WA] findMessages for remoteJid:`, remoteJid);
     } else {
       return res.status(400).json({ error: 'Unknown action: ' + action });
     }
@@ -41,7 +42,12 @@ export default async function handler(req, res) {
     });
 
     const data = await response.text();
-    console.log(`[WA] ${action} response status:`, response.status, 'length:', data.length);
+    console.log(`[WA] ${action} response:`, {
+      status: response.status,
+      dataLength: data.length,
+      isJson: data.startsWith('{') || data.startsWith('['),
+      preview: data.substring(0, 100),
+    });
 
     // Send back exactly what Evolution API returns
     res.status(response.status);
