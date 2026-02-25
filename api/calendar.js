@@ -8,7 +8,9 @@ export default async function handler(req, res) {
   }
 
   try {
+    console.log('[Calendar] Request received:', { summary, start_time, duration, email });
     const cred = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
+    console.log('[Calendar] Credentials loaded, email:', cred.client_email);
 
     // Create JWT token manually
     const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
@@ -31,6 +33,7 @@ export default async function handler(req, res) {
       .replace(/\//g, '_');
 
     const jwt = `${header}.${payload}.${sig}`;
+    console.log('[Calendar] JWT created');
 
     // Get token
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
@@ -40,13 +43,19 @@ export default async function handler(req, res) {
     });
 
     const tokenData = await tokenRes.json();
-    if (!tokenData.access_token) throw new Error('No token: ' + JSON.stringify(tokenData));
+    console.log('[Calendar] Token response:', { status: tokenRes.status, ok: tokenRes.ok, hasToken: !!tokenData.access_token });
+
+    if (!tokenData.access_token) {
+      throw new Error('No token: ' + JSON.stringify(tokenData));
+    }
 
     // Create event
     const startDate = new Date(start_time);
     const endDate = new Date(startDate.getTime() + duration * 60000);
 
-    const eventRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+    console.log('[Calendar] Creating event:', { summary, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
+
+    const eventRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${tokenData.access_token}`,
@@ -58,15 +67,24 @@ export default async function handler(req, res) {
         end: { dateTime: endDate.toISOString(), timeZone: 'America/Sao_Paulo' },
         attendees: email ? [{ email }] : [],
         conferenceData: {
-          entryPoints: [{ entryPointType: 'video_conference' }],
-          conferenceSolution: { key: { conferenceSolutionKey: { type: 'hangoutsMeet' } } },
+          createRequest: {
+            requestId: `meet-${Date.now()}`,
+            conferenceSolution: { key: { conferenceSolutionKey: 'hangoutsMeet' } },
+          },
         },
       }),
     });
 
     const event = await eventRes.json();
+    console.log('[Calendar] Event creation response:', { status: eventRes.status, ok: eventRes.ok, eventId: event.id, errors: event.errors });
+
+    if (!event.id) {
+      throw new Error('Event creation failed: ' + JSON.stringify(event));
+    }
+
     res.json({ success: true, id: event.id, link: event.htmlLink });
   } catch (e) {
+    console.error('[Calendar] Error:', e.message);
     res.status(500).json({ error: e.message, stack: e.stack });
   }
 }
