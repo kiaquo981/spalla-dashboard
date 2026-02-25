@@ -492,12 +492,17 @@ function spalla() {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
         });
-        console.log('[WA] findChats response:', { status: res.status, ok: res.ok });
+        console.log('[WA] findChats response:', { status: res.status, ok: res.ok, contentType: res.headers.get('content-type') });
         if (!res.ok) {
-          console.log('[WA] findChats failed, trying different endpoint...');
+          const errorBody = await res.text();
+          console.warn('[WA] findChats failed:', { status: res.status, error: errorBody.substring(0, 200) });
           return;
         }
         const chats = await res.json();
+        if (!Array.isArray(chats)) {
+          console.warn('[WA] findChats returned non-array:', typeof chats);
+          return;
+        }
         const pics = {};
         // Build searchable text from each chat (name + pushName + subject)
         const chatEntries = chats.filter(c => c.profilePicUrl).map(c => ({
@@ -680,21 +685,41 @@ function spalla() {
           const res = await fetch(`/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
             method: 'GET', headers: { 'Content-Type': 'application/json' },
           });
-          if (res.ok) chats = await res.json();
+          if (res.ok) {
+            try {
+              chats = await res.json();
+            } catch (e) {
+              console.warn('[Spalla] Failed to parse chats JSON:', e.message);
+              return;
+            }
+          }
         }
         const chat = (chats || []).find(c => {
           const pushName = (c.pushName || c.name || '').toLowerCase();
           return pushName.includes(firstName);
         });
-        if (!chat) return;
+        if (!chat) {
+          console.log('[Spalla] No matching chat found for:', firstName);
+          return;
+        }
 
         // Fetch last 10 messages
         const res = await fetch(`/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}?remoteJid=${encodeURIComponent(chat.remoteJid || chat.id)}&limit=10`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
         });
-        if (!res.ok) return;
-        const data = await res.json();
+        if (!res.ok) {
+          const errorBody = await res.text();
+          console.warn('[Spalla] findMessages failed:', { status: res.status, error: errorBody.substring(0, 200) });
+          return;
+        }
+        let data;
+        try {
+          data = await res.json();
+        } catch (e) {
+          console.warn('[Spalla] Failed to parse messages JSON:', e.message);
+          return;
+        }
         const msgs = data.messages?.records || data.messages || data || [];
         const interactions = (Array.isArray(msgs) ? msgs : []).reverse().map(msg => ({
           sender: msg.key?.fromMe ? 'Equipe CASE' : (msg.pushName || nome),

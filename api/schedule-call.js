@@ -6,8 +6,11 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
+  const debugLogs = [];
+
   try {
     const { mentorado, mentorado_id, tipo, data, horario, duracao, email, notas } = req.body;
+    debugLogs.push(`[Schedule] Request: ${JSON.stringify({ mentorado, tipo, data, horario, duracao, email })}`);
     console.log('[Schedule] Request:', { mentorado, tipo, data, horario, duracao, email });
 
     // Data can be either dd/mm/yyyy or yyyy-mm-dd format
@@ -292,6 +295,14 @@ export default async function handler(req, res) {
       console.error('[Schedule] Supabase save error:', e.message);
     }
 
+    // Log all details for debugging
+    console.log('[Schedule] FINAL RESULT:', {
+      zoomSuccess: !!zoomResult?.id,
+      calendarSuccess: !!calendarResult?.id,
+      zoomError,
+      calendarError,
+    });
+
     return res.status(200).json({
       success: true,
       message: `✅ Call scheduled for ${mentorado}`,
@@ -300,6 +311,12 @@ export default async function handler(req, res) {
       calendar: calendarResult,
       calendarError,
       scheduled: { mentorado_id, tipo, data: isoDate, horario, duracao, email, notas },
+      _debug: {
+        zoomCreated: !!zoomResult?.id,
+        calendarCreated: !!calendarResult?.id,
+        zoomId: zoomResult?.id,
+        calendarId: calendarResult?.id,
+      }
     });
   } catch (error) {
     console.error('[Schedule] Fatal error:', error.message);
