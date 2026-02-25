@@ -24,7 +24,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Missing remoteJid' });
       }
       url = `https://evolution.manager01.feynmanproject.com/chat/findMessages/produ02`;
-      body = JSON.stringify({ remoteJid, limit: limit || 50 });
+      body = JSON.stringify({ where: { key: { remoteJid } }, limit: limit || 50 });
       console.log(`[WA] findMessages for remoteJid:`, remoteJid);
     } else {
       return res.status(400).json({ error: 'Unknown action: ' + action });
