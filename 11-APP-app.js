@@ -1352,24 +1352,36 @@ function spalla() {
     async selectWhatsAppChat(chat) {
       this.ui.whatsappSelectedChat = chat;
       this.ui.whatsappLoading = true;
+      console.log('[WA] Selecting chat:', { name: chat.name || chat.pushName, id: chat.id });
+
       try {
         const url = `${EVOLUTION_CONFIG.BASE_URL}/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`;
+        console.log('[WA] Fetching messages from:', url, 'for remoteJid:', chat.remoteJid || chat.id);
+
         const res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_CONFIG.API_KEY },
           body: JSON.stringify({ remoteJid: chat.remoteJid || chat.id, limit: 50 }),
         });
+
+        console.log('[WA] Response status:', res.status, 'ok:', res.ok);
+
         if (res.ok) {
           const data = await res.json();
+          console.log('[WA] Raw response:', data);
+
           // Evolution API v2 can return { messages: { records: [...] } } or just an array
-          const msgs = data.messages?.records || data.messages || data || [];
+          const msgs = data.messages?.records || data.messages || (Array.isArray(data) ? data : []);
+          console.log('[WA] Parsed messages count:', Array.isArray(msgs) ? msgs.length : 0);
+
           this.data.whatsappMessages = (Array.isArray(msgs) ? msgs : []).reverse();
+          console.log('[WA] Final messages in state:', this.data.whatsappMessages.length);
         } else {
           throw new Error(`HTTP ${res.status}`);
         }
       } catch (e) {
         console.error('[Spalla] WA messages fetch error:', e);
-        this.data.whatsappMessages = DEMO_WA_MESSAGES;
+        this.data.whatsappMessages = [];
       }
       this.ui.whatsappLoading = false;
       this.$nextTick(() => {
