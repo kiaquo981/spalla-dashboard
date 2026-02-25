@@ -247,7 +247,8 @@ img { max-width: 100%; display: block; }
   flex-direction: column;
   z-index: var(--z-sidebar);
   transition: width var(--t-slow) var(--ease-out);
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .sidebar--collapsed { width: var(--sidebar-collapsed-w); }
