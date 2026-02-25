@@ -1301,9 +1301,8 @@ function spalla() {
           throw new Error(`HTTP ${res.status}`);
         }
       } catch (e) {
-        console.error('[Spalla] WhatsApp fetch error:', e);
-        this.toast('Erro ao carregar WhatsApp: ' + e.message, 'error');
-        // Load demo chats
+        console.log('[Spalla] WhatsApp API unavailable (expected on Vercel production). Using demo data.');
+        // Load demo chats silently - Evolution API only works with local Python server
         this.data.whatsappChats = DEMO_WA_CHATS;
       }
       this.ui.whatsappLoading = false;
