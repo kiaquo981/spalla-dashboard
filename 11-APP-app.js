@@ -1400,10 +1400,14 @@ function spalla() {
       const msg = this.ui.whatsappMessage.trim();
       this.ui.whatsappMessage = '';
       try {
-        const res = await fetch(`/api/evolution/message/sendText/${EVOLUTION_CONFIG.INSTANCE}`, {
+        const res = await fetch('/api/wa', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ number: this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id, text: msg }),
+          body: JSON.stringify({
+            action: 'sendText',
+            number: this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id,
+            text: msg
+          }),
         });
         const json = await res.json().catch(() => ({}));
         if (res.ok && json.status !== 'error' && !json.error) {

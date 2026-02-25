@@ -7,7 +7,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { action, remoteJid, limit } = req.body;
+  const { action, remoteJid, limit, number, text } = req.body;
 
   if (!action) {
     return res.status(400).json({ error: 'Missing action' });
@@ -19,6 +19,13 @@ export default async function handler(req, res) {
     if (action === 'findChats') {
       url = `https://evolution.manager01.feynmanproject.com/chat/findChats/produ02`;
       body = JSON.stringify({});
+    } else if (action === 'sendText') {
+      if (!number || !text) {
+        return res.status(400).json({ error: 'Missing number or text' });
+      }
+      url = `https://evolution.manager01.feynmanproject.com/message/sendText/produ02`;
+      body = JSON.stringify({ number, text });
+      console.log(`[WA] sendText to:`, number);
     } else if (action === 'findMessages') {
       if (!remoteJid) {
         return res.status(400).json({ error: 'Missing remoteJid' });
