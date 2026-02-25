@@ -167,29 +167,44 @@ export default async function handler(req, res) {
       attendees.push({ email: 'queila.trizotti@gmail.com', responseStatus: 'needsAction' });
       attendees.push({ email: 'adm@allindigitalmarketing.com.br', responseStatus: 'needsAction', organizer: true });
 
-      const eventRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&supportsAttachments=true', {
+      const calendarBody = {
+        summary: eventTitle,
+        start: { dateTime: startDate.toISOString(), timeZone: 'America/Sao_Paulo' },
+        end: { dateTime: endDate.toISOString(), timeZone: 'America/Sao_Paulo' },
+        description: descriptionLines,
+        attendees: attendees,
+        conferenceData: {
+          createRequest: {
+            requestId: `meet-${Date.now()}`,
+            conferenceSolution: { key: { conferenceSolutionKey: 'hangoutsMeet' } },
+          },
+        },
+      };
+
+      console.log('[Schedule] Calendar request body:', {
+        summary: calendarBody.summary,
+        startTime: calendarBody.start.dateTime,
+        endTime: calendarBody.end.dateTime,
+        attendeesCount: calendarBody.attendees.length,
+        hasConference: !!calendarBody.conferenceData,
+      });
+
+      const eventRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${tokenData.access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          summary: eventTitle,
-          start: { dateTime: startDate.toISOString(), timeZone: 'America/Sao_Paulo' },
-          end: { dateTime: endDate.toISOString(), timeZone: 'America/Sao_Paulo' },
-          description: descriptionLines,
-          attendees: attendees,
-          conferenceData: {
-            createRequest: {
-              requestId: `meet-${Date.now()}`,
-              conferenceSolution: { key: { conferenceSolutionKey: 'hangoutsMeet' } },
-            },
-          },
-        }),
+        body: JSON.stringify(calendarBody),
       });
 
       let event = await eventRes.json();
-      console.log('[Schedule] Calendar response:', { status: eventRes.status, ok: eventRes.ok, hasId: !!event.id });
+      console.log('[Schedule] Calendar response:', {
+        status: eventRes.status,
+        ok: eventRes.ok,
+        hasId: !!event.id,
+        fullResponse: JSON.stringify(event).substring(0, 500)
+      });
 
       // If first attempt failed with attendees, try without
       if (!eventRes.ok && eventRes.status === 403 && event.error?.message?.includes('Domain-Wide Delegation')) {
