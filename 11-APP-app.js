@@ -1566,7 +1566,7 @@ function spalla() {
       this.ui.scheduling = true;
 
       try {
-        const resp = await fetch('/api/schedule-call', {
+        const resp = await fetch(window.API_BASE_URL + '/api/schedule-call', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1620,7 +1620,7 @@ function spalla() {
 
     async fetchUpcomingCalls() {
       try {
-        const resp = await fetch('/api/calls/upcoming');
+        const resp = await fetch(window.API_BASE_URL + '/api/calls/upcoming');
         const calls = await resp.json();
         if (Array.isArray(calls)) {
           this.data.scheduledCalls = calls.map(c => ({
@@ -1639,7 +1639,7 @@ function spalla() {
 
     async fetchMenteesWithEmail() {
       try {
-        const resp = await fetch('/api/mentees');
+        const resp = await fetch(window.API_BASE_URL + '/api/mentees');
         const mentees = await resp.json();
         if (Array.isArray(mentees)) {
           this._menteesWithEmail = mentees;
@@ -1651,7 +1651,7 @@ function spalla() {
 
     async checkIntegrations() {
       try {
-        const resp = await fetch('/api/health');
+        const resp = await fetch(window.API_BASE_URL + '/api/health');
         const health = await resp.json();
         this._integrations = health;
         console.log('[Spalla] Integrations:', health);
