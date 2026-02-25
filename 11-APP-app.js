@@ -1619,7 +1619,7 @@ function spalla() {
           horario: f.horario,
           tipo: f.tipo,
           zoom_url: result.zoom?.join_url || '',
-          calendar_link: result.calendar?.html_link || '',
+          calendar_link: result.calendar?.link || '',
         });
 
         this.ui.scheduleModal = false;
