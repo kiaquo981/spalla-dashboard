@@ -141,7 +141,7 @@ export default async function handler(req, res) {
       const startDate = new Date(startTime);
       const endDate = new Date(startDate.getTime() + duracao * 60000);
 
-      console.log('[Schedule] Creating Calendar event:', { summary: `Mentoria ${tipo} - ${mentorado}`, startDate, endDate });
+      console.log('[Schedule] Creating Calendar event:', { summary: eventTitle, startDate: startDate.toISOString(), endDate: endDate.toISOString() });
 
       const eventRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1', {
         method: 'POST',
@@ -164,16 +164,21 @@ export default async function handler(req, res) {
       });
 
       const event = await eventRes.json();
-      console.log('[Schedule] Calendar event:', { status: eventRes.status, id: event.id, link: event.htmlLink });
+      console.log('[Schedule] Calendar response:', { status: eventRes.status, ok: eventRes.ok, body: event });
+
+      if (!eventRes.ok) {
+        throw new Error(`Calendar API error ${eventRes.status}: ${JSON.stringify(event)}`);
+      }
 
       if (event.id) {
         calendarResult = { success: true, id: event.id, link: event.htmlLink };
+        console.log('[Schedule] Calendar event created:', { id: event.id, link: event.htmlLink });
       } else {
-        throw new Error(`No event ID: ${JSON.stringify(event)}`);
+        throw new Error(`No event ID in response: ${JSON.stringify(event)}`);
       }
     } catch (e) {
       calendarError = e.message;
-      console.error('[Schedule] Calendar error:', e.message);
+      console.error('[Schedule] Calendar error:', e.message, e.stack);
     }
 
     // Save to Supabase with São Paulo timezone offset (-03:00)
