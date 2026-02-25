@@ -487,14 +487,16 @@ function spalla() {
 
     async _loadWaProfilePics() {
       try {
-        // TODO: Evolution API returning 405 - API key may be expired
-        // Disabled for now, enable when Evolution API is available
-        return;
-
+        // Try GET instead of POST - Evolution API may not accept POST on this endpoint
         const res = await fetch(`/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
         });
-        if (!res.ok) return;
+        console.log('[WA] findChats response:', { status: res.status, ok: res.ok });
+        if (!res.ok) {
+          console.log('[WA] findChats failed, trying different endpoint...');
+          return;
+        }
         const chats = await res.json();
         const pics = {};
         // Build searchable text from each chat (name + pushName + subject)
@@ -676,7 +678,7 @@ function spalla() {
         // If chats not loaded yet, fetch them
         if (!chats || chats.length === 0) {
           const res = await fetch(`/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+            method: 'GET', headers: { 'Content-Type': 'application/json' },
           });
           if (res.ok) chats = await res.json();
         }
@@ -687,10 +689,9 @@ function spalla() {
         if (!chat) return;
 
         // Fetch last 10 messages
-        const res = await fetch(`/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
-          method: 'POST',
+        const res = await fetch(`/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}?remoteJid=${encodeURIComponent(chat.remoteJid || chat.id)}&limit=10`, {
+          method: 'GET',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ where: { key: { remoteJid: chat.remoteJid || chat.id } }, limit: 10 }),
         });
         if (!res.ok) return;
         const data = await res.json();
@@ -1285,9 +1286,8 @@ function spalla() {
       this.ui.whatsappLoading = true;
       try {
         const res = await fetch(`/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
-          method: 'POST',
+          method: 'GET',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
         });
         if (res.ok) {
           const chats = await res.json();
@@ -1316,10 +1316,9 @@ function spalla() {
       this.ui.whatsappSelectedChat = chat;
       this.ui.whatsappLoading = true;
       try {
-        const res = await fetch(`/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
-          method: 'POST',
+        const res = await fetch(`/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}?remoteJid=${encodeURIComponent(chat.remoteJid || chat.id)}&limit=50`, {
+          method: 'GET',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ where: { key: { remoteJid: chat.remoteJid || chat.id } }, limit: 50 }),
         });
         if (res.ok) {
           const data = await res.json();
