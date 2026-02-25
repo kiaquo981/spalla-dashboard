@@ -487,15 +487,11 @@ function spalla() {
 
     async _loadWaProfilePics() {
       try {
-        // Call Evolution API directly (no proxy) - CORS enabled
-        const url = `${EVOLUTION_CONFIG.BASE_URL}/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`;
-        const res = await fetch(url, {
+        // Call via Vercel backend proxy
+        const res = await fetch('/api/wa', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': EVOLUTION_CONFIG.API_KEY,
-          },
-          body: '{}',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'findChats' }),
         });
         console.log('[WA] findChats response:', { status: res.status, ok: res.ok, contentType: res.headers.get('content-type') });
         if (!res.ok) {
@@ -685,13 +681,12 @@ function spalla() {
         // Find matching WA chat
         const firstName = nome.split(' ')[0].toLowerCase();
         let chats = this.data.whatsappChats;
-        // If chats not loaded yet, fetch them - direct call to Evolution API
+        // If chats not loaded yet, fetch them
         if (!chats || chats.length === 0) {
-          const url = `${EVOLUTION_CONFIG.BASE_URL}/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`;
-          const res = await fetch(url, {
+          const res = await fetch('/api/wa', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_CONFIG.API_KEY },
-            body: '{}',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'findChats' }),
           });
           if (res.ok) {
             try {
@@ -711,12 +706,11 @@ function spalla() {
           return;
         }
 
-        // Fetch last 10 messages - direct call to Evolution API
-        const url = `${EVOLUTION_CONFIG.BASE_URL}/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`;
-        const res = await fetch(url, {
+        // Fetch last 10 messages
+        const res = await fetch('/api/wa', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_CONFIG.API_KEY },
-          body: JSON.stringify({ remoteJid: chat.remoteJid || chat.id, limit: 10 }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'findMessages', remoteJid: chat.remoteJid || chat.id, limit: 10 }),
         });
         if (!res.ok) {
           const errorBody = await res.text();
@@ -1320,11 +1314,10 @@ function spalla() {
     async fetchWhatsAppChats() {
       this.ui.whatsappLoading = true;
       try {
-        const url = `${EVOLUTION_CONFIG.BASE_URL}/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`;
-        const res = await fetch(url, {
+        const res = await fetch('/api/wa', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_CONFIG.API_KEY },
-          body: '{}',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'findChats' }),
         });
         if (res.ok) {
           const chats = await res.json();
@@ -1366,17 +1359,13 @@ function spalla() {
 
       try {
         const remoteJid = chat.remoteJid || chat.id;
-        const url = `${EVOLUTION_CONFIG.BASE_URL}/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`;
-
         console.log('[WA] Chat object:', chat);
         console.log('[WA] remoteJid:', remoteJid);
-        console.log('[WA] POST to:', url);
-        console.log('[WA] Body: remoteJid=' + remoteJid + ', limit=50');
 
-        const res = await fetch(url, {
+        const res = await fetch('/api/wa', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_CONFIG.API_KEY },
-          body: JSON.stringify({ remoteJid: remoteJid, limit: 50 }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'findMessages', remoteJid: remoteJid, limit: 50 }),
         });
 
         console.log('[WA] Response status:', res.status);
