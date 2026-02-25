@@ -45,7 +45,9 @@ export default async function handler(req, res) {
 
   try {
     const { summary, start_time, duration, email } = req.body;
+    console.log('[Calendar] Creating event:', { summary, start_time, duration, email });
     const token = await getGoogleToken();
+    console.log('[Calendar] Got token:', token.substring(0, 20) + '...');
 
     const startDate = new Date(start_time);
     const endDate = new Date(startDate.getTime() + duration * 60000);

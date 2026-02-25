@@ -21,7 +21,9 @@ export default async function handler(req, res) {
 
   try {
     const { topic, start_time, duration } = req.body;
+    console.log('[Zoom] Creating meeting:', { topic, start_time, duration });
     const token = await getZoomToken();
+    console.log('[Zoom] Got token:', token.substring(0, 20) + '...');
 
     const response = await fetch('https://api.zoom.us/v2/users/me/meetings', {
       method: 'POST',

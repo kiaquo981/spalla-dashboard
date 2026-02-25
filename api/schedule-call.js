@@ -8,6 +8,7 @@ export default async function handler(req, res) {
 
   try {
     const { mentorado, mentorado_id, tipo, data, horario, duracao, email, notas } = req.body;
+    console.log('[Schedule] Request:', { mentorado, tipo, data, horario, duracao, email });
 
     const [dia, mes, ano] = data.split('/');
     const isoDate = `${ano}-${mes}-${dia}`;
