@@ -7,7 +7,7 @@
 const EVOLUTION_CONFIG = {
   BASE_URL: 'https://evolution.manager01.feynmanproject.com',
   INSTANCE: 'produ02',
-  API_KEY: process.env.EVOLUTION_API_KEY || localStorage.getItem('evolution_api_key') || '',
+  API_KEY: localStorage.getItem('evolution_api_key') || '07826A779A5C-4E9C-A978-DBCD5F9E4C97',
 };
 
 // ===== GOOGLE DRIVE FOLDERS =====

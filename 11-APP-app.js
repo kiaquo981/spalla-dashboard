@@ -240,12 +240,13 @@ function spalla() {
       const altos = cohort.reduce((s, c) => s + (c.altos || 0), 0);
       const semContrato = this.data.mentees.filter(m => !m.contrato_assinado).length;
       const pgtoAtrasado = this.data.mentees.filter(m => m.status_financeiro === 'atrasado').length;
+      const totalCalls = this.data.cohort.reduce((sum, c) => sum + (c.total_calls_30d || 0), 0);
       return {
         totalMentorados,
         emDia: totalMentorados - criticos - altos,
         comPendencia: cohort[0]?.pending_responses_global || 0,
         riscoCritico: criticos + altos,
-      const totalCalls = this.data.cohort.reduce((sum, c) => sum + (c.total_calls_30d || 0), 0);
+        calls30d: totalCalls,
         tarefasPendentes: cohort[0]?.pending_tasks_global || 0,
         semContrato,
         pgtoAtrasado,
@@ -307,7 +308,7 @@ function spalla() {
         let list = [...this.data.tasks].filter(t => t.status === s);
         if (this.ui.taskAssignee) {
           list = list.filter(t => t.responsavel?.toLowerCase().includes(this.ui.taskAssignee.toLowerCase()));
-      const overdue = tasks.filter(t => t.status === "pendente" && (t.data_fim || t.prazo) && parseDateStr(t.data_fim || t.prazo) < today);
+        }
         if (this.ui.taskSpaceFilter !== 'all') {
           list = list.filter(t => t.space_id === this.ui.taskSpaceFilter);
         }
