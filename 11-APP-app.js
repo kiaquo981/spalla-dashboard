@@ -487,10 +487,11 @@ function spalla() {
 
     async _loadWaProfilePics() {
       try {
-        // Try GET instead of POST - Evolution API may not accept POST on this endpoint
+        // Use POST with empty body - matches local server behavior
         const res = await fetch(`/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
-          method: 'GET',
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          body: '{}',
         });
         console.log('[WA] findChats response:', { status: res.status, ok: res.ok, contentType: res.headers.get('content-type') });
         if (!res.ok) {
@@ -683,7 +684,9 @@ function spalla() {
         // If chats not loaded yet, fetch them
         if (!chats || chats.length === 0) {
           const res = await fetch(`/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
-            method: 'GET', headers: { 'Content-Type': 'application/json' },
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}',
           });
           if (res.ok) {
             try {
@@ -704,9 +707,10 @@ function spalla() {
         }
 
         // Fetch last 10 messages
-        const res = await fetch(`/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}?remoteJid=${encodeURIComponent(chat.remoteJid || chat.id)}&limit=10`, {
-          method: 'GET',
+        const res = await fetch(`/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ remoteJid: chat.remoteJid || chat.id, limit: 10 }),
         });
         if (!res.ok) {
           const errorBody = await res.text();
@@ -1311,8 +1315,9 @@ function spalla() {
       this.ui.whatsappLoading = true;
       try {
         const res = await fetch(`/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
-          method: 'GET',
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          body: '{}',
         });
         if (res.ok) {
           const chats = await res.json();
@@ -1341,9 +1346,10 @@ function spalla() {
       this.ui.whatsappSelectedChat = chat;
       this.ui.whatsappLoading = true;
       try {
-        const res = await fetch(`/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}?remoteJid=${encodeURIComponent(chat.remoteJid || chat.id)}&limit=50`, {
-          method: 'GET',
+        const res = await fetch(`/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ remoteJid: chat.remoteJid || chat.id, limit: 50 }),
         });
         if (res.ok) {
           const data = await res.json();
