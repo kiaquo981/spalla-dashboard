@@ -487,10 +487,14 @@ function spalla() {
 
     async _loadWaProfilePics() {
       try {
-        // Use POST with empty body - matches local server behavior
-        const res = await fetch(`/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
+        // Call Evolution API directly (no proxy) - CORS enabled
+        const url = `${EVOLUTION_CONFIG.BASE_URL}/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`;
+        const res = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': EVOLUTION_CONFIG.API_KEY,
+          },
           body: '{}',
         });
         console.log('[WA] findChats response:', { status: res.status, ok: res.ok, contentType: res.headers.get('content-type') });
@@ -681,11 +685,12 @@ function spalla() {
         // Find matching WA chat
         const firstName = nome.split(' ')[0].toLowerCase();
         let chats = this.data.whatsappChats;
-        // If chats not loaded yet, fetch them
+        // If chats not loaded yet, fetch them - direct call to Evolution API
         if (!chats || chats.length === 0) {
-          const res = await fetch(`/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
+          const url = `${EVOLUTION_CONFIG.BASE_URL}/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`;
+          const res = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_CONFIG.API_KEY },
             body: '{}',
           });
           if (res.ok) {
@@ -706,10 +711,11 @@ function spalla() {
           return;
         }
 
-        // Fetch last 10 messages
-        const res = await fetch(`/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
+        // Fetch last 10 messages - direct call to Evolution API
+        const url = `${EVOLUTION_CONFIG.BASE_URL}/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`;
+        const res = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_CONFIG.API_KEY },
           body: JSON.stringify({ remoteJid: chat.remoteJid || chat.id, limit: 10 }),
         });
         if (!res.ok) {
@@ -1314,9 +1320,10 @@ function spalla() {
     async fetchWhatsAppChats() {
       this.ui.whatsappLoading = true;
       try {
-        const res = await fetch(`/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
+        const url = `${EVOLUTION_CONFIG.BASE_URL}/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`;
+        const res = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_CONFIG.API_KEY },
           body: '{}',
         });
         if (res.ok) {
@@ -1346,9 +1353,10 @@ function spalla() {
       this.ui.whatsappSelectedChat = chat;
       this.ui.whatsappLoading = true;
       try {
-        const res = await fetch(`/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
+        const url = `${EVOLUTION_CONFIG.BASE_URL}/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`;
+        const res = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_CONFIG.API_KEY },
           body: JSON.stringify({ remoteJid: chat.remoteJid || chat.id, limit: 50 }),
         });
         if (res.ok) {
