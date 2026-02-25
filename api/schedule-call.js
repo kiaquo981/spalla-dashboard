@@ -25,6 +25,7 @@ export default async function handler(req, res) {
     let zoomResult = null, calendarResult = null;
 
     // Zoom
+    let zoomError = null;
     try {
       const zRes = await fetch(`${baseUrl}/api/zoom`, {
         method: 'POST',
@@ -37,12 +38,18 @@ export default async function handler(req, res) {
       });
       const zData = await zRes.text();
       console.log('[Schedule] Zoom status:', zRes.status, 'body:', zData);
-      if (zRes.ok) zoomResult = JSON.parse(zData);
+      if (zRes.ok) {
+        zoomResult = JSON.parse(zData);
+      } else {
+        zoomError = `Zoom returned ${zRes.status}: ${zData}`;
+      }
     } catch (e) {
+      zoomError = e.message;
       console.error('[Schedule] Zoom error:', e);
     }
 
     // Calendar
+    let calendarError = null;
     try {
       const cRes = await fetch(`${baseUrl}/api/calendar`, {
         method: 'POST',
@@ -56,8 +63,13 @@ export default async function handler(req, res) {
       });
       const cData = await cRes.text();
       console.log('[Schedule] Calendar status:', cRes.status, 'body:', cData);
-      if (cRes.ok) calendarResult = JSON.parse(cData);
+      if (cRes.ok) {
+        calendarResult = JSON.parse(cData);
+      } else {
+        calendarError = `Calendar returned ${cRes.status}: ${cData}`;
+      }
     } catch (e) {
+      calendarError = e.message;
       console.error('[Schedule] Calendar error:', e);
     }
 
@@ -89,8 +101,10 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       message: `✅ Call scheduled for ${mentorado}`,
-      zoom: zoomResult?.success ? zoomResult : null,
-      calendar: calendarResult?.success ? calendarResult : null,
+      zoom: zoomResult || null,
+      zoomError: zoomError || null,
+      calendar: calendarResult || null,
+      calendarError: calendarError || null,
       scheduled: { mentorado_id, tipo, data: isoDate, horario, duracao, email, notas },
     });
   } catch (error) {
