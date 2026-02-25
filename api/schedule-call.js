@@ -137,7 +137,7 @@ export default async function handler(req, res) {
           summary: `Mentoria ${tipo} - ${mentorado}`,
           start: { dateTime: startDate.toISOString(), timeZone: 'America/Sao_Paulo' },
           end: { dateTime: endDate.toISOString(), timeZone: 'America/Sao_Paulo' },
-          attendees: email ? [{ email }] : [],
+          description: email ? `Participante: ${email}` : '',
           conferenceData: {
             createRequest: {
               requestId: `meet-${Date.now()}`,
