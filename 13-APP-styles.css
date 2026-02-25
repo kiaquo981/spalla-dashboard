@@ -313,7 +313,7 @@ img { max-width: 100%; display: block; }
 .sidebar__section-label {
   font-size: var(--text-2xs);
   font-weight: 600;
-  color: var(--neutral-500);
+  color: #fff;
   text-transform: uppercase;
   letter-spacing: 1px;
   padding: var(--sp-4) var(--sp-3) var(--sp-2);
