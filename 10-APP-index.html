@@ -1420,11 +1420,10 @@
 
                 <label>Mentorado *</label>
                 <select x-model="scheduleForm.mentorado" class="modal__select" @change="
-                  const m = this.data.mentees.find(x => x.nome === this.scheduleForm.mentorado);
+                  const m = data.mentees.find(x => x.nome === scheduleForm.mentorado);
                   if (m) {
-                    this.scheduleForm.mentorado_id = m.id || '';
-                    this.scheduleForm.email = m.email || '';
-                    console.log('[Spalla] Email filled:', m.email);
+                    scheduleForm.mentorado_id = m.id || '';
+                    scheduleForm.email = m.email || '';
                   }
                 ">
                   <option value="">-- Selecione --</option>
