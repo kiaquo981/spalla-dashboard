@@ -1,15 +1,25 @@
 export default async function handler(req, res) {
-  const route = req.query.route || [];
-  const path = Array.isArray(route) ? '/' + route.join('/') : '/' + route;
+  // Extract route from query parameter
+  const route = req.query.route;
+  const routeArray = Array.isArray(route) ? route : (route ? [route] : []);
+  const path = '/' + routeArray.join('/');
 
-  console.log('[Catch-All] Handling:', { method: req.method, path, fullUrl: req.url });
+  console.log('[Catch-All] Request:', {
+    method: req.method,
+    url: req.url,
+    path,
+    route,
+    routeArray,
+  });
 
   // Evolution API proxy
   if (path.startsWith('/evolution')) {
+    console.log('[Catch-All] → Routing to Evolution handler');
     return handleEvolution(req, res, path);
   }
 
-  res.status(404).json({ error: 'Not found', path });
+  console.log('[Catch-All] → Unknown path:', path);
+  res.status(404).json({ error: 'Not found', path, method: req.method });
 }
 
 async function handleEvolution(req, res, path) {
