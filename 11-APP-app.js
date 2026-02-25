@@ -1374,7 +1374,10 @@ function spalla() {
           const msgs = data.messages?.records || data.messages || (Array.isArray(data) ? data : []);
           console.log('[WA] Parsed messages count:', Array.isArray(msgs) ? msgs.length : 0);
 
-          this.data.whatsappMessages = (Array.isArray(msgs) ? msgs : []).reverse();
+          const reversedMsgs = (Array.isArray(msgs) ? msgs : []).reverse();
+          // Force reactivity - use splice to trigger Alpine updates
+          this.data.whatsappMessages.splice(0);
+          this.data.whatsappMessages.push(...reversedMsgs);
           console.log('[WA] Final messages in state:', this.data.whatsappMessages.length);
         } else {
           throw new Error(`HTTP ${res.status}`);
