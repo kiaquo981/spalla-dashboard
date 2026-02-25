@@ -487,6 +487,10 @@ function spalla() {
 
     async _loadWaProfilePics() {
       try {
+        // TODO: Evolution API returning 405 - API key may be expired
+        // Disabled for now, enable when Evolution API is available
+        return;
+
         const res = await fetch(`/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
         });
