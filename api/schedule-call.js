@@ -189,9 +189,41 @@ export default async function handler(req, res) {
       });
 
       const event = await eventRes.json();
-      console.log('[Schedule] Calendar response:', { status: eventRes.status, ok: eventRes.ok, body: event });
+      console.log('[Schedule] Calendar response:', { status: eventRes.status, ok: eventRes.ok, hasId: !!event.id });
 
       if (!eventRes.ok) {
+        // If attendees failed (Domain-Wide Delegation issue), try without attendees
+        if (eventRes.status === 403 && event.error?.message?.includes('Domain-Wide Delegation')) {
+          console.log('[Schedule] Domain-Wide Delegation error, retrying without attendees...');
+
+          const eventRes2 = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${tokenData.access_token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              summary: eventTitle,
+              start: { dateTime: startDate.toISOString(), timeZone: 'America/Sao_Paulo' },
+              end: { dateTime: endDate.toISOString(), timeZone: 'America/Sao_Paulo' },
+              description: descriptionLines + '\n\n⚠️  Attendees need to be invited manually (service account limitation)',
+              conferenceData: {
+                createRequest: {
+                  requestId: `meet-${Date.now()}`,
+                  conferenceSolution: { key: { conferenceSolutionKey: 'hangoutsMeet' } },
+                },
+              },
+            }),
+          });
+
+          const event2 = await eventRes2.json();
+          if (event2.id) {
+            calendarResult = { success: true, id: event2.id, link: event2.htmlLink, warning: 'Created without attendees' };
+            console.log('[Schedule] Calendar event created without attendees:', { id: event2.id });
+            return;
+          }
+        }
+
         throw new Error(`Calendar API error ${eventRes.status}: ${JSON.stringify(event)}`);
       }
 
