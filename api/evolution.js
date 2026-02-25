@@ -6,15 +6,15 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
-    const path = req.query.path;
-    const pathStr = Array.isArray(path) ? '/' + path.join('/') : '/' + (path || '');
-    const url = `https://evolution.manager01.feynmanproject.com${pathStr}`;
+    // Extract path from request URL (e.g., /api/evolution/chat/findChats/produ02 → /chat/findChats/produ02)
+    const path = req.url.replace('/api/evolution', '');
+    const url = `https://evolution.manager01.feynmanproject.com${path}`;
 
     console.log('[Evolution] Proxying:', {
       method: req.method,
-      path: pathStr,
+      path,
       url,
-      bodyPresent: !!req.body,
+      body: req.body ? 'present' : 'empty',
     });
 
     const body = req.method !== 'GET' && req.method !== 'HEAD'
@@ -35,7 +35,6 @@ export default async function handler(req, res) {
       status: response.status,
       contentType: response.headers.get('content-type'),
       textLength: text.length,
-      preview: text.substring(0, 100),
     });
 
     res.setHeader('Content-Type', response.headers.get('content-type') || 'application/json');
