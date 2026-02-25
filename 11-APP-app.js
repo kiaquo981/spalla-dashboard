@@ -1368,6 +1368,8 @@ function spalla() {
         const remoteJid = chat.remoteJid || chat.id;
         const url = `${EVOLUTION_CONFIG.BASE_URL}/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`;
 
+        console.log('[WA] Chat object:', chat);
+        console.log('[WA] remoteJid:', remoteJid);
         console.log('[WA] POST to:', url);
         console.log('[WA] Body: remoteJid=' + remoteJid + ', limit=50');
 
