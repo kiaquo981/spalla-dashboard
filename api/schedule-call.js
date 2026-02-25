@@ -61,6 +61,31 @@ export default async function handler(req, res) {
       console.error('[Schedule] Calendar error:', e);
     }
 
+    // Save to Supabase
+    const data_call = `${isoDate}T${horario}:00`;
+    try {
+      const sbRes = await fetch('https://knusqfbvhsqworzyhvip.supabase.co/rest/v1/calls_mentoria', {
+        method: 'POST',
+        headers: {
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtudXNxZmJ2aHNxd29yenlodmlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4NTg3MjcsImV4cCI6MjA3MDQzNDcyN30.f-m7TlmCoccBpUxLZhA4P5kr2lWBGtRIv6inzInAKCo',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mentorado_id,
+          data_call,
+          tipo,
+          status: 'agendada',
+          zoom_meeting_id: zoomResult?.id || null,
+          zoom_join_url: zoomResult?.join_url || null,
+          calendar_event_id: calendarResult?.id || null,
+          calendar_event_link: calendarResult?.link || null,
+        }),
+      });
+      console.log('[Schedule] Supabase save:', sbRes.status);
+    } catch (e) {
+      console.error('[Schedule] Supabase save error:', e.message);
+    }
+
     return res.status(200).json({
       success: true,
       message: `✅ Call scheduled for ${mentorado}`,
