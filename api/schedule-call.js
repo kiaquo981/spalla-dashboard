@@ -160,8 +160,8 @@ export default async function handler(req, res) {
       console.error('[Schedule] Calendar error:', e.message);
     }
 
-    // Save to Supabase
-    const data_call = `${isoDate}T${horario}:00`;
+    // Save to Supabase with São Paulo timezone offset (-03:00)
+    const data_call = `${isoDate}T${horario}:00-03:00`;
     try {
       const sbRes = await fetch('https://knusqfbvhsqworzyhvip.supabase.co/rest/v1/calls_mentoria', {
         method: 'POST',
