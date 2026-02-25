@@ -1594,6 +1594,7 @@ function spalla() {
             horario: f.horario || '10:00',
             duracao: f.duracao || 60,
             notas: f.notas || '',
+            use_zoom: true,
           })
         });
 
