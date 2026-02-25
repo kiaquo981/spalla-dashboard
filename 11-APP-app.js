@@ -1380,7 +1380,8 @@ function spalla() {
           throw new Error(`HTTP ${res.status}`);
         }
       } catch (e) {
-        console.error('[Spalla] WA messages fetch error:', e);
+        console.error('[Spalla] WA messages fetch error:', e.message, e);
+        this.toast(`Erro ao carregar mensagens: ${e.message}`, 'error');
         this.data.whatsappMessages = [];
       }
       this.ui.whatsappLoading = false;
