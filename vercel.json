@@ -2,13 +2,15 @@
   "buildCommand": "echo 'Static SPA - no build'",
   "outputDirectory": ".",
   "public": true,
+  "cleanUrls": false,
+  "trailingSlash": false,
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "/api/:path*"
+      "source": "/:path*",
+      "destination": "/:path*"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!api).*)",
       "destination": "/10-APP-index.html"
     }
   ]
