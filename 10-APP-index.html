@@ -270,7 +270,7 @@
                     <template x-if="m.instagram">
                       <a class="mc-card__handle" :href="'https://instagram.com/' + m.instagram.replace('@', '')" target="_blank" rel="noopener noreferrer">
                         <svg class="mc-card__handle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"/></svg>
-                        <span x-text="'@' + m.instagram"></span>
+                        <span x-text="'@' + m.instagram.replace('@', '')"></span>
                       </a>
                     </template>
                     <template x-if="!m.instagram">
@@ -474,8 +474,15 @@
                         <div class="call-card call-card--latest">
                           <div class="call-card__header"><span class="badge badge--sm badge--info" x-text="data.detail.last_calls[0].tipo"></span><span x-text="formatDateFull(data.detail.last_calls[0].data_call)"></span><span x-show="data.detail.last_calls[0].duracao" x-text="data.detail.last_calls[0].duracao + 'min'"></span></div>
                           <div class="call-card__body" x-text="data.detail.last_calls[0].resumo"></div>
-                          <div class="call-card__links" style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
-                            <a x-show="data.detail.last_calls[0].gravacao" :href="data.detail.last_calls[0].gravacao" target="_blank" rel="noopener" class="badge badge--sm badge--danger" style="text-decoration:none;cursor:pointer">Gravacao</a>
+                          <div class="call-card__links" style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center">
+                            <template x-if="data.detail.last_calls[0].gravacao">
+                              <a :href="data.detail.last_calls[0].gravacao" target="_blank" rel="noopener" class="badge badge--sm badge--danger" style="text-decoration:none;cursor:pointer">Gravacao</a>
+                              <template x-if="data.detail.last_calls[0].zoom_password || data.detail.last_calls[0].link_gravacao_senha">
+                                <span class="badge badge--sm" style="background:#4f46e5;color:white;font-size:11px" title="Copie a senha para acessar a gravação">
+                                  Senha: <span x-text="data.detail.last_calls[0].zoom_password || data.detail.last_calls[0].link_gravacao_senha" style="font-weight:bold"></span>
+                                </span>
+                              </template>
+                            </template>
                             <a x-show="data.detail.last_calls[0].transcricao" :href="data.detail.last_calls[0].transcricao" target="_blank" rel="noopener" class="badge badge--sm badge--purple" style="text-decoration:none;cursor:pointer">Transcricao</a>
                           </div>
                         </div>
@@ -632,10 +639,17 @@
                       <div class="call-card__timeline-dot"></div>
                       <div class="call-card__header"><span class="badge badge--sm badge--info" x-text="c.tipo"></span><span x-text="formatDateFull(c.data_call)"></span><span x-show="c.duracao" x-text="c.duracao + 'min'"></span></div>
                       <div class="call-card__body" x-text="c.resumo"></div>
-                      <div class="call-card__links" style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
-                        <a x-show="c.gravacao" :href="c.gravacao" target="_blank" rel="noopener" class="badge badge--sm badge--danger" style="text-decoration:none;cursor:pointer">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:3px"><polygon points="5 3 19 12 5 21 5 3"/></svg> Gravacao
-                        </a>
+                      <div class="call-card__links" style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center">
+                        <template x-if="c.gravacao">
+                          <a :href="c.gravacao" target="_blank" rel="noopener" class="badge badge--sm badge--danger" style="text-decoration:none;cursor:pointer">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:3px"><polygon points="5 3 19 12 5 21 5 3"/></svg> Gravacao
+                          </a>
+                          <template x-if="c.zoom_password || c.link_gravacao_senha">
+                            <span class="badge badge--sm" style="background:#4f46e5;color:white;font-size:11px" title="Copie a senha para acessar a gravação">
+                              <span x-text="'Senha: ' + (c.zoom_password || c.link_gravacao_senha)" style="font-weight:bold"></span>
+                            </span>
+                          </template>
+                        </template>
                         <a x-show="c.transcricao" :href="c.transcricao" target="_blank" rel="noopener" class="badge badge--sm badge--purple" style="text-decoration:none;cursor:pointer">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:3px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Transcricao
                         </a>

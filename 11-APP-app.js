@@ -579,6 +579,8 @@ function spalla() {
           }
           // Recalculate dias_desde_call with real call data
           if (this._supabaseCalls?.length) this._enrichMenteesWithCalls();
+          // Enrich with Instagram handles and Zoom passwords
+          if (sb && this.data.mentees?.length) await this._enrichMenteesWithSocialAndZoom();
           this.supabaseConnected = true;
           this.toast('Dados carregados do Supabase', 'success');
         } catch (e) {
@@ -616,6 +618,45 @@ function spalla() {
         const bestDays = (dynamicDays !== null && origDays !== null) ? Math.min(dynamicDays, origDays) : (dynamicDays ?? origDays);
         return { ...m, dias_desde_call: bestDays ?? m.dias_desde_call };
       });
+    },
+
+    async _enrichMenteesWithSocialAndZoom() {
+      // Fetch Instagram handles + Zoom passwords from mentorados table (direct lookup by nome)
+      try {
+        const { data: menteeData } = await sb.from('mentorados').select('nome, instagram, zoom_password, link_gravacao_senha');
+        if (!menteeData?.length) {
+          console.log('[Spalla] Mentorados table empty or not accessible');
+          return;
+        }
+
+        const menteeMap = {};
+        for (const m of menteeData) {
+          const key = (m.nome || '').toLowerCase().trim();
+          if (key) {
+            menteeMap[key] = {
+              instagram: m.instagram || null,
+              zoom_password: m.zoom_password || null,
+              link_gravacao_senha: m.link_gravacao_senha || null,
+            };
+          }
+        }
+
+        // Enrich this.data.mentees with these fields
+        this.data.mentees = this.data.mentees.map(m => {
+          const key = (m.nome || '').toLowerCase().trim();
+          const enrichment = menteeMap[key] || {};
+          return {
+            ...m,
+            instagram: enrichment.instagram || m.instagram || null,
+            zoom_password: enrichment.zoom_password || null,
+            link_gravacao_senha: enrichment.link_gravacao_senha || null,
+          };
+        });
+
+        console.debug('[Spalla] Enriched mentees with Instagram + Zoom data');
+      } catch (e) {
+        console.warn('[Spalla] Could not fetch Instagram/Zoom data:', e);
+      }
     },
 
     async loadMenteeDetail(id) {
