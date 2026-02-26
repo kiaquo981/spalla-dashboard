@@ -1,29 +1,29 @@
-// Evolution API Direct HTTP Client
-// Calls Evolution API directly from frontend (no proxy needed)
+// Evolution API Client via Railway Backend Proxy
+// Calls Railway backend which proxies to Evolution API (avoids CORS)
 
-const EVOLUTION_BASE = 'https://evolution.manager01.feynmanproject.com';
+const BACKEND_URL = 'https://web-production-2cde5.up.railway.app';
 const EVOLUTION_INSTANCE = 'produ02';
-const EVOLUTION_API_KEY = '07826A779A5C-4E9C-A978-DBCD5F9E4C97';
 
 class EvolutionDirect {
-  constructor(baseUrl, instance, apiKey) {
-    this.baseUrl = baseUrl;
+  constructor(backendUrl, instance) {
+    this.backendUrl = backendUrl;
     this.instance = instance;
-    this.apiKey = apiKey;
   }
 
-  // Get chats from Evolution API
+  // Get chats via Railway backend proxy
   async getChats() {
     try {
-      const url = `${this.baseUrl}/${this.instance}/chats`;
-      console.log('[Evolution] Fetching chats from:', url);
+      const url = `${this.backendUrl}/api/wa`;
+      console.log('[Evolution] Fetching chats via backend:', url);
 
       const response = await fetch(url, {
-        method: 'GET',
+        method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Accept': 'application/json',
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          action: 'findChats',
+        }),
       });
 
       if (!response.ok) {
@@ -60,18 +60,22 @@ class EvolutionDirect {
     }
   }
 
-  // Get messages from a chat
+  // Get messages via Railway backend proxy
   async getMessages(remoteJid, limit = 50) {
     try {
-      const url = `${this.baseUrl}/${this.instance}/messages/${encodeURIComponent(remoteJid)}`;
-      console.log('[Evolution] Fetching messages from:', url);
+      const url = `${this.backendUrl}/api/wa`;
+      console.log('[Evolution] Fetching messages via backend for:', remoteJid);
 
       const response = await fetch(url, {
-        method: 'GET',
+        method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Accept': 'application/json',
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          action: 'findMessages',
+          remoteJid: remoteJid,
+          limit: limit,
+        }),
       });
 
       if (!response.ok) {
@@ -101,18 +105,18 @@ class EvolutionDirect {
     }
   }
 
-  // Send message
+  // Send message via Railway backend proxy
   async sendMessage(remoteJid, text) {
     try {
-      const url = `${this.baseUrl}/${this.instance}/message/sendText`;
+      const url = `${this.backendUrl}/api/wa`;
 
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          action: 'sendText',
           number: remoteJid,
           text: text,
         }),
@@ -130,8 +134,8 @@ class EvolutionDirect {
   }
 }
 
-// Initialize
-const evolutionDirect = new EvolutionDirect(EVOLUTION_BASE, EVOLUTION_INSTANCE, EVOLUTION_API_KEY);
+// Initialize with Railway backend
+const evolutionDirect = new EvolutionDirect(BACKEND_URL, EVOLUTION_INSTANCE);
 
 // Export
 if (typeof module !== 'undefined' && module.exports) {
