@@ -575,9 +575,6 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         if not messages or not SUPABASE_SERVICE_KEY:
             return
 
-        # Extract mentorado_id/nome from first message or remote_jid
-        mentorado_id = remote_jid.split('@')[0] if '@' in remote_jid else remote_jid
-
         for msg in messages[:10]:  # Limit to avoid bulk inserts
             try:
                 # Extract message body based on Evolution API structure
@@ -590,23 +587,35 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 if not body:
                     continue
 
-                # Check if message already exists (by Evolution API message ID)
-                existing = supabase_request('GET', f"interacoes_mentoria?select=id&where=id_evolution_msg.eq.{msg.get('id')}")
-                if existing and not existing.get('error'):
-                    continue  # Skip if already synced
+                sender_phone = msg.get('key', {}).get('participant', remote_jid)
+                sender_name = msg.get('pushName', 'Unknown')
+                from_me = msg.get('key', {}).get('fromMe', False)
 
-                # Insert into interacoes_mentoria
+                # Build insert data matching interacoes_mentoria schema
                 insert_data = {
-                    'id_mentorado': mentorado_id,
-                    'descricao': body,
-                    'tipo_interacao': 'chat_evolution',
-                    'id_evolution_msg': msg.get('id'),
-                    'evolution_jid': msg.get('key', {}).get('remoteJid', remote_jid),
-                    'evolution_fromMe': msg.get('key', {}).get('fromMe', False),
+                    'message_id': msg.get('id'),  # Evolution message ID
+                    'chat_id': remote_jid,  # Evolution JID
+                    'conteudo': body,  # Actual message content
+                    'tipo_interacao': 'whatsapp_evolution',
+                    'sender_phone': sender_phone,
+                    'sender_name': sender_name,
+                    'message_type': 'text',
+                    'is_group': '@g.us' in remote_jid,
+                    'timestamp': msg.get('messageTimestamp', int(time.time())),
                 }
-                supabase_request('POST', 'interacoes_mentoria', insert_data)
+
+                # Insert via Supabase (skip if message_id already exists)
+                try:
+                    result = supabase_request('POST', 'interacoes_mentoria', insert_data)
+                    if not result.get('error'):
+                        log_info('WA_SYNC', f'Synced message {msg.get("id")} to Supabase')
+                except Exception as sync_error:
+                    # Ignore duplicate key errors — message already synced
+                    if '409' not in str(sync_error) and 'duplicate' not in str(sync_error).lower():
+                        log_error('WA_SYNC', f'Failed to sync message {msg.get("id")}', sync_error)
+
             except Exception as e:
-                log_error('WA_SYNC', f'Failed to sync message {msg.get("id")}', e)
+                log_error('WA_SYNC', f'Parse error for message', e)
                 continue
 
     def _save_sent_message_to_supabase(self, number, text):
@@ -614,17 +623,18 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         if not SUPABASE_SERVICE_KEY:
             return
 
-        mentorado_id = number.split('@')[0] if '@' in number else number
-
         try:
             insert_data = {
-                'id_mentorado': mentorado_id,
-                'descricao': text,
-                'tipo_interacao': 'chat_envio',
-                'evolution_fromMe': True,
+                'chat_id': number,
+                'conteudo': text,
+                'tipo_interacao': 'whatsapp_envio',
+                'sender_phone': number,
+                'message_type': 'text',
+                'timestamp': int(time.time()),
             }
-            supabase_request('POST', 'interacoes_mentoria', insert_data)
-            log_info('WA_SYNC', f'Saved sent message to mentorado {mentorado_id}')
+            result = supabase_request('POST', 'interacoes_mentoria', insert_data)
+            if not result.get('error'):
+                log_info('WA_SYNC', f'Saved outgoing message to {number}')
         except Exception as e:
             log_error('WA_SYNC', 'Failed to save sent message', e)
 
