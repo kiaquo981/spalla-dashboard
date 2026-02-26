@@ -73,6 +73,7 @@ function spalla() {
     brokenPhotos: {},
     waPhotos: {},
     photoTick: 0,
+    _enrichingInProgress: false,  // HIGH-07: Race condition prevention
 
     // --- UI State ---
     ui: {
@@ -550,6 +551,21 @@ function spalla() {
       return headers;
     },
 
+    async parseJsonResponse(response, operation = 'API call') {
+      """Parse JSON response with Content-Type validation (HIGH-03)"""
+      try {
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          console.error(`[Spalla] Invalid Content-Type for ${operation}:`, contentType);
+          throw new Error(`Expected JSON, got ${contentType || 'no content-type'}`);
+        }
+        return await response.json();
+      } catch (e) {
+        console.error(`[Spalla] Failed to parse JSON from ${operation}:`, e);
+        return null;
+      }
+    },
+
     // ===================== LIFECYCLE =====================
 
     async init() {
@@ -599,7 +615,7 @@ function spalla() {
     async _loadWaProfilePics() {
       try {
         // Call via Vercel backend proxy
-        const res = await fetch('/api/wa', {
+        const res = await fetch(CONFIG.API_BASE_URL + '/api/wa', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'findChats' }),
@@ -608,6 +624,7 @@ function spalla() {
         if (!res.ok) {
           const errorBody = await res.text();
           console.warn('[WA] findChats failed:', { status: res.status, error: errorBody.substring(0, 200) });
+          this.toast('Erro ao carregar fotos do WhatsApp', 'error');  // HIGH-06: Error boundary
           return;
         }
         const chats = await res.json();
@@ -706,8 +723,13 @@ function spalla() {
     },
 
     _enrichMenteesWithCalls() {
-      if (!this.data.mentees?.length) return;
-      // Recalculate dias_desde_call using real Supabase calls
+      // HIGH-07: Prevent race condition (concurrent enrichment calls)
+      if (this._enrichingInProgress) return;
+      this._enrichingInProgress = true;
+
+      try {
+        if (!this.data.mentees?.length) return;
+        // Recalculate dias_desde_call using real Supabase calls
       const callsByMentee = {};
       for (const c of (this._supabaseCalls || [])) {
         const name = (c.mentorado_nome || '').toLowerCase().trim();
@@ -729,6 +751,9 @@ function spalla() {
         const bestDays = (dynamicDays !== null && origDays !== null) ? Math.min(dynamicDays, origDays) : (dynamicDays ?? origDays);
         return { ...m, dias_desde_call: bestDays ?? m.dias_desde_call };
       });
+      } finally {
+        this._enrichingInProgress = false;
+      }
     },
 
     async _enrichMenteesWithSocialAndZoom() {
@@ -842,7 +867,7 @@ function spalla() {
         let chats = this.data.whatsappChats;
         // If chats not loaded yet, fetch them
         if (!chats || chats.length === 0) {
-          const res = await fetch('/api/wa', {
+          const res = await fetch(CONFIG.API_BASE_URL + '/api/wa', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'findChats' }),
@@ -866,7 +891,7 @@ function spalla() {
         }
 
         // Fetch last 10 messages
-        const res = await fetch('/api/wa', {
+        const res = await fetch(CONFIG.API_BASE_URL + '/api/wa', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'findMessages', remoteJid: chat.remoteJid || chat.id, limit: 10 }),
@@ -1495,7 +1520,7 @@ function spalla() {
     async fetchWhatsAppChats() {
       this.ui.whatsappLoading = true;
       try {
-        const res = await fetch('/api/wa', {
+        const res = await fetch(CONFIG.API_BASE_URL + '/api/wa', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'findChats' }),
@@ -1543,7 +1568,7 @@ function spalla() {
         console.log('[WA] Chat object:', chat);
         console.log('[WA] remoteJid:', remoteJid);
 
-        const res = await fetch('/api/wa', {
+        const res = await fetch(CONFIG.API_BASE_URL + '/api/wa', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'findMessages', remoteJid: remoteJid, limit: 50 }),
@@ -1581,7 +1606,7 @@ function spalla() {
       const msg = this.ui.whatsappMessage.trim();
       this.ui.whatsappMessage = '';
       try {
-        const res = await fetch('/api/wa', {
+        const res = await fetch(CONFIG.API_BASE_URL + '/api/wa', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

@@ -512,6 +512,16 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': 'mentorado and data are required'}, 400)
             return
 
+        # Validate mentorado_id (HIGH-05: prevent integer overflow)
+        if mentorado_id:
+            try:
+                mentorado_id = int(mentorado_id)
+                if mentorado_id < 1 or mentorado_id > 2147483647:  # Max 32-bit signed int
+                    raise ValueError('mentorado_id out of range')
+            except (ValueError, TypeError):
+                self._send_json({'error': 'Invalid mentorado_id'}, 400)
+                return
+
         # Build datetime
         # Get Brazil timezone offset (HIGH-02)
         tz_br = pytz.timezone('America/Sao_Paulo')
@@ -572,7 +582,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'estrategia': 'planejamento',
             }
             call_data = {
-                'mentorado_id': int(mentorado_id),
+                'mentorado_id': mentorado_id,  # Already validated above
                 'data_call': f'{data}T{horario}:00{offset_formatted}',
                 'tipo': tipo,
                 'tipo_call': tipo_call_map.get(tipo, 'acompanhamento'),
