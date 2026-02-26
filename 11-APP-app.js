@@ -1466,7 +1466,9 @@ function spalla() {
       const isHandle = !handleOrName.includes(' ');
       const clean = handleOrName.replace('@','').toLowerCase();
       const fileKey = isHandle ? clean : clean.replace(/\s+/g, '_');
-      return `photos/${fileKey}.jpg`;
+      const photoPath = `photos/${fileKey}.jpg`;
+      console.debug('[igPhoto]', { input: handleOrName, isHandle, fileKey, photoPath });
+      return photoPath;
     },
 
     igFollowers(handle) {
