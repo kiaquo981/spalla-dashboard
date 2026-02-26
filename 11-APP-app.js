@@ -75,6 +75,14 @@ function spalla() {
     photoTick: 0,
     _enrichingInProgress: false,  // HIGH-07: Race condition prevention
 
+    // --- LOW-06: Performance tracking ---
+    perf: {
+      dashboardLoadTime: 0,
+      tasksLoadTime: 0,
+      callsLoadTime: 0,
+    },
+    _perfMarkers: {},
+
     // --- UI State ---
     ui: {
       page: CONFIG.DEFAULT_PAGE,
@@ -566,6 +574,22 @@ function spalla() {
       }
     },
 
+    // LOW-06: Performance tracking utilities
+    perfMark(name) {
+      """Mark start of a performance-measured operation"""
+      this._perfMarkers[name] = performance.now();
+    },
+
+    perfMeasure(name) {
+      """Measure elapsed time and log"""
+      if (!this._perfMarkers[name]) return 0;
+      const elapsed = performance.now() - this._perfMarkers[name];
+      this.perf[name + 'Time'] = elapsed;
+      console.log(`[Perf] ${name}: ${elapsed.toFixed(2)}ms`);
+      delete this._perfMarkers[name];
+      return elapsed;
+    },
+
     // ===================== LIFECYCLE =====================
 
     async init() {
@@ -696,6 +720,8 @@ function spalla() {
     // ===================== DATA LOADING =====================
 
     async loadDashboard() {
+      // LOW-06: Performance tracking
+      this.perfMark('dashboardLoad');
       this.ui.loading = true;
       sb = initSupabase();
       if (sb) {
@@ -735,6 +761,7 @@ function spalla() {
       } else {
         this.loadDemoData();
       }
+      this.perfMeasure('dashboardLoad');  // LOW-06: Log performance
       this.ui.loading = false;
     },
 

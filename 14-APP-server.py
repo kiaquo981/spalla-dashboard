@@ -13,10 +13,23 @@ import time
 import base64
 import hashlib
 import hmac
+import gzip
 from datetime import datetime, timedelta
 import pytz
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8888
+
+# ===== LOGGING (LOW-02: Comprehensive error logging) =====
+def log_error(component, message, error=None):
+    """Log errors with timestamp and context"""
+    timestamp = datetime.now(pytz.timezone('America/Sao_Paulo')).isoformat()
+    error_msg = str(error) if error else ""
+    print(f"[{timestamp}] ERROR [{component}] {message}" + (f" | {error_msg}" if error_msg else ""))
+
+def log_info(component, message):
+    """Log informational messages"""
+    timestamp = datetime.now(pytz.timezone('America/Sao_Paulo')).isoformat()
+    print(f"[{timestamp}] INFO [{component}] {message}")
 
 # ===== CONFIG =====
 EVOLUTION_BASE = 'https://evolution.manager01.feynmanproject.com'
