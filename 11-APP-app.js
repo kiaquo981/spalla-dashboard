@@ -56,8 +56,16 @@ function daysBetween(dateStr) {
 // ===== ALPINE APP =====
 function spalla() {
   return {
-    // --- Auth ---
-    auth: { authenticated: false, password: '', error: '' },
+    // --- Auth (JWT) ---
+    auth: {
+      authenticated: false,
+      email: '',
+      password: '',
+      token: null,
+      tokenExpires: null,
+      error: '',
+      loading: false
+    },
     supabaseConnected: false,
     _supabaseCalls: [],
 
@@ -455,13 +463,116 @@ function spalla() {
       return list;
     },
 
+    // ===================== JWT AUTHENTICATION =====================
+
+    async login() {
+      """Authenticate with email/password and get JWT token"""
+      if (!this.auth.email || !this.auth.password) {
+        this.auth.error = 'Email e senha são obrigatórios';
+        return;
+      }
+
+      this.auth.loading = true;
+      this.auth.error = '';
+
+      try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: this.auth.email.toLowerCase(),
+            password: this.auth.password
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          this.auth.error = data.error || 'Falha na autenticação';
+          this.auth.loading = false;
+          return;
+        }
+
+        // Save token
+        this.auth.token = data.token;
+        this.auth.tokenExpires = Date.now() + data.expiresIn * 1000;
+        this.auth.authenticated = true;
+        this.auth.password = '';  // Clear password from memory
+        this.auth.error = '';
+
+        // Persist auth state
+        localStorage.setItem(CONFIG.AUTH_STORAGE_KEY, JSON.stringify({
+          token: this.auth.token,
+          email: this.auth.email,
+          expiresAt: this.auth.tokenExpires
+        }));
+
+        this.toast('Autenticação bem-sucedida!', 'success');
+        this.auth.loading = false;
+      } catch (e) {
+        console.error('[Spalla] Login error:', e);
+        this.auth.error = 'Erro na autenticação';
+        this.auth.loading = false;
+      }
+    },
+
+    logout() {
+      """Clear JWT token and reset auth state"""
+      this.auth.authenticated = false;
+      this.auth.token = null;
+      this.auth.email = '';
+      this.auth.password = '';
+      this.auth.tokenExpires = null;
+      localStorage.removeItem(CONFIG.AUTH_STORAGE_KEY);
+      this.toast('Desconectado', 'info');
+    },
+
+    getAuthToken() {
+      """Get current JWT token (check expiration first)"""
+      if (!this.auth.token) return null;
+
+      // Check if token expired
+      if (this.auth.tokenExpires && this.auth.tokenExpires < Date.now()) {
+        this.logout();
+        return null;
+      }
+
+      return this.auth.token;
+    },
+
+    getAuthHeaders() {
+      """Get headers with JWT token for API requests"""
+      const token = this.getAuthToken();
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      return headers;
+    },
+
     // ===================== LIFECYCLE =====================
 
     async init() {
       console.log('[Spalla] init() starting');
       try {
+        // Restore JWT token from localStorage
         const stored = localStorage.getItem(CONFIG.AUTH_STORAGE_KEY);
-        if (stored === 'true') this.auth.authenticated = true;
+        if (stored) {
+          try {
+            const auth = JSON.parse(stored);
+            this.auth.token = auth.token;
+            this.auth.email = auth.email;
+            this.auth.tokenExpires = auth.expiresAt;
+            // Check if token not expired
+            if (auth.expiresAt > Date.now()) {
+              this.auth.authenticated = true;
+            } else {
+              this.logout();
+            }
+          } catch (e) {
+            console.warn('[Spalla] Failed to restore auth:', e);
+          }
+        }
         console.log('[Spalla] Auth:', this.auth.authenticated);
         await this.loadTasks();
         console.log('[Spalla] Tasks loaded:', this.data.tasks.length);
@@ -1770,7 +1881,7 @@ function spalla() {
       try {
         const resp = await fetch(window.API_BASE_URL + '/api/schedule-call', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: this.getAuthHeaders(),
           body: JSON.stringify({
             mentorado: f.mentorado,
             mentorado_id: f.mentorado_id || '',
@@ -1836,7 +1947,7 @@ function spalla() {
 
     async fetchUpcomingCalls() {
       try {
-        const resp = await fetch(window.API_BASE_URL + '/api/calls/upcoming');
+        const resp = await fetch(window.API_BASE_URL + '/api/calls/upcoming', { headers: this.getAuthHeaders() });
         const calls = await resp.json();
         if (Array.isArray(calls)) {
           this.data.scheduledCalls = calls.map(c => ({

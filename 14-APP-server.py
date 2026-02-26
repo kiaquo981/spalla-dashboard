@@ -11,6 +11,8 @@ import os
 import sys
 import time
 import base64
+import hashlib
+import hmac
 from datetime import datetime, timedelta
 import pytz
 
@@ -35,6 +37,16 @@ SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
 
 # Calendar ID (user's primary calendar or a specific one)
 GOOGLE_CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID', 'primary')
+
+# ===== JWT AUTHENTICATION =====
+JWT_SECRET = os.environ.get('JWT_SECRET', 'CHANGE_ME_IN_PRODUCTION')
+JWT_ALGORITHM = 'HS256'
+JWT_EXPIRATION = 86400  # 24 hours
+
+# Valid users (in production, query from Supabase)
+VALID_USERS = {
+    'queila@case.com': 'spalla',  # Username as temp password (CHANGE IN PRODUCTION!)
+}
 
 # ===== ZOOM TOKEN CACHE =====
 _zoom_token = {'access_token': None, 'expires_at': 0}
@@ -65,6 +77,66 @@ def get_zoom_token():
     except Exception as e:
         print(f'[Zoom] Token error: {e}')
         return None
+
+
+# ===== JWT FUNCTIONS =====
+def encode_jwt(payload):
+    """Encode JWT token manually (no external library)"""
+    import struct
+
+    # Header
+    header = {'alg': JWT_ALGORITHM, 'typ': 'JWT'}
+    header_b64 = base64.urlsafe_b64encode(json.dumps(header).encode()).decode().rstrip('=')
+
+    # Payload with timestamps
+    payload['iat'] = int(time.time())
+    payload['exp'] = int(time.time()) + JWT_EXPIRATION
+    payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip('=')
+
+    # Signature
+    msg = f'{header_b64}.{payload_b64}'.encode()
+    sig = hmac.new(JWT_SECRET.encode(), msg, hashlib.sha256).digest()
+    sig_b64 = base64.urlsafe_b64encode(sig).decode().rstrip('=')
+
+    return f'{header_b64}.{payload_b64}.{sig_b64}'
+
+def decode_jwt(token):
+    """Decode and verify JWT token"""
+    try:
+        parts = token.split('.')
+        if len(parts) != 3:
+            return None
+
+        header_b64, payload_b64, sig_b64 = parts
+
+        # Verify signature
+        msg = f'{header_b64}.{payload_b64}'.encode()
+        expected_sig = hmac.new(JWT_SECRET.encode(), msg, hashlib.sha256).digest()
+        expected_sig_b64 = base64.urlsafe_b64encode(expected_sig).decode().rstrip('=')
+
+        if sig_b64 != expected_sig_b64:
+            return None
+
+        # Decode payload
+        padding = '=' * (4 - len(payload_b64) % 4)
+        payload_json = base64.urlsafe_b64decode(payload_b64 + padding).decode()
+        payload = json.loads(payload_json)
+
+        # Check expiration
+        if payload.get('exp', 0) < time.time():
+            return None
+
+        return payload
+    except Exception as e:
+        print(f'[JWT] Decode error: {e}')
+        return None
+
+def get_bearer_token(headers):
+    """Extract bearer token from Authorization header"""
+    auth = headers.get('Authorization', '')
+    if auth.startswith('Bearer '):
+        return auth[7:]
+    return None
 
 
 def create_zoom_meeting(topic, start_time, duration=60, invitees=None):
@@ -338,7 +410,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_POST(self):
-        if self.path.startswith('/api/evolution/'):
+        if self.path == '/api/auth/login':
+            self._handle_login()
+        elif self.path.startswith('/api/evolution/'):
             self._proxy_evolution('POST')
         elif self.path == '/api/schedule-call':
             self._handle_schedule_call()
@@ -349,7 +423,51 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         else:
             self.send_error(404)
 
+    # ===== AUTHENTICATION =====
+    def _handle_login(self):
+        """POST /api/auth/login — Authenticate and return JWT token"""
+        try:
+            body = json.loads(self._read_body())
+            email = body.get('email', '').strip().lower()
+            password = body.get('password', '')
+
+            # Validate inputs
+            if not email or not password:
+                self._send_json({'error': 'Email and password required'}, 400)
+                return
+
+            # Check credentials (in production, query Supabase auth)
+            if email not in VALID_USERS or VALID_USERS[email] != password:
+                # Fail securely (don't reveal which field is wrong)
+                self._send_json({'error': 'Invalid credentials'}, 401)
+                return
+
+            # Generate JWT token
+            token = encode_jwt({'email': email, 'sub': email})
+            self._send_json({
+                'token': token,
+                'expiresIn': JWT_EXPIRATION,
+                'user': {'email': email}
+            })
+        except Exception as e:
+            print(f'[Auth] Login error: {e}')
+            self._send_json({'error': 'Authentication failed'}, 500)
+
     # ===== SCHEDULE CALL (main orchestrator) =====
+    def _require_auth(self):
+        """Check JWT token in Authorization header. Returns user payload or None."""
+        token = get_bearer_token(self.headers)
+        if not token:
+            self._send_json({'error': 'Authorization required'}, 401)
+            return None
+
+        payload = decode_jwt(token)
+        if not payload:
+            self._send_json({'error': 'Invalid or expired token'}, 401)
+            return None
+
+        return payload
+
     def _handle_schedule_call(self):
         """
         Full scheduling flow:
@@ -357,6 +475,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         2. Create Google Calendar event with Zoom link
         3. Store in Supabase calls_mentoria
         """
+        # Require authentication
+        user = self._require_auth()
+        if not user:
+            return
+
         try:
             body = json.loads(self._read_body())
         except Exception:
@@ -456,6 +579,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     # ===== INDIVIDUAL ENDPOINTS =====
     def _handle_create_zoom_meeting(self):
+        # Require authentication
+        user = self._require_auth()
+        if not user:
+            return
+
         try:
             body = json.loads(self._read_body())
             result = create_zoom_meeting(
