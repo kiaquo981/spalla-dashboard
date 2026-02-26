@@ -42,9 +42,11 @@
     });
 
     // API Base URL configuration
-    // In production (Vercel), use relative URLs (empty string means current origin)
-    // In development (localhost), can use localhost if needed
-    window.API_BASE_URL = '';
+    // Production: use Railway backend
+    // Development: use localhost
+    window.API_BASE_URL = window.location.hostname === 'localhost'
+      ? 'http://localhost:8888'
+      : 'https://web-production-2cde5.up.railway.app';
 
     console.log('[Spalla] Error listeners attached');
     console.log('[Spalla] API_BASE_URL:', window.API_BASE_URL || '(using relative URLs)');
