@@ -635,6 +635,8 @@ function spalla() {
         this.ui.loading = false;
         if (!this.data.mentees.length) this.loadDemoData();
       }
+      // Attach global keyboard listener for media viewer
+      window.addEventListener('keydown', (e) => this.mediaViewerKeyDown(e));
       console.log('[Spalla] init() complete');
     },
 
@@ -1812,6 +1814,66 @@ function spalla() {
       } catch (error) {
         console.error('[App] Error proxying media URL:', error);
         return evolutionUrl;
+      }
+    },
+
+    // Download media file
+    downloadMedia() {
+      if (!this.ui.mediaViewerData?.message) return;
+
+      const msg = this.ui.mediaViewerData.message;
+      let url, filename = 'media';
+
+      if (msg.imageMessage?.url) {
+        url = msg.imageMessage.url;
+        filename = `image_${Date.now()}.jpg`;
+      } else if (msg.videoMessage?.url) {
+        url = msg.videoMessage.url;
+        filename = `video_${Date.now()}.mp4`;
+      } else if (msg.audioMessage?.url) {
+        url = msg.audioMessage.url;
+        filename = `audio_${Date.now()}.mp3`;
+      } else {
+        return;
+      }
+
+      // Use proxied URL for download
+      const link = document.createElement('a');
+      link.href = this.getProxiedMediaUrl(url);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      console.log('[MediaViewer] Downloaded:', filename);
+    },
+
+    // Handle keyboard shortcuts in media viewer
+    mediaViewerKeyDown(e) {
+      if (!this.ui.mediaViewerOpen) return;
+
+      switch (e.key) {
+        case 'Escape':
+          this.closeMediaViewer();
+          break;
+        case '+':
+        case '=':
+          this.mediaViewerZoomIn();
+          break;
+        case '-':
+        case '_':
+          this.mediaViewerZoomOut();
+          break;
+        case 'r':
+        case 'R':
+          this.mediaViewerResetZoom();
+          break;
+        case 'd':
+        case 'D':
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            this.downloadMedia();
+          }
+          break;
       }
     },
 

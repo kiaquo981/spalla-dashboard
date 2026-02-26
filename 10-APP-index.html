@@ -1875,8 +1875,16 @@
 
     <!-- Close button -->
     <button @click="closeMediaViewer()"
+            title="Fechar (Esc)"
             style="position: absolute; top: 20px; right: 20px; background: none; border: none; color: white; font-size: 28px; cursor: pointer; z-index: 10000;">
       ✕
+    </button>
+
+    <!-- Download button -->
+    <button @click="downloadMedia()"
+            title="Baixar (Ctrl+D)"
+            style="position: absolute; top: 20px; right: 60px; background: rgba(255,255,255,0.2); border: 1px solid white; color: white; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 14px; z-index: 10000;">
+      ⬇ Baixar
     </button>
 
     <!-- Zoom controls (for images only) -->
