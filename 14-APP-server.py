@@ -443,8 +443,15 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_POST(self):
+        # Multi-auth endpoints (Supabase Auth integration)
         if self.path == '/api/auth/login':
-            self._handle_login()
+            self._handle_auth_login()
+        elif self.path == '/api/auth/signup':
+            self._handle_auth_signup()
+        elif self.path == '/api/auth/refresh':
+            self._handle_auth_refresh()
+        elif self.path == '/api/auth/google/callback':
+            self._handle_google_callback()
         elif self.path.startswith('/api/evolution/'):
             self._proxy_evolution('POST')
         elif self.path == '/api/schedule-call':
@@ -456,37 +463,60 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         else:
             self.send_error(404)
 
-    # ===== AUTHENTICATION =====
-    def _handle_login(self):
-        """POST /api/auth/login — Authenticate and return JWT token"""
+    # ===== AUTHENTICATION (Multi-method) =====
+
+    def _handle_auth_login(self):
+        # Multi-login: Email/Password + Google OAuth via Supabase Auth
         try:
             body = json.loads(self._read_body())
-            email = body.get('email', '').strip().lower()
-            password = body.get('password', '')
 
-            # Validate inputs
-            if not email or not password:
-                self._send_json({'error': 'Email and password required'}, 400)
-                return
+            # Import endpoint handler
+            from auth_endpoints import handle_login_email_password
 
-            # Check credentials (in production, query Supabase auth)
-            # HIGH-01: Use timing-safe comparison to prevent timing attacks
-            stored_password = VALID_USERS.get(email, '')
-            if not hmac.compare_digest(password, stored_password):
-                # Fail securely (don't reveal which field is wrong)
-                self._send_json({'error': 'Invalid credentials'}, 401)
-                return
-
-            # Generate JWT token
-            token = encode_jwt({'email': email, 'sub': email})
-            self._send_json({
-                'token': token,
-                'expiresIn': JWT_EXPIRATION,
-                'user': {'email': email}
-            })
+            result, status = handle_login_email_password(body)
+            self._send_json(result, status)
         except Exception as e:
-            print(f'[Auth] Login error: {e}')
+            log_error('AUTH', 'Login failed', e)
             self._send_json({'error': 'Authentication failed'}, 500)
+
+    def _handle_auth_signup(self):
+        # Register new user with email/password
+        try:
+            body = json.loads(self._read_body())
+
+            from auth_endpoints import handle_signup
+
+            result, status = handle_signup(body)
+            self._send_json(result, status)
+        except Exception as e:
+            log_error('AUTH', 'Signup failed', e)
+            self._send_json({'error': 'Signup failed'}, 500)
+
+    def _handle_auth_refresh(self):
+        # Refresh access token using refresh token
+        try:
+            body = json.loads(self._read_body())
+
+            from auth_endpoints import handle_refresh_token
+
+            result, status = handle_refresh_token(body)
+            self._send_json(result, status)
+        except Exception as e:
+            log_error('AUTH', 'Token refresh failed', e)
+            self._send_json({'error': 'Token refresh failed'}, 401)
+
+    def _handle_google_callback(self):
+        # Google OAuth callback handler
+        try:
+            body = json.loads(self._read_body())
+
+            from auth_endpoints import handle_google_callback
+
+            result, status = handle_google_callback(body)
+            self._send_json(result, status)
+        except Exception as e:
+            log_error('AUTH', 'Google callback failed', e)
+            self._send_json({'error': 'Google authentication failed'}, 500)
 
     # ===== SCHEDULE CALL (main orchestrator) =====
     def _require_auth(self):
