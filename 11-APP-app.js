@@ -129,6 +129,11 @@ function spalla() {
       // Media Viewer
       mediaViewerOpen: false,
       mediaViewerData: null,
+      mediaViewerZoom: 1,
+      mediaViewerPanX: 0,
+      mediaViewerPanY: 0,
+      mediaViewerIsDragging: false,
+      mediaViewerDragStart: { x: 0, y: 0 },
     },
 
     // --- Data ---
@@ -1742,7 +1747,60 @@ function spalla() {
     closeMediaViewer() {
       this.ui.mediaViewerOpen = false;
       this.ui.mediaViewerData = null;
+      this.ui.mediaViewerZoom = 1;
+      this.ui.mediaViewerPanX = 0;
+      this.ui.mediaViewerPanY = 0;
       console.log('[MediaViewer] Closed');
+    },
+
+    // Zoom controls
+    mediaViewerZoomIn() {
+      this.ui.mediaViewerZoom = Math.min(5, this.ui.mediaViewerZoom + 0.2);
+    },
+
+    mediaViewerZoomOut() {
+      this.ui.mediaViewerZoom = Math.max(1, this.ui.mediaViewerZoom - 0.2);
+    },
+
+    mediaViewerResetZoom() {
+      this.ui.mediaViewerZoom = 1;
+      this.ui.mediaViewerPanX = 0;
+      this.ui.mediaViewerPanY = 0;
+    },
+
+    // Drag controls
+    mediaViewerStartDrag(e) {
+      if (this.ui.mediaViewerZoom <= 1) return;
+      this.ui.mediaViewerIsDragging = true;
+      this.ui.mediaViewerDragStart = { x: e.clientX, y: e.clientY };
+    },
+
+    mediaViewerMoveDrag(e) {
+      if (!this.ui.mediaViewerIsDragging) return;
+      const dx = e.clientX - this.ui.mediaViewerDragStart.x;
+      const dy = e.clientY - this.ui.mediaViewerDragStart.y;
+      this.ui.mediaViewerPanX += dx;
+      this.ui.mediaViewerPanY += dy;
+      this.ui.mediaViewerDragStart = { x: e.clientX, y: e.clientY };
+    },
+
+    mediaViewerEndDrag() {
+      this.ui.mediaViewerIsDragging = false;
+    },
+
+    // Wheel zoom
+    mediaViewerWheel(e) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      this.ui.mediaViewerZoom = Math.max(1, Math.min(5, this.ui.mediaViewerZoom + delta));
+    },
+
+    // Get transform for zoomed image
+    mediaViewerGetTransform() {
+      const scale = this.ui.mediaViewerZoom;
+      const x = this.ui.mediaViewerPanX;
+      const y = this.ui.mediaViewerPanY;
+      return `scale(${scale}) translate(${x}px, ${y}px)`;
     },
 
     // ===================== INSTAGRAM HELPERS =====================
