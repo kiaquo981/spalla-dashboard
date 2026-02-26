@@ -475,7 +475,7 @@ function spalla() {
     // ===================== JWT AUTHENTICATION =====================
 
     async login() {
-      """Authenticate with email/password and get JWT token"""
+      // Authenticate with email/password and get JWT token
       if (!this.auth.email || !this.auth.password) {
         this.auth.error = 'Email e senha são obrigatórios';
         return;
@@ -526,7 +526,7 @@ function spalla() {
     },
 
     logout() {
-      """Clear JWT token and reset auth state"""
+      // Clear JWT token and reset auth state
       this.auth.authenticated = false;
       this.auth.token = null;
       this.auth.email = '';
@@ -537,7 +537,7 @@ function spalla() {
     },
 
     getAuthToken() {
-      """Get current JWT token (check expiration first)"""
+      // Get current JWT token (check expiration first)
       if (!this.auth.token) return null;
 
       // Check if token expired
@@ -550,7 +550,7 @@ function spalla() {
     },
 
     getAuthHeaders() {
-      """Get headers with JWT token for API requests"""
+      // Get headers with JWT token for API requests
       const token = this.getAuthToken();
       const headers = { 'Content-Type': 'application/json' };
       if (token) {
@@ -560,7 +560,7 @@ function spalla() {
     },
 
     async parseJsonResponse(response, operation = 'API call') {
-      """Parse JSON response with Content-Type validation (HIGH-03)"""
+      // Parse JSON response with Content-Type validation (HIGH-03)
       try {
         const contentType = response.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
@@ -576,12 +576,12 @@ function spalla() {
 
     // LOW-06: Performance tracking utilities
     perfMark(name) {
-      """Mark start of a performance-measured operation"""
+      // Mark start of a performance-measured operation
       this._perfMarkers[name] = performance.now();
     },
 
     perfMeasure(name) {
-      """Measure elapsed time and log"""
+      // Measure elapsed time and log
       if (!this._perfMarkers[name]) return 0;
       const elapsed = performance.now() - this._perfMarkers[name];
       this.perf[name + 'Time'] = elapsed;
@@ -1769,7 +1769,7 @@ function spalla() {
     // ===================== INSTAGRAM HELPERS =====================
 
     validateInstagramHandle(handle) {
-      """Validate Instagram handle format (MED-04)"""
+      // Validate Instagram handle format (MED-04)
       if (!handle) return false;
       // Instagram handles: 1-30 chars, alphanumeric + . _ -, no consecutive dots/dashes
       const regex = /^[a-z0-9._-]{1,30}$/i;
