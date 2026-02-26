@@ -466,100 +466,167 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         else:
             self.send_error(404)
 
-    # ===== WHATSAPP API (Supabase interacoes_mentoria) =====
+    # ===== WHATSAPP API (Evolution API + Supabase Sync) =====
 
     def _handle_wa(self):
-        """WhatsApp API via Supabase interacoes_mentoria table"""
+        """WhatsApp API via Evolution API (real-time) + Supabase sync (persistent)"""
+        if not EVOLUTION_API_KEY:
+            self._send_json({'error': 'Evolution API not configured'}, 503)
+            return
+
         try:
             body = json.loads(self._read_body())
             action = body.get('action')
 
             if action == 'findChats':
-                # Get chats from Supabase (group by mentorado)
-                url = f'{SUPABASE_URL}/rest/v1/interacoes_mentoria?select=id_mentorado,mentorado_nome,created_at&order=created_at.desc'
-                req = urllib.request.Request(url, method='GET')
-                req.add_header('apikey', SUPABASE_ANON_KEY)
-                req.add_header('Accept', 'application/json')
+                # Get chats from Evolution API (real-time)
+                url = f'{EVOLUTION_BASE}/chat/findChats/produ02'
+                req = urllib.request.Request(url, data=b'{}', method='POST')
+                req.add_header('apikey', EVOLUTION_API_KEY)
+                req.add_header('Content-Type', 'application/json')
 
-                with urllib.request.urlopen(req, timeout=15) as resp:
-                    interacoes = json.loads(resp.read())
-
-                    # Group by mentorado to create "chats"
-                    chats_dict = {}
-                    for inter in interacoes:
-                        key = inter.get('id_mentorado', 'unknown')
-                        if key not in chats_dict:
-                            chats_dict[key] = {
-                                'id': key,
-                                'remoteJid': key,
-                                'name': inter.get('mentorado_nome', 'Unknown'),
-                                'pushName': inter.get('mentorado_nome', 'Unknown'),
-                                'updatedAt': inter.get('created_at', ''),
-                                'unreadCount': 0
-                            }
-
-                    chats = list(chats_dict.values())
-                    self._send_json(chats, 200)
+                try:
+                    with urllib.request.urlopen(req, timeout=15) as resp:
+                        response_data = json.loads(resp.read())
+                        chats = response_data if isinstance(response_data, list) else []
+                        self._send_json(chats, 200)
+                        log_info('WA', f'Fetched {len(chats)} chats from Evolution API')
+                except urllib.error.HTTPError as e:
+                    error_body = e.read().decode()
+                    log_error('WA', f'Evolution findChats failed: {e.code}', error_body)
+                    self._send_json({'error': f'Evolution API error: {e.code}'}, e.code)
 
             elif action == 'findMessages':
-                # Get messages from a chat (mentorado_id)
-                mentorado_id = body.get('remoteJid', '')
-                url = f'{SUPABASE_URL}/rest/v1/interacoes_mentoria?id_mentorado=eq.{mentorado_id}&order=created_at.asc&limit=100'
-                req = urllib.request.Request(url, method='GET')
-                req.add_header('apikey', SUPABASE_ANON_KEY)
-                req.add_header('Accept', 'application/json')
+                # Get messages from a chat (Evolution API real-time)
+                remote_jid = body.get('remoteJid', '')
+                limit = body.get('limit', 50)
 
-                with urllib.request.urlopen(req, timeout=15) as resp:
-                    interacoes = json.loads(resp.read())
+                if not remote_jid:
+                    self._send_json({'error': 'remoteJid is required'}, 400)
+                    return
 
-                    # Convert to message format
-                    messages = []
-                    for inter in interacoes:
-                        messages.append({
-                            'id': inter.get('id'),
-                            'fromMe': False,  # Coming from mentorado
-                            'sender': mentorado_id,
-                            'body': inter.get('descricao', inter.get('observacoes', '')),
-                            'timestamp': inter.get('created_at', ''),
-                            'type': 'text'
-                        })
+                url = f'{EVOLUTION_BASE}/chat/findMessages/produ02'
+                req_body = json.dumps({'remoteJid': remote_jid, 'limit': limit}).encode()
+                req = urllib.request.Request(url, data=req_body, method='POST')
+                req.add_header('apikey', EVOLUTION_API_KEY)
+                req.add_header('Content-Type', 'application/json')
 
-                    self._send_json(messages, 200)
+                try:
+                    with urllib.request.urlopen(req, timeout=15) as resp:
+                        response_data = json.loads(resp.read())
+
+                        # Extract messages from response structure
+                        if isinstance(response_data, dict) and 'messages' in response_data:
+                            messages_obj = response_data['messages']
+                            messages = messages_obj.get('records', []) if isinstance(messages_obj, dict) else messages_obj
+                        else:
+                            messages = response_data if isinstance(response_data, list) else []
+
+                        # Sync to Supabase for persistent storage
+                        self._sync_messages_to_supabase(remote_jid, messages)
+
+                        self._send_json(messages, 200)
+                        log_info('WA', f'Fetched {len(messages)} messages for {remote_jid}')
+                except urllib.error.HTTPError as e:
+                    error_body = e.read().decode()
+                    log_error('WA', f'Evolution findMessages failed: {e.code}', error_body)
+                    self._send_json({'error': f'Evolution API error: {e.code}'}, e.code)
 
             elif action == 'sendText':
-                # Save message to Supabase
-                mentorado_id = body.get('number', '')
+                # Send message via Evolution API (real-time) + sync to Supabase
+                number = body.get('number', '')
                 text = body.get('text', '')
 
-                # Insert into interacoes_mentoria
-                url = f'{SUPABASE_URL}/rest/v1/interacoes_mentoria'
-                insert_data = {
-                    'id_mentorado': mentorado_id,
-                    'descricao': text,
-                    'tipo_interacao': 'mensagem'
-                }
+                if not number or not text:
+                    self._send_json({'error': 'number and text are required'}, 400)
+                    return
 
-                req = urllib.request.Request(
-                    url,
-                    data=json.dumps(insert_data).encode(),
-                    method='POST'
-                )
-                req.add_header('apikey', SUPABASE_SERVICE_KEY)
+                url = f'{EVOLUTION_BASE}/message/sendText/produ02'
+                req_body = json.dumps({'number': number, 'text': text}).encode()
+                req = urllib.request.Request(url, data=req_body, method='POST')
+                req.add_header('apikey', EVOLUTION_API_KEY)
                 req.add_header('Content-Type', 'application/json')
-                req.add_header('Prefer', 'return=minimal')
 
-                with urllib.request.urlopen(req, timeout=15) as resp:
-                    self._send_json({'status': 'ok'}, 201)
+                try:
+                    with urllib.request.urlopen(req, timeout=15) as resp:
+                        response_data = json.loads(resp.read())
+
+                        # Also save to Supabase for persistent record
+                        self._save_sent_message_to_supabase(number, text)
+
+                        self._send_json(response_data, 200)
+                        log_info('WA', f'Message sent to {number}')
+                except urllib.error.HTTPError as e:
+                    error_body = e.read().decode()
+                    log_error('WA', f'Evolution sendText failed: {e.code}', error_body)
+                    self._send_json({'error': f'Evolution API error: {e.code}'}, e.code)
+
             else:
                 self._send_json({'error': 'Unknown action'}, 400)
 
-        except urllib.error.HTTPError as e:
-            error_body = e.read().decode()
-            log_error('WA', f'HTTP {e.code}', error_body)
-            self._send_json({'error': error_body}, e.code)
+        except json.JSONDecodeError:
+            self._send_json({'error': 'Invalid JSON'}, 400)
         except Exception as e:
             log_error('WA', 'Handler error', e)
             self._send_json({'error': str(e)}, 500)
+
+    def _sync_messages_to_supabase(self, remote_jid, messages):
+        """Sync Evolution messages to Supabase for persistent storage"""
+        if not messages or not SUPABASE_SERVICE_KEY:
+            return
+
+        # Extract mentorado_id/nome from first message or remote_jid
+        mentorado_id = remote_jid.split('@')[0] if '@' in remote_jid else remote_jid
+
+        for msg in messages[:10]:  # Limit to avoid bulk inserts
+            try:
+                # Extract message body based on Evolution API structure
+                body = ''
+                if isinstance(msg.get('message'), dict):
+                    body = msg['message'].get('conversation', '')
+                    if not body and 'extendedTextMessage' in msg['message']:
+                        body = msg['message']['extendedTextMessage'].get('text', '')
+
+                if not body:
+                    continue
+
+                # Check if message already exists (by Evolution API message ID)
+                existing = supabase_request('GET', f"interacoes_mentoria?select=id&where=id_evolution_msg.eq.{msg.get('id')}")
+                if existing and not existing.get('error'):
+                    continue  # Skip if already synced
+
+                # Insert into interacoes_mentoria
+                insert_data = {
+                    'id_mentorado': mentorado_id,
+                    'descricao': body,
+                    'tipo_interacao': 'chat_evolution',
+                    'id_evolution_msg': msg.get('id'),
+                    'evolution_jid': msg.get('key', {}).get('remoteJid', remote_jid),
+                    'evolution_fromMe': msg.get('key', {}).get('fromMe', False),
+                }
+                supabase_request('POST', 'interacoes_mentoria', insert_data)
+            except Exception as e:
+                log_error('WA_SYNC', f'Failed to sync message {msg.get("id")}', e)
+                continue
+
+    def _save_sent_message_to_supabase(self, number, text):
+        """Save outgoing message to Supabase"""
+        if not SUPABASE_SERVICE_KEY:
+            return
+
+        mentorado_id = number.split('@')[0] if '@' in number else number
+
+        try:
+            insert_data = {
+                'id_mentorado': mentorado_id,
+                'descricao': text,
+                'tipo_interacao': 'chat_envio',
+                'evolution_fromMe': True,
+            }
+            supabase_request('POST', 'interacoes_mentoria', insert_data)
+            log_info('WA_SYNC', f'Saved sent message to mentorado {mentorado_id}')
+        except Exception as e:
+            log_error('WA_SYNC', 'Failed to save sent message', e)
 
     # ===== AUTHENTICATION (Multi-method) =====
 
@@ -852,15 +919,18 @@ if __name__ == '__main__':
     print(f'[Spalla] Zoom:     {"✓ configured" if ZOOM_ACCOUNT_ID else "✗ set ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET"}')
     print(f'[Spalla] GCal:     {"✓ service account found" if os.path.exists(GOOGLE_SA_PATH) else "✗ no service account"}')
     print(f'[Spalla] Supabase: {"✓ configured" if SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY else "✗ set SUPABASE_SERVICE_KEY"}')
-    print(f'[Spalla] Evolution: ✓ proxy at /api/evolution/*')
-    print(f'[Spalla] Endpoints:')
-    print(f'  POST /api/schedule-call    — Full scheduling (Zoom + Calendar + DB)')
-    print(f'  POST /api/zoom/create-meeting')
-    print(f'  POST /api/calendar/create-event')
-    print(f'  GET  /api/mentees          — Mentorados with email')
-    print(f'  GET  /api/calendar/events   — Upcoming calendar events')
-    print(f'  GET  /api/calls/upcoming    — Scheduled calls from DB')
-    print(f'  GET  /api/health')
+    print(f'[Spalla] Evolution: {"✓ API key configured" if EVOLUTION_API_KEY else "✗ set EVOLUTION_API_KEY"}')
+    print(f'[Spalla] WhatsApp Integration: POST /api/wa (findChats, findMessages, sendText)')
+    print(f'[Spalla] Evolution Proxy: GET/POST /api/evolution/* → {EVOLUTION_BASE}')
+    print(f'[Spalla] All Endpoints:')
+    print(f'  POST /api/wa                  — WhatsApp (findChats, findMessages, sendText)')
+    print(f'  POST /api/schedule-call       — Full scheduling (Zoom + Calendar + DB)')
+    print(f'  POST /api/zoom/create-meeting — Create Zoom meeting')
+    print(f'  POST /api/calendar/create-event — Create calendar event')
+    print(f'  GET  /api/mentees             — Mentorados with email')
+    print(f'  GET  /api/calendar/events     — Upcoming calendar events')
+    print(f'  GET  /api/calls/upcoming      — Scheduled calls from DB')
+    print(f'  GET  /api/health              — Health check (Evolution, Zoom, GCal, Supabase)')
 
     server = http.server.HTTPServer(('', PORT), ProxyHandler)
     try:
