@@ -1462,12 +1462,63 @@ function spalla() {
 
     igPhoto(handleOrName) {
       if (!handleOrName) return null;
-      void this.photoTick;
+      void this.photoTick; // Force Alpine reactivity on photoTick change
+
       const isHandle = !handleOrName.includes(' ');
-      const clean = handleOrName.replace('@','').toLowerCase();
+      const handle = isHandle ? handleOrName.replace('@', '') : null;
+
+      // Strategy 1: Try exact lookup in INSTAGRAM_PROFILES
+      if (handle && INSTAGRAM_PROFILES && INSTAGRAM_PROFILES[handle]) {
+        const foto = INSTAGRAM_PROFILES[handle].foto;
+        console.debug('[igPhoto] Found in INSTAGRAM_PROFILES (exact)', {
+          input: handleOrName,
+          handle,
+          foto
+        });
+        return foto;
+      }
+
+      // Strategy 2: Try lowercase lookup (Instagram handles are case-insensitive)
+      if (handle) {
+        const handleLower = handle.toLowerCase();
+        if (INSTAGRAM_PROFILES && INSTAGRAM_PROFILES[handleLower]) {
+          const foto = INSTAGRAM_PROFILES[handleLower].foto;
+          console.debug('[igPhoto] Found in INSTAGRAM_PROFILES (lowercase)', {
+            input: handleOrName,
+            handleLower,
+            foto
+          });
+          return foto;
+        }
+      }
+
+      // Strategy 3: If full name provided, search INSTAGRAM_PROFILES by nome field
+      if (!handle && INSTAGRAM_PROFILES) {
+        const nameLower = handleOrName.toLowerCase();
+        for (const [key, profile] of Object.entries(INSTAGRAM_PROFILES)) {
+          if (profile.nome && profile.nome.toLowerCase().includes(nameLower)) {
+            console.debug('[igPhoto] Found in INSTAGRAM_PROFILES (by name)', {
+              input: handleOrName,
+              key,
+              profileName: profile.nome,
+              foto: profile.foto
+            });
+            return profile.foto;
+          }
+        }
+      }
+
+      // Fallback: Generate path dynamically for files not in database
+      const clean = (handle || handleOrName).replace('@', '').toLowerCase();
       const fileKey = isHandle ? clean : clean.replace(/\s+/g, '_');
       const photoPath = `photos/${fileKey}.jpg`;
-      console.debug('[igPhoto]', { input: handleOrName, isHandle, fileKey, photoPath });
+      console.debug('[igPhoto] Generated fallback path', {
+        input: handleOrName,
+        isHandle,
+        fileKey,
+        photoPath,
+        note: 'Not found in INSTAGRAM_PROFILES, using generated path'
+      });
       return photoPath;
     },
 
