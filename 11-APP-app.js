@@ -707,6 +707,8 @@ function spalla() {
           if (this._supabaseCalls?.length) this._enrichMenteesWithCalls();
           // Enrich with Instagram handles and Zoom passwords
           if (sb && this.data.mentees?.length) await this._enrichMenteesWithSocialAndZoom();
+          // MED-02: Setup realtime subscriptions for live updates
+          if (sb) this._setupRealtimeSubscriptions();
           this.supabaseConnected = true;
           this.toast('Dados carregados do Supabase', 'success');
         } catch (e) {
@@ -790,6 +792,47 @@ function spalla() {
         console.debug('[Spalla] Enriched mentees with Instagram + Zoom data');
       } catch (e) {
         console.warn('[Spalla] Could not fetch Instagram/Zoom data:', e);
+      }
+    },
+
+    _setupRealtimeSubscriptions() {
+      // MED-02: Setup Supabase Realtime subscriptions for live updates
+      try {
+        // Subscribe to changes in mentorados (mentees)
+        const menteeChannel = sb.channel('mentorados_changes')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'mentorados' }, payload => {
+            console.debug('[Spalla] Mentee changed (realtime):', payload);
+            // Reload dashboard to refresh mentee data
+            this.loadDashboard();
+          })
+          .subscribe();
+
+        // Subscribe to changes in calls
+        const callsChannel = sb.channel('calls_changes')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'calls_mentoria' }, payload => {
+            console.debug('[Spalla] Call changed (realtime):', payload);
+            // Reload call data
+            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+              this._supabaseCalls = this._supabaseCalls || [];
+              if (!this._supabaseCalls.find(c => c.id === payload.new?.id)) {
+                this._supabaseCalls.push(payload.new);
+              }
+              this._enrichMenteesWithCalls();
+            }
+          })
+          .subscribe();
+
+        // Subscribe to changes in tasks
+        const tasksChannel = sb.channel('tasks_changes')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'god_tasks' }, payload => {
+            console.debug('[Spalla] Task changed (realtime):', payload);
+            this.loadTasks(); // Reload tasks when changes occur
+          })
+          .subscribe();
+
+        console.log('[Spalla] Realtime subscriptions setup complete');
+      } catch (e) {
+        console.warn('[Spalla] Could not setup realtime subscriptions:', e);
       }
     },
 
@@ -1471,7 +1514,16 @@ function spalla() {
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed)) {
-            this.data.reminders = parsed;
+            // MED-09: Validate structure of each reminder
+            const validated = parsed.filter(rem => {
+              if (!rem || typeof rem !== 'object') return false;
+              if (typeof rem.texto !== 'string' || !rem.texto.trim()) return false;
+              if (typeof rem.data !== 'string') return false;
+              if (!['low', 'normal', 'high'].includes(rem.prioridade)) rem.prioridade = 'normal';
+              if (typeof rem.mentorado_nome !== 'string') rem.mentorado_nome = '';
+              return true;
+            });
+            this.data.reminders = validated;
           } else {
             throw new Error('Invalid reminders format');
           }

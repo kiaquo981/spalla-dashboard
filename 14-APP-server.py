@@ -145,16 +145,23 @@ def create_zoom_meeting(topic, start_time, duration=60, invitees=None):
     if not token:
         return {'error': 'Zoom credentials not configured'}
 
-    # Ensure start_time has timezone offset (HIGH-02, HIGH-06)
+    # Ensure start_time has timezone offset (HIGH-02, HIGH-06) — MED-05: Proper DST handling
     if isinstance(start_time, str) and 'T' in start_time:
         # Check if it already has timezone (ends with +HH:MM or -HH:MM)
         if not ('+' in start_time[-6:] or ('-' in start_time[-6:] and start_time[-3] == ':')):
-            # start_time is naive, add Brasilia timezone offset
+            # start_time is naive, add Brasilia timezone with proper DST handling
             tz_br = pytz.timezone('America/Sao_Paulo')
-            now_br = datetime.now(tz_br)
-            offset = now_br.strftime('%z')  # Returns '-0300' or '-0400'
-            offset_formatted = f'{offset[:-2]}:{offset[-2:]}'  # Format as '-03:00' or '-04:00'
-            start_time = f'{start_time}{offset_formatted}'
+            try:
+                # Parse naive datetime and localize it (handles DST correctly)
+                dt_naive = datetime.fromisoformat(start_time)
+                dt_aware = tz_br.localize(dt_naive, is_dst=None)  # is_dst=None raises AmbiguousTimeError if needed
+                start_time = dt_aware.isoformat()
+            except Exception:
+                # Fallback: use current offset if parsing fails
+                now_br = datetime.now(tz_br)
+                offset = now_br.strftime('%z')
+                offset_formatted = f'{offset[:-2]}:{offset[-2:]}'
+                start_time = f'{start_time}{offset_formatted}'
 
     body = json.dumps({
         'topic': topic,
@@ -522,15 +529,23 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': 'Invalid mentorado_id'}, 400)
                 return
 
-        # Build datetime
-        # Get Brazil timezone offset (HIGH-02)
+        # Build datetime with proper DST handling (HIGH-02, MED-05)
         tz_br = pytz.timezone('America/Sao_Paulo')
-        now_br = datetime.now(tz_br)
-        offset = now_br.strftime('%z')
-        offset_formatted = f'{offset[:-2]}:{offset[-2:]}'
-        start_dt = f'{data}T{horario}:00{offset_formatted}'
-        end_dt_obj = datetime.fromisoformat(start_dt) + timedelta(minutes=duracao)
-        end_dt = end_dt_obj.isoformat()
+        try:
+            # Parse naive datetime and localize it (handles DST correctly)
+            dt_naive = datetime.fromisoformat(f'{data}T{horario}:00')
+            dt_aware = tz_br.localize(dt_naive, is_dst=None)  # is_dst=None raises on ambiguous times
+            start_dt = dt_aware.isoformat()
+            end_dt_obj = dt_aware + timedelta(minutes=duracao)
+            end_dt = end_dt_obj.isoformat()
+        except Exception as e:
+            # Fallback if parsing fails
+            now_br = datetime.now(tz_br)
+            offset = now_br.strftime('%z')
+            offset_formatted = f'{offset[:-2]}:{offset[-2:]}'
+            start_dt = f'{data}T{horario}:00{offset_formatted}'
+            end_dt_obj = datetime.fromisoformat(start_dt) + timedelta(minutes=duracao)
+            end_dt = end_dt_obj.isoformat()
 
         topic = f'Call {tipo.title()} — {mentorado_nome}'
         result = {'mentorado': mentorado_nome, 'data': data, 'horario': horario, 'tipo': tipo}

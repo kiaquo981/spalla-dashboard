@@ -22,7 +22,7 @@
   </style>
 </head>
 <body>
-  <div id="loading-fallback"><span>Spalla</span></div>
+  <div id="loading-fallback" role="status" aria-label="Carregando aplicação Spalla"><span>Spalla</span></div>
 
   <script>
     // Global error catcher BEFORE everything
@@ -328,7 +328,7 @@
           </div>
 
           <!-- Loading -->
-          <div class="ln-loading" x-show="ui.loading">
+          <div class="ln-loading" x-show="ui.loading" role="status" aria-label="Carregando dados">
             <div class="ln-loading__bar"></div>
             <div class="ln-loading__bar"></div>
             <div class="ln-loading__bar"></div>
@@ -707,7 +707,7 @@
           </div>
 
           <!-- Detail loading -->
-          <div x-show="ui.detailLoading" class="skeleton skeleton--card" style="height:400px"></div>
+          <div x-show="ui.detailLoading" class="skeleton skeleton--card" style="height:400px" role="status" aria-label="Carregando detalhes do mentorado"></div>
         </div>
 
         <!-- ===== PAGE: KANBAN ===== -->
@@ -1520,7 +1520,7 @@
                     <div class="wa-sidebar__item-info"><div class="wa-sidebar__item-name" x-text="getWaChatName(chat)"></div></div>
                   </div>
                 </template>
-                <div class="wa-sidebar__loading" x-show="ui.whatsappLoading && !data.whatsappChats.length">Carregando conversas...</div>
+                <div class="wa-sidebar__loading" x-show="ui.whatsappLoading && !data.whatsappChats.length" role="status" aria-label="Carregando conversas do WhatsApp">Carregando conversas...</div>
                 <div class="wa-sidebar__empty" x-show="!ui.whatsappLoading && !data.whatsappChats.length">Nenhuma conversa. Clique em recarregar.</div>
               </div>
             </div>
@@ -1544,7 +1544,7 @@
                   </div>
                 </template>
                 <div id="wa-messages-end"></div>
-                <div class="wa-chat__loading" x-show="ui.whatsappLoading">Carregando mensagens...</div>
+                <div class="wa-chat__loading" x-show="ui.whatsappLoading" role="status" aria-label="Carregando mensagens do WhatsApp">Carregando mensagens...</div>
               </div>
               <div class="wa-chat__input" x-show="ui.whatsappSelectedChat">
                 <input type="text" x-model="ui.whatsappMessage" placeholder="Digite sua mensagem..." @keydown.enter="sendWhatsAppMessage()">

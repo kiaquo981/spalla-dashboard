@@ -138,7 +138,7 @@ const INSTAGRAM_PROFILES = {
     seguidores: 99675,
     seguindo: 69,
     posts: 5808,
-    foto: 'https://instagram.faus1-1.fna.fbcdn.net/v/t51.2885-19/628939891_18562202854012959_3044075208689367804_n.jpg?stp=dst-jpg_s320x320_tt6&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLmRqYW5nby4xMDgwLmMyIn0&_nc_ht=instagram.faus1-1.fna.fbcdn.net&_nc_cat=103&_nc_oc=Q6cZ2QGz2Z11larq9ugEZAjmKkyLa4L4S6xyO2dNyZinF1XsriKK7qMm4qCGRhMNsUY_6K3qeIgwrgJS_m7XWh-1nirx&_nc_ohc=3rolRPz1TtcQ7kNvwGnPOGK&_nc_gid=uC7GXDOXXxhsg6nzH5Z06A&edm=AOQ1c0wBAAAA&ccb=7-5&oh=00_Afuoa6BepgxjJcnVGBopSYBX0XMzood0C-y8tU-ZFTbxyg&oe=699A6801&_nc_sid=8b3546',
+    foto: 'photos/flaviannyartiaga.jpg',
     bio: 'Mestre em Odontologia - Laser CO2 - 26 anos de Clínica',
     views: 174970,
     likes: 3793,
