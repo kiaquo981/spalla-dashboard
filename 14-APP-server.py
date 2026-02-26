@@ -466,52 +466,90 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         else:
             self.send_error(404)
 
-    # ===== WHATSAPP API (Evolution proxy) =====
+    # ===== WHATSAPP API (Supabase interacoes_mentoria) =====
 
     def _handle_wa(self):
-        """WhatsApp API via Evolution"""
+        """WhatsApp API via Supabase interacoes_mentoria table"""
         try:
             body = json.loads(self._read_body())
             action = body.get('action')
 
             if action == 'findChats':
-                # Get chats from Evolution
-                url = f'{EVOLUTION_BASE}/produ02/chats'
+                # Get chats from Supabase (group by mentorado)
+                url = f'{SUPABASE_URL}/rest/v1/interacoes_mentoria?select=id_mentorado,mentorado_nome,created_at&order=created_at.desc'
                 req = urllib.request.Request(url, method='GET')
-                req.add_header('apikey', EVOLUTION_API_KEY)
+                req.add_header('apikey', SUPABASE_ANON_KEY)
+                req.add_header('Accept', 'application/json')
 
                 with urllib.request.urlopen(req, timeout=15) as resp:
-                    chats = json.loads(resp.read())
+                    interacoes = json.loads(resp.read())
+
+                    # Group by mentorado to create "chats"
+                    chats_dict = {}
+                    for inter in interacoes:
+                        key = inter.get('id_mentorado', 'unknown')
+                        if key not in chats_dict:
+                            chats_dict[key] = {
+                                'id': key,
+                                'remoteJid': key,
+                                'name': inter.get('mentorado_nome', 'Unknown'),
+                                'pushName': inter.get('mentorado_nome', 'Unknown'),
+                                'updatedAt': inter.get('created_at', ''),
+                                'unreadCount': 0
+                            }
+
+                    chats = list(chats_dict.values())
                     self._send_json(chats, 200)
 
             elif action == 'findMessages':
-                # Get messages from a chat
-                remote_jid = body.get('remoteJid', '')
-                url = f'{EVOLUTION_BASE}/produ02/messages/{urllib.parse.quote(remote_jid)}'
+                # Get messages from a chat (mentorado_id)
+                mentorado_id = body.get('remoteJid', '')
+                url = f'{SUPABASE_URL}/rest/v1/interacoes_mentoria?id_mentorado=eq.{mentorado_id}&order=created_at.asc&limit=100'
                 req = urllib.request.Request(url, method='GET')
-                req.add_header('apikey', EVOLUTION_API_KEY)
+                req.add_header('apikey', SUPABASE_ANON_KEY)
+                req.add_header('Accept', 'application/json')
 
                 with urllib.request.urlopen(req, timeout=15) as resp:
-                    messages = json.loads(resp.read())
+                    interacoes = json.loads(resp.read())
+
+                    # Convert to message format
+                    messages = []
+                    for inter in interacoes:
+                        messages.append({
+                            'id': inter.get('id'),
+                            'fromMe': False,  # Coming from mentorado
+                            'sender': mentorado_id,
+                            'body': inter.get('descricao', inter.get('observacoes', '')),
+                            'timestamp': inter.get('created_at', ''),
+                            'type': 'text'
+                        })
+
                     self._send_json(messages, 200)
 
             elif action == 'sendText':
-                # Send message
-                number = body.get('number', '')
+                # Save message to Supabase
+                mentorado_id = body.get('number', '')
                 text = body.get('text', '')
-                url = f'{EVOLUTION_BASE}/produ02/message/sendText'
+
+                # Insert into interacoes_mentoria
+                url = f'{SUPABASE_URL}/rest/v1/interacoes_mentoria'
+                insert_data = {
+                    'id_mentorado': mentorado_id,
+                    'descricao': text,
+                    'tipo_interacao': 'mensagem'
+                }
 
                 req = urllib.request.Request(
                     url,
-                    data=json.dumps({'number': number, 'text': text}).encode(),
+                    data=json.dumps(insert_data).encode(),
                     method='POST'
                 )
-                req.add_header('apikey', EVOLUTION_API_KEY)
+                req.add_header('apikey', SUPABASE_SERVICE_KEY)
                 req.add_header('Content-Type', 'application/json')
+                req.add_header('Prefer', 'return=minimal')
 
                 with urllib.request.urlopen(req, timeout=15) as resp:
-                    result = json.loads(resp.read())
-                    self._send_json(result, 200)
+                    self._send_json({'status': 'ok'}, 201)
             else:
                 self._send_json({'error': 'Unknown action'}, 400)
 
