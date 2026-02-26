@@ -54,6 +54,7 @@
       <div class="auth-card">
         <div class="auth-card__logo">Spalla</div>
         <div class="auth-card__subtitle">Dashboard de Mentorados — CASE</div>
+        <input type="email" class="auth-card__input" placeholder="seu@email.com" x-model="auth.email" @keydown.enter="login()">
         <input type="password" class="auth-card__input" placeholder="Senha de acesso" x-model="auth.password" @keydown.enter="login()">
         <button class="auth-card__btn" @click="login()">Entrar</button>
         <div class="auth-card__error" x-show="auth.error" x-text="auth.error"></div>

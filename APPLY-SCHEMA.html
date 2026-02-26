@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spalla - Aplicar Schema de Autenticação</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .steps {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .step {
+            padding: 20px;
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            border-radius: 6px;
+        }
+        .step-number {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 32px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .step-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+        .step-content {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .code {
+            background: #222;
+            color: #0f0;
+            padding: 12px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            margin-top: 10px;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+        .link {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .link:hover {
+            text-decoration: underline;
+        }
+        .highlight {
+            background: #fffacd;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: 500;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+        button {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+        .alert {
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        .alert-info {
+            background: #e3f2fd;
+            color: #1565c0;
+            border-left: 4px solid #1565c0;
+        }
+        .alert-warning {
+            background: #fff3e0;
+            color: #e65100;
+            border-left: 4px solid #e65100;
+        }
+        .users-list {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-top: 10px;
+            font-family: monospace;
+        }
+        .user-item {
+            padding: 5px 0;
+            border-bottom: 1px solid #ddd;
+        }
+        .user-item:last-child {
+            border-bottom: none;
+        }
+        .admin {
+            color: #d32f2f;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Spalla Authentication Setup</h1>
+        <p class="subtitle">Aplicar schema de autenticação na Supabase</p>
+
+        <div class="steps">
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-title">Abra o SQL Editor da Supabase</div>
+                <div class="step-content">
+                    Clique no link abaixo para abrir o SQL Editor do seu projeto:
+                    <br><br>
+                    <a href="https://app.supabase.com/projects/knusqfbvhsqworzyhvip/sql/editor" target="_blank" class="link">
+                        → Abrir SQL Editor
+                    </a>
+                    <br><br>
+                    <strong>Se não funcionar:</strong>
+                    <ol style="margin-left: 20px; margin-top: 10px;">
+                        <li>Abra: <span class="highlight">https://app.supabase.com</span></li>
+                        <li>Clique no projeto: <span class="highlight">knusqfbvhsqworzyhvip</span></li>
+                        <li>No menu lateral, clique em: <span class="highlight">SQL Editor</span></li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-title">Cole o script SQL</div>
+                <div class="step-content">
+                    Clique em <strong>"New Query"</strong> e cole este SQL:
+                    <div class="code" id="sqlContent" style="cursor: pointer; user-select: all;">-- Authentication Schema for Spalla
+CREATE TABLE IF NOT EXISTS public.user_profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  full_name VARCHAR(255),
+  role VARCHAR(50) DEFAULT 'user',
+  avatar_url VARCHAR(500),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "user_profiles_select_own" ON user_profiles
+  FOR SELECT TO authenticated
+  USING (auth.uid() = id);
+
+CREATE POLICY "user_profiles_select_admin" ON user_profiles
+  FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM user_profiles
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+
+CREATE POLICY "user_profiles_update_own" ON user_profiles
+  FOR UPDATE TO authenticated
+  USING (auth.uid() = id)
+  WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "user_profiles_service_all" ON user_profiles
+  FOR ALL TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.user_profiles (id, email, full_name, role)
+  VALUES (NEW.id, NEW.email, NEW.raw_user_meta_data->>'full_name', 'user');
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+CREATE INDEX idx_user_profiles_role ON user_profiles(role);</div>
+                    <br>
+                    <em style="color: #999; font-size: 12px;">💡 Clique no código acima para selecionar tudo</em>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-title">Execute o script</div>
+                <div class="step-content">
+                    <strong>Clique em "Run"</strong> (botão no canto superior direito) ou pressione <span class="highlight">Ctrl+Enter</span>
+                    <br><br>
+                    Aguarde até ver a mensagem: <span class="highlight" style="color: green;">✓ Success</span>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="step-title">Crie os 7 usuários (opcional — pode ser feito depois)</div>
+                <div class="step-content">
+                    Vá para a aba <strong>Authentication → Users</strong> e clique em <strong>"Invite"</strong>
+                    <br><br>
+                    Adicione estes usuários:
+                    <div class="users-list">
+                        <div class="user-item"><span class="admin">👑</span> kaique.azevedoo@outlook.com (ADMIN)</div>
+                        <div class="user-item"><span class="admin">👑</span> adm@allindigitalmarketing.com.br (ADMIN)</div>
+                        <div class="user-item">queilatrizotti@gmail.com</div>
+                        <div class="user-item">hugo.nicchio@gmail.com</div>
+                        <div class="user-item">mariza.rg22@gmail.com</div>
+                        <div class="user-item">santoslarafreitas@gmail.com</div>
+                        <div class="user-item">heitorms15@gmail.com</div>
+                    </div>
+                    <br>
+                    Depois, para marcar como admin, execute:
+                    <div class="code">UPDATE public.user_profiles
+SET role = 'admin'
+WHERE email IN (
+  'kaique.azevedoo@outlook.com',
+  'adm@allindigitalmarketing.com.br'
+);</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="alert alert-info">
+            <strong>✓ Pronto!</strong> Depois de executar o SQL, seu sistema de autenticação com email/senha, Google OAuth e roles de admin estará funcionando!
+        </div>
+
+        <div class="alert alert-warning">
+            <strong>⚠️ Importante:</strong> Guarde bem a <strong>SERVICE_KEY</strong> do seu projeto (Settings → API → service_role secret). Você vai precisar para outras operações.
+        </div>
+
+        <div class="button-group">
+            <button class="btn-primary" onclick="openEditor()">Abrir SQL Editor →</button>
+            <button class="btn-secondary" onclick="window.close()">Fechar</button>
+        </div>
+    </div>
+
+    <script>
+        function openEditor() {
+            window.open('https://app.supabase.com/projects/knusqfbvhsqworzyhvip/sql/editor', '_blank');
+        }
+
+        // Make SQL code selectable
+        document.getElementById('sqlContent').addEventListener('click', function() {
+            const range = document.createRange();
+            range.selectNodeContents(this);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+        });
+    </script>
+</body>
+</html>

@@ -699,18 +699,7 @@ function spalla() {
       return result === 0;
     },
 
-    login() {
-      // HIGH-01: Use timing-safe comparison instead of ===
-      if (this._timingSafeCompare(this.auth.password, CONFIG.AUTH_PASSWORD)) {
-        this.auth.authenticated = true;
-        this.auth.error = '';
-        localStorage.setItem(CONFIG.AUTH_STORAGE_KEY, 'true');
-        this.loadDashboard();
-      } else {
-        this.auth.error = 'Senha incorreta';
-        this.auth.password = '';
-      }
-    },
+    // REMOVED: Old single-password login. Now using async login() with email/password + JWT (line 477)
 
     logout() {
       this.auth.authenticated = false;
