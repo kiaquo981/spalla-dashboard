@@ -475,7 +475,7 @@ function spalla() {
     // ===================== JWT AUTHENTICATION =====================
 
     async login() {
-      // Authenticate with email/password and get JWT token
+      // Authenticate with email/password using Supabase directly
       if (!this.auth.email || !this.auth.password) {
         this.auth.error = 'Email e senha são obrigatórios';
         return;
@@ -485,26 +485,19 @@ function spalla() {
       this.auth.error = '';
 
       try {
-        const response = await fetch(`${CONFIG.API_BASE_URL}/api/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: this.auth.email.toLowerCase(),
-            password: this.auth.password
-          })
-        });
+        // Call Supabase Auth directly (no backend needed)
+        const result = await supabaseAuth.login(this.auth.email, this.auth.password);
 
-        const data = await response.json();
-
-        if (!response.ok) {
-          this.auth.error = data.error || 'Falha na autenticação';
+        if (!result.success) {
+          this.auth.error = result.error || 'Falha na autenticação';
           this.auth.loading = false;
           return;
         }
 
         // Save token
-        this.auth.token = data.token;
-        this.auth.tokenExpires = Date.now() + data.expiresIn * 1000;
+        this.auth.token = result.token;
+        this.auth.refreshToken = result.refreshToken;
+        this.auth.tokenExpires = Date.now() + result.expiresIn * 1000;
         this.auth.authenticated = true;
         this.auth.password = '';  // Clear password from memory
         this.auth.error = '';
@@ -512,6 +505,7 @@ function spalla() {
         // Persist auth state
         localStorage.setItem(CONFIG.AUTH_STORAGE_KEY, JSON.stringify({
           token: this.auth.token,
+          refreshToken: this.auth.refreshToken,
           email: this.auth.email,
           expiresAt: this.auth.tokenExpires
         }));

@@ -28,6 +28,9 @@
 <body>
   <div id="loading-fallback" role="status" aria-label="Carregando aplicação Spalla"><span>Spalla</span></div>
 
+  <!-- Supabase Auth Client (load BEFORE app.js) -->
+  <script src="supabase-auth.js?v=2"></script>
+
   <script>
     // Global error catcher BEFORE everything
     window.addEventListener('error', (e) => {
@@ -45,6 +48,7 @@
 
     console.log('[Spalla] Error listeners attached');
     console.log('[Spalla] API_BASE_URL:', window.API_BASE_URL || '(using relative URLs)');
+    console.log('[Spalla] Supabase Auth client loaded');
   </script>
 
   <div id="app" x-data="spalla()" style="display:none">
