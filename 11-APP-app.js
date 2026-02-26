@@ -660,8 +660,24 @@ function spalla() {
 
     // ===================== AUTH =====================
 
+    // HIGH-01: Constant-time string comparison to prevent timing attacks
+    _timingSafeCompare(a, b) {
+      if (typeof a !== 'string' || typeof b !== 'string') return false;
+      if (a.length !== b.length) {
+        // Still iterate to waste time (constant-time behavior)
+        for (let i = 0; i < 100000; i++) {}
+        return false;
+      }
+      let result = 0;
+      for (let i = 0; i < a.length; i++) {
+        result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+      }
+      return result === 0;
+    },
+
     login() {
-      if (this.auth.password === CONFIG.AUTH_PASSWORD) {
+      // HIGH-01: Use timing-safe comparison instead of ===
+      if (this._timingSafeCompare(this.auth.password, CONFIG.AUTH_PASSWORD)) {
         this.auth.authenticated = true;
         this.auth.error = '';
         localStorage.setItem(CONFIG.AUTH_STORAGE_KEY, 'true');

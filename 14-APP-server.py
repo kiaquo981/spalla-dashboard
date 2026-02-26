@@ -457,7 +457,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 return
 
             # Check credentials (in production, query Supabase auth)
-            if email not in VALID_USERS or VALID_USERS[email] != password:
+            # HIGH-01: Use timing-safe comparison to prevent timing attacks
+            stored_password = VALID_USERS.get(email, '')
+            if not hmac.compare_digest(password, stored_password):
                 # Fail securely (don't reveal which field is wrong)
                 self._send_json({'error': 'Invalid credentials'}, 401)
                 return
