@@ -7,8 +7,8 @@
 // ===== CONFIG =====
 const CONFIG = {
   SUPABASE_URL: 'https://knusqfbvhsqworzyhvip.supabase.co',
-  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtudXNxZmJ2aHNxd29yenlodmlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4NTg3MjcsImV4cCI6MjA3MDQzNDcyN30.f-m7TlmCoccBpUxLZhA4P5kr2lWBGtRIv6inzInAKCo',
-  AUTH_PASSWORD: 'spalla2026',
+  SUPABASE_ANON_KEY: window.__SUPABASE_ANON_KEY__ || '',  // Injected from backend
+  API_BASE_URL: window.__API_BASE_URL__ || 'https://api.spalla-dashboard.vercel.app',
   AUTH_STORAGE_KEY: 'spalla_auth',
   TASKS_STORAGE_KEY: 'spalla_tasks',
   REMINDERS_STORAGE_KEY: 'spalla_reminders',
@@ -673,7 +673,14 @@ function spalla() {
             sb.from('vw_god_calls').select('*').eq('mentorado_id', id).order('data_call', { ascending: false }),
           ]);
           if (detailRes.data) {
-            const detail = typeof detailRes.data === 'string' ? JSON.parse(detailRes.data) : detailRes.data;
+            let detail = null;
+            try {
+              detail = typeof detailRes.data === 'string' ? JSON.parse(detailRes.data) : detailRes.data;
+            } catch (e) {
+              console.error('[Spalla] Failed to parse detail JSON:', e);
+              this.toast('Erro ao carregar detalhes do mentorado', 'error');
+              return;
+            }
             // Enrich with real calls from vw_god_calls
             if (callsRes.data?.length) {
               detail.last_calls = callsRes.data.map(c => ({
@@ -851,8 +858,20 @@ function spalla() {
       // Fallback: localStorage
       try {
         const raw = localStorage.getItem(CONFIG.TASKS_STORAGE_KEY);
-        if (raw) { const parsed = JSON.parse(raw); if (parsed.length > 0) { this.data.tasks = parsed; this._autoCategorize(); return; } }
-      } catch (e) {}
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const validTasks = parsed.filter(t => t.id && t.titulo);
+            if (validTasks.length > 0) {
+              this.data.tasks = validTasks;
+              this._autoCategorize();
+              return;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[Spalla] Failed to load tasks from localStorage:', e.message);
+      }
       this.data.tasks = DEMO_TASKS;
       this._cacheTasksLocal();
     },
@@ -1306,8 +1325,18 @@ function spalla() {
     loadLocalReminders() {
       try {
         const raw = localStorage.getItem(CONFIG.REMINDERS_STORAGE_KEY);
-        if (raw) this.data.reminders = JSON.parse(raw);
-      } catch (e) { this.data.reminders = []; }
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            this.data.reminders = parsed;
+          } else {
+            throw new Error('Invalid reminders format');
+          }
+        }
+      } catch (e) {
+        console.warn('[Spalla] Failed to load reminders:', e.message);
+        this.data.reminders = [];
+      }
     },
 
     saveLocalReminders() {

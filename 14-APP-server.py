@@ -18,20 +18,20 @@ PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8888
 
 # ===== CONFIG =====
 EVOLUTION_BASE = 'https://evolution.manager01.feynmanproject.com'
-EVOLUTION_API_KEY = '07826A779A5C-4E9C-A978-DBCD5F9E4C97'
+EVOLUTION_API_KEY = os.environ.get('EVOLUTION_API_KEY')
 
-# Zoom Server-to-Server OAuth
-ZOOM_ACCOUNT_ID = os.environ.get('ZOOM_ACCOUNT_ID', 'DXq-KNA5QuSpcjG6UeUs0Q')
-ZOOM_CLIENT_ID = os.environ.get('ZOOM_CLIENT_ID', 'fvNVWKX_SumngWI1kQNhg')
-ZOOM_CLIENT_SECRET = os.environ.get('ZOOM_CLIENT_SECRET', 'zsgo0Xjtih8Yn2B0SLPVTK5J0Jh3WO9g')
+# Zoom Server-to-Server OAuth — NO FALLBACK DEFAULTS!
+ZOOM_ACCOUNT_ID = os.environ.get('ZOOM_ACCOUNT_ID')
+ZOOM_CLIENT_ID = os.environ.get('ZOOM_CLIENT_ID')
+ZOOM_CLIENT_SECRET = os.environ.get('ZOOM_CLIENT_SECRET')
 
 # Google Service Account
 GOOGLE_SA_PATH = os.path.expanduser('~/.config/google/credentials.json')
 
-# Supabase
+# Supabase — NO DEFAULTS! These are secrets!
 SUPABASE_URL = 'https://knusqfbvhsqworzyhvip.supabase.co'
-SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtudXNxZmJ2aHNxd29yenlodmlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4NTg3MjcsImV4cCI6MjA3MDQzNDcyN30.f-m7TlmCoccBpUxLZhA4P5kr2lWBGtRIv6inzInAKCo')
-SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtudXNxZmJ2aHNxd29yenlodmlwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDg1ODcyNywiZXhwIjoyMDcwNDM0NzI3fQ.0n5eh94NQ1flgXzQQoKtnNkTxJAYztqKxwNKnHyq6dM')
+SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', '')
+SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
 
 # Calendar ID (user's primary calendar or a specific one)
 GOOGLE_CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID', 'primary')
@@ -47,6 +47,7 @@ def get_zoom_token():
         return _zoom_token['access_token']
 
     if not ZOOM_ACCOUNT_ID or not ZOOM_CLIENT_ID or not ZOOM_CLIENT_SECRET:
+        print('[WARNING] Zoom not configured (missing env vars) — scheduling disabled')
         return None
 
     creds = base64.b64encode(f'{ZOOM_CLIENT_ID}:{ZOOM_CLIENT_SECRET}'.encode()).decode()
@@ -261,6 +262,16 @@ def insert_scheduled_call(data):
 # ===== HTTP HANDLER =====
 class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
+    def _get_allowed_origin(self):
+        """Get origin from request and validate against whitelist"""
+        origin = self.headers.get('Origin', '')
+        allowed_origins = [
+            'https://spalla-dashboard.vercel.app',
+            'http://localhost:3000',
+            'http://127.0.0.1:3000',
+        ]
+        return origin if origin in allowed_origins else None
+
     def _read_body(self):
         length = int(self.headers.get('Content-Length', 0))
         return self.rfile.read(length) if length > 0 else b''
@@ -269,14 +280,18 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         body = json.dumps(data, ensure_ascii=False, default=str).encode()
         self.send_response(status)
         self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
+        origin = self._get_allowed_origin()
+        if origin:
+            self.send_header('Access-Control-Allow-Origin', origin)
         self.send_header('Content-Length', len(body))
         self.end_headers()
         self.wfile.write(body)
 
     def do_OPTIONS(self):
         self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
+        origin = self._get_allowed_origin()
+        if origin:
+            self.send_header('Access-Control-Allow-Origin', origin)
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type, apikey, Authorization')
         self.send_header('Access-Control-Max-Age', '86400')
@@ -495,7 +510,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 resp_body = resp.read()
                 self.send_response(resp.status)
                 self.send_header('Content-Type', 'application/json')
-                self.send_header('Access-Control-Allow-Origin', '*')
+                # CORS already handled by _get_allowed_origin() above
                 self.send_header('Content-Length', len(resp_body))
                 self.end_headers()
                 self.wfile.write(resp_body)
@@ -503,14 +518,14 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             error_body = e.read()
             self.send_response(e.code)
             self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
+            # CORS already handled by _get_allowed_origin() above
             self.end_headers()
             self.wfile.write(error_body)
         except Exception as e:
             error_msg = json.dumps({'error': str(e)}).encode()
             self.send_response(502)
             self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
+            # CORS already handled by _get_allowed_origin() above
             self.end_headers()
             self.wfile.write(error_msg)
 
