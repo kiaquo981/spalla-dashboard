@@ -443,8 +443,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_POST(self):
+        # WhatsApp API
+        if self.path == '/api/wa':
+            self._handle_wa()
         # Multi-auth endpoints (Supabase Auth integration)
-        if self.path == '/api/auth/login':
+        elif self.path == '/api/auth/login':
             self._handle_auth_login()
         elif self.path == '/api/auth/signup':
             self._handle_auth_signup()
@@ -462,6 +465,63 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_create_calendar_event()
         else:
             self.send_error(404)
+
+    # ===== WHATSAPP API (Evolution proxy) =====
+
+    def _handle_wa(self):
+        """WhatsApp API via Evolution"""
+        try:
+            body = json.loads(self._read_body())
+            action = body.get('action')
+
+            if action == 'findChats':
+                # Get chats from Evolution
+                url = f'{EVOLUTION_BASE}/produ02/chats'
+                req = urllib.request.Request(url, method='GET')
+                req.add_header('apikey', EVOLUTION_API_KEY)
+
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    chats = json.loads(resp.read())
+                    self._send_json(chats, 200)
+
+            elif action == 'findMessages':
+                # Get messages from a chat
+                remote_jid = body.get('remoteJid', '')
+                url = f'{EVOLUTION_BASE}/produ02/messages/{urllib.parse.quote(remote_jid)}'
+                req = urllib.request.Request(url, method='GET')
+                req.add_header('apikey', EVOLUTION_API_KEY)
+
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    messages = json.loads(resp.read())
+                    self._send_json(messages, 200)
+
+            elif action == 'sendText':
+                # Send message
+                number = body.get('number', '')
+                text = body.get('text', '')
+                url = f'{EVOLUTION_BASE}/produ02/message/sendText'
+
+                req = urllib.request.Request(
+                    url,
+                    data=json.dumps({'number': number, 'text': text}).encode(),
+                    method='POST'
+                )
+                req.add_header('apikey', EVOLUTION_API_KEY)
+                req.add_header('Content-Type', 'application/json')
+
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    result = json.loads(resp.read())
+                    self._send_json(result, 200)
+            else:
+                self._send_json({'error': 'Unknown action'}, 400)
+
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode()
+            log_error('WA', f'HTTP {e.code}', error_body)
+            self._send_json({'error': error_body}, e.code)
+        except Exception as e:
+            log_error('WA', 'Handler error', e)
+            self._send_json({'error': str(e)}, 500)
 
     # ===== AUTHENTICATION (Multi-method) =====
 
