@@ -1,0 +1,156 @@
+═══════════════════════════════════════════════════════════════════════════════
+  SPALLA DASHBOARD — Story 0.1 QUICK START
+═══════════════════════════════════════════════════════════════════════════════
+
+📱 ACESSE AGORA: https://spalla-dashboard.vercel.app/
+
+✨ O QUE FOI MUDADO:
+
+1. INSTAGRAM HANDLES CLICÁVEIS
+   • Clique em @handle para abrir perfil Instagram em nova aba
+   • Ícone verde do Instagram ao lado
+   • Funciona com qualquer mentorado que tenha handle
+
+2. FOTOS MELHORADAS
+   • Fotos ausentes não quebram mais
+   • Avatar com iniciais SEMPRE visível
+   • Fallback elegante
+
+3. FERRAMENTA DE DEBUG
+   • Use para diagnosticar problemas de fotos
+   • Localize mapeamentos incorretos
+   • Teste a estratégia de lookup
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🧪 TESTE RÁPIDO (30 segundos):
+
+1. Abra: https://spalla-dashboard.vercel.app/
+2. Procure: "Amanda Ribeiro" ou qualquer mentorado
+3. Clique: No handle @draamanda_ribeiro
+4. Resultado: ✅ Instagram abre em NOVA ABA
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🔧 SE ENCONTRAR PROBLEMAS:
+
+Passo 1: Abra DevTools
+         Pressione F12 (Windows/Linux) ou Cmd+Option+I (Mac)
+
+Passo 2: Vá para Console
+         Clique na aba "Console"
+
+Passo 3: Copie PHOTO-DIAGNOSTIC.js
+         (arquivo em /tmp/spalla-dashboard/PHOTO-DIAGNOSTIC.js)
+
+Passo 4: Cole no Console
+         Ctrl+A, Ctrl+V, Enter
+
+Passo 5: Veja o Relatório
+         Mostra:
+         • Quantas fotos estão mapeadas
+         • Quais fotos faltam (null)
+         • Quais têm erro
+         • Teste de cada handle
+
+═══════════════════════════════════════════════════════════════════════════════
+
+⚠️  PROBLEMA COMUM: "Foto errada no card"
+
+Possíveis Causas:
+
+1. INSTAGRAM_PROFILES (mais provável)
+   → Arquivo: 12-APP-data.js
+   → Solução: Verifique mapeamento
+   → Exemplo: Leticia Wenderosky pode não estar mapeada
+
+2. Banco Supabase (campo instagram)
+   → Campo pode ter handle errado
+   → Use PHOTO-DIAGNOSTIC.js para verificar
+   → Solução: Corrija em Supabase
+
+3. Arquivo de foto
+   → Arquivo não existe em /photos/
+   → Solução: Adicione o arquivo correto
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📊 ARQUIVOS NOVOS CRIADOS:
+
+PHOTO-DIAGNOSTIC.js
+  → Script para descobrir problemas de fotos
+  → Execute no console (F12)
+  → Gera relatório em 3 segundos
+
+IMPROVEMENTS-STORY-0.1.md
+  → Documentação técnica completa
+  → Explicação da estratégia 3-layer
+  → Como funciona igPhoto()
+
+TESTING-GUIDE.md
+  → Passos para testar cada feature
+  → Checklist de verificação
+  → Troubleshooting guide
+
+═══════════════════════════════════════════════════════════════════════════════
+
+💡 DICA PROFISSIONAL:
+
+Se foto está errada:
+  1. Run PHOTO-DIAGNOSTIC.js
+  2. Procure na saída por "FOTO DUPLICADA"
+  3. Se encontrar, significa 2 mentees compartilham foto
+  4. Solução: Adicione fotos separadas em 12-APP-data.js
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ RESUMO DE MUDANÇAS
+
+Commit 1: 9435da0
+  • Handles clicáveis (link + ícone)
+  • Photo fallback (iniciais quando falta)
+  • CSS styling (hover, transitions)
+
+Commit 2: 0e6d903
+  • Documentação de implementação
+  • Explicação da estratégia 3-layer
+  • Checklist de deployment
+
+Commit 3: d024846
+  • Testing guide completo
+  • Passos de verificação
+  • Troubleshooting detalhado
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🚀 PRONTO PARA SPRINT 1?
+
+Após testar Story 0.1 e confirmar que fotos estão Ok:
+
+→ Segunda-feira: SPRINT 1 começa com infraestrutura (Railway, DB)
+→ Story 1.1: Setup de CI/CD
+→ Story 1.2: Schema PostgreSQL
+→ Story 1.3: tRPC routers
+
+Fotos devem estar 100% funcionando ANTES de começar SPRINT 1.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🔗 LINKS IMPORTANTES
+
+Deploy: https://spalla-dashboard.vercel.app/
+GitHub:  https://github.com/kiaquo981/spalla-dashboard
+Console: F12 → Console (para rodar PHOTO-DIAGNOSTIC.js)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+Quer voltar ao git log?
+Execute: git log --oneline | head -10
+
+Quer ver as mudanças?
+Execute: git diff 06374d9..d024846
+
+Tudo funcionando?
+Próximo passo: SPRINT 1 infrastructure work 🚀
+
+═══════════════════════════════════════════════════════════════════════════════
