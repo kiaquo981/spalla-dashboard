@@ -1552,6 +1552,29 @@
                 <template x-for="(msg, mi) in data.whatsappMessages" :key="ui.whatsappSelectedChat?.id + ':' + mi">
                   <div class="wa-bubble" :class="{ 'wa-bubble--me': msg.key?.fromMe }">
                     <div class="wa-bubble__sender" x-show="!msg.key?.fromMe" x-text="msg.pushName || 'Desconhecido'"></div>
+
+                    <!-- IMAGE -->
+                    <template x-if="msg.message?.imageMessage?.url">
+                      <img :src="msg.message.imageMessage.url"
+                           @click="openMediaViewer(msg)"
+                           style="max-width: 250px; border-radius: 8px; cursor: pointer; margin: 8px 0;">
+                    </template>
+
+                    <!-- VIDEO -->
+                    <template x-if="msg.message?.videoMessage?.url">
+                      <video :src="msg.message.videoMessage.url"
+                             controls
+                             @click="openMediaViewer(msg)"
+                             style="max-width: 250px; border-radius: 8px; cursor: pointer; margin: 8px 0;"></video>
+                    </template>
+
+                    <!-- AUDIO -->
+                    <template x-if="msg.message?.audioMessage?.url">
+                      <audio :src="msg.message.audioMessage.url"
+                             controls
+                             style="width: 250px; margin: 8px 0;"></audio>
+                    </template>
+
                     <div class="wa-bubble__text" x-text="getWaMessageText(msg)"></div>
                     <div class="wa-bubble__time" x-text="getWaMessageTime(msg)"></div>
                   </div>
@@ -1840,5 +1863,42 @@
 
     console.log('[Spalla] Script block initialized. Waiting for scripts...');
   </script>
+
+  <!-- MEDIA VIEWER MODAL -->
+  <div id="media-viewer-modal"
+       x-show="ui.mediaViewerOpen"
+       @click.self="closeMediaViewer()"
+       style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 9999; display: none;">
+
+    <button @click="closeMediaViewer()"
+            style="position: absolute; top: 20px; right: 20px; background: none; border: none; color: white; font-size: 28px; cursor: pointer; z-index: 10000;">
+      ✕
+    </button>
+
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; height: 80%; display: flex; align-items: center; justify-content: center;">
+
+      <!-- IMAGE -->
+      <img id="viewer-img"
+           x-show="ui.mediaViewerData?.message?.imageMessage?.url"
+           :src="ui.mediaViewerData?.message?.imageMessage?.url"
+           style="max-width: 100%; max-height: 100%; object-fit: contain; display: none;">
+
+      <!-- VIDEO -->
+      <video id="viewer-video"
+             x-show="ui.mediaViewerData?.message?.videoMessage?.url"
+             :src="ui.mediaViewerData?.message?.videoMessage?.url"
+             controls
+             style="max-width: 100%; max-height: 100%; display: none;"></video>
+
+      <!-- AUDIO -->
+      <audio id="viewer-audio"
+             x-show="ui.mediaViewerData?.message?.audioMessage?.url"
+             :src="ui.mediaViewerData?.message?.audioMessage?.url"
+             controls
+             style="max-width: 100%; display: none;"></audio>
+
+    </div>
+  </div>
+
 </body>
 </html>

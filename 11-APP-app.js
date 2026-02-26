@@ -126,6 +126,9 @@ function spalla() {
       expandedCall: null,
       scheduleModal: false,
       scheduling: false,
+      // Media Viewer
+      mediaViewerOpen: false,
+      mediaViewerData: null,
     },
 
     // --- Data ---
@@ -1725,6 +1728,21 @@ function spalla() {
 
     getWaChatName(chat) {
       return chat?.name || chat?.subject || chat?.pushName || chat?.id?.split('@')[0] || 'Chat';
+    },
+
+    // ===================== MEDIA VIEWER =====================
+
+    openMediaViewer(msg) {
+      if (!msg || !msg.message) return;
+      this.ui.mediaViewerOpen = true;
+      this.ui.mediaViewerData = msg;
+      console.log('[MediaViewer] Opened:', msg.message?.imageMessage ? 'image' : msg.message?.videoMessage ? 'video' : msg.message?.audioMessage ? 'audio' : 'unknown');
+    },
+
+    closeMediaViewer() {
+      this.ui.mediaViewerOpen = false;
+      this.ui.mediaViewerData = null;
+      console.log('[MediaViewer] Closed');
     },
 
     // ===================== INSTAGRAM HELPERS =====================
