@@ -298,10 +298,23 @@ def list_calendar_events(time_min=None, time_max=None, max_results=50):
 
 # ===== SUPABASE HELPERS =====
 def supabase_request(method, path, body=None):
-    """Make a request to Supabase REST API"""
+    """
+    Make a request to Supabase REST API with RLS protection.
+
+    Key selection:
+    - SERVICE_KEY: Bypasses RLS (unrestricted access) — USE FOR BACKEND
+    - ANON_KEY: Respects RLS policies — USE FOR FRONTEND
+
+    Since this is called from backend, it uses SERVICE_KEY (admin access).
+    Frontend requests use JWT tokens and ANON_KEY (respects RLS).
+    """
     key = SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY
     if not key:
         return {'error': 'Supabase key not configured'}
+
+    # Log which key is being used (for security debugging)
+    if not SUPABASE_SERVICE_KEY:
+        print('[Warning] Using SUPABASE_ANON_KEY instead of SERVICE_KEY')
 
     url = f'{SUPABASE_URL}/rest/v1/{path}'
     data = json.dumps(body).encode() if body else None
