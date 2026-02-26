@@ -1803,6 +1803,18 @@ function spalla() {
       return `scale(${scale}) translate(${x}px, ${y}px)`;
     },
 
+    // Get proxied media URL for audio/video (handles CORS)
+    getProxiedMediaUrl(evolutionUrl) {
+      if (!evolutionUrl) return null;
+      try {
+        const backendUrl = CONFIG.API_BASE_URL;
+        return `${backendUrl}/api/wa/media-proxy?url=${encodeURIComponent(evolutionUrl)}`;
+      } catch (error) {
+        console.error('[App] Error proxying media URL:', error);
+        return evolutionUrl;
+      }
+    },
+
     // ===================== INSTAGRAM HELPERS =====================
 
     validateInstagramHandle(handle) {

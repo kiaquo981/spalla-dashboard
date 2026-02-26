@@ -7,6 +7,7 @@ import http.server
 import json
 import urllib.request
 import urllib.error
+import urllib.parse
 import os
 import sys
 import time
@@ -405,6 +406,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith('/api/evolution/'):
             self._proxy_evolution('GET')
+        elif self.path.startswith('/api/wa/media-proxy'):
+            self._handle_wa_media_proxy()
         elif self.path == '/api/mentees':
             self._handle_get_mentees()
         elif self.path.startswith('/api/calendar/events'):
@@ -637,6 +640,98 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 log_info('WA_SYNC', f'Saved outgoing message to {number}')
         except Exception as e:
             log_error('WA_SYNC', 'Failed to save sent message', e)
+
+    def _handle_wa_media_proxy(self):
+        """Proxy media files from Evolution API with CORS headers for browser playback"""
+        try:
+            # Parse query parameters
+            query_string = urllib.parse.urlparse(self.path).query
+            params = urllib.parse.parse_qs(query_string)
+            media_url = params.get('url', [None])[0]
+
+            if not media_url:
+                self._send_json({'error': 'url query parameter required'}, 400)
+                return
+
+            # Decode URL if it's encoded
+            media_url = urllib.parse.unquote(media_url)
+            log_info('MEDIA_PROXY', f'Proxying media from Evolution API')
+
+            # Download file from Evolution API with retries
+            try:
+                req = urllib.request.Request(media_url, method='GET')
+                req.add_header('User-Agent', 'Spalla/1.0')
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    file_bytes = resp.read()
+                log_info('MEDIA_PROXY', f'Downloaded {len(file_bytes)} bytes')
+            except Exception as e:
+                log_error('MEDIA_PROXY', f'Download failed', e)
+                self._send_json({'error': f'Failed to download media: {str(e)}'}, 502)
+                return
+
+            if not file_bytes:
+                self._send_json({'error': 'Empty media file'}, 400)
+                return
+
+            # Detect MIME type from magic bytes
+            mime_type = self._detect_mime_type(file_bytes, media_url)
+            log_info('MEDIA_PROXY', f'Detected MIME type: {mime_type}')
+
+            # Send file with proper CORS headers
+            self.send_response(200)
+            self.send_header('Content-Type', mime_type)
+            self.send_header('Content-Length', len(file_bytes))
+            self.send_header('Cache-Control', 'public, max-age=86400')
+            self.send_header('Accept-Ranges', 'bytes')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+            self.end_headers()
+            self.wfile.write(file_bytes)
+
+            log_info('MEDIA_PROXY', f'Served {len(file_bytes)} bytes with MIME type: {mime_type}')
+
+        except Exception as e:
+            log_error('MEDIA_PROXY', 'Handler error', e)
+            try:
+                self._send_json({'error': str(e)}, 500)
+            except:
+                pass
+
+    def _detect_mime_type(self, file_bytes, file_name):
+        """Detect MIME type from file content (magic bytes) and filename"""
+        import mimetypes
+
+        # Try filename first
+        mime, _ = mimetypes.guess_type(file_name)
+        if mime:
+            return mime
+
+        # Detect from magic bytes
+        if len(file_bytes) >= 4:
+            magic = file_bytes[:4]
+
+            # Images
+            if magic.startswith(b'\xff\xd8\xff'):
+                return 'image/jpeg'
+            if magic.startswith(b'\x89PNG'):
+                return 'image/png'
+            if magic.startswith(b'GIF8'):
+                return 'image/gif'
+
+            # Audio
+            if magic.startswith(b'ID3') or magic.startswith(b'\xff\xfb'):
+                return 'audio/mpeg'
+            if magic.startswith(b'OggS'):
+                return 'audio/ogg'
+            if len(file_bytes) >= 8 and file_bytes[4:8] == b'ftyp':
+                return 'audio/mp4'
+
+            # Video
+            if len(file_bytes) >= 8 and file_bytes[4:8] == b'ftyp':
+                return 'video/mp4'
+
+        return 'application/octet-stream'
 
     # ===== AUTHENTICATION (Multi-method) =====
 
