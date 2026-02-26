@@ -1605,18 +1605,29 @@ function spalla() {
     async fetchWhatsAppChats() {
       this.ui.whatsappLoading = true;
       try {
-        // Fetch chats from Evolution API (shared for all users)
-        const chats = await evolutionClient.getChats('produ02');
-
-        if (chats && chats.length > 0) {
-          this.data.whatsappChats = chats;
-          this.toast(`${chats.length} conversas carregadas`, 'success');
+        const res = await fetch(CONFIG.API_BASE_URL + '/api/wa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'findChats' }),
+        });
+        if (res.ok) {
+          const chats = await res.json();
+          // Show all chats sorted by most recent
+          this.data.whatsappChats = (chats || [])
+            .filter(c => c.id)
+            .sort((a, b) => {
+              const ta = new Date(a.updatedAt || 0).getTime();
+              const tb = new Date(b.updatedAt || 0).getTime();
+              return tb - ta;
+            })
+            .slice(0, 100);
+          this.toast(`${this.data.whatsappChats.length} conversas carregadas`, 'success');
         } else {
-          throw new Error('No chats returned');
+          throw new Error(`HTTP ${res.status}`);
         }
       } catch (e) {
-        console.log('[Spalla] Evolution API unavailable. Using demo data.', e.message);
-        // Load demo chats as fallback
+        console.log('[Spalla] WhatsApp API unavailable (expected on Vercel production). Using demo data.');
+        // Load demo chats silently - Evolution API only works with local Python server
         this.data.whatsappChats = DEMO_WA_CHATS;
       }
       this.ui.whatsappLoading = false;
@@ -1639,21 +1650,33 @@ function spalla() {
 
       try {
         const remoteJid = chat.remoteJid || chat.id;
-        console.log('[WA] Loading messages for:', remoteJid);
+        console.log('[WA] Chat object:', chat);
+        console.log('[WA] remoteJid:', remoteJid);
 
-        // Fetch messages from Evolution API (shared for all users)
-        const messages = await evolutionClient.getMessages('produ02', remoteJid);
+        const res = await fetch(CONFIG.API_BASE_URL + '/api/wa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'findMessages', remoteJid: remoteJid, limit: 50 }),
+        });
 
-        if (Array.isArray(messages) && messages.length > 0) {
-          this.data.whatsappMessages = messages;
-          console.log('[WA] Got', messages.length, 'messages');
+        console.log('[WA] Response status:', res.status);
+
+        if (res.ok) {
+          const data = await res.json();
+          const msgs = data.messages?.records || data.messages || (Array.isArray(data) ? data : []);
+          const reversedMsgs = (Array.isArray(msgs) ? msgs : []).reverse();
+
+          console.log('[WA] Got', reversedMsgs.length, 'messages, assigning to state...');
+
+          // Assign directly
+          this.data.whatsappMessages = reversedMsgs;
+
+          console.log('[WA] State now has:', this.data.whatsappMessages.length, 'messages');
         } else {
-          console.log('[WA] No messages found');
-          this.data.whatsappMessages = [];
+          console.error('[WA] Bad response:', res.status);
         }
       } catch (e) {
-        console.error('[WA] Error loading messages:', e.message);
-        this.data.whatsappMessages = [];
+        console.error('[WA] Error:', e.message);
       }
 
       this.ui.whatsappLoading = false;
@@ -1668,19 +1691,22 @@ function spalla() {
       const msg = this.ui.whatsappMessage.trim();
       this.ui.whatsappMessage = '';
       try {
-        const remoteJid = this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id;
-
-        // Send via Evolution API (shared instance)
-        const result = await evolutionClient.sendMessage('produ02', remoteJid, msg);
-
-        if (result) {
+        const res = await fetch(CONFIG.API_BASE_URL + '/api/wa', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'sendText',
+            number: this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id,
+            text: msg
+          }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (res.ok && json.status !== 'error' && !json.error) {
           this.data.whatsappMessages.push({
-            id: result.key?.id || Date.now(),
-            fromMe: true,
-            sender: 'me',
-            body: msg,
-            timestamp: new Date().toISOString(),
-            type: 'text',
+            key: { fromMe: true },
+            message: { conversation: msg },
+            messageTimestamp: Math.floor(Date.now() / 1000),
+            pushName: 'Equipe CASE',
           });
           this.toast('Mensagem enviada', 'success');
           this.$nextTick(() => {
@@ -1688,7 +1714,8 @@ function spalla() {
             if (el) el.scrollIntoView({ behavior: 'smooth' });
           });
         } else {
-          throw new Error('Falha ao enviar');
+          console.error('[WA] Send failed:', json);
+          this.toast(`WhatsApp erro: ${json.message || 'Falha desconhecida'}`, 'error');
         }
       } catch (e) {
         console.error('[Spalla] WA send error:', e);

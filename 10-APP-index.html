@@ -28,11 +28,8 @@
 <body>
   <div id="loading-fallback" role="status" aria-label="Carregando aplicação Spalla"><span>Spalla</span></div>
 
-  <!-- Supabase Auth Client (load BEFORE app.js) -->
+  <!-- Supabase Auth Client (required for multi-login) -->
   <script src="supabase-auth.js?v=2"></script>
-
-  <!-- Evolution API Client (Shared WhatsApp for all users) -->
-  <script src="evolution-api.js?v=1"></script>
 
   <script>
     // Global error catcher BEFORE everything
@@ -51,7 +48,6 @@
 
     console.log('[Spalla] Error listeners attached');
     console.log('[Spalla] API_BASE_URL:', window.API_BASE_URL || '(using relative URLs)');
-    console.log('[Spalla] Supabase Auth client loaded');
   </script>
 
   <div id="app" x-data="spalla()" style="display:none">
