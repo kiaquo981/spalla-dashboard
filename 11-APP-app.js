@@ -692,9 +692,7 @@ function spalla() {
           ]);
           if (mentees.data?.length) {
             this.data.mentees = mentees.data;
-            // DEBUG: Log primeiro mentorado com email
-            console.log('[Spalla] First mentee:', this.data.mentees[0]);
-            console.log('[Spalla] Email field exists?', 'email' in this.data.mentees[0]);
+            // MED-03: Removed sensitive debug logs (emails, full mentee data)
           } else {
             console.warn('[Spalla] Supabase mentees empty, using demo');
             this.loadDemoData();
@@ -1158,7 +1156,10 @@ function spalla() {
     },
 
     async saveTask() {
-      if (!this.taskForm.titulo.trim()) return;
+      if (!this.taskForm.titulo.trim()) {
+        this.toast('Título é obrigatório', 'error');  // MED-06
+        return;
+      }
       const formData = { ...this.taskForm };
       delete formData.newSubtask;
       delete formData.newCheckItem;
@@ -1202,7 +1203,13 @@ function spalla() {
         t.updated_at = new Date().toISOString();
         this._cacheTasksLocal();
         if (sb) {
-          try { await sb.from('god_tasks').update({ status: newStatus, updated_at: t.updated_at }).eq('id', taskId); } catch (e) {}
+          try {
+            await sb.from('god_tasks').update({ status: newStatus, updated_at: t.updated_at }).eq('id', taskId);
+            this.toast(`Tarefa atualizada para ${newStatus}`, 'success');  // MED-07
+          } catch (e) {
+            console.warn('[Spalla] Failed to update task:', e);
+            this.toast('Erro ao sincronizar tarefa', 'error');  // MED-07: Error boundary
+          }
         }
       }
     },
@@ -1639,19 +1646,19 @@ function spalla() {
     },
 
     getWaMessageText(msg) {
-      if (!msg || !msg.message) return '';
+      if (!msg || !msg.message) return '(mensagem vazia)';  // MED-11: Fallback
       const m = msg.message;
       if (m.conversation) return m.conversation;
       if (m.extendedTextMessage?.text) return m.extendedTextMessage.text;
       if (m.imageMessage) return m.imageMessage.caption || '[Imagem]';
-      if (m.videoMessage) return m.videoMessage.caption || '[Video]';
-      if (m.audioMessage) return '[Audio]';
+      if (m.videoMessage) return m.videoMessage.caption || '[Vídeo]';
+      if (m.audioMessage) return '[Áudio]';
       if (m.documentMessage) return m.documentMessage.title || m.documentMessage.fileName || '[Documento]';
       if (m.stickerMessage) return '[Sticker]';
       if (m.contactMessage) return m.contactMessage.displayName || '[Contato]';
-      if (m.locationMessage) return '[Localizacao]';
-      if (m.reactionMessage) return m.reactionMessage.text || '[Reacao]';
-      return '[midia]';
+      if (m.locationMessage) return '[Localização]';
+      if (m.reactionMessage) return m.reactionMessage.text || '[Reação]';
+      return '(tipo desconhecido)';  // MED-11: Better fallback message
     },
 
     getWaMessageTime(msg) {
@@ -1665,6 +1672,14 @@ function spalla() {
     },
 
     // ===================== INSTAGRAM HELPERS =====================
+
+    validateInstagramHandle(handle) {
+      """Validate Instagram handle format (MED-04)"""
+      if (!handle) return false;
+      // Instagram handles: 1-30 chars, alphanumeric + . _ -, no consecutive dots/dashes
+      const regex = /^[a-z0-9._-]{1,30}$/i;
+      return regex.test(handle.replace('@', ''));
+    },
 
     igPhoto(handleOrName) {
       if (!handleOrName) return null;
@@ -1868,19 +1883,13 @@ function spalla() {
 
     onMentoradoSelect() {
       const nome = this.scheduleForm.mentorado;
-      console.log('[Spalla] onMentoradoSelect called with:', nome);
-      if (!nome) {
-        console.log('[Spalla] No mentorado selected');
-        return;
-      }
-      console.log('[Spalla] Looking for mentorado in', this.data.mentees?.length || 0, 'mentees');
+      if (!nome) return;  // MED-03: Removed debug logs
       const m = this.data.mentees.find(x => x.nome === nome);
       if (m) {
-        console.log('[Spalla] Found mentorado:', m.nome, '- email:', m.email);
         this.scheduleForm.mentorado_id = m.id || '';
         this.scheduleForm.email = m.email || '';
       } else {
-        console.warn('[Spalla] Mentorado not found:', nome);
+        console.warn('[Spalla] Mentorado not found');  // Keep warning (non-sensitive)
       }
     },
 

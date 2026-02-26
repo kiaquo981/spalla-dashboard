@@ -362,9 +362,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         return self.rfile.read(length) if length > 0 else b''
 
     def _send_json(self, data, status=200):
-        body = json.dumps(data, ensure_ascii=False, default=str).encode()
+        body = json.dumps(data, ensure_ascii=False, default=str).encode('utf-8')  # MED-10
         self.send_response(status)
-        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Type', 'application/json; charset=utf-8')  # MED-10
         origin = self._get_allowed_origin()
         if origin:
             self.send_header('Access-Control-Allow-Origin', origin)
