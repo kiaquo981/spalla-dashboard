@@ -3,8 +3,8 @@
 // **Fixed: Now uses correct Evolution API endpoints via backend**
 
 const BACKEND_URL = window.location.hostname === 'localhost'
-  ? 'http://localhost:8888'
-  : 'https://api.spalla-dashboard.vercel.app';
+  ? 'http://localhost:8000'
+  : 'https://web-production-2cde5.up.railway.app';
 
 const EVOLUTION_INSTANCE = 'produ02';
 
