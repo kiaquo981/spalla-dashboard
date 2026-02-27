@@ -120,46 +120,13 @@ def retry_request(url, method='GET', data=None, max_retries=3):
     return None
 
 def normalize_wa_messages(messages):
-    """Transform Evolution API message structure to frontend-friendly format"""
+    """Return messages as-is from Evolution API — let frontend handle text extraction"""
     if not isinstance(messages, list):
         return []
 
-    normalized = []
-    for msg in messages:
-        if not isinstance(msg, dict):
-            continue
-
-        # Extract message text from Evolution API structure
-        text = ''
-        if isinstance(msg.get('message'), dict):
-            m = msg['message']
-            # Try different message type structures
-            text = m.get('conversation', '')  # Simple text message
-            if not text and 'extendedTextMessage' in m:
-                text = m['extendedTextMessage'].get('text', '')
-            if not text and 'imageMessage' in m:
-                text = '[Imagem]'
-            if not text and 'audioMessage' in m:
-                text = '[Áudio]'
-            if not text and 'videoMessage' in m:
-                text = '[Vídeo]'
-            if not text and 'documentMessage' in m:
-                text = '[Documento]'
-            if not text and 'stickerMessage' in m:
-                text = '[Sticker]'
-        elif isinstance(msg.get('message'), str):
-            text = msg['message']
-
-        # Always include message (frontend filters empty ones if needed)
-        normalized.append({
-            'message': text if text else '(mensagem vazia)',  # Fallback text
-            'key': msg.get('key', {}),
-            'messageTimestamp': msg.get('messageTimestamp'),
-            'pushName': msg.get('pushName'),
-            'fromMe': msg.get('key', {}).get('fromMe', False),
-        })
-
-    return normalized
+    # Frontend expects the original message structure with nested 'message' object
+    # It uses getWaMessageText(msg) to extract text from msg.message.conversation, etc.
+    return messages if isinstance(messages, list) else []
 
 # ===== ZOOM TOKEN CACHE =====
 _zoom_token = {'access_token': None, 'expires_at': 0}
