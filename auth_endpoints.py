@@ -5,6 +5,10 @@ Auth Endpoints for Supabase + Google OAuth
 
 import json
 import os
+import time
+import hashlib
+import hmac
+import base64
 import urllib.request
 import urllib.error
 from auth_manager import AuthManager
@@ -76,37 +80,74 @@ def handle_login_email_password(body):
     """
     POST /api/auth/login
     Body: {"email": "...", "password": "..."}
-    Uses Supabase Auth
+    Uses Supabase Auth with fallback to hardcoded dev users
     """
     try:
         email = body.get('email', '').strip().lower()
         password = body.get('password', '')
-        
+
         if not email or not password:
             return {'error': 'Email and password required'}, 400
-        
-        # Call Supabase Auth API
+
+        # Fallback: Check hardcoded dev users first (for development)
+        VALID_USERS = {
+            'queila@case.com': 'spalla',
+            'hugo.nicchio@gmail.com': 'spalla',  # Dev user for testing
+        }
+
+        if email in VALID_USERS and VALID_USERS[email] == password:
+            # Generate a mock token for dev users
+            # Create a simple JWT-like token
+            header = {'alg': 'HS256', 'typ': 'JWT'}
+            payload = {
+                'sub': email.split('@')[0],
+                'email': email,
+                'iat': int(time.time()),
+                'exp': int(time.time()) + 86400
+            }
+
+            header_b64 = base64.urlsafe_b64encode(json.dumps(header).encode()).decode().rstrip('=')
+            payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip('=')
+
+            secret = os.environ.get('JWT_SECRET', 'dev_secret_change_in_production')
+            msg = f'{header_b64}.{payload_b64}'.encode()
+            sig = hmac.new(secret.encode(), msg, hashlib.sha256).digest()
+            sig_b64 = base64.urlsafe_b64encode(sig).decode().rstrip('=')
+            token = f'{header_b64}.{payload_b64}.{sig_b64}'
+
+            return {
+                'token': token,
+                'refreshToken': token,
+                'expiresIn': 86400,
+                'user': {
+                    'id': email.split('@')[0],
+                    'email': email,
+                    'user_metadata': {'auth_source': 'dev'}
+                }
+            }, 200
+
+        # Try Supabase Auth API
         auth_data = {
             'email': email,
             'password': password
         }
-        
+
         url = f"{SUPABASE_URL}/auth/v1/token?grant_type=password"
         headers = {
             'Content-Type': 'application/json',
             'apikey': SUPABASE_ANON_KEY
         }
-        
+
         req = urllib.request.Request(
             url,
             data=json.dumps(auth_data).encode(),
             headers=headers,
             method='POST'
         )
-        
+
         with urllib.request.urlopen(req, timeout=10) as resp:
             token_data = json.loads(resp.read())
-            
+
             return {
                 'token': token_data.get('access_token'),
                 'refreshToken': token_data.get('refresh_token'),
@@ -117,10 +158,10 @@ def handle_login_email_password(body):
                     'user_metadata': token_data.get('user', {}).get('user_metadata', {})
                 }
             }, 200
-    
+
     except urllib.error.HTTPError as e:
         return {'error': 'Invalid credentials'}, 401
-    
+
     except Exception as e:
         return {'error': f'Login error: {str(e)}'}, 500
 
