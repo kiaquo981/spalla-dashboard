@@ -136,6 +136,13 @@ function spalla() {
       mediaViewerDragStart: { x: 0, y: 0 },
     },
 
+    // --- Profile Form ---
+    profileForm: {
+      displayName: '',
+      newPassword: '',
+      confirmPassword: '',
+    },
+
     // --- Data ---
     data: {
       mentees: [],
@@ -583,6 +590,54 @@ function spalla() {
         'queila@case.com': 'Mentora CASE',
       };
       return emailRoles[this.auth.email] || 'Usuário';
+    },
+
+    navigate(page) {
+      // Navigate to different pages
+      this.ui.page = page;
+      if (page === 'perfil') {
+        this.profileForm.displayName = localStorage.getItem('spalla_displayName') || this.getUserDisplayName();
+      }
+      console.log(`[Spalla] Navigated to ${page}`);
+    },
+
+    saveProfile() {
+      // Validate password
+      if (this.profileForm.newPassword) {
+        if (this.profileForm.newPassword.length < 8) {
+          this.toast('Senha deve ter no mínimo 8 caracteres', 'error');
+          return;
+        }
+        if (this.profileForm.newPassword !== this.profileForm.confirmPassword) {
+          this.toast('Senhas não conferem', 'error');
+          return;
+        }
+      }
+
+      // Save display name to localStorage
+      if (this.profileForm.displayName) {
+        localStorage.setItem('spalla_displayName', this.profileForm.displayName);
+      }
+
+      // TODO: Send password change to backend API
+      if (this.profileForm.newPassword) {
+        console.log('[Spalla] Password change request would be sent to API');
+        // const response = await fetch(`${CONFIG.API_BASE_URL}/api/auth/change-password`, {
+        //   method: 'POST',
+        //   headers: this.getAuthHeaders(),
+        //   body: JSON.stringify({ newPassword: this.profileForm.newPassword })
+        // });
+      }
+
+      this.toast('Perfil salvo com sucesso!', 'success');
+      this.profileForm.newPassword = '';
+      this.profileForm.confirmPassword = '';
+    },
+
+    deleteAccount() {
+      // TODO: Implement account deletion with backend
+      console.log('[Spalla] Account deletion request would be sent to API');
+      this.toast('Funcionalidade em desenvolvimento', 'info');
     },
 
     async parseJsonResponse(response, operation = 'API call') {

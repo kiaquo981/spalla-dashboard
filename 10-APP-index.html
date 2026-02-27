@@ -130,13 +130,13 @@
         </nav>
 
         <div class="sidebar__footer" x-show="ui.sidebarOpen">
-          <div class="sidebar__user">
+          <button class="sidebar__user" @click="navigate('perfil')" style="background:none;border:none;cursor:pointer;width:100%;text-align:left;padding:0;">
             <div class="avatar avatar--sm avatar--brand" x-text="(auth.email || 'User').substring(0, 2).toUpperCase()"></div>
             <div class="sidebar__user-info">
               <div class="sidebar__user-name" x-text="getUserDisplayName()"></div>
               <div class="sidebar__user-role" x-text="getUserRole()"></div>
             </div>
-          </div>
+          </button>
           <button class="sidebar__logout" @click="logout()" title="Sair">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           </button>
@@ -1775,6 +1775,65 @@
                 <span class="badge badge--sm" :class="'badge--' + dossierStatusConfig(d.status).color" x-text="dossierStatusConfig(d.status).label"></span>
               </div>
             </template>
+          </div>
+        </div>
+
+        <!-- PERFIL PAGE -->
+        <div class="page-content" x-show="ui.page === 'perfil'" x-transition>
+          <div class="page-header">
+            <h1>Meu Perfil</h1>
+          </div>
+
+          <div class="card" style="max-width: 600px;">
+            <div style="display: grid; gap: 20px;">
+
+              <!-- Avatar -->
+              <div style="text-align: center;">
+                <div class="avatar avatar--lg avatar--brand" x-text="(auth.email || 'User').substring(0, 2).toUpperCase()" style="margin: 0 auto; font-size: 48px;"></div>
+                <p style="margin-top: 12px; color: #666; font-size: 14px;">Avatar gerado automaticamente</p>
+              </div>
+
+              <!-- Email (read-only) -->
+              <div>
+                <label class="form-label">Email</label>
+                <input type="email" class="form-control" :value="auth.email" disabled style="background:#f0f0f0;cursor:not-allowed;">
+                <small style="color: #999; display: block; margin-top: 4px;">Email não pode ser alterado</small>
+              </div>
+
+              <!-- Nome de Usuário -->
+              <div>
+                <label class="form-label">Nome de Usuário</label>
+                <input type="text" class="form-control" x-model="profileForm.displayName" placeholder="Seu nome completo">
+              </div>
+
+              <!-- Role (read-only) -->
+              <div>
+                <label class="form-label">Função</label>
+                <input type="text" class="form-control" :value="getUserRole()" disabled style="background:#f0f0f0;cursor:not-allowed;">
+              </div>
+
+              <!-- Mudar Senha -->
+              <div>
+                <label class="form-label">Mudar Senha</label>
+                <input type="password" class="form-control" x-model="profileForm.newPassword" placeholder="Nova senha (mín. 8 caracteres)">
+              </div>
+
+              <div>
+                <input type="password" class="form-control" x-model="profileForm.confirmPassword" placeholder="Confirmar senha">
+              </div>
+
+              <!-- Botões -->
+              <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn--brand" @click="saveProfile()">✓ Salvar Perfil</button>
+                <button class="btn btn--secondary" @click="logout()">Sair</button>
+              </div>
+
+              <!-- Zona de Perigo -->
+              <div style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 20px;">
+                <h3 style="color: #d32f2f; margin-bottom: 10px;">⚠️ Zona de Perigo</h3>
+                <button class="btn btn--danger" @click="if(confirm('Tem certeza? Essa ação não pode ser desfeita.')) { deleteAccount() }">Deletar Minha Conta</button>
+              </div>
+            </div>
           </div>
         </div>
 
