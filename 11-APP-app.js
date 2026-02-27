@@ -798,20 +798,11 @@ function spalla() {
       sb = initSupabase();
       if (sb) {
         try {
-          // Calculate date 90 days ago for filtering calls
-          const ninetyDaysAgo = new Date();
-          ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-          const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().split('T')[0] + 'T00:00:00';
-
           const [mentees, cohort, alerts, calls] = await Promise.all([
             sb.from('vw_god_overview').select('*'),
             sb.from('vw_god_cohort').select('*'),
             sb.rpc('fn_god_alerts'),
-            sb.from('vw_god_calls')
-              .select('*')
-              .gte('data_call', ninetyDaysAgoStr)
-              .order('data_call', { ascending: false })
-              .limit(500),
+            sb.from('vw_god_calls').select('*').order('data_call', { ascending: false }).limit(1000),
           ]);
           if (mentees.data?.length) {
             this.data.mentees = mentees.data;
@@ -823,8 +814,17 @@ function spalla() {
           if (cohort.data?.length) this.data.cohort = cohort.data;
           if (alerts.data?.length) this.data.alerts = alerts.data;
           if (calls.data?.length) {
-            this._supabaseCalls = calls.data;
-            console.log('[Spalla] Calls loaded from Supabase:', calls.data.length);
+            // FILTER IN JAVASCRIPT: Keep only calls from last 180 days
+            const onehundredEightyDaysAgo = new Date();
+            onehundredEightyDaysAgo.setDate(onehundredEightyDaysAgo.getDate() - 180);
+
+            this._supabaseCalls = calls.data.filter(c => {
+              if (!c.data_call) return false;
+              const callDate = new Date(c.data_call);
+              return callDate >= onehundredEightyDaysAgo;
+            });
+
+            console.log('[Spalla] Calls loaded from Supabase:', calls.data.length, '→ filtered to 180 days:', this._supabaseCalls.length);
           }
           // Recalculate dias_desde_call with real call data
           if (this._supabaseCalls?.length) this._enrichMenteesWithCalls();
@@ -1015,19 +1015,13 @@ function spalla() {
       if (sb) {
         try {
           // Load deep detail + real calls in parallel
-          // Filter calls to last 90 days for detail view (be generous with timeframe)
-          const ninetyDaysAgo = new Date();
-          ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-          const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().split('T')[0]; // Just YYYY-MM-DD
-
           const [detailRes, callsRes] = await Promise.all([
             sb.rpc('fn_god_mentorado_deep', { p_id: id }),
             sb.from('vw_god_calls')
               .select('*')
               .eq('mentorado_id', id)
-              .gte('data_call', ninetyDaysAgoStr + 'T00:00:00')
               .order('data_call', { ascending: false })
-              .limit(100),  // Limit to 100 calls to avoid huge payloads
+              .limit(200),  // Get more, filter in JS
           ]);
           if (detailRes.data) {
             let detail = null;
@@ -1038,9 +1032,18 @@ function spalla() {
               this.toast('Erro ao carregar detalhes do mentorado', 'error');
               return;
             }
-            // Enrich with real calls from vw_god_calls
+            // Enrich with real calls from vw_god_calls (filter to 180 days in JS)
             if (callsRes.data?.length) {
-              detail.last_calls = callsRes.data.map(c => ({
+              const onehundredEightyDaysAgo = new Date();
+              onehundredEightyDaysAgo.setDate(onehundredEightyDaysAgo.getDate() - 180);
+
+              const filteredCalls = callsRes.data.filter(c => {
+                if (!c.data_call) return false;
+                const callDate = new Date(c.data_call);
+                return callDate >= onehundredEightyDaysAgo;
+              }).slice(0, 50); // Keep only top 50
+
+              detail.last_calls = filteredCalls.map(c => ({
                 data_call: c.data_call, tipo: c.tipo_call || 'acompanhamento',
                 duracao: c.duracao_minutos || 0,
                 resumo: c.resumo || c.zoom_topic || 'Call de acompanhamento',
