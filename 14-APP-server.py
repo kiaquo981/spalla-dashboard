@@ -565,55 +565,73 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     self._send_json({'error': str(e)}, 500)
 
             elif action == 'findMessages':
-                # Get messages from a chat (with dynamic instance + retry logic)
+                # Load messages from Supabase (complete history) instead of Evolution API
                 remote_jid = body.get('remoteJid', '')
-                limit = body.get('limit', 50)
+                limit = body.get('limit', 500)  # Load more from database
 
                 if not remote_jid:
                     self._send_json({'error': 'remoteJid is required'}, 400)
                     return
 
                 try:
-                    instance = get_evolution_instance()
-                    url = f'{EVOLUTION_BASE}/chat/findMessages/{instance}'
-                    req_body = json.dumps({'remoteJid': remote_jid, 'limit': limit}).encode()
-                    response_data = retry_request(url, method='POST', data=req_body)
+                    # Query Supabase for complete message history
+                    import urllib.request
 
-                    # DEBUG: Log raw API response structure
-                    log_info('WA', f'📨 Raw API response type: {type(response_data).__name__}')
-                    if isinstance(response_data, dict):
-                        log_info('WA', f'📨 Raw API response keys: {list(response_data.keys())}')
-                    log_info('WA', f'📨 Raw API response: {json.dumps(response_data)[:500]}')  # First 500 chars
+                    messages = []
+                    if SUPABASE_SERVICE_KEY:
+                        try:
+                            # Query interacoes_mentoria table by chat_id
+                            query = f"chat_id=eq.{remote_jid}&order=timestamp.desc&limit={limit}"
+                            url = f'https://knusqfbvhsqworzyhvip.supabase.co/rest/v1/interacoes_mentoria?{query}'
 
-                    # Extract messages from response structure
-                    if isinstance(response_data, dict) and 'messages' in response_data:
-                        messages_obj = response_data['messages']
-                        messages = messages_obj.get('records', []) if isinstance(messages_obj, dict) else messages_obj
-                    else:
+                            req = urllib.request.Request(url)
+                            req.add_header('apikey', SUPABASE_SERVICE_KEY)
+                            req.add_header('Authorization', f'Bearer {SUPABASE_SERVICE_KEY}')
+                            req.add_header('Content-Type', 'application/json')
+
+                            with urllib.request.urlopen(req, timeout=10) as resp:
+                                rows = json.loads(resp.read())
+
+                                if isinstance(rows, list):
+                                    # Transform Supabase format to Evolution format
+                                    messages = [{
+                                        'id': row.get('message_id'),
+                                        'key': {
+                                            'remoteJid': remote_jid,
+                                            'fromMe': row.get('eh_equipe', False)
+                                        },
+                                        'message': {
+                                            'conversation': row.get('conteudo', '')
+                                        },
+                                        'pushName': row.get('sender_name', 'Unknown'),
+                                        'messageTimestamp': int(row['timestamp'].timestamp()) if row.get('timestamp') else 0,
+                                    } for row in rows if row.get('conteudo')]
+
+                                    log_info('WA', f'✅ Loaded {len(messages)} messages from Supabase for {remote_jid}')
+                        except Exception as e:
+                            log_error('WA', f'Supabase query failed: {str(e)}')
+
+                    # Fallback to Evolution API if Supabase empty
+                    if not messages:
+                        instance = get_evolution_instance()
+                        url = f'{EVOLUTION_BASE}/chat/findMessages/{instance}'
+                        req_body = json.dumps({'remoteJid': remote_jid, 'limit': limit}).encode()
+                        response_data = retry_request(url, method='POST', data=req_body)
+
+                        if isinstance(response_data, dict) and 'messages' in response_data:
+                            messages_obj = response_data['messages']
+                            response_data = messages_obj.get('records', []) if isinstance(messages_obj, dict) else messages_obj
+
                         messages = response_data if isinstance(response_data, list) else []
-
-                    # CRITICAL FIX: Filter messages to only include those from the requested remoteJid
-                    # (Evolution API sometimes returns mixed messages from multiple chats)
-                    if isinstance(messages, list):
                         messages = [msg for msg in messages if msg.get('key', {}).get('remoteJid') == remote_jid]
-                        log_info('WA', f'📨 After filtering by remoteJid={remote_jid}: {len(messages)} messages')
 
-                    log_info('WA', f'📨 Extracted messages count: {len(messages) if isinstance(messages, list) else "not a list"}')
-                    if isinstance(messages, list) and len(messages) > 0:
-                        log_info('WA', f'📨 First message sample: {json.dumps(messages[0])[:300]}')
+                        log_info('WA', f'⚠️  Fallback to Evolution API: {len(messages)} messages')
 
-                    # Sync to Supabase for persistent storage
-                    self._sync_messages_to_supabase(remote_jid, messages)
-
-                    # Normalize messages for frontend (extract text, handle different message types)
+                    # Normalize messages for frontend
                     normalized_messages = normalize_wa_messages(messages)
 
-                    log_info('WA', f'📨 Normalized messages count: {len(normalized_messages)}')
-                    if len(normalized_messages) > 0:
-                        log_info('WA', f'📨 First normalized message: {json.dumps(normalized_messages[0])[:300]}')
-
                     self._send_json(normalized_messages, 200)
-                    log_info('WA', f'✅ Fetched {len(normalized_messages)} messages for {remote_jid}')
+                    log_info('WA', f'✅ Returned {len(normalized_messages)} messages for {remote_jid}')
                 except urllib.error.HTTPError as e:
                     error_body = e.read().decode()
                     log_error('WA', f'Evolution findMessages failed: {e.code}', error_body)
