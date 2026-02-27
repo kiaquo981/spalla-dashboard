@@ -899,9 +899,20 @@ function spalla() {
         this.data.mentees = this.data.mentees.map(m => {
           const key = (m.nome || '').toLowerCase().trim();
           const enrichment = menteeMap[key] || {};
+
+          // Normalize Instagram handle: remove @, lowercase, replace spaces with dots/underscores
+          let instaHandle = enrichment.instagram || m.instagram;
+          if (instaHandle) {
+            instaHandle = instaHandle
+              .replace(/^@/, '')
+              .toLowerCase()
+              .trim()
+              .replace(/\s+/g, '_');
+          }
+
           return {
             ...m,
-            instagram: enrichment.instagram || m.instagram || null,
+            instagram: instaHandle || null,
             zoom_password: enrichment.zoom_password || null,
             link_gravacao_senha: enrichment.link_gravacao_senha || null,
           };
@@ -995,9 +1006,18 @@ function spalla() {
       if (sb) {
         try {
           // Load deep detail + real calls in parallel
+          // Filter calls to last 60 days for current detail view
+          const sixtyDaysAgo = new Date();
+          sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+          const sixtyDaysAgoStr = sixtyDaysAgo.toISOString();
+
           const [detailRes, callsRes] = await Promise.all([
             sb.rpc('fn_god_mentorado_deep', { p_id: id }),
-            sb.from('vw_god_calls').select('*').eq('mentorado_id', id).order('data_call', { ascending: false }),
+            sb.from('vw_god_calls')
+              .select('*')
+              .eq('mentorado_id', id)
+              .gte('data_call', sixtyDaysAgoStr)
+              .order('data_call', { ascending: false }),
           ]);
           if (detailRes.data) {
             let detail = null;
@@ -1033,6 +1053,10 @@ function spalla() {
                 if (ctx.estrategias_atuais.formatos_produto) parts.push(...ctx.estrategias_atuais.formatos_produto.map(f => f.descricao || f.tipo));
                 if (ctx.estrategias_atuais.estrategias_marketing) parts.push(...ctx.estrategias_atuais.estrategias_marketing.map(e => e.nome || e.objetivo));
                 ctx.estrategias_atuais = parts.length ? parts.join(' · ') : '';
+              }
+              // If cenario is generic/default, clear it to show "sem contexto"
+              if (ctx.cenario_atual && (ctx.cenario_atual === 'Sem contexto registrado.' || !ctx.cenario_atual.trim())) {
+                ctx.cenario_atual = 'Contexto não registrado. Registre informações sobre este mentorado no Supabase.';
               }
             }
             this.data.detail = detail;
