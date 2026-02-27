@@ -592,6 +592,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     else:
                         messages = response_data if isinstance(response_data, list) else []
 
+                    # CRITICAL FIX: Filter messages to only include those from the requested remoteJid
+                    # (Evolution API sometimes returns mixed messages from multiple chats)
+                    if isinstance(messages, list):
+                        messages = [msg for msg in messages if msg.get('key', {}).get('remoteJid') == remote_jid]
+                        log_info('WA', f'📨 After filtering by remoteJid={remote_jid}: {len(messages)} messages')
+
                     log_info('WA', f'📨 Extracted messages count: {len(messages) if isinstance(messages, list) else "not a list"}')
                     if isinstance(messages, list) and len(messages) > 0:
                         log_info('WA', f'📨 First message sample: {json.dumps(messages[0])[:300]}')
