@@ -150,15 +150,14 @@ def normalize_wa_messages(messages):
         elif isinstance(msg.get('message'), str):
             text = msg['message']
 
-        # Only include messages with text content
-        if text:
-            normalized.append({
-                'message': text,  # ✅ String field for frontend
-                'key': msg.get('key', {}),
-                'messageTimestamp': msg.get('messageTimestamp'),
-                'pushName': msg.get('pushName'),
-                'fromMe': msg.get('key', {}).get('fromMe', False),
-            })
+        # Always include message (frontend filters empty ones if needed)
+        normalized.append({
+            'message': text if text else '(mensagem vazia)',  # Fallback text
+            'key': msg.get('key', {}),
+            'messageTimestamp': msg.get('messageTimestamp'),
+            'pushName': msg.get('pushName'),
+            'fromMe': msg.get('key', {}).get('fromMe', False),
+        })
 
     return normalized
 
