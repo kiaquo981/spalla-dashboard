@@ -819,8 +819,11 @@ function spalla() {
           }
           // Recalculate dias_desde_call with real call data
           if (this._supabaseCalls?.length) this._enrichMenteesWithCalls();
-          // Enrich with Instagram handles and Zoom passwords
-          if (sb && this.data.mentees?.length) await this._enrichMenteesWithSocialAndZoom();
+          // Enrich with Instagram handles, Zoom passwords, and emails
+          if (sb && this.data.mentees?.length) {
+            await this._enrichMenteesWithSocialAndZoom();
+            await this._enrichMenteesWithEmails();
+          }
           // MED-02: Setup realtime subscriptions for live updates
           if (sb) this._setupRealtimeSubscriptions();
           this.supabaseConnected = true;
@@ -907,6 +910,38 @@ function spalla() {
         console.debug('[Spalla] Enriched mentees with Instagram + Zoom data');
       } catch (e) {
         console.warn('[Spalla] Could not fetch Instagram/Zoom data:', e);
+      }
+    },
+
+    async _enrichMenteesWithEmails() {
+      // Fetch emails from Supabase mentorados table
+      try {
+        const { data: menteeData } = await sb.from('mentorados').select('nome, email');
+        if (!menteeData?.length) {
+          console.log('[Spalla] Could not fetch emails from mentorados table');
+          return;
+        }
+
+        const emailMap = {};
+        for (const m of menteeData) {
+          const key = (m.nome || '').toLowerCase().trim();
+          if (key && m.email) {
+            emailMap[key] = m.email;
+          }
+        }
+
+        // Enrich this.data.mentees with email field
+        this.data.mentees = this.data.mentees.map(m => {
+          const key = (m.nome || '').toLowerCase().trim();
+          return {
+            ...m,
+            email: emailMap[key] || m.email || null,
+          };
+        });
+
+        console.debug('[Spalla] Enriched mentees with email data');
+      } catch (e) {
+        console.warn('[Spalla] Could not fetch email data:', e);
       }
     },
 
@@ -2055,14 +2090,25 @@ function spalla() {
     get allCallsGlobal() {
       // If real Supabase calls loaded, use them
       if (this._supabaseCalls?.length) {
-        return this._supabaseCalls.map(c => ({
-          mentorado: c.mentorado_nome, data: c.data_call,
-          tipo: c.tipo_call || 'acompanhamento', duracao: c.duracao_minutos || 0,
-          topic: c.zoom_topic || '', resumo: c.resumo || null,
-          gravacao: c.link_gravacao || null, transcricao: c.link_transcricao || null,
-          decisoes: c.decisoes_tomadas || [], gargalos: c.gargalos || [],
-          proximos_passos: c.proximos_passos || [], sentimento: null,
-        }));
+        // Calculate date 30 days ago
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+
+        return this._supabaseCalls
+          .filter(c => {
+            // Show calls from last 30 days and future calls
+            const callDate = (c.data_call || '').split('T')[0];
+            return callDate >= thirtyDaysAgoStr;
+          })
+          .map(c => ({
+            mentorado: c.mentorado_nome, data: c.data_call,
+            tipo: c.tipo_call || 'acompanhamento', duracao: c.duracao_minutos || 0,
+            topic: c.zoom_topic || '', resumo: c.resumo || null,
+            gravacao: c.link_gravacao || null, transcricao: c.link_transcricao || null,
+            decisoes: c.decisoes_tomadas || [], gargalos: c.gargalos || [],
+            proximos_passos: c.proximos_passos || [], sentimento: null,
+          }));
       }
       // Fallback: static SUPABASE_CALLS with MENTEE_CONTEXTS enrichment
       return (SUPABASE_CALLS || []).map(c => {
