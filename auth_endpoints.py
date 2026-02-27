@@ -13,8 +13,14 @@ import urllib.request
 import urllib.error
 from auth_manager import AuthManager
 
-SUPABASE_URL = "https://knusqfbvhsqworzyhvip.supabase.co"
-SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtudXNxZmJ2aHNxd29yenlodmlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4NTg3MjcsImV4cCI6MjA3MDQzNDcyN30.f-m7TlmCoccBpUxLZhA4P5kr2lWBGtRIv6inzInAKCo')
+SUPABASE_URL = os.environ.get('SUPABASE_URL')
+SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY')
+
+# Validate required environment variables
+if not SUPABASE_URL:
+    raise ValueError('SUPABASE_URL environment variable is required')
+if not SUPABASE_ANON_KEY:
+    raise ValueError('SUPABASE_ANON_KEY environment variable is required')
 
 def handle_signup(body):
     """

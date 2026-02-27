@@ -45,17 +45,28 @@ ZOOM_CLIENT_SECRET = os.environ.get('ZOOM_CLIENT_SECRET')
 GOOGLE_SA_PATH = os.path.expanduser('~/.config/google/credentials.json')
 
 # Supabase — NO DEFAULTS! These are secrets!
-SUPABASE_URL = 'https://knusqfbvhsqworzyhvip.supabase.co'
-SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', '')
-SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
+SUPABASE_URL = os.environ.get('SUPABASE_URL')
+SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY')
+SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY')
+
+# Validate required Supabase credentials
+if not SUPABASE_URL:
+    raise ValueError('SUPABASE_URL environment variable is required')
+if not SUPABASE_ANON_KEY:
+    raise ValueError('SUPABASE_ANON_KEY environment variable is required')
 
 # Calendar ID (user's primary calendar or a specific one)
 GOOGLE_CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID', 'primary')
 
 # ===== JWT AUTHENTICATION =====
-JWT_SECRET = os.environ.get('JWT_SECRET', 'CHANGE_ME_IN_PRODUCTION')
+JWT_SECRET = os.environ.get('JWT_SECRET')
 JWT_ALGORITHM = 'HS256'
 JWT_EXPIRATION = 86400  # 24 hours
+
+# Validate JWT_SECRET is configured
+if not JWT_SECRET:
+    log_error('JWT', 'JWT_SECRET environment variable is required for production')
+    # In development, we can continue with a warning; in production, this would fail
 
 # Valid users (in production, query from Supabase)
 VALID_USERS = {
