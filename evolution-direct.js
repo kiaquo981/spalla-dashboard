@@ -111,16 +111,31 @@ class EvolutionDirect {
       }
 
       // Convert Evolution format to Spalla format
-      return messagesArray.map(msg => ({
-        id: msg.id,
-        fromMe: msg.key?.fromMe || false,
-        sender: msg.key?.remoteJid || msg.sender || remoteJid,
-        senderName: msg.pushName || '',
-        body: msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.body || '',
-        timestamp: new Date((msg.messageTimestamp || msg.timestamp) * 1000 || Date.now()).toISOString(),
-        type: this._getMessageType(msg),
-        media: this._extractMediaUrl(msg),
-      })).filter(m => m.body);
+      return messagesArray.map(msg => {
+        // Extract message text
+        let body = msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.body || '';
+
+        // Add media placeholders if no text
+        if (!body) {
+          if (msg.message?.imageMessage) body = '[Imagem]';
+          else if (msg.message?.videoMessage) body = '[Vídeo]';
+          else if (msg.message?.audioMessage) body = '[Áudio]';
+          else if (msg.message?.documentMessage) body = '[Documento]';
+          else if (msg.message?.stickerMessage) body = '[Sticker]';
+          else body = '(mensagem vazia)';
+        }
+
+        return {
+          id: msg.id,
+          fromMe: msg.key?.fromMe || false,
+          sender: msg.key?.remoteJid || msg.sender || remoteJid,
+          senderName: msg.pushName || '',
+          body: body,
+          timestamp: new Date((msg.messageTimestamp || msg.timestamp) * 1000 || Date.now()).toISOString(),
+          type: this._getMessageType(msg),
+          media: this._extractMediaUrl(msg),
+        };
+      });
     } catch (error) {
       console.error('[Evolution] Error fetching messages:', error);
       return [];
