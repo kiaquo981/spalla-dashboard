@@ -119,6 +119,49 @@ def retry_request(url, method='GET', data=None, max_retries=3):
 
     return None
 
+def normalize_wa_messages(messages):
+    """Transform Evolution API message structure to frontend-friendly format"""
+    if not isinstance(messages, list):
+        return []
+
+    normalized = []
+    for msg in messages:
+        if not isinstance(msg, dict):
+            continue
+
+        # Extract message text from Evolution API structure
+        text = ''
+        if isinstance(msg.get('message'), dict):
+            m = msg['message']
+            # Try different message type structures
+            text = m.get('conversation', '')  # Simple text message
+            if not text and 'extendedTextMessage' in m:
+                text = m['extendedTextMessage'].get('text', '')
+            if not text and 'imageMessage' in m:
+                text = '[Imagem]'
+            if not text and 'audioMessage' in m:
+                text = '[Áudio]'
+            if not text and 'videoMessage' in m:
+                text = '[Vídeo]'
+            if not text and 'documentMessage' in m:
+                text = '[Documento]'
+            if not text and 'stickerMessage' in m:
+                text = '[Sticker]'
+        elif isinstance(msg.get('message'), str):
+            text = msg['message']
+
+        # Only include messages with text content
+        if text:
+            normalized.append({
+                'message': text,  # ✅ String field for frontend
+                'key': msg.get('key', {}),
+                'messageTimestamp': msg.get('messageTimestamp'),
+                'pushName': msg.get('pushName'),
+                'fromMe': msg.get('key', {}).get('fromMe', False),
+            })
+
+    return normalized
+
 # ===== ZOOM TOKEN CACHE =====
 _zoom_token = {'access_token': None, 'expires_at': 0}
 
@@ -580,8 +623,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     # Sync to Supabase for persistent storage
                     self._sync_messages_to_supabase(remote_jid, messages)
 
-                    self._send_json(messages, 200)
-                    log_info('WA', f'✅ Fetched {len(messages)} messages for {remote_jid}')
+                    # Normalize messages for frontend (extract text, handle different message types)
+                    normalized_messages = normalize_wa_messages(messages)
+
+                    self._send_json(normalized_messages, 200)
+                    log_info('WA', f'✅ Fetched {len(normalized_messages)} messages for {remote_jid}')
                 except urllib.error.HTTPError as e:
                     error_body = e.read().decode()
                     log_error('WA', f'Evolution findMessages failed: {e.code}', error_body)
