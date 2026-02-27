@@ -820,8 +820,19 @@ function spalla() {
 
             this._supabaseCalls = calls.data.filter(c => {
               if (!c.data_call) return false;
-              const callDate = new Date(c.data_call);
-              return callDate >= onehundredEightyDaysAgo;
+              try {
+                // Parse date: handle both ISO formats "2025-10-02T14:10:00" and "2025-10-02 14:10:00+00"
+                const dateStr = String(c.data_call).replace(' ', 'T').split('+')[0]; // Normalize to ISO
+                const callDate = new Date(dateStr);
+                if (isNaN(callDate.getTime())) {
+                  console.warn('[Spalla] Invalid date for call:', c.data_call);
+                  return true; // Keep if can't parse (don't filter out)
+                }
+                return callDate >= onehundredEightyDaysAgo;
+              } catch (e) {
+                console.warn('[Spalla] Error filtering call date:', e);
+                return true; // Keep on error
+              }
             });
 
             console.log('[Spalla] Calls loaded from Supabase:', calls.data.length, '→ filtered to 180 days:', this._supabaseCalls.length);
@@ -1039,8 +1050,17 @@ function spalla() {
 
               const filteredCalls = callsRes.data.filter(c => {
                 if (!c.data_call) return false;
-                const callDate = new Date(c.data_call);
-                return callDate >= onehundredEightyDaysAgo;
+                try {
+                  // Parse date: handle both ISO formats "2025-10-02T14:10:00" and "2025-10-02 14:10:00+00"
+                  const dateStr = String(c.data_call).replace(' ', 'T').split('+')[0]; // Normalize to ISO
+                  const callDate = new Date(dateStr);
+                  if (isNaN(callDate.getTime())) {
+                    return true; // Keep if can't parse
+                  }
+                  return callDate >= onehundredEightyDaysAgo;
+                } catch (e) {
+                  return true; // Keep on error
+                }
               }).slice(0, 50); // Keep only top 50
 
               detail.last_calls = filteredCalls.map(c => ({
