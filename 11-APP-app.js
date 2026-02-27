@@ -798,11 +798,20 @@ function spalla() {
       sb = initSupabase();
       if (sb) {
         try {
+          // Calculate date 90 days ago for filtering calls
+          const ninetyDaysAgo = new Date();
+          ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+          const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().split('T')[0] + 'T00:00:00';
+
           const [mentees, cohort, alerts, calls] = await Promise.all([
             sb.from('vw_god_overview').select('*'),
             sb.from('vw_god_cohort').select('*'),
             sb.rpc('fn_god_alerts'),
-            sb.from('vw_god_calls').select('*').order('data_call', { ascending: false }).limit(500),
+            sb.from('vw_god_calls')
+              .select('*')
+              .gte('data_call', ninetyDaysAgoStr)
+              .order('data_call', { ascending: false })
+              .limit(500),
           ]);
           if (mentees.data?.length) {
             this.data.mentees = mentees.data;
@@ -1006,18 +1015,19 @@ function spalla() {
       if (sb) {
         try {
           // Load deep detail + real calls in parallel
-          // Filter calls to last 60 days for current detail view
-          const sixtyDaysAgo = new Date();
-          sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-          const sixtyDaysAgoStr = sixtyDaysAgo.toISOString();
+          // Filter calls to last 90 days for detail view (be generous with timeframe)
+          const ninetyDaysAgo = new Date();
+          ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+          const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().split('T')[0]; // Just YYYY-MM-DD
 
           const [detailRes, callsRes] = await Promise.all([
             sb.rpc('fn_god_mentorado_deep', { p_id: id }),
             sb.from('vw_god_calls')
               .select('*')
               .eq('mentorado_id', id)
-              .gte('data_call', sixtyDaysAgoStr)
-              .order('data_call', { ascending: false }),
+              .gte('data_call', ninetyDaysAgoStr + 'T00:00:00')
+              .order('data_call', { ascending: false })
+              .limit(100),  // Limit to 100 calls to avoid huge payloads
           ]);
           if (detailRes.data) {
             let detail = null;
