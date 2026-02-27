@@ -612,6 +612,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     req_body = json.dumps({'remoteJid': remote_jid, 'limit': limit}).encode()
                     response_data = retry_request(url, method='POST', data=req_body)
 
+                    # DEBUG: Log raw API response structure
+                    log_info('WA', f'📨 Raw API response type: {type(response_data).__name__}')
+                    if isinstance(response_data, dict):
+                        log_info('WA', f'📨 Raw API response keys: {list(response_data.keys())}')
+                    log_info('WA', f'📨 Raw API response: {json.dumps(response_data)[:500]}')  # First 500 chars
+
                     # Extract messages from response structure
                     if isinstance(response_data, dict) and 'messages' in response_data:
                         messages_obj = response_data['messages']
@@ -619,11 +625,19 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     else:
                         messages = response_data if isinstance(response_data, list) else []
 
+                    log_info('WA', f'📨 Extracted messages count: {len(messages) if isinstance(messages, list) else "not a list"}')
+                    if isinstance(messages, list) and len(messages) > 0:
+                        log_info('WA', f'📨 First message sample: {json.dumps(messages[0])[:300]}')
+
                     # Sync to Supabase for persistent storage
                     self._sync_messages_to_supabase(remote_jid, messages)
 
                     # Normalize messages for frontend (extract text, handle different message types)
                     normalized_messages = normalize_wa_messages(messages)
+
+                    log_info('WA', f'📨 Normalized messages count: {len(normalized_messages)}')
+                    if len(normalized_messages) > 0:
+                        log_info('WA', f'📨 First normalized message: {json.dumps(normalized_messages[0])[:300]}')
 
                     self._send_json(normalized_messages, 200)
                     log_info('WA', f'✅ Fetched {len(normalized_messages)} messages for {remote_jid}')
