@@ -1,0 +1,4 @@
+  File "/Users/kaiquerodrigues/spalla-prod/14-APP-server.py", line 642
+    except Exception as e:
+    ^
+SyntaxError: invalid syntax
