@@ -62,6 +62,63 @@ VALID_USERS = {
     'queila@case.com': 'spalla',  # Username as temp password (CHANGE IN PRODUCTION!)
 }
 
+# ===== EVOLUTION API INSTANCE CACHE =====
+_instance_cache = {'instance': None, 'expires_at': 0}
+
+def get_evolution_instance():
+    """Dynamically discover Evolution API instance (not hardcoded!)"""
+    global _instance_cache
+
+    # Return cached instance if still valid (1 hour TTL)
+    if _instance_cache['instance'] and time.time() < _instance_cache['expires_at']:
+        return _instance_cache['instance']
+
+    # Discover instance from /instance/fetchInstances
+    try:
+        url = f'{EVOLUTION_BASE}/instance/fetchInstances'
+        req = urllib.request.Request(url, method='GET')
+        req.add_header('apikey', EVOLUTION_API_KEY)
+
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+
+            # Extract instance name from response
+            if isinstance(data, list) and len(data) > 0:
+                instance = data[0].get('instance', {}).get('name') or data[0].get('name')
+                if instance:
+                    _instance_cache['instance'] = instance
+                    _instance_cache['expires_at'] = time.time() + 3600  # Cache for 1 hour
+                    log_info('WA', f'✅ Discovered Evolution instance: {instance}')
+                    return instance
+    except Exception as e:
+        log_error('WA', f'Failed to discover instance: {e}')
+
+    # Fallback to default
+    log_info('WA', '⚠️  Using fallback instance: produ02')
+    return 'produ02'
+
+def retry_request(url, method='GET', data=None, max_retries=3):
+    """Execute request with exponential backoff retry logic"""
+    for attempt in range(max_retries):
+        try:
+            req = urllib.request.Request(url, data=data, method=method)
+            req.add_header('apikey', EVOLUTION_API_KEY)
+            req.add_header('Content-Type', 'application/json')
+
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                result = json.loads(resp.read())
+                log_info('WA', f'✅ Request succeeded on attempt {attempt + 1}: {url}')
+                return result
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise
+
+            wait_time = (2 ** attempt)  # 1s, 2s, 4s
+            log_info('WA', f'⚠️  Attempt {attempt + 1} failed, retrying in {wait_time}s...')
+            time.sleep(wait_time)
+
+    return None
+
 # ===== ZOOM TOKEN CACHE =====
 _zoom_token = {'access_token': None, 'expires_at': 0}
 
@@ -482,25 +539,24 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             action = body.get('action')
 
             if action == 'findChats':
-                # Get chats from Evolution API (real-time)
-                url = f'{EVOLUTION_BASE}/chat/findChats/produ02'
-                req = urllib.request.Request(url, data=b'{}', method='POST')
-                req.add_header('apikey', EVOLUTION_API_KEY)
-                req.add_header('Content-Type', 'application/json')
-
+                # Get chats from Evolution API (with dynamic instance + retry logic)
                 try:
-                    with urllib.request.urlopen(req, timeout=15) as resp:
-                        response_data = json.loads(resp.read())
-                        chats = response_data if isinstance(response_data, list) else []
-                        self._send_json(chats, 200)
-                        log_info('WA', f'Fetched {len(chats)} chats from Evolution API')
+                    instance = get_evolution_instance()
+                    url = f'{EVOLUTION_BASE}/chat/findChats/{instance}'
+                    response_data = retry_request(url, method='POST', data=b'{}')
+                    chats = response_data if isinstance(response_data, list) else []
+                    self._send_json(chats, 200)
+                    log_info('WA', f'Fetched {len(chats)} chats from Evolution API')
                 except urllib.error.HTTPError as e:
                     error_body = e.read().decode()
                     log_error('WA', f'Evolution findChats failed: {e.code}', error_body)
                     self._send_json({'error': f'Evolution API error: {e.code}'}, e.code)
+                except Exception as e:
+                    log_error('WA', f'findChats error', e)
+                    self._send_json({'error': str(e)}, 500)
 
             elif action == 'findMessages':
-                # Get messages from a chat (Evolution API real-time)
+                # Get messages from a chat (with dynamic instance + retry logic)
                 remote_jid = body.get('remoteJid', '')
                 limit = body.get('limit', 50)
 
@@ -508,35 +564,34 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     self._send_json({'error': 'remoteJid is required'}, 400)
                     return
 
-                url = f'{EVOLUTION_BASE}/chat/findMessages/produ02'
-                req_body = json.dumps({'remoteJid': remote_jid, 'limit': limit}).encode()
-                req = urllib.request.Request(url, data=req_body, method='POST')
-                req.add_header('apikey', EVOLUTION_API_KEY)
-                req.add_header('Content-Type', 'application/json')
-
                 try:
-                    with urllib.request.urlopen(req, timeout=15) as resp:
-                        response_data = json.loads(resp.read())
+                    instance = get_evolution_instance()
+                    url = f'{EVOLUTION_BASE}/chat/findMessages/{instance}'
+                    req_body = json.dumps({'remoteJid': remote_jid, 'limit': limit}).encode()
+                    response_data = retry_request(url, method='POST', data=req_body)
 
-                        # Extract messages from response structure
-                        if isinstance(response_data, dict) and 'messages' in response_data:
-                            messages_obj = response_data['messages']
-                            messages = messages_obj.get('records', []) if isinstance(messages_obj, dict) else messages_obj
-                        else:
-                            messages = response_data if isinstance(response_data, list) else []
+                    # Extract messages from response structure
+                    if isinstance(response_data, dict) and 'messages' in response_data:
+                        messages_obj = response_data['messages']
+                        messages = messages_obj.get('records', []) if isinstance(messages_obj, dict) else messages_obj
+                    else:
+                        messages = response_data if isinstance(response_data, list) else []
 
-                        # Sync to Supabase for persistent storage
-                        self._sync_messages_to_supabase(remote_jid, messages)
+                    # Sync to Supabase for persistent storage
+                    self._sync_messages_to_supabase(remote_jid, messages)
 
-                        self._send_json(messages, 200)
-                        log_info('WA', f'Fetched {len(messages)} messages for {remote_jid}')
+                    self._send_json(messages, 200)
+                    log_info('WA', f'✅ Fetched {len(messages)} messages for {remote_jid}')
                 except urllib.error.HTTPError as e:
                     error_body = e.read().decode()
                     log_error('WA', f'Evolution findMessages failed: {e.code}', error_body)
                     self._send_json({'error': f'Evolution API error: {e.code}'}, e.code)
+                except Exception as e:
+                    log_error('WA', f'findMessages error', e)
+                    self._send_json({'error': str(e)}, 500)
 
             elif action == 'sendText':
-                # Send message via Evolution API (real-time) + sync to Supabase
+                # Send message via Evolution API (with dynamic instance + retry logic)
                 number = body.get('number', '')
                 text = body.get('text', '')
 
@@ -544,25 +599,24 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     self._send_json({'error': 'number and text are required'}, 400)
                     return
 
-                url = f'{EVOLUTION_BASE}/message/sendText/produ02'
-                req_body = json.dumps({'number': number, 'text': text}).encode()
-                req = urllib.request.Request(url, data=req_body, method='POST')
-                req.add_header('apikey', EVOLUTION_API_KEY)
-                req.add_header('Content-Type', 'application/json')
-
                 try:
-                    with urllib.request.urlopen(req, timeout=15) as resp:
-                        response_data = json.loads(resp.read())
+                    instance = get_evolution_instance()
+                    url = f'{EVOLUTION_BASE}/message/sendText/{instance}'
+                    req_body = json.dumps({'number': number, 'text': text}).encode()
+                    response_data = retry_request(url, method='POST', data=req_body)
 
-                        # Also save to Supabase for persistent record
-                        self._save_sent_message_to_supabase(number, text)
+                    # Also save to Supabase for persistent record
+                    self._save_sent_message_to_supabase(number, text)
 
-                        self._send_json(response_data, 200)
-                        log_info('WA', f'Message sent to {number}')
+                    self._send_json(response_data, 200)
+                    log_info('WA', f'✅ Message sent to {number}')
                 except urllib.error.HTTPError as e:
                     error_body = e.read().decode()
                     log_error('WA', f'Evolution sendText failed: {e.code}', error_body)
                     self._send_json({'error': f'Evolution API error: {e.code}'}, e.code)
+                except Exception as e:
+                    log_error('WA', f'sendText error', e)
+                    self._send_json({'error': str(e)}, 500)
 
             else:
                 self._send_json({'error': 'Unknown action'}, 400)
