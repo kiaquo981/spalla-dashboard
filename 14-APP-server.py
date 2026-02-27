@@ -579,37 +579,48 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
                     messages = []
                     if SUPABASE_SERVICE_KEY:
-                        try:
-                            # Query interacoes_mentoria table by chat_id
-                            query = f"chat_id=eq.{remote_jid}&order=timestamp.desc&limit={limit}"
-                            url = f'https://knusqfbvhsqworzyhvip.supabase.co/rest/v1/interacoes_mentoria?{query}'
+                        # Try Supabase with retry (503 errors are temporary)
+                        for attempt in range(1, 3):
+                            try:
+                                query = f"chat_id=eq.{remote_jid}&order=timestamp.desc&limit={limit}"
+                                url = f'https://knusqfbvhsqworzyhvip.supabase.co/rest/v1/interacoes_mentoria?{query}'
 
-                            req = urllib.request.Request(url)
-                            req.add_header('apikey', SUPABASE_SERVICE_KEY)
-                            req.add_header('Authorization', f'Bearer {SUPABASE_SERVICE_KEY}')
-                            req.add_header('Content-Type', 'application/json')
+                                req = urllib.request.Request(url)
+                                req.add_header('apikey', SUPABASE_SERVICE_KEY)
+                                req.add_header('Authorization', f'Bearer {SUPABASE_SERVICE_KEY}')
+                                req.add_header('Content-Type', 'application/json')
 
-                            with urllib.request.urlopen(req, timeout=10) as resp:
-                                rows = json.loads(resp.read())
+                                with urllib.request.urlopen(req, timeout=10) as resp:
+                                    rows = json.loads(resp.read())
 
-                                if isinstance(rows, list):
-                                    # Transform Supabase format to Evolution format
-                                    messages = [{
-                                        'id': row.get('message_id'),
-                                        'key': {
-                                            'remoteJid': remote_jid,
-                                            'fromMe': row.get('eh_equipe', False)
-                                        },
-                                        'message': {
-                                            'conversation': row.get('conteudo', '')
-                                        },
-                                        'pushName': row.get('sender_name', 'Unknown'),
-                                        'messageTimestamp': int(row['timestamp'].timestamp()) if row.get('timestamp') else 0,
-                                    } for row in rows if row.get('conteudo')]
+                                    if isinstance(rows, list):
+                                        # Transform Supabase format to Evolution format
+                                        messages = [{
+                                            'id': row.get('message_id'),
+                                            'key': {
+                                                'remoteJid': remote_jid,
+                                                'fromMe': row.get('eh_equipe', False)
+                                            },
+                                            'message': {
+                                                'conversation': row.get('conteudo', '')
+                                            },
+                                            'pushName': row.get('sender_name', 'Unknown'),
+                                            'messageTimestamp': int(row['timestamp'].timestamp()) if row.get('timestamp') else 0,
+                                        } for row in rows if row.get('conteudo')]
 
-                                    log_info('WA', f'✅ Loaded {len(messages)} messages from Supabase for {remote_jid}')
-                        except Exception as e:
-                            log_error('WA', f'Supabase query failed: {str(e)}')
+                                        log_info('WA', f'✅ Loaded {len(messages)} messages from Supabase for {remote_jid}')
+                                        break  # Success, exit retry loop
+                            except urllib.error.HTTPError as e:
+                                if e.code == 503 and attempt < 2:
+                                    log_info('WA', f'⚠️  Supabase 503, retrying... (attempt {attempt}/2)')
+                                    time.sleep(1)  # Wait before retry
+                                    continue
+                                else:
+                                    log_error('WA', f'Supabase query failed (attempt {attempt}): {e.code}')
+                                    break
+                            except Exception as e:
+                                log_error('WA', f'Supabase error: {str(e)}')
+                                break
 
                     # Fallback to Evolution API if Supabase empty
                     if not messages:
