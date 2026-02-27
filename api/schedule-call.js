@@ -272,11 +272,21 @@ export default async function handler(req, res) {
 
     // Save to Supabase with São Paulo timezone offset (-03:00)
     const data_call = `${isoDate}T${horario}:00-03:00`;
+
+    // Get Supabase credentials from environment
+    const SUPABASE_URL = process.env.SUPABASE_URL;
+    const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      console.error('[Schedule] Missing Supabase environment variables');
+      return res.status(500).json({ error: 'Server misconfiguration: missing Supabase credentials' });
+    }
+
     try {
-      const sbRes = await fetch('https://knusqfbvhsqworzyhvip.supabase.co/rest/v1/calls_mentoria', {
+      const sbRes = await fetch(`${SUPABASE_URL}/rest/v1/calls_mentoria`, {
         method: 'POST',
         headers: {
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtudXNxZmJ2aHNxd29yenlodmlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4NTg3MjcsImV4cCI6MjA3MDQzNDcyN30.f-m7TlmCoccBpUxLZhA4P5kr2lWBGtRIv6inzInAKCo',
+          'apikey': SUPABASE_ANON_KEY,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
