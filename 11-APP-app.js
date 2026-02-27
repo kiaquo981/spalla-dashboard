@@ -561,6 +561,30 @@ function spalla() {
       return headers;
     },
 
+    getUserDisplayName() {
+      // Return display name based on logged-in user
+      if (!this.auth.authenticated || !this.auth.email) {
+        return 'Usuário';
+      }
+      // Extract name from email (part before @)
+      const name = this.auth.email.split('@')[0];
+      // Capitalize first letter
+      return name.charAt(0).toUpperCase() + name.slice(1);
+    },
+
+    getUserRole() {
+      // Return user role based on email
+      if (!this.auth.authenticated || !this.auth.email) {
+        return 'Visitante';
+      }
+      // Map emails to roles
+      const emailRoles = {
+        'hugo.nicchio@gmail.com': 'Mentor',
+        'queila@case.com': 'Mentora CASE',
+      };
+      return emailRoles[this.auth.email] || 'Usuário';
+    },
+
     async parseJsonResponse(response, operation = 'API call') {
       // Parse JSON response with Content-Type validation (HIGH-03)
       try {

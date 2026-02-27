@@ -131,10 +131,10 @@
 
         <div class="sidebar__footer" x-show="ui.sidebarOpen">
           <div class="sidebar__user">
-            <div class="avatar avatar--sm avatar--brand">QR</div>
+            <div class="avatar avatar--sm avatar--brand" x-text="(auth.email || 'User').substring(0, 2).toUpperCase()"></div>
             <div class="sidebar__user-info">
-              <div class="sidebar__user-name">Queila Trizotti</div>
-              <div class="sidebar__user-role">Mentora CASE</div>
+              <div class="sidebar__user-name" x-text="getUserDisplayName()"></div>
+              <div class="sidebar__user-role" x-text="getUserRole()"></div>
             </div>
           </div>
           <button class="sidebar__logout" @click="logout()" title="Sair">
