@@ -570,6 +570,12 @@ function spalla() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ where: { key: { remoteJid: this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id } }, limit: 50 }),
           });
+          if (res.status === 405 || res.status === 404) {
+            console.warn('[Spalla] WhatsApp API not available (', res.status, '— stopping polling)');
+            this.stopWhatsAppPolling();
+            this.toast('WhatsApp API indisponível', 'warning');
+            return;
+          }
           if (res.ok) {
             const data = await res.json();
             const msgs = data.messages?.records || data.messages || data || [];
