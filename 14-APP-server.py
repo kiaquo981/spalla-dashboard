@@ -446,8 +446,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         self._send_json(result)
 
     def _handle_upcoming_calls(self):
-        result = supabase_request('GET', "calls_mentoria?status=eq.agendada&order=data_call.asc&select=*")
-        self._send_json(result if isinstance(result, list) else [result])
+        # Get ALL calls (not just scheduled), ordered by date DESC to show latest first
+        result = supabase_request('GET', "calls_mentoria?select=*&order=data_call.desc&limit=500")
+        self._send_json(result if isinstance(result, list) else [result] if result else [])
 
     # ===== EVOLUTION PROXY =====
     def _proxy_evolution(self, method):

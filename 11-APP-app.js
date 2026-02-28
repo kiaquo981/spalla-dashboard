@@ -616,7 +616,11 @@ function spalla() {
             sb.from('vw_god_overview').select('*'),
             sb.from('vw_god_cohort').select('*'),
             sb.rpc('fn_god_alerts'),
-            sb.from('vw_god_calls').select('*').order('data_call', { ascending: false }).limit(500),
+            // Query directly from calls_mentoria table to get latest data
+            sb.from('calls_mentoria')
+              .select('*,mentorados(id,nome)')
+              .order('data_call', { ascending: false })
+              .limit(500),
           ]);
           if (mentees.data?.length) {
             this.data.mentees = mentees.data;
@@ -627,8 +631,20 @@ function spalla() {
           if (cohort.data?.length) this.data.cohort = cohort.data;
           if (alerts.data?.length) this.data.alerts = alerts.data;
           if (calls.data?.length) {
-            this._supabaseCalls = calls.data;
-            console.log('[Spalla] Calls loaded from Supabase:', calls.data.length);
+            // Normalize calls data (from calls_mentoria table directly)
+            this._supabaseCalls = calls.data.map(c => ({
+              mentorado_id: c.mentorado_id,
+              mentorado_nome: c.mentorados?.nome || 'Unknown',
+              call_id: c.id,
+              data_call: c.data_call,
+              tipo_call: c.tipo_call || c.tipo,
+              duracao_minutos: c.duracao_minutos,
+              link_gravacao: c.link_gravacao,
+              link_transcricao: c.link_transcricao,
+              zoom_topic: c.zoom_topic,
+              created_at: c.created_at,
+            }));
+            console.log('[Spalla] Calls loaded from Supabase:', this._supabaseCalls.length);
           }
           // Recalculate dias_desde_call with real call data
           if (this._supabaseCalls?.length) this._enrichMenteesWithCalls();
