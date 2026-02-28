@@ -69,6 +69,8 @@ function spalla() {
     // --- Auto Refresh ---
     _refreshInterval: null,
     _refreshIntervalMs: 60000, // 60 seconds
+    _whatsappPollInterval: null,
+    _whatsappPollIntervalMs: 5000, // 5 seconds
 
     // --- UI State ---
     ui: {
@@ -557,6 +559,46 @@ function spalla() {
       }
     },
 
+    startWhatsAppPolling() {
+      if (this._whatsappPollInterval) clearInterval(this._whatsappPollInterval);
+      if (!this.ui.whatsappSelectedChat) return;
+      this._whatsappPollInterval = setInterval(async () => {
+        console.log('[Spalla] WhatsApp poll: checking for new messages');
+        try {
+          const res = await fetch(`/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ where: { key: { remoteJid: this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id } }, limit: 50 }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const msgs = data.messages?.records || data.messages || data || [];
+            const newMsgs = (Array.isArray(msgs) ? msgs : []).reverse();
+            // Update messages if there are new ones
+            if (newMsgs.length !== this.data.whatsappMessages.length) {
+              this.data.whatsappMessages = newMsgs;
+              // Auto-scroll to latest
+              this.$nextTick(() => {
+                const el = document.getElementById('wa-messages-end');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              });
+            }
+          }
+        } catch (e) {
+          console.warn('[Spalla] WhatsApp poll error (non-blocking):', e.message);
+        }
+      }, this._whatsappPollIntervalMs);
+      console.log('[Spalla] WhatsApp polling started (every', this._whatsappPollIntervalMs + 'ms)');
+    },
+
+    stopWhatsAppPolling() {
+      if (this._whatsappPollInterval) {
+        clearInterval(this._whatsappPollInterval);
+        this._whatsappPollInterval = null;
+        console.log('[Spalla] WhatsApp polling stopped');
+      }
+    },
+
     // ===================== DATA LOADING =====================
 
     async loadDashboard() {
@@ -739,6 +781,10 @@ function spalla() {
     // ===================== NAVIGATION =====================
 
     navigate(page) {
+      // Stop WhatsApp polling when leaving WhatsApp page
+      if (this.ui.page === 'whatsapp' && page !== 'whatsapp') {
+        this.stopWhatsAppPolling();
+      }
       this.ui.page = page;
       this.ui.mobileMenuOpen = false;
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1343,6 +1389,7 @@ function spalla() {
     async selectWhatsAppChat(chat) {
       this.ui.whatsappSelectedChat = chat;
       this.ui.whatsappLoading = true;
+      this.stopWhatsAppPolling(); // Stop previous polling
       try {
         const res = await fetch(`/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
           method: 'POST',
@@ -1366,6 +1413,8 @@ function spalla() {
         const el = document.getElementById('wa-messages-end');
         if (el) el.scrollIntoView({ behavior: 'smooth' });
       });
+      // Start polling for new messages
+      this.startWhatsAppPolling();
     },
 
     async sendWhatsAppMessage() {
