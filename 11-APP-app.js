@@ -6,6 +6,7 @@
 
 // ===== CONFIG =====
 const CONFIG = {
+  API_BASE: 'http://178.156.157.169:9999',  // Production server (Manager01)
   SUPABASE_URL: 'https://knusqfbvhsqworzyhvip.supabase.co',
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtudXNxZmJ2aHNxd29yenlodmlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4NTg3MjcsImV4cCI6MjA3MDQzNDcyN30.f-m7TlmCoccBpUxLZhA4P5kr2lWBGtRIv6inzInAKCo',
   AUTH_PASSWORD: 'spalla2026',
@@ -492,7 +493,7 @@ function spalla() {
 
     async _loadWaProfilePics() {
       try {
-        const res = await fetch(`/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
+        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
         });
         if (!res.ok) return;
@@ -565,7 +566,7 @@ function spalla() {
       this._whatsappPollInterval = setInterval(async () => {
         console.log('[Spalla] WhatsApp poll: checking for new messages');
         try {
-          const res = await fetch(`/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
+          const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ where: { key: { remoteJid: this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id } }, limit: 50 }),
@@ -754,7 +755,7 @@ function spalla() {
         let chats = this.data.whatsappChats;
         // If chats not loaded yet, fetch them
         if (!chats.length) {
-          const res = await fetch(`/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
+          const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
           });
           if (res.ok) chats = await res.json();
@@ -766,7 +767,7 @@ function spalla() {
         if (!chat) return;
 
         // Fetch last 10 messages
-        const res = await fetch(`/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
+        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ where: { key: { remoteJid: chat.remoteJid || chat.id } }, limit: 10 }),
@@ -1379,7 +1380,7 @@ function spalla() {
     async fetchWhatsAppChats() {
       this.ui.whatsappLoading = true;
       try {
-        const res = await fetch(`/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
+        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({}),
@@ -1413,7 +1414,7 @@ function spalla() {
       this.ui.whatsappLoading = true;
       this.stopWhatsAppPolling(); // Stop previous polling
       try {
-        const res = await fetch(`/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
+        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ where: { key: { remoteJid: chat.remoteJid || chat.id } }, limit: 50 }),
@@ -1444,7 +1445,7 @@ function spalla() {
       const msg = this.ui.whatsappMessage.trim();
       this.ui.whatsappMessage = '';
       try {
-        const res = await fetch(`/api/evolution/message/sendText/${EVOLUTION_CONFIG.INSTANCE}`, {
+        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/message/sendText/${EVOLUTION_CONFIG.INSTANCE}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ number: this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id, text: msg }),
