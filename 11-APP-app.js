@@ -66,6 +66,10 @@ function spalla() {
     waPhotos: {},
     photoTick: 0,
 
+    // --- Auto Refresh ---
+    _refreshInterval: null,
+    _refreshIntervalMs: 60000, // 60 seconds
+
     // --- UI State ---
     ui: {
       page: CONFIG.DEFAULT_PAGE,
@@ -533,6 +537,24 @@ function spalla() {
     logout() {
       this.auth.authenticated = false;
       localStorage.removeItem(CONFIG.AUTH_STORAGE_KEY);
+      this.stopDataRefresh();
+    },
+
+    startDataRefresh() {
+      if (this._refreshInterval) clearInterval(this._refreshInterval);
+      this._refreshInterval = setInterval(() => {
+        console.log('[Spalla] Auto-refresh: loading dashboard data');
+        this.loadDashboard();
+      }, this._refreshIntervalMs);
+      console.log('[Spalla] Data auto-refresh started (every', this._refreshIntervalMs + 'ms)');
+    },
+
+    stopDataRefresh() {
+      if (this._refreshInterval) {
+        clearInterval(this._refreshInterval);
+        this._refreshInterval = null;
+        console.log('[Spalla] Data auto-refresh stopped');
+      }
     },
 
     // ===================== DATA LOADING =====================
@@ -573,6 +595,8 @@ function spalla() {
         this.loadDemoData();
       }
       this.ui.loading = false;
+      // Start auto-refresh after successful load
+      if (this.supabaseConnected) this.startDataRefresh();
     },
 
     _enrichMenteesWithCalls() {
