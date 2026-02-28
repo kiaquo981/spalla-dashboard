@@ -246,6 +246,11 @@ def insert_scheduled_call(data):
     return supabase_request('POST', 'calls_mentoria', data)
 
 
+# ===== CUSTOM HTTP SERVER (fix SO_REUSEADDR) =====
+class ReuseAddrHTTPServer(http.server.HTTPServer):
+    allow_reuse_address = True
+
+
 # ===== HTTP HANDLER =====
 class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
@@ -508,7 +513,7 @@ if __name__ == '__main__':
     print(f'  GET  /api/calls/upcoming    — Scheduled calls from DB')
     print(f'  GET  /api/health')
 
-    server = http.server.HTTPServer(('', PORT), ProxyHandler)
+    server = ReuseAddrHTTPServer(('', PORT), ProxyHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
