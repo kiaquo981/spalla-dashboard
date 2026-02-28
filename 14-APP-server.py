@@ -13,7 +13,7 @@ import time
 import base64
 from datetime import datetime, timedelta
 
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8888
+PORT = int(os.environ.get('PORT', 8888))
 
 # ===== CONFIG =====
 EVOLUTION_BASE = 'https://evolution.manager01.feynmanproject.com'
