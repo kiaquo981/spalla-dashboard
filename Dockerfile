@@ -20,4 +20,4 @@ EXPOSE 9999
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:9999/api/health', timeout=5)" || exit 1
 
-CMD ["python3", "14-APP-server.py", "9999"]
+CMD ["python3", "14-APP-server.py"]
