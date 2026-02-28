@@ -4,7 +4,7 @@
     "builder": "dockerfile"
   },
   "deploy": {
-    "startCommand": "python3 14-APP-server.py ${PORT:-8000}",
+    "startCommand": "python3 14-APP-server.py $PORT",
     "restartPolicyMaxRetries": 5,
     "restartPolicyInterval": 10
   }

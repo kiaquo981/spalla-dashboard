@@ -18,7 +18,10 @@ import gzip
 from datetime import datetime, timedelta
 import pytz
 
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8888
+try:
+    PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
+except (ValueError, IndexError):
+    PORT = 8000
 
 # ===== LOGGING (LOW-02: Comprehensive error logging) =====
 def log_error(component, message, error=None):
