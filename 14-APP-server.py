@@ -4,6 +4,7 @@ Serves static files + proxies APIs
 """
 
 import http.server
+import http.client
 import json
 import urllib.request
 import urllib.error
@@ -11,6 +12,7 @@ import os
 import sys
 import time
 import base64
+import threading
 from datetime import datetime, timedelta
 
 PORT = int(os.environ.get('PORT', 8888))
@@ -34,6 +36,47 @@ SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', 'eyJhbGciOiJIUzI1N
 
 # Calendar ID (user's primary calendar or a specific one)
 GOOGLE_CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID', 'primary')
+
+# ===== SUPABASE CONNECTION POOL =====
+SUPABASE_HOST = 'knusqfbvhsqworzyhvip.supabase.co'
+_supa_lock = threading.Lock()
+_supa_conn = None
+
+
+def _get_supa_conn():
+    """Retorna conexão HTTPS persistente com Supabase"""
+    global _supa_conn
+    if _supa_conn is not None:
+        return _supa_conn
+    _supa_conn = http.client.HTTPSConnection(SUPABASE_HOST, timeout=15)
+    return _supa_conn
+
+
+def _reset_supa_conn():
+    """Fecha e reseta a conexão Supabase"""
+    global _supa_conn
+    try:
+        if _supa_conn:
+            _supa_conn.close()
+    except Exception:
+        pass
+    _supa_conn = None
+
+
+def log_info(source, msg):
+    """Log info message with timestamp"""
+    ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    print(f'[{ts}] [{source}] {msg}')
+
+
+def log_error(source, msg, exc=None):
+    """Log error message with timestamp"""
+    ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    if exc:
+        print(f'[{ts}] [{source}] ERROR: {msg} — {exc}')
+    else:
+        print(f'[{ts}] [{source}] ERROR: {msg}')
+
 
 # ===== ZOOM TOKEN CACHE =====
 _zoom_token = {'access_token': None, 'expires_at': 0}
@@ -212,28 +255,62 @@ def list_calendar_events(time_min=None, time_max=None, max_results=50):
 
 
 # ===== SUPABASE HELPERS =====
-def supabase_request(method, path, body=None):
-    """Make a request to Supabase REST API"""
+def supabase_request(method, path, body=None, _retries=3, _backoff=1.0):
+    """Make a request to Supabase REST API with retry logic and connection pooling"""
     key = SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY
     if not key:
         return {'error': 'Supabase key not configured'}
 
-    url = f'{SUPABASE_URL}/rest/v1/{path}'
+    headers = {
+        'apikey': key,
+        'Authorization': f'Bearer {key}',
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation',
+    }
     data = json.dumps(body).encode() if body else None
-    req = urllib.request.Request(url, data=data, method=method)
-    req.add_header('apikey', key)
-    req.add_header('Authorization', f'Bearer {key}')
-    req.add_header('Content-Type', 'application/json')
-    req.add_header('Prefer', 'return=representation')
+    url = f'/rest/v1/{path}'
+    last_error = None
 
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            return json.loads(resp.read())
-    except urllib.error.HTTPError as e:
-        err = e.read().decode()
-        return {'error': f'Supabase {e.code}: {err}'}
-    except Exception as e:
-        return {'error': str(e)}
+    for attempt in range(_retries):
+        try:
+            with _supa_lock:
+                conn = _get_supa_conn()
+                conn.request(method, url, body=data, headers=headers)
+                resp = conn.getresponse()
+                resp_body = resp.read()
+                status = resp.status
+
+            if status in (200, 201):
+                return json.loads(resp_body) if resp_body else {}
+
+            elif status in (503, 429, 500, 502, 504):
+                last_error = {'error': f'Supabase {status}: {resp_body.decode()}'}
+                if attempt < _retries - 1:
+                    wait = _backoff * (2 ** attempt)
+                    log_info('Supabase', f'Erro {status}, tentativa {attempt+1}/{_retries}, aguardando {wait}s...')
+                    time.sleep(wait)
+                    with _supa_lock:
+                        _reset_supa_conn()
+                    continue
+            else:
+                return {'error': f'Supabase {status}: {resp_body.decode()}'}
+
+        except (http.client.RemoteDisconnected, ConnectionResetError,
+                BrokenPipeError, OSError, http.client.CannotSendRequest) as e:
+            last_error = {'error': str(e)}
+            log_info('Supabase', f'Erro de conexão na tentativa {attempt+1}/{_retries}: {e}')
+            with _supa_lock:
+                _reset_supa_conn()
+            if attempt < _retries - 1:
+                wait = _backoff * (2 ** attempt)
+                time.sleep(wait)
+                continue
+        except Exception as e:
+            log_error('Supabase', 'Erro inesperado', e)
+            return {'error': str(e)}
+
+    log_error('Supabase', f'Todas as {_retries} tentativas falharam', None)
+    return last_error or {'error': 'Max retries exceeded'}
 
 
 def get_mentees_with_email():
