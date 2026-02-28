@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  spalla-server:
+    image: seu-usuario/spalla-server:latest
+    container_name: spalla-server
+    ports:
+      - "9999:9999"
+    environment:
+      PORT: 9999
+      SUPABASE_URL: ${SUPABASE_URL:-https://db.vcbyogkfmdlhxjgydtrd.supabase.co}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY}
+      ZOOM_ACCOUNT_ID: ${ZOOM_ACCOUNT_ID:-DXq-KNA5QuSpcjG6UeUs0Q}
+      ZOOM_CLIENT_ID: ${ZOOM_CLIENT_ID:-fvNVWKX_SumngWI1kQNhg}
+      ZOOM_CLIENT_SECRET: ${ZOOM_CLIENT_SECRET:-zsgo0Xjtih8Yn2B0SLPVTK5J0Jh3WO9g}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-07826A779A5C-4E9C-A978-DBCD5F9E4C97}
+    restart: unless-stopped
+    networks:
+      - spalla-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9999/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+networks:
+  spalla-network:
+    driver: bridge

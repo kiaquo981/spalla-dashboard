@@ -27,10 +27,10 @@ ZOOM_CLIENT_SECRET = os.environ.get('ZOOM_CLIENT_SECRET', 'zsgo0Xjtih8Yn2B0SLPVT
 # Google Service Account
 GOOGLE_SA_PATH = os.path.expanduser('~/.config/google/credentials.json')
 
-# Supabase
-SUPABASE_URL = 'https://knusqfbvhsqworzyhvip.supabase.co'
-SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtudXNxZmJ2aHNxd29yenlodmlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4NTg3MjcsImV4cCI6MjA3MDQzNDcyN30.f-m7TlmCoccBpUxLZhA4P5kr2lWBGtRIv6inzInAKCo')
-SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtudXNxZmJ2aHNxd29yenlodmlwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDg1ODcyNywiZXhwIjoyMDcwNDM0NzI3fQ.0n5eh94NQ1flgXzQQoKtnNkTxJAYztqKxwNKnHyq6dM')
+# Supabase (case_db_mentorados)
+SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://db.vcbyogkfmdlhxjgydtrd.supabase.co')
+SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjYnlvZ2tmbWRsaHhqZ3lkdHJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQwOTQwMjksImV4cCI6MjA3OTY3MDAyOX0.BjxFuSAu0weFQHxq7M4yEN_0IApLf9zXqZXeSjwXTDw')
+SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjYnlvZ2tmbWRsaHhqZ3lkdHJkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDA5NDAyOSwiZXhwIjoyMDc5NjcwMDI5fQ.wgkaiJiRS7xvCI35hIjYrrYyDsKk-6nG6dLim8CGI6c')
 
 # Calendar ID (user's primary calendar or a specific one)
 GOOGLE_CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID', 'primary')
