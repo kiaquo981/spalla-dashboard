@@ -19,7 +19,7 @@ PORT = int(os.environ.get('PORT', 8888))
 
 # ===== CONFIG =====
 EVOLUTION_BASE = 'https://evolution.manager01.feynmanproject.com'
-EVOLUTION_API_KEY = '07826A779A5C-4E9C-A978-DBCD5F9E4C97'
+EVOLUTION_API_KEY = 'E8F969C9-4A5F-4044-94AB-5DCF4FF1DF77'
 
 # Zoom Server-to-Server OAuth
 ZOOM_ACCOUNT_ID = os.environ.get('ZOOM_ACCOUNT_ID', 'DXq-KNA5QuSpcjG6UeUs0Q')
