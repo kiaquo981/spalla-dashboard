@@ -1541,14 +1541,16 @@ function spalla() {
           return res.json();
         })
         .then(data => {
+          console.log(`[Spalla] Presign response:`, data);
           if (data?.url) {
             if (!this.waMediaUrls) this.waMediaUrls = {};
             this.waMediaUrls[msgId] = data.url;
-            console.log(`[Spalla] Media loaded: ${msgId}`, data.url.substring(0, 80));
+            console.log(`[Spalla] Media loaded: ${msgId}`, data.url.substring(0, 100));
+            console.log(`[Spalla] Full URL: ${data.url}`);
             // Trigger Alpine update by modifying object reference
             this.waMediaUrls = { ...this.waMediaUrls };
           } else {
-            console.warn(`[Spalla] No URL in presign response for ${s3Key}`);
+            console.warn(`[Spalla] No URL in presign response for ${s3Key}`, data);
           }
         })
         .catch(e => console.error('[Spalla] Presign fetch error:', e.message));
