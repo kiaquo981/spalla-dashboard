@@ -1521,11 +1521,11 @@ function spalla() {
 
       if (!mediaType) return '';
 
-      // Get instanceId and chatId from UI state
-      const instanceId = this.ui.whatsappSelectedChat?.instanceId || this.ui.whatsappSelectedChat?.id?.split('@')[0] || 'default';
-      const chatId = this.ui.whatsappSelectedChat?.id || 'unknown';
+      // Get Evolution instance UUID and chat ID from config/state
+      const instanceId = EVOLUTION_CONFIG?.INSTANCE || 'default';
+      const chatId = this.ui.whatsappSelectedChat?.id || this.ui.whatsappSelectedChat?.remoteJid || 'unknown';
 
-      // Build S3 key: evolution-api/{instanceId}/{chatId}/{messageType}
+      // Build S3 key: evolution-api/{INSTANCE_UUID}/{CHAT_ID}/{messageType}
       const s3Key = `evolution-api/${instanceId}/${chatId}/${mediaType}`;
 
       // Fetch URL asynchronously (non-blocking)
