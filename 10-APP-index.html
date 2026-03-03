@@ -243,7 +243,14 @@
                   </div>
                   <div class="mc-card__identity">
                     <span class="mc-card__name" x-text="m.nome"></span>
-                    <span class="mc-card__handle" x-text="m.instagram ? '@' + m.instagram : (m.produto_nome || '')"></span>
+                    <template x-if="m.instagram">
+                      <a :href="'https://instagram.com/' + m.instagram" target="_blank" rel="noopener noreferrer" class="mc-card__handle" style="cursor:pointer;text-decoration:none;color:inherit;font-weight:600" @click.stop>
+                        <span x-text="'@' + m.instagram"></span>
+                      </a>
+                    </template>
+                    <template x-if="!m.instagram">
+                      <span class="mc-card__handle" x-text="m.produto_nome || ''"></span>
+                    </template>
                   </div>
                 </div>
 
@@ -326,7 +333,9 @@
                   <span class="badge badge--neutral" x-text="data.detail?.phase?.marco_atual"></span>
                 </div>
                 <div class="detail-hero__meta" x-show="data.detail?.profile?.instagram">
-                  @<span x-text="data.detail?.profile?.instagram"></span>
+                  <a :href="'https://instagram.com/' + data.detail?.profile?.instagram" target="_blank" rel="noopener noreferrer" style="cursor:pointer;text-decoration:none;color:inherit;font-weight:600" @click.stop>
+                    <span>@<span x-text="data.detail?.profile?.instagram"></span></span>
+                  </a>
                   <template x-if="igFollowers(data.detail?.profile?.instagram)">
                     <span> · <span x-text="igFollowers(data.detail?.profile?.instagram)"></span> seguidores</span>
                   </template>
@@ -684,7 +693,11 @@
                         </div>
                         <div class="kanban-card__info">
                           <div class="kanban-card__name" x-text="m.nome"></div>
-                          <div class="kanban-card__ig" x-show="m.instagram">@<span x-text="m.instagram"></span></div>
+                          <div class="kanban-card__ig" x-show="m.instagram">
+                            <a :href="'https://instagram.com/' + m.instagram" target="_blank" rel="noopener noreferrer" style="cursor:pointer;text-decoration:none;color:inherit;font-weight:600" @click.stop>
+                              <span>@<span x-text="m.instagram"></span></span>
+                            </a>
+                          </div>
                         </div>
                       </div>
                       <div class="kanban-card__stats">
