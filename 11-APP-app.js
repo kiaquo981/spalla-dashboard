@@ -663,8 +663,8 @@ function spalla() {
         this.loadDemoData();
       }
       this.ui.loading = false;
-      // Start auto-refresh after successful load
-      if (this.supabaseConnected) this.startDataRefresh();
+      // Auto-refresh disabled — only WhatsApp polling active
+      // if (this.supabaseConnected) this.startDataRefresh();
     },
 
     _enrichMenteesWithCalls() {
