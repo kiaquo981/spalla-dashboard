@@ -1813,40 +1813,49 @@ function spalla() {
       this.ui.scheduling = true;
 
       try {
-        const resp = await fetch('/api/schedule-call', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            mentorado: f.mentorado,
-            mentorado_id: f.mentorado_id || '',
-            email: f.email || '',
-            tipo: f.tipo || 'acompanhamento',
-            data: f.data,
-            horario: f.horario || '10:00',
-            duracao: f.duracao || 60,
-            notas: f.notas || '',
-          })
-        });
-
-        const result = await resp.json();
-
-        if (result.zoom?.join_url) {
-          this.toast('Call agendada! Zoom + Calendar criados', 'success');
-        } else if (result.calendar?.event_id) {
-          this.toast('Call agendada no Calendar (Zoom nao configurado)', 'success');
-        } else {
-          this.toast('Call registrada (integracoes pendentes)', 'warning');
+        // Get mentorado ID from mentees data
+        let menteeId = f.mentorado_id;
+        if (!menteeId) {
+          const found = this.data.mentees?.find(m => m.nome === f.mentorado);
+          menteeId = found?.id || null;
         }
+
+        // Construct datetime from data + horario
+        const [day, month, year] = f.data.split('/');
+        const dateStr = `${year}-${month}-${day}T${f.horario}:00`;
+        const dataCall = new Date(dateStr).toISOString();
+
+        // Build title consistent with user naming: "[Case] Nome - Tipo - Data"
+        const dataFormatada = new Date(dataStr).toLocaleDateString('pt-BR');
+        const titulo = `[Case] ${f.mentorado} - ${f.tipo} - ${dataFormatada}`;
+
+        // Insert directly into Supabase calls_mentoria
+        const { data: callData, error } = await window.supabase
+          .from('calls_mentoria')
+          .insert({
+            mentorado_id: menteeId,
+            data_call: dataCall,
+            duracao_minutos: parseInt(f.duracao) || 60,
+            tipo: f.tipo || 'acompanhamento',
+            participantes: JSON.stringify([]),
+            observacoes_equipe: f.notas || '',
+          })
+          .select();
+
+        if (error) throw error;
+
+        this.toast('Call agendada com sucesso! ' + titulo, 'success');
 
         // Store locally for immediate UI update
         if (!this.data.scheduledCalls) this.data.scheduledCalls = [];
         this.data.scheduledCalls.push({
+          id: callData[0]?.id,
           mentorado: f.mentorado,
+          mentorado_id: menteeId,
           data: f.data,
           horario: f.horario,
           tipo: f.tipo,
-          zoom_url: result.zoom?.join_url || '',
-          calendar_link: result.calendar?.html_link || '',
+          titulo: titulo,
         });
 
         this.ui.scheduleModal = false;
@@ -1867,17 +1876,35 @@ function spalla() {
 
     async fetchUpcomingCalls() {
       try {
-        const resp = await fetch('/api/calls/upcoming');
-        const calls = await resp.json();
+        if (!window.supabase) {
+          console.log('[Schedule] Supabase not available, using demo data');
+          return;
+        }
+
+        const { data: calls, error } = await window.supabase
+          .from('calls_mentoria')
+          .select('*')
+          .gte('data_call', new Date().toISOString())
+          .order('data_call', { ascending: true });
+
+        if (error) throw error;
+
         if (Array.isArray(calls)) {
-          this.data.scheduledCalls = calls.map(c => ({
-            mentorado: c.zoom_topic?.replace(/^Call \w+ — /, '') || '',
-            data: c.data_call?.split('T')[0] || '',
-            horario: c.data_call?.split('T')[1]?.substring(0, 5) || '',
-            tipo: c.tipo || c.tipo_call || '',
-            zoom_url: c.link_gravacao || '',
-            status: c.status || 'agendada',
-          }));
+          this.data.scheduledCalls = calls.map(c => {
+            const dataCall = new Date(c.data_call);
+            const mentee = this.data.mentees?.find(m => m.id === c.mentorado_id);
+
+            return {
+              id: c.id,
+              mentorado: mentee?.nome || '',
+              mentorado_id: c.mentorado_id,
+              data: dataCall.toLocaleDateString('pt-BR'),
+              horario: dataCall.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+              tipo: c.tipo || 'acompanhamento',
+              duracao: c.duracao_minutos || 60,
+              status: 'agendada',
+            };
+          });
         }
       } catch (e) {
         console.log('[Schedule] Could not fetch upcoming calls:', e);
@@ -1885,26 +1912,29 @@ function spalla() {
     },
 
     async fetchMenteesWithEmail() {
-      try {
-        const resp = await fetch('/api/mentees');
-        const mentees = await resp.json();
-        if (Array.isArray(mentees)) {
-          this._menteesWithEmail = mentees;
-        }
-      } catch (e) {
-        console.log('[Mentees] Could not fetch:', e);
-      }
+      // Mentees already loaded from demo data in init()
+      // If connecting to backend API in future, uncomment below:
+      // try {
+      //   const resp = await fetch(CONFIG.API_BASE + '/api/mentees');
+      //   const mentees = await resp.json();
+      //   if (Array.isArray(mentees)) {
+      //     this._menteesWithEmail = mentees;
+      //   }
+      // } catch (e) {
+      //   console.log('[Mentees] Could not fetch:', e);
+      // }
     },
 
     async checkIntegrations() {
-      try {
-        const resp = await fetch('/api/health');
-        const health = await resp.json();
-        this._integrations = health;
-        console.log('[Spalla] Integrations:', health);
-      } catch (e) {
-        console.log('[Health] Could not check:', e);
-      }
+      // Health checks disabled — using Supabase directly
+      // If connecting to backend API in future, uncomment below:
+      // try {
+      //   const resp = await fetch(CONFIG.API_BASE + '/api/health');
+      //   const health = await resp.json();
+      //   this._integrations = health;
+      // } catch (e) {
+      //   console.log('[Health] Could not check:', e);
+      // }
     },
 
     async updateInstagramProfiles() {
