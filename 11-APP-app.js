@@ -131,6 +131,9 @@ function spalla() {
       scheduledCalls: [],
     },
 
+    // --- Media Cache ---
+    waMediaUrls: {},  // messageId → presigned URL
+
     // Task organization: 2 Spaces — Jornada (mentee-owned) + Gestão (team-owned)
     spaces: [
       { id: 'space_jornada', name: 'Jornada Mentorados', icon: '🎯', color: '#6366f1',
@@ -1485,6 +1488,51 @@ function spalla() {
       if (m.locationMessage) return '[Localizacao]';
       if (m.reactionMessage) return m.reactionMessage.text || '[Reacao]';
       return '[midia]';
+    },
+
+    getWaMessageType(msg) {
+      if (!msg?.message) return 'text';
+      const m = msg.message;
+      if (m.audioMessage) return 'audio';
+      if (m.imageMessage) return 'image';
+      if (m.videoMessage) return 'video';
+      return 'text';
+    },
+
+    async loadWaMedia(msg) {
+      if (!msg?.key?.id) return;
+      const msgId = msg.key.id;
+
+      // Check cache first
+      if (this.waMediaUrls && this.waMediaUrls[msgId]) return;
+
+      // Determine message type and media key path
+      let mediaType = null;
+      if (msg.message?.audioMessage) mediaType = 'audioMessage';
+      else if (msg.message?.imageMessage) mediaType = 'imageMessage';
+      else if (msg.message?.videoMessage) mediaType = 'videoMessage';
+
+      if (!mediaType) return;
+
+      // Get instanceId and chatId from UI state
+      const instanceId = this.ui.whatsappSelectedChat?.instanceId || this.ui.whatsappSelectedChat?.id?.split('@')[0] || 'default';
+      const chatId = this.ui.whatsappSelectedChat?.id || 'unknown';
+
+      // Build S3 key: evolution-api/{instanceId}/{chatId}/{messageType}
+      const s3Key = `evolution-api/${instanceId}/${chatId}/${mediaType}`;
+
+      try {
+        const res = await fetch(`/api/media/presign?key=${encodeURIComponent(s3Key)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (!this.waMediaUrls) this.waMediaUrls = {};
+          this.waMediaUrls[msgId] = data.url;
+        } else {
+          console.warn(`[Spalla] Media presign failed: ${res.status}`);
+        }
+      } catch (e) {
+        console.error('[Spalla] Media presign error:', e);
+      }
     },
 
     getWaMessageTime(msg) {

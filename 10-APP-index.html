@@ -1486,7 +1486,43 @@
                 <template x-for="(msg, mi) in data.whatsappMessages" :key="mi">
                   <div class="wa-bubble" :class="{ 'wa-bubble--me': msg.key?.fromMe }">
                     <div class="wa-bubble__sender" x-show="!msg.key?.fromMe" x-text="msg.pushName || 'Desconhecido'"></div>
-                    <div class="wa-bubble__text" x-text="getWaMessageText(msg)"></div>
+
+                    <!-- Texto normal -->
+                    <template x-if="getWaMessageType(msg) === 'text'">
+                      <div class="wa-bubble__text" x-text="getWaMessageText(msg)"></div>
+                    </template>
+
+                    <!-- Áudio -->
+                    <template x-if="getWaMessageType(msg) === 'audio'">
+                      <div class="wa-bubble__media" x-init="loadWaMedia(msg)">
+                        <audio controls :src="waMediaUrls[msg.key?.id]"
+                               style="max-width:280px; border-radius:8px;"></audio>
+                      </div>
+                    </template>
+
+                    <!-- Imagem -->
+                    <template x-if="getWaMessageType(msg) === 'image'">
+                      <div class="wa-bubble__media" x-init="loadWaMedia(msg)">
+                        <img :src="waMediaUrls[msg.key?.id]"
+                             style="max-width:280px; border-radius:8px; cursor:pointer; object-fit:cover;"
+                             :alt="msg.message?.imageMessage?.caption || 'Imagem'">
+                        <div x-show="msg.message?.imageMessage?.caption"
+                             class="wa-bubble__text"
+                             x-text="msg.message?.imageMessage?.caption"></div>
+                      </div>
+                    </template>
+
+                    <!-- Vídeo -->
+                    <template x-if="getWaMessageType(msg) === 'video'">
+                      <div class="wa-bubble__media" x-init="loadWaMedia(msg)">
+                        <video controls :src="waMediaUrls[msg.key?.id]"
+                               style="max-width:280px; border-radius:8px;"></video>
+                        <div x-show="msg.message?.videoMessage?.caption"
+                             class="wa-bubble__text"
+                             x-text="msg.message?.videoMessage?.caption"></div>
+                      </div>
+                    </template>
+
                     <div class="wa-bubble__time" x-text="getWaMessageTime(msg)"></div>
                   </div>
                 </template>
