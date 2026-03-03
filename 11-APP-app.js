@@ -1829,7 +1829,11 @@ function spalla() {
         const titulo = `[Case] ${f.mentorado} - ${f.tipo} - ${dataFormatada}`;
 
         // Insert directly into Supabase calls_mentoria
-        const { data: callData, error } = await window.supabase
+        if (!sb) {
+          this.toast('Supabase não conectado', 'error');
+          return;
+        }
+        const { data: callData, error } = await sb
           .from('calls_mentoria')
           .insert({
             mentorado_id: menteeId,
