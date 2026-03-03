@@ -1496,6 +1496,10 @@ function spalla() {
       if (m.audioMessage) return 'audio';
       if (m.imageMessage) return 'image';
       if (m.videoMessage) return 'video';
+      // Document messages with video MIME types
+      if (m.documentMessage?.mimetype?.includes('video')) return 'video';
+      if (m.documentMessage?.mimetype?.includes('audio')) return 'audio';
+      if (m.documentMessage?.mimetype?.includes('image')) return 'image';
       return 'text';
     },
 
@@ -1513,6 +1517,7 @@ function spalla() {
       if (msg.message?.audioMessage) mediaType = 'audioMessage';
       else if (msg.message?.imageMessage) mediaType = 'imageMessage';
       else if (msg.message?.videoMessage) mediaType = 'videoMessage';
+      else if (msg.message?.documentMessage) mediaType = 'documentMessage'; // Support document media
 
       if (!mediaType) return '';
 
