@@ -26,8 +26,33 @@
       <div class="auth-card">
         <div class="auth-card__logo">Spalla</div>
         <div class="auth-card__subtitle">Dashboard de Mentorados — CASE</div>
-        <input type="password" class="auth-card__input" placeholder="Senha de acesso" x-model="auth.password" @keydown.enter="login()">
-        <button class="auth-card__btn" @click="login()">Entrar</button>
+
+        <!-- Login Mode -->
+        <template x-if="auth.mode === 'login'">
+          <div>
+            <input type="email" class="auth-card__input" placeholder="Email" x-model="auth.email" @keydown.enter="login()">
+            <input type="password" class="auth-card__input" placeholder="Senha" x-model="auth.password" @keydown.enter="login()">
+            <button class="auth-card__btn" @click="login()">Entrar</button>
+            <div class="auth-card__toggle">
+              Ainda não tem conta? <button @click="toggleAuthMode()" style="background:none;border:none;color:#6366f1;cursor:pointer;text-decoration:underline">Cadastre-se</button>
+            </div>
+          </div>
+        </template>
+
+        <!-- Register Mode -->
+        <template x-if="auth.mode === 'register'">
+          <div>
+            <input type="text" class="auth-card__input" placeholder="Nome completo" x-model="auth.fullName" @keydown.enter="register()">
+            <input type="email" class="auth-card__input" placeholder="Email" x-model="auth.email" @keydown.enter="register()">
+            <input type="password" class="auth-card__input" placeholder="Senha (mín. 6 caracteres)" x-model="auth.password" @keydown.enter="register()">
+            <input type="password" class="auth-card__input" placeholder="Confirmar senha" x-model="auth.confirmPassword" @keydown.enter="register()">
+            <button class="auth-card__btn" @click="register()">Criar conta</button>
+            <div class="auth-card__toggle">
+              Já tem conta? <button @click="toggleAuthMode()" style="background:none;border:none;color:#6366f1;cursor:pointer;text-decoration:underline">Entrar</button>
+            </div>
+          </div>
+        </template>
+
         <div class="auth-card__error" x-show="auth.error" x-text="auth.error"></div>
       </div>
     </div>
@@ -94,10 +119,10 @@
 
         <div class="sidebar__footer" x-show="ui.sidebarOpen">
           <div class="sidebar__user">
-            <div class="avatar avatar--sm avatar--brand">QR</div>
+            <div class="avatar avatar--sm avatar--brand" x-text="(auth.currentUser?.user_metadata?.full_name || auth.currentUser?.email || 'U').substring(0, 2).toUpperCase()"></div>
             <div class="sidebar__user-info">
-              <div class="sidebar__user-name">Queila Trizotti</div>
-              <div class="sidebar__user-role">Mentora CASE</div>
+              <div class="sidebar__user-name" x-text="auth.currentUser?.user_metadata?.full_name || auth.currentUser?.email || 'Usuário'"></div>
+              <div class="sidebar__user-role" x-text="'Membro CASE'"></div>
             </div>
           </div>
           <button class="sidebar__logout" @click="logout()" title="Sair">

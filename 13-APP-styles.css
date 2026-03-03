@@ -228,6 +228,13 @@ img { max-width: 100%; display: block; }
   color: var(--danger);
 }
 
+.auth-card__toggle {
+  margin-top: var(--sp-6);
+  font-size: var(--text-sm);
+  color: var(--neutral-400);
+  text-align: center;
+}
+
 /* ===== APP LAYOUT ===== */
 .app-layout {
   display: flex;

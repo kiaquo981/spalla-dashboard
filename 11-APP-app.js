@@ -9,8 +9,8 @@ const CONFIG = {
   API_BASE: 'https://web-production-2cde5.up.railway.app',  // Production server (Railway HTTPS proxy)
   SUPABASE_URL: 'https://knusqfbvhsqworzyhvip.supabase.co',
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtudXNxZmJ2aHNxd29yenlodmlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4NTg3MjcsImV4cCI6MjA3MDQzNDcyN30.f-m7TlmCoccBpUxLZhA4P5kr2lWBGtRIv6inzInAKCo',
-  AUTH_PASSWORD: 'spalla2026',
-  AUTH_STORAGE_KEY: 'spalla_auth',
+  AUTH_PASSWORD: 'spalla2026',  // Deprecated: kept for backwards compatibility
+  AUTH_STORAGE_KEY: 'spalla_auth',  // Deprecated: use Supabase Auth instead
   TASKS_STORAGE_KEY: 'spalla_tasks',
   REMINDERS_STORAGE_KEY: 'spalla_reminders',
   DEFAULT_PAGE: 'dashboard',
@@ -58,7 +58,16 @@ function daysBetween(dateStr) {
 function spalla() {
   return {
     // --- Auth ---
-    auth: { authenticated: false, password: '', error: '' },
+    auth: {
+      authenticated: false,
+      mode: 'login', // 'login' | 'register'
+      email: '',
+      password: '',
+      confirmPassword: '',
+      fullName: '',
+      error: '',
+      currentUser: null, // Supabase user object
+    },
     supabaseConnected: false,
     _supabaseCalls: [],
 
@@ -469,13 +478,33 @@ function spalla() {
     async init() {
       console.log('[Spalla] init() starting');
       try {
-        const stored = localStorage.getItem(CONFIG.AUTH_STORAGE_KEY);
-        if (stored === 'true') this.auth.authenticated = true;
-        console.log('[Spalla] Auth:', this.auth.authenticated);
+        // Check for existing Supabase session
+        const { data: { session } } = await this.supabase.auth.getSession();
+        if (session) {
+          this.auth.authenticated = true;
+          this.auth.currentUser = session.user;
+          console.log('[Spalla] Auth: logged in as', session.user.email);
+        } else {
+          console.log('[Spalla] Auth: no active session');
+        }
+
+        // Listen for auth changes
+        this.supabase.auth.onAuthStateChange((event, session) => {
+          console.log('[Spalla] Auth event:', event);
+          if (event === 'SIGNED_OUT') {
+            this.auth.authenticated = false;
+            this.auth.currentUser = null;
+          } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            this.auth.authenticated = true;
+            this.auth.currentUser = session?.user || null;
+          }
+        });
+
         await this.loadTasks();
         console.log('[Spalla] Tasks loaded:', this.data.tasks.length);
-        this.loadLocalReminders();
+
         if (this.auth.authenticated) {
+          await this.loadReminders(); // Load from Supabase
           await this.loadDashboard();
           console.log('[Spalla] Dashboard loaded, mentees:', this.data.mentees.length);
           // Pre-fetch WhatsApp profile pics in background
@@ -530,22 +559,95 @@ function spalla() {
 
     // ===================== AUTH =====================
 
-    login() {
-      if (this.auth.password === CONFIG.AUTH_PASSWORD) {
-        this.auth.authenticated = true;
-        this.auth.error = '';
-        localStorage.setItem(CONFIG.AUTH_STORAGE_KEY, 'true');
-        this.loadDashboard();
-      } else {
-        this.auth.error = 'Senha incorreta';
-        this.auth.password = '';
+    async login() {
+      this.auth.error = '';
+      if (!this.auth.email || !this.auth.password) {
+        this.auth.error = 'Email e senha são obrigatórios';
+        return;
+      }
+      try {
+        const { data, error } = await this.supabase.auth.signInWithPassword({
+          email: this.auth.email,
+          password: this.auth.password,
+        });
+        if (error) {
+          this.auth.error = error.message || 'Email ou senha incorretos';
+          this.auth.password = '';
+        } else if (data.user) {
+          this.auth.authenticated = true;
+          this.auth.currentUser = data.user;
+          this.auth.email = '';
+          this.auth.password = '';
+          await this.loadReminders();
+          await this.loadDashboard();
+          console.log('[Spalla] Login successful:', data.user.email);
+        }
+      } catch (e) {
+        this.auth.error = 'Erro ao fazer login: ' + e.message;
+        console.error('[Spalla] Login error:', e);
       }
     },
 
-    logout() {
-      this.auth.authenticated = false;
-      localStorage.removeItem(CONFIG.AUTH_STORAGE_KEY);
-      this.stopDataRefresh();
+    async register() {
+      this.auth.error = '';
+      if (!this.auth.email || !this.auth.password || !this.auth.fullName) {
+        this.auth.error = 'Nome, email e senha são obrigatórios';
+        return;
+      }
+      if (this.auth.password !== this.auth.confirmPassword) {
+        this.auth.error = 'As senhas não coincidem';
+        return;
+      }
+      if (this.auth.password.length < 6) {
+        this.auth.error = 'A senha deve ter pelo menos 6 caracteres';
+        return;
+      }
+      try {
+        const { data, error } = await this.supabase.auth.signUp({
+          email: this.auth.email,
+          password: this.auth.password,
+          options: {
+            data: { full_name: this.auth.fullName }
+          }
+        });
+        if (error) {
+          this.auth.error = error.message || 'Erro ao criar conta';
+        } else if (data.user) {
+          this.auth.authenticated = true;
+          this.auth.currentUser = data.user;
+          this.auth.email = '';
+          this.auth.password = '';
+          this.auth.confirmPassword = '';
+          this.auth.fullName = '';
+          await this.loadReminders();
+          await this.loadDashboard();
+          console.log('[Spalla] Registration successful:', data.user.email);
+        }
+      } catch (e) {
+        this.auth.error = 'Erro ao criar conta: ' + e.message;
+        console.error('[Spalla] Register error:', e);
+      }
+    },
+
+    async logout() {
+      try {
+        await this.supabase.auth.signOut();
+        this.auth.authenticated = false;
+        this.auth.currentUser = null;
+        this.stopDataRefresh();
+        console.log('[Spalla] Logout successful');
+      } catch (e) {
+        console.error('[Spalla] Logout error:', e);
+      }
+    },
+
+    toggleAuthMode() {
+      this.auth.mode = this.auth.mode === 'login' ? 'register' : 'login';
+      this.auth.error = '';
+      this.auth.email = '';
+      this.auth.password = '';
+      this.auth.confirmPassword = '';
+      this.auth.fullName = '';
     },
 
     startDataRefresh() {
@@ -952,15 +1054,19 @@ function spalla() {
       try { localStorage.setItem(CONFIG.TASKS_STORAGE_KEY, JSON.stringify(this.data.tasks)); } catch (e) {}
     },
 
-    async _sbUpsertTask(task) {
+    async _sbUpsertTask(task, isNew = false) {
       if (!sb) return;
       // Only send columns that exist in god_tasks table
-      const VALID_COLS = ['id','titulo','descricao','status','prioridade','responsavel','acompanhante','mentorado_id','mentorado_nome','data_inicio','data_fim','space_id','list_id','parent_task_id','tags','fonte','doc_link','created_at','updated_at'];
+      const VALID_COLS = ['id','titulo','descricao','status','prioridade','responsavel','acompanhante','mentorado_id','mentorado_nome','data_inicio','data_fim','space_id','list_id','parent_task_id','tags','fonte','doc_link','created_at','updated_at','created_by'];
       const row = {};
       for (const k of VALID_COLS) {
         if (task[k] !== undefined) row[k] = task[k];
       }
       if (row.mentorado_id) row.mentorado_id = parseInt(row.mentorado_id) || null;
+      // Set created_by for new tasks
+      if (isNew && this.auth.currentUser) {
+        row.created_by = this.auth.currentUser.id;
+      }
       try { await sb.from('god_tasks').upsert(row, { onConflict: 'id' }); } catch (e) { console.warn('[Spalla] Task upsert error:', e.message); }
     },
 
@@ -1072,7 +1178,7 @@ function spalla() {
           updated_at: new Date().toISOString(),
         };
         this.data.tasks.push(newTask);
-        this._sbUpsertTask(newTask);
+        this._sbUpsertTask(newTask, true); // Pass true for isNew
         if (newTask.subtasks?.length) this._sbSyncSubtasks(newId, newTask.subtasks);
         if (newTask.checklist?.length) this._sbSyncChecklist(newId, newTask.checklist);
       }
@@ -1167,10 +1273,14 @@ function spalla() {
         if (!t.comments) t.comments = [];
         const commentText = this.taskForm.newComment.trim();
         const commentId = crypto.randomUUID ? crypto.randomUUID() : 'comment_' + Date.now();
-        t.comments.push({ id: commentId, author: 'Queila Trizotti', text: commentText, timestamp: new Date().toISOString() });
+        // Get author name from current user
+        const authorName = this.auth.currentUser?.user_metadata?.full_name
+          || this.auth.currentUser?.email
+          || 'Equipe';
+        t.comments.push({ id: commentId, author: authorName, text: commentText, timestamp: new Date().toISOString() });
         this.taskForm.newComment = '';
         this._cacheTasksLocal();
-        this._sbAddComment(taskId, 'Queila Trizotti', commentText);
+        this._sbAddComment(taskId, authorName, commentText);
       }
     },
 
@@ -1344,15 +1454,45 @@ function spalla() {
 
     // ===================== REMINDERS =====================
 
-    loadLocalReminders() {
+    async loadReminders() {
+      if (!this.auth.currentUser) {
+        this.data.reminders = [];
+        return;
+      }
       try {
-        const raw = localStorage.getItem(CONFIG.REMINDERS_STORAGE_KEY);
-        if (raw) this.data.reminders = JSON.parse(raw);
-      } catch (e) { this.data.reminders = []; }
+        const { data, error } = await this.supabase
+          .from('god_reminders')
+          .select('*')
+          .eq('user_id', this.auth.currentUser.id)
+          .order('data', { ascending: true });
+        if (error) {
+          console.error('[Spalla] Error loading reminders:', error);
+          this.data.reminders = [];
+        } else {
+          this.data.reminders = data || [];
+          console.log('[Spalla] Reminders loaded:', this.data.reminders.length);
+        }
+      } catch (e) {
+        console.error('[Spalla] Exception loading reminders:', e);
+        this.data.reminders = [];
+      }
     },
 
-    saveLocalReminders() {
-      localStorage.setItem(CONFIG.REMINDERS_STORAGE_KEY, JSON.stringify(this.data.reminders));
+    async _saveReminder(reminder) {
+      if (!this.auth.currentUser) return;
+      try {
+        const payload = {
+          ...reminder,
+          user_id: this.auth.currentUser.id,
+        };
+        const { error } = await this.supabase
+          .from('god_reminders')
+          .upsert(payload, { onConflict: 'id' });
+        if (error) console.error('[Spalla] Error saving reminder:', error);
+        else await this.loadReminders();
+      } catch (e) {
+        console.error('[Spalla] Exception saving reminder:', e);
+      }
     },
 
     openReminderModal() {
@@ -1364,31 +1504,73 @@ function spalla() {
       this.ui.reminderModal = false;
     },
 
-    saveReminder() {
+    async saveReminder() {
       if (!this.reminderForm.texto.trim()) return;
-      this.data.reminders.push({
-        id: 'rem_' + Date.now(),
-        ...this.reminderForm,
-        concluido: false,
-        created_at: new Date().toISOString(),
-      });
-      this.saveLocalReminders();
-      this.closeReminderModal();
-      this.toast('Lembrete criado', 'success');
-    },
-
-    toggleReminder(id) {
-      const r = this.data.reminders.find(x => x.id === id);
-      if (r) {
-        r.concluido = !r.concluido;
-        this.saveLocalReminders();
+      if (!this.auth.currentUser) {
+        this.auth.error = 'Você deve estar logado para criar lembretes';
+        return;
+      }
+      try {
+        const reminder = {
+          id: 'rem_' + Date.now(),
+          texto: this.reminderForm.texto,
+          data: this.reminderForm.data || null,
+          prioridade: this.reminderForm.prioridade,
+          mentorado_nome: this.reminderForm.mentorado_nome,
+          concluido: false,
+          created_at: new Date().toISOString(),
+          user_id: this.auth.currentUser.id,
+        };
+        const { error } = await this.supabase
+          .from('god_reminders')
+          .insert(reminder);
+        if (error) {
+          console.error('[Spalla] Error creating reminder:', error);
+          this.toast('Erro ao criar lembrete: ' + error.message, 'error');
+        } else {
+          await this.loadReminders();
+          this.closeReminderModal();
+          this.toast('Lembrete criado', 'success');
+        }
+      } catch (e) {
+        console.error('[Spalla] Exception creating reminder:', e);
+        this.toast('Erro ao criar lembrete', 'error');
       }
     },
 
-    deleteReminder(id) {
-      this.data.reminders = this.data.reminders.filter(r => r.id !== id);
-      this.saveLocalReminders();
-      this.toast('Lembrete removido', 'info');
+    async toggleReminder(id) {
+      const r = this.data.reminders.find(x => x.id === id);
+      if (r) {
+        try {
+          const { error } = await this.supabase
+            .from('god_reminders')
+            .update({ concluido: !r.concluido })
+            .eq('id', id);
+          if (error) console.error('[Spalla] Error updating reminder:', error);
+          else await this.loadReminders();
+        } catch (e) {
+          console.error('[Spalla] Exception toggling reminder:', e);
+        }
+      }
+    },
+
+    async deleteReminder(id) {
+      try {
+        const { error } = await this.supabase
+          .from('god_reminders')
+          .delete()
+          .eq('id', id);
+        if (error) {
+          console.error('[Spalla] Error deleting reminder:', error);
+          this.toast('Erro ao remover lembrete', 'error');
+        } else {
+          await this.loadReminders();
+          this.toast('Lembrete removido', 'info');
+        }
+      } catch (e) {
+        console.error('[Spalla] Exception deleting reminder:', e);
+        this.toast('Erro ao remover lembrete', 'error');
+      }
     },
 
     // ===================== WHATSAPP (Evolution API) =====================
