@@ -1125,81 +1125,45 @@
           <!-- Task Modal (Enhanced) -->
           <div class="modal-overlay" x-show="ui.taskModal" x-transition.opacity @click.self="closeTaskModal()">
             <div class="modal modal--lg">
-              <div class="modal__header"><h3 x-text="ui.taskEditId ? 'Editar Tarefa' : 'Nova Tarefa'"></h3><button @click="closeTaskModal()">&times;</button></div>
+              <div class="modal__header"><h3>Nova Tarefa</h3><button @click="closeTaskModal()">&times;</button></div>
               <div class="modal__body">
                 <label>Titulo *</label>
                 <input type="text" x-model="taskForm.titulo" placeholder="O que precisa ser feito?" class="modal__input">
+
                 <label>Descricao</label>
                 <textarea x-model="taskForm.descricao" placeholder="Detalhes, orientacoes..." class="modal__textarea"></textarea>
+
                 <div class="modal__row">
-                  <div><label>Responsavel</label><input type="text" x-model="taskForm.responsavel" placeholder="Quem executa?" class="modal__input"></div>
-                  <div><label>Mentorado</label><select x-model="taskForm.mentorado_nome" class="modal__select"><option value="">-- Selecione --</option><template x-for="name in menteeNames" :key="name"><option :value="name" x-text="name"></option></template></select></div>
+                  <div><label>Mentorado</label>
+                    <select x-model="taskForm.mentorado_nome" class="modal__select">
+                      <option value="">-- Selecione --</option>
+                      <template x-for="name in menteeNames" :key="name">
+                        <option :value="name" x-text="name"></option>
+                      </template>
+                    </select>
+                  </div>
+                  <div><label>Responsavel</label>
+                    <input type="text" x-model="taskForm.responsavel" placeholder="Mentorado" class="modal__input">
+                  </div>
                 </div>
-                <div class="modal__row">
-                  <div><label>Acompanhante (Time)</label><input type="text" x-model="taskForm.acompanhante" placeholder="Quem do time acompanha?" class="modal__input" list="team-members-list"></div>
-                  <datalist id="team-members-list"><option value="Kaique"><option value="Queila"><option value="Heitor"><option value="Lara"><option value="Hugo"><option value="Mariza"><option value="Nayara"></datalist>
-                  <div></div>
-                </div>
-                <div class="modal__row">
-                  <div><label>Prioridade</label><select x-model="taskForm.prioridade" class="modal__select"><option value="baixa">Baixa</option><option value="normal">Normal</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select></div>
-                  <div><label>Status</label><select x-model="taskForm.status" class="modal__select" x-show="ui.taskEditId"><option value="pendente">A Fazer</option><option value="em_andamento">Em Progresso</option><option value="concluida">Concluido</option></select></div>
-                </div>
+
                 <div class="modal__row">
                   <div><label>Data Inicio</label><input type="date" x-model="taskForm.data_inicio" class="modal__input"></div>
-                  <div><label>Data Fim / Prazo</label><input type="date" x-model="taskForm.data_fim" class="modal__input"></div>
+                  <div><label>Data Fim</label><input type="date" x-model="taskForm.data_fim" class="modal__input"></div>
                 </div>
-                <div class="modal__row">
-                  <div><label>Space</label>
-                    <select x-model="taskForm.space_id" class="modal__select">
-                      <option value="">-- Selecione --</option>
-                      <template x-for="s in spaces" :key="s.id"><option :value="s.id" x-text="s.icon + ' ' + s.name"></option></template>
-                    </select>
-                  </div>
-                  <div><label>Lista</label>
-                    <select x-model="taskForm.list_id" class="modal__select">
-                      <option value="">-- Selecione --</option>
-                      <template x-for="l in (spaces.find(s => s.id === taskForm.space_id)?.lists || [])" :key="l.id"><option :value="l.id" x-text="l.icon + ' ' + l.name"></option></template>
-                    </select>
-                  </div>
-                </div>
-                <div class="modal__row">
-                  <div><label>Tarefa Mae</label>
-                    <select x-model="taskForm.parent_task_id" class="modal__select">
-                      <option :value="null">-- Nenhuma --</option>
-                      <template x-for="pt in data.tasks.filter(t => t.id !== ui.taskEditId)" :key="pt.id"><option :value="pt.id" x-text="pt.titulo"></option></template>
-                    </select>
-                  </div>
-                  <div><label>Link do documento</label><input type="url" x-model="taskForm.doc_link" placeholder="https://docs.google.com/..." class="modal__input"></div>
-                </div>
-                <!-- Tags -->
-                <label>Tags</label>
-                <div class="modal__tags">
-                  <template x-for="(tag, ti) in taskForm.tags || []" :key="ti">
-                    <span class="task-tag task-tag--removable"><span x-text="tag"></span><button @click="taskForm.tags.splice(ti, 1)">&times;</button></span>
-                  </template>
-                  <div class="modal__add-row">
-                    <input type="text" x-model="taskForm.newTag" placeholder="Nova tag..." @keydown.enter="if(taskForm.newTag?.trim()){taskForm.tags.push(taskForm.newTag.trim());taskForm.newTag='';}" class="modal__input" style="max-width:200px">
-                    <button class="btn btn--sm" @click="if(taskForm.newTag?.trim()){taskForm.tags.push(taskForm.newTag.trim());taskForm.newTag='';}">+</button>
-                  </div>
-                </div>
-                <!-- Subtasks -->
-                <label>Subtarefas</label>
-                <div class="modal__subtasks">
-                  <template x-for="(st, si) in taskForm.subtasks" :key="si">
-                    <div class="modal__subtask-item"><span x-text="st.text"></span><button @click="removeSubtask(si)">&times;</button></div>
-                  </template>
-                  <div class="modal__add-row"><input type="text" x-model="taskForm.newSubtask" placeholder="Nova subtarefa..." @keydown.enter="addSubtask()" class="modal__input"><button class="btn btn--sm" @click="addSubtask()">+</button></div>
-                </div>
-                <!-- Checklist -->
-                <label>Checklist</label>
-                <div class="modal__subtasks">
-                  <template x-for="(ci, idx) in taskForm.checklist" :key="idx">
-                    <div class="modal__subtask-item"><span x-text="ci.text"></span><button @click="removeCheckItem(idx)">&times;</button></div>
-                  </template>
-                  <div class="modal__add-row"><input type="text" x-model="taskForm.newCheckItem" placeholder="Novo item..." @keydown.enter="addCheckItem()" class="modal__input"><button class="btn btn--sm" @click="addCheckItem()">+</button></div>
-                </div>
+
+                <label>Prioridade</label>
+                <select x-model="taskForm.prioridade" class="modal__select">
+                  <option value="baixa">Baixa</option>
+                  <option value="normal">Normal</option>
+                  <option value="alta">Alta</option>
+                  <option value="urgente">Urgente</option>
+                </select>
               </div>
-              <div class="modal__footer"><button class="btn" @click="closeTaskModal()">Cancelar</button><button class="btn btn--brand" @click="saveTask()">Salvar</button></div>
+              <div class="modal__footer">
+                <button class="btn" @click="closeTaskModal()">Cancelar</button>
+                <button class="btn btn--brand" @click="saveTask()">Salvar</button>
+              </div>
             </div>
           </div>
         </div>
