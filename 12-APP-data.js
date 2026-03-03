@@ -736,10 +736,15 @@ const DOSSIER_STATUS_CONFIG = {
   enviado:         { label: 'Enviado',        color: 'success',  icon: 'check' },
   aprovado_enviar: { label: 'Aprovado Enviar', color: 'brand',   icon: 'send' },
   em_revisao:      { label: 'Em Revisão',     color: 'warning',  icon: 'edit' },
+  revisao_mariza:  { label: 'Revisão Mariza', color: 'warning',  icon: 'edit' },
+  revisao_kaique:  { label: 'Revisão Kaique', color: 'warning',  icon: 'edit' },
+  revisao_queila:  { label: 'Revisão Queila', color: 'warning',  icon: 'edit' },
   ajustar:         { label: 'Ajustar',        color: 'warning',  icon: 'alert' },
-  revisao_kaique:  { label: 'Rev. Kaique',    color: 'info',     icon: 'user' },
+  ajustando:       { label: 'Ajustando',      color: 'warning',  icon: 'alert' },
   producao_ia:     { label: 'Produção IA',    color: 'purple',   icon: 'cpu' },
+  onboarding:      { label: 'Onboarding',     color: 'info',     icon: 'user' },
   nao_iniciado:    { label: 'Não Iniciado',   color: 'neutral',  icon: 'clock' },
+  pausado:         { label: 'Pausado',        color: 'neutral',  icon: 'pause' },
   cancelado:       { label: 'Cancelado',      color: 'danger',   icon: 'x' },
 };
 

@@ -443,9 +443,9 @@ function spalla() {
       if (this.ui.dossierFilter === 'all') return DOSSIER_PIPELINE;
       const statusMap = {
         enviado: ['enviado'],
-        em_revisao: ['em_revisao', 'ajustar', 'aprovado_enviar', 'revisao_kaique'],
+        em_revisao: ['em_revisao', 'ajustar', 'ajustando', 'aprovado_enviar', 'revisao_kaique', 'revisao_mariza', 'revisao_queila'],
         producao_ia: ['producao_ia'],
-        nao_iniciado: ['nao_iniciado'],
+        nao_iniciado: ['nao_iniciado', 'onboarding', 'pausado'],
       };
       const statuses = statusMap[this.ui.dossierFilter] || [this.ui.dossierFilter];
       return DOSSIER_PIPELINE.filter(d => statuses.includes(d.status));
@@ -2048,9 +2048,9 @@ function spalla() {
     dossierStats() {
       const total = DOSSIER_PIPELINE.length;
       const enviados = DOSSIER_PIPELINE.filter(d => d.status === 'enviado').length;
-      const emRevisao = DOSSIER_PIPELINE.filter(d => ['em_revisao', 'ajustar', 'aprovado_enviar', 'revisao_kaique'].includes(d.status)).length;
+      const emRevisao = DOSSIER_PIPELINE.filter(d => ['em_revisao', 'ajustar', 'ajustando', 'aprovado_enviar', 'revisao_kaique', 'revisao_mariza', 'revisao_queila'].includes(d.status)).length;
       const producaoIa = DOSSIER_PIPELINE.filter(d => d.status === 'producao_ia').length;
-      const naoIniciado = DOSSIER_PIPELINE.filter(d => d.status === 'nao_iniciado').length;
+      const naoIniciado = DOSSIER_PIPELINE.filter(d => ['nao_iniciado', 'onboarding', 'pausado'].includes(d.status)).length;
       return { total, enviados, emRevisao, producaoIa, naoIniciado };
     },
 
