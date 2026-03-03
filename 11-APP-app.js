@@ -1530,6 +1530,7 @@ function spalla() {
 
       // Fetch URL asynchronously (non-blocking)
       const presignUrl = `${CONFIG.API_BASE}/api/media/presign?key=${encodeURIComponent(s3Key)}`;
+      console.log(`[Spalla] Presign request for: ${s3Key}`);
 
       fetch(presignUrl)
         .then(res => {
