@@ -682,6 +682,17 @@ function spalla() {
         callsByMentee[name].push(c.data_call);
       }
       this.data.mentees = this.data.mentees.map(m => {
+        // Normalize Instagram handle (remove extra @)
+        if (m.instagram?.startsWith('@')) {
+          m.instagram = m.instagram.replace(/^@+/, '');
+        }
+
+        // Fix known data issues
+        if (m.nome?.toLowerCase().includes('danyella') && m.faturamento_atual === 150000) {
+          m.faturamento_atual = 0; // Danyella just entered, no sales yet
+          m.contrato_assinado = false;
+        }
+
         const mName = m.nome?.toLowerCase()?.trim();
         const callDates = callsByMentee[mName] || [];
         // Also check static SUPABASE_CALLS as fallback
