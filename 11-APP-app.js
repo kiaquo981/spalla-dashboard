@@ -620,10 +620,9 @@ function spalla() {
       sb = initSupabase();
       if (sb) {
         try {
-          const [mentees, cohort, alerts, calls] = await Promise.all([
+          const [mentees, cohort, calls] = await Promise.all([
             sb.from('vw_god_overview').select('*'),
             sb.from('vw_god_cohort').select('*'),
-            sb.rpc('fn_god_alerts'),
             // Query directly from calls_mentoria table to get latest data
             sb.from('calls_mentoria')
               .select('*,mentorados(id,nome)')
