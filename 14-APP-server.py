@@ -8,12 +8,15 @@ import http.client
 import json
 import urllib.request
 import urllib.error
+import urllib.parse
 import os
 import sys
 import time
 import base64
 import threading
-from datetime import datetime, timedelta
+import hmac
+import hashlib
+from datetime import datetime, timedelta, timezone
 
 PORT = int(os.environ.get('PORT', 8888))
 
@@ -36,6 +39,50 @@ SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', 'eyJhbGciOiJIUzI1N
 
 # Calendar ID (user's primary calendar or a specific one)
 GOOGLE_CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID', 'primary')
+
+# ===== HETZNER S3 CONFIG =====
+S3_ACCESS_KEY = os.environ.get('S3_ACCESS_KEY', 'DEVL6RUFEVNXKU8DKSH9')
+S3_SECRET_KEY = os.environ.get('S3_SECRET_KEY', 'ttypx09B2eZZ4bpSDhjGjBvyLMkedvZ0rNvOgsxd')
+S3_BUCKET     = os.environ.get('S3_BUCKET', 'case-evolution-media')
+S3_ENDPOINT   = os.environ.get('S3_ENDPOINT', 'hel1.your-objectstorage.com')
+S3_REGION     = os.environ.get('S3_REGION', 'eu-central')
+
+def generate_presigned_url(key, expires=3600):
+    """Generate AWS Signature V4 presigned URL for Hetzner S3"""
+    host = S3_ENDPOINT
+    algorithm = 'AWS4-HMAC-SHA256'
+    now = datetime.now(timezone.utc)
+    amz_date = now.strftime('%Y%m%dT%H%M%SZ')
+    datestamp = now.strftime('%Y%m%d')
+
+    # Canonical request
+    method = 'GET'
+    canonical_uri = f'/{S3_BUCKET}/{key}'
+    credential_scope = f'{datestamp}/{S3_REGION}/s3/aws4_request'
+
+    canonical_querystring = f'X-Amz-Algorithm={algorithm}&X-Amz-Credential={urllib.parse.quote(f"{S3_ACCESS_KEY}/{credential_scope}", safe="")}&X-Amz-Date={amz_date}&X-Amz-Expires={expires}&X-Amz-SignedHeaders=host'
+
+    canonical_headers = f'host:{host}\n'
+    signed_headers = 'host'
+
+    payload_hash = hashlib.sha256(b'').hexdigest()
+
+    canonical_request = f'{method}\n{canonical_uri}\n{canonical_querystring}\n{canonical_headers}\n{signed_headers}\n{payload_hash}'
+
+    # String to sign
+    canonical_request_hash = hashlib.sha256(canonical_request.encode()).hexdigest()
+    string_to_sign = f'{algorithm}\n{amz_date}\n{credential_scope}\n{canonical_request_hash}'
+
+    # Calculate signature
+    kDate = hmac.new(f'AWS4{S3_SECRET_KEY}'.encode(), datestamp.encode(), hashlib.sha256).digest()
+    kRegion = hmac.new(kDate, S3_REGION.encode(), hashlib.sha256).digest()
+    kService = hmac.new(kRegion, b's3', hashlib.sha256).digest()
+    kSigning = hmac.new(kService, b'aws4_request', hashlib.sha256).digest()
+    signature = hmac.new(kSigning, string_to_sign.encode(), hashlib.sha256).hexdigest()
+
+    # Build URL
+    url = f'https://{host}{canonical_uri}?{canonical_querystring}&X-Amz-Signature={signature}'
+    return url
 
 # ===== SUPABASE CONNECTION POOL =====
 SUPABASE_HOST = 'knusqfbvhsqworzyhvip.supabase.co'
@@ -361,6 +408,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_list_events()
         elif self.path == '/api/calls/upcoming':
             self._handle_upcoming_calls()
+        elif self.path.startswith('/api/media/presign'):
+            self._handle_media_presign()
         elif self.path == '/api/health':
             self._send_json({
                 'status': 'ok',
@@ -517,6 +566,23 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             )
             self._send_json(result)
         except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
+    # ===== MEDIA PRESIGN (S3) =====
+    def _handle_media_presign(self):
+        """Generate presigned URL for Hetzner S3 media"""
+        params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        key = params.get('key', [''])[0]
+
+        if not key:
+            self._send_json({'error': 'key parameter required'}, 400)
+            return
+
+        try:
+            url = generate_presigned_url(key)
+            self._send_json({'url': url, 'bucket': S3_BUCKET, 'endpoint': S3_ENDPOINT})
+        except Exception as e:
+            print(f'[S3] Presign error: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_get_mentees(self):
