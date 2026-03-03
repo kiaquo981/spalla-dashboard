@@ -521,7 +521,7 @@
                   </template>
                 </div>
               </template>
-              <div class="empty-state" x-show="!detailTasksDela.length"><p>Nenhuma tarefa pessoal pendente.</p><button class="btn btn--brand" @click="taskForm.mentorado_nome = data.detail?.profile?.nome; openTaskModal()">Criar tarefa</button></div>
+              <div class="empty-state" x-show="!detailTasksDela.length"><p>Nenhuma tarefa pessoal pendente.</p><button class="btn btn--brand" @click="taskForm.mentorado_nome = data.detail?.profile?.nome; taskForm.responsavel = 'Mentorado'; openTaskModal()">Criar tarefa</button></div>
             </div>
 
             <!-- ===== TAB: TAREFAS EQUIPE ===== -->
