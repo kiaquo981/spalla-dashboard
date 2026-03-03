@@ -1522,7 +1522,7 @@ function spalla() {
       if (!mediaType) return '';
 
       // Get Evolution instance UUID and chat ID from config/state
-      const instanceId = EVOLUTION_CONFIG?.INSTANCE || 'default';
+      const instanceId = EVOLUTION_CONFIG?.INSTANCE_UUID || EVOLUTION_CONFIG?.INSTANCE || 'default';
       const chatId = this.ui.whatsappSelectedChat?.id || this.ui.whatsappSelectedChat?.remoteJid || 'unknown';
 
       // Build S3 key: evolution-api/{INSTANCE_UUID}/{CHAT_ID}/{messageType}
