@@ -463,11 +463,11 @@ function spalla() {
     // Reminders: filtered
     get filteredReminders() {
       let list = [...this.data.reminders];
-      if (this.ui.reminderFilter === 'ativo') list = list.filter(r => !r.concluido);
-      else if (this.ui.reminderFilter === 'concluido') list = list.filter(r => r.concluido);
+      if (this.ui.reminderFilter === 'ativo') list = list.filter(r => r.status !== 'concluido');
+      else if (this.ui.reminderFilter === 'concluido') list = list.filter(r => r.status === 'concluido');
       list.sort((a, b) => {
-        if (a.data && b.data) return parseDateStr(a.data) - parseDateStr(b.data);
-        if (a.data) return -1;
+        if (a.data_lembrete && b.data_lembrete) return parseDateStr(a.data_lembrete) - parseDateStr(b.data_lembrete);
+        if (a.data_lembrete) return -1;
         return 1;
       });
       return list;
@@ -1464,7 +1464,7 @@ function spalla() {
           .from('god_reminders')
           .select('*')
           .eq('user_id', this.auth.currentUser.id)
-          .order('data', { ascending: true });
+          .order('data_lembrete', { ascending: true });
         if (error) {
           console.error('[Spalla] Error loading reminders:', error);
           this.data.reminders = [];
@@ -1512,13 +1512,14 @@ function spalla() {
       }
       try {
         const reminder = {
-          id: 'rem_' + Date.now(),
-          texto: this.reminderForm.texto,
-          data: this.reminderForm.data || null,
+          id: crypto.randomUUID ? crypto.randomUUID() : 'rem_' + Date.now(),
+          titulo: this.reminderForm.texto,
+          data_lembrete: this.reminderForm.data || null,
           prioridade: this.reminderForm.prioridade,
           mentorado_nome: this.reminderForm.mentorado_nome,
-          concluido: false,
+          status: 'ativo',
           created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
           user_id: this.auth.currentUser.id,
         };
         const { error } = await this.supabase
@@ -1542,9 +1543,10 @@ function spalla() {
       const r = this.data.reminders.find(x => x.id === id);
       if (r) {
         try {
+          const newStatus = r.status === 'concluido' ? 'ativo' : 'concluido';
           const { error } = await this.supabase
             .from('god_reminders')
-            .update({ concluido: !r.concluido })
+            .update({ status: newStatus, updated_at: new Date().toISOString() })
             .eq('id', id);
           if (error) console.error('[Spalla] Error updating reminder:', error);
           else await this.loadReminders();
