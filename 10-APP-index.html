@@ -1495,7 +1495,9 @@
                     <!-- Áudio -->
                     <template x-if="getWaMessageType(msg) === 'audio'">
                       <div class="wa-bubble__media">
-                        <audio controls :src="loadWaMedia(msg)"
+                        <audio controls :src="waMediaUrls[msg.key?.id] || 'data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAAB9AAACABAAZGF0YQIAAAAAAA=='"
+                               @play="loadWaMedia(msg)"
+                               @loadstart="loadWaMedia(msg)"
                                style="max-width:280px; border-radius:8px;"></audio>
                       </div>
                     </template>
@@ -1503,7 +1505,8 @@
                     <!-- Imagem -->
                     <template x-if="getWaMessageType(msg) === 'image'">
                       <div class="wa-bubble__media">
-                        <img :src="loadWaMedia(msg)"
+                        <img :src="waMediaUrls[msg.key?.id]"
+                             @error="loadWaMedia(msg)"
                              style="max-width:280px; border-radius:8px; cursor:pointer; object-fit:cover;"
                              :alt="msg.message?.imageMessage?.caption || 'Imagem'">
                         <div x-show="msg.message?.imageMessage?.caption"
@@ -1515,7 +1518,9 @@
                     <!-- Vídeo -->
                     <template x-if="getWaMessageType(msg) === 'video'">
                       <div class="wa-bubble__media">
-                        <video controls :src="loadWaMedia(msg)"
+                        <video controls :src="waMediaUrls[msg.key?.id]"
+                               @play="loadWaMedia(msg)"
+                               @loadstart="loadWaMedia(msg)"
                                style="max-width:280px; border-radius:8px;"></video>
                         <div x-show="msg.message?.videoMessage?.caption"
                              class="wa-bubble__text"
