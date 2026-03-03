@@ -6,7 +6,7 @@
 
 // ===== CONFIG =====
 const CONFIG = {
-  API_BASE: 'http://178.156.157.169:9999',  // Production server (Manager01)
+  API_BASE: 'https://web-production-2cde5.up.railway.app',  // Production server (Railway HTTPS proxy)
   SUPABASE_URL: 'https://knusqfbvhsqworzyhvip.supabase.co',
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtudXNxZmJ2aHNxd29yenlodmlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4NTg3MjcsImV4cCI6MjA3MDQzNDcyN30.f-m7TlmCoccBpUxLZhA4P5kr2lWBGtRIv6inzInAKCo',
   AUTH_PASSWORD: 'spalla2026',
