@@ -1627,6 +1627,8 @@ function spalla() {
       'juliene frighetto': 'drajulienefrighetto.jpg',
       'danyellatruiz': 'danyellatruiz.jpg',
       'danyella truiz': 'danyellatruiz.jpg',
+      'doctraction': 'drrafaelcastro.jpg',
+      'rafael castro': 'drrafaelcastro.jpg',
     },
 
     igPhoto(handleOrName) {
