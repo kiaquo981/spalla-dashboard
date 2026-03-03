@@ -1820,12 +1820,12 @@ function spalla() {
         }
 
         // Construct datetime from data + horario
-        const [day, month, year] = f.data.split('/');
-        const dateStr = `${year}-${month}-${day}T${f.horario}:00`;
+        // f.data comes from HTML input type="date" in format YYYY-MM-DD
+        const dateStr = `${f.data}T${f.horario}:00`;
         const dataCall = new Date(dateStr).toISOString();
 
         // Build title consistent with user naming: "[Case] Nome - Tipo - Data"
-        const dataFormatada = new Date(dataStr).toLocaleDateString('pt-BR');
+        const dataFormatada = new Date(f.data + 'T00:00:00').toLocaleDateString('pt-BR');
         const titulo = `[Case] ${f.mentorado} - ${f.tipo} - ${dataFormatada}`;
 
         // Insert directly into Supabase calls_mentoria
