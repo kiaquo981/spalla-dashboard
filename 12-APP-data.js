@@ -13,8 +13,8 @@ const EVOLUTION_CONFIG = {
 
 // ===== APIFY CONFIG (Instagram Profile Scraper) =====
 const APIFY_CONFIG = {
-  // API_KEY should be set via environment variable APIFY_API_KEY
-  API_KEY: typeof process !== 'undefined' ? process.env.APIFY_API_KEY : window.APIFY_API_KEY || '',
+  // API_KEY loaded from config.local.js (not committed to GitHub)
+  API_KEY: (typeof LOCAL_CONFIG !== 'undefined' ? LOCAL_CONFIG.APIFY_API_KEY : '') || '',
   TASK_ID: '', // Instagram Profile Scraper task ID
   ACTOR_ID: 'apify/instagram-profile-scraper', // Apify actor name
 };

@@ -1743,12 +1743,7 @@
   </div>
 
   <!-- Scripts -->
-  <script>
-    // Load Apify API key from Vercel environment variables
-    if (typeof process !== 'undefined' && process.env?.APIFY_API_KEY) {
-      window.APIFY_API_KEY = process.env.APIFY_API_KEY;
-    }
-  </script>
+  <script src="config.local.js"></script>
   <script src="data.js?v=29"></script>
   <script src="13-APP-photos.js"></script>
   <script src="app.js?v=29"></script>
