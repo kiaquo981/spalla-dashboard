@@ -484,6 +484,8 @@ function spalla() {
           this.fetchUpcomingCalls();
           this.fetchMenteesWithEmail();
           this.checkIntegrations();
+          // Fetch Instagram profiles from Apify (background, non-blocking)
+          this.updateInstagramProfiles();
         }
       } catch (e) {
         console.error('[Spalla] INIT ERROR:', e);
@@ -1886,6 +1888,45 @@ function spalla() {
         console.log('[Spalla] Integrations:', health);
       } catch (e) {
         console.log('[Health] Could not check:', e);
+      }
+    },
+
+    async updateInstagramProfiles() {
+      /**
+       * Fetch real Instagram profile data from Apify for all mentees
+       * Runs in background, updates follower counts automatically
+       */
+      try {
+        if (!this.data.mentees?.length) return;
+
+        // Collect all Instagram handles from mentees
+        const handles = this.data.mentees
+          .filter(m => m.instagram)
+          .map(m => m.instagram);
+
+        if (!handles.length) {
+          console.log('[Instagram] No mentees with Instagram handles');
+          return;
+        }
+
+        console.log(`[Instagram] Updating ${handles.length} profiles from Apify...`);
+
+        // Call the Apify integration function from data.js
+        if (typeof fetchInstagramProfilesFromApify === 'function') {
+          const profiles = await fetchInstagramProfilesFromApify(handles);
+
+          // Merge results into INSTAGRAM_PROFILES (updates follower counts)
+          Object.assign(INSTAGRAM_PROFILES, profiles);
+
+          // Count successful updates
+          const updated = Object.keys(profiles).length;
+          console.log(`[Instagram] ✓ Updated ${updated} profiles`);
+
+          // Trigger photo tick update to refresh any displayed follower counts
+          this.photoTick++;
+        }
+      } catch (e) {
+        console.warn('[Instagram] Could not update profiles:', e.message);
       }
     },
 

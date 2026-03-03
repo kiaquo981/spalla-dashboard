@@ -11,6 +11,14 @@ const EVOLUTION_CONFIG = {
   API_KEY: 'E8F969C9-4A5F-4044-94AB-5DCF4FF1DF77',
 };
 
+// ===== APIFY CONFIG (Instagram Profile Scraper) =====
+const APIFY_CONFIG = {
+  // API_KEY should be set via environment variable APIFY_API_KEY
+  API_KEY: typeof process !== 'undefined' ? process.env.APIFY_API_KEY : window.APIFY_API_KEY || '',
+  TASK_ID: '', // Instagram Profile Scraper task ID
+  ACTOR_ID: 'apify/instagram-profile-scraper', // Apify actor name
+};
+
 // ===== GOOGLE DRIVE FOLDERS =====
 const GOOGLE_DRIVE = {
   conselhos: 'https://drive.google.com/drive/folders/1kqgQ_PQpxEVdRWBYqYRYKA--EDB-5Vlt',
@@ -580,6 +588,75 @@ function getFollowers(handle) {
   if (!p || p.seguidores === null) return null;
   if (p.seguidores >= 1000) return (p.seguidores / 1000).toFixed(1).replace('.0', '') + 'K';
   return String(p.seguidores);
+}
+
+// ===== APIFY INTEGRATION: Fetch Instagram profiles =====
+async function fetchInstagramProfilesFromApify(handles) {
+  /**
+   * Calls Apify Instagram Profile Scraper to fetch real-time follower counts
+   * @param {string[]} handles - Array of Instagram handles (with or without @)
+   * @returns {Promise<Object>} - Object with handle → profile data mapping
+   *
+   * Usage:
+   *   const data = await fetchInstagramProfilesFromApify(['drajulianaaltavilla', 'dra.ericamacedo']);
+   *   // Updates INSTAGRAM_PROFILES automatically
+   */
+
+  if (!APIFY_CONFIG.API_KEY) {
+    console.warn('[Apify] API_KEY not configured. Set APIFY_CONFIG.API_KEY or APIFY_API_KEY env var');
+    return {};
+  }
+
+  const results = {};
+  const apiKey = APIFY_CONFIG.API_KEY;
+  const baseUrl = 'https://api.apify.com/v2';
+
+  for (const handle of handles) {
+    const cleanHandle = handle.replace(/^@/, '').toLowerCase();
+
+    try {
+      console.log(`[Apify] Fetching profile: @${cleanHandle}...`);
+
+      // Call Apify actor
+      const response = await fetch(
+        `${baseUrl}/acts/${APIFY_CONFIG.ACTOR_ID}/run-sync?token=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            usernames: [cleanHandle],
+            resultsLimit: 1,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        console.error(`[Apify] Error for @${cleanHandle}: ${response.status}`);
+        continue;
+      }
+
+      const data = await response.json();
+      const dataset = data.output?.results?.[0];
+
+      if (dataset) {
+        results[cleanHandle] = {
+          nome: dataset.fullName || '',
+          seguidores: dataset.followersCount || 0,
+          seguindo: dataset.followsCount || 0,
+          posts: dataset.postsCount || 0,
+          bio: dataset.biography || '',
+          verificado: dataset.isPrivate === false,
+          ultimo_post: dataset.latestPostDate || null,
+        };
+
+        console.log(`[Apify] ✓ @${cleanHandle}: ${results[cleanHandle].seguidores} followers`);
+      }
+    } catch (e) {
+      console.error(`[Apify] Exception for @${cleanHandle}:`, e.message);
+    }
+  }
+
+  return results;
 }
 
 // ===== DOSSIER DIRECT LINKS (extracted from spreadsheet chipRuns) =====
