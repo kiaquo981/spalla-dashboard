@@ -1499,12 +1499,14 @@ function spalla() {
       return 'text';
     },
 
-    async loadWaMedia(msg) {
-      if (!msg?.key?.id) return;
+    loadWaMedia(msg) {
+      if (!msg?.key?.id) return '';
       const msgId = msg.key.id;
 
-      // Check cache first
-      if (this.waMediaUrls && this.waMediaUrls[msgId]) return;
+      // Return cached URL if available
+      if (this.waMediaUrls && this.waMediaUrls[msgId]) {
+        return this.waMediaUrls[msgId];
+      }
 
       // Determine message type and media key path
       let mediaType = null;
@@ -1512,7 +1514,7 @@ function spalla() {
       else if (msg.message?.imageMessage) mediaType = 'imageMessage';
       else if (msg.message?.videoMessage) mediaType = 'videoMessage';
 
-      if (!mediaType) return;
+      if (!mediaType) return '';
 
       // Get instanceId and chatId from UI state
       const instanceId = this.ui.whatsappSelectedChat?.instanceId || this.ui.whatsappSelectedChat?.id?.split('@')[0] || 'default';
@@ -1521,18 +1523,20 @@ function spalla() {
       // Build S3 key: evolution-api/{instanceId}/{chatId}/{messageType}
       const s3Key = `evolution-api/${instanceId}/${chatId}/${mediaType}`;
 
-      try {
-        const res = await fetch(`${CONFIG.API_BASE}/api/media/presign?key=${encodeURIComponent(s3Key)}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (!this.waMediaUrls) this.waMediaUrls = {};
-          this.waMediaUrls[msgId] = data.url;
-        } else {
-          console.warn(`[Spalla] Media presign failed: ${res.status}`);
-        }
-      } catch (e) {
-        console.error('[Spalla] Media presign error:', e);
-      }
+      // Fetch URL asynchronously (non-blocking)
+      fetch(`${CONFIG.API_BASE}/api/media/presign?key=${encodeURIComponent(s3Key)}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data && data.url) {
+            if (!this.waMediaUrls) this.waMediaUrls = {};
+            this.waMediaUrls[msgId] = data.url;
+            // Force Alpine re-render
+            this.$nextTick?.(() => {});
+          }
+        })
+        .catch(e => console.warn('[Spalla] Media presign error:', e));
+
+      return ''; // Return empty URL initially (will be filled when fetch completes)
     },
 
     getWaMessageTime(msg) {
