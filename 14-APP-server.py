@@ -55,6 +55,9 @@ def generate_presigned_url(key, expires=3600):
     amz_date = now.strftime('%Y%m%dT%H%M%SZ')
     datestamp = now.strftime('%Y%m%d')
 
+    # Debug: log S3 config
+    print(f'[S3 Debug] BUCKET={S3_BUCKET}, ENDPOINT={S3_ENDPOINT}, REGION={S3_REGION}, KEY={key}')
+
     # Canonical request
     method = 'GET'
     canonical_uri = f'/{S3_BUCKET}/{key}'
@@ -580,6 +583,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
         try:
             url = generate_presigned_url(key)
+            print(f'[Presign] Generated URL length: {len(url)}, URL prefix: {url[:100]}...')
             self._send_json({'url': url, 'bucket': S3_BUCKET, 'endpoint': S3_ENDPOINT})
         except Exception as e:
             print(f'[S3] Presign error: {e}')
