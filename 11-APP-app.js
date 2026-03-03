@@ -1597,11 +1597,38 @@ function spalla() {
 
     // ===================== INSTAGRAM HELPERS =====================
 
+    // Photo library: Instagram handle OR nome → local photo filename
+    // Keys can be: Instagram handle (lowercase), nome parts (lowercase), or any identifier
+    _photoLibrary: {
+      'drajulianaaltavilla': 'drajulianaaltavilla.jpg',
+      'juliana altavilla': 'drajulianaaltavilla.jpg',
+      'dra.ericamacedo': 'dra.ericamacedo.jpg',
+      'erica macedo': 'dra.ericamacedo.jpg',
+      'dramonicafelici': 'dramonicafelici.jpg',
+      'monica felici': 'dramonicafelici.jpg',
+      'daniela morais': 'danielamoraiscota.jpg',
+      'danielamoraiscota': 'danielamoraiscota.jpg',
+      'dradeboracadore': 'dradeboracadore.jpg',
+      'debora cadore': 'dradeboracadore.jpg',
+      'drajulienefrighetto': 'drajulienefrighetto.jpg',
+      'juliene frighetto': 'drajulienefrighetto.jpg',
+      'danyellatruiz': 'danyellatruiz.jpg',
+      'danyella truiz': 'danyellatruiz.jpg',
+    },
+
     igPhoto(handleOrName) {
       if (!handleOrName) return null;
       void this.photoTick;
+
       const isHandle = !handleOrName.includes(' ');
       const clean = handleOrName.replace('@','').toLowerCase();
+
+      // First: try to find in photo library (local uploads)
+      if (this._photoLibrary[clean]) {
+        return `photos/${this._photoLibrary[clean]}`;
+      }
+
+      // Fallback: generate filename from handle/name
       const fileKey = isHandle ? clean : clean.replace(/\s+/g, '_');
       return `photos/${fileKey}.jpg`;
     },
