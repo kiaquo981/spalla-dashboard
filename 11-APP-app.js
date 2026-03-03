@@ -20,17 +20,28 @@ const CONFIG = {
 // ===== SUPABASE CLIENT =====
 let sb = null;
 
-function initSupabase() {
+async function initSupabase() {
   if (!CONFIG.SUPABASE_ANON_KEY) {
     console.warn('[Spalla] Supabase anon key not configured — using demo data');
     return null;
   }
+
+  // Wait for Supabase JS to load (with timeout)
+  let attempts = 0;
+  while ((!window.supabase || !window.supabase.createClient) && attempts < 50) {
+    await new Promise(resolve => setTimeout(resolve, 100)); // Wait 100ms
+    attempts++;
+  }
+
   if (!window.supabase || !window.supabase.createClient) {
-    console.warn('[Spalla] Supabase JS not loaded yet — using demo data');
+    console.error('[Spalla] Supabase JS failed to load after 5 seconds');
     return null;
   }
+
   try {
-    return window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+    const client = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+    console.log('[Spalla] Supabase initialized successfully');
+    return client;
   } catch (e) {
     console.error('[Spalla] Failed to init Supabase:', e);
     return null;
@@ -482,6 +493,10 @@ function spalla() {
     async init() {
       console.log('[Spalla] init() starting');
       try {
+        // Initialize Supabase
+        sb = await initSupabase();
+        console.log('[Spalla] Supabase initialized:', !!sb);
+
         // Check for existing Supabase session
         const { data: { session } } = await this.supabase.auth.getSession();
         if (session) {
@@ -723,7 +738,7 @@ function spalla() {
 
     async loadDashboard() {
       this.ui.loading = true;
-      sb = initSupabase();
+      sb = await initSupabase();
       if (sb) {
         try {
           const [mentees, cohort, calls] = await Promise.all([
