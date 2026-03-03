@@ -1525,12 +1525,13 @@ function spalla() {
       const instanceId = EVOLUTION_CONFIG?.INSTANCE_UUID || EVOLUTION_CONFIG?.INSTANCE || 'default';
       const chatId = this.ui.whatsappSelectedChat?.remoteJid || this.ui.whatsappSelectedChat?.id || 'unknown';
 
-      // Debug: log the chat object to see its structure
-      console.log(`[Spalla] Selected chat object:`, this.ui.whatsappSelectedChat);
-      console.log(`[Spalla] Using chatId: ${chatId}`);
+      // Build filename: {timestamp}_{messageId}.{extension}
+      const timestamp = msg.messageTimestamp ? Math.floor(msg.messageTimestamp * 1000) : Date.now();
+      const extension = mediaType === 'audioMessage' ? 'oga' : mediaType === 'imageMessage' ? 'jpg' : 'mp4';
+      const filename = `${timestamp}_${msgId}.${extension}`;
 
-      // Build S3 key: evolution-api/{INSTANCE_UUID}/{CHAT_ID}/{messageType}
-      const s3Key = `evolution-api/${instanceId}/${chatId}/${mediaType}`;
+      // Build S3 key: evolution-api/{INSTANCE_UUID}/{CHAT_ID}/{messageType}/{timestamp}_{messageId}.{ext}
+      const s3Key = `evolution-api/${instanceId}/${chatId}/${mediaType}/${filename}`;
 
       // Stream URL from backend (avoids CORS issues)
       const streamUrl = `${CONFIG.API_BASE}/api/media/stream?key=${encodeURIComponent(s3Key)}`;
