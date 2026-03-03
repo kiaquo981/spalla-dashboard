@@ -413,6 +413,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_upcoming_calls()
         elif self.path.startswith('/api/media/presign'):
             self._handle_media_presign()
+        elif self.path.startswith('/api/media/stream'):
+            self._handle_media_stream()
         elif self.path == '/api/health':
             self._send_json({
                 'status': 'ok',
@@ -590,6 +592,52 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'url': url, 'bucket': S3_BUCKET, 'endpoint': S3_ENDPOINT})
         except Exception as e:
             print(f'[S3] Presign error: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_media_stream(self):
+        """Stream media directly from Hetzner S3 (proxy to avoid CORS)"""
+        params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        key = params.get('key', [''])[0]
+
+        if not key:
+            self._send_json({'error': 'key parameter required'}, 400)
+            return
+
+        try:
+            # Generate presigned URL
+            url = generate_presigned_url(key)
+            print(f'[Stream] Streaming S3 key: {key}')
+
+            # Fetch from S3
+            req = urllib.request.Request(url)
+            response = urllib.request.urlopen(req, timeout=30)
+
+            # Get content type and size
+            content_type = response.headers.get('Content-Type', 'application/octet-stream')
+            content_length = response.headers.get('Content-Length')
+
+            # Send response
+            self.send_response(200)
+            self.send_header('Content-Type', content_type)
+            if content_length:
+                self.send_header('Content-Length', content_length)
+            # Allow CORS from frontend
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Cache-Control', 'public, max-age=3600')
+            self.end_headers()
+
+            # Stream the file
+            chunk_size = 8192
+            while True:
+                chunk = response.read(chunk_size)
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+
+            print(f'[Stream] Successfully streamed {key}')
+
+        except Exception as e:
+            print(f'[Stream] Error: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_get_mentees(self):
