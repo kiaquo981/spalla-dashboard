@@ -1823,10 +1823,9 @@ function spalla() {
 
         // Construct datetime from data + horario
         // f.data comes from HTML input type="date" in format YYYY-MM-DD
+        // Zoom/Calendar expect ISO format. Create date as local, then convert properly
         const d = new Date(`${f.data}T${f.horario}:00`);
-        // Adjust for timezone offset to keep local date
-        const offset = d.getTimezoneOffset() * 60000;
-        const dataCall = new Date(d - offset).toISOString();
+        const dataCall = d.toISOString();
 
         // Build title consistent with user naming: "[Case] Nome - Tipo - Data"
         const dataFormatada = new Date(f.data + 'T00:00:00').toLocaleDateString('pt-BR');
@@ -1841,7 +1840,7 @@ function spalla() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               topic: titulo,
-              start_time: dataCall,
+              start_time: `${f.data} ${f.horario}:00`,
               duration: parseInt(f.duracao) || 60,
               description: f.notas || '',
               invitees: f.email ? [f.email] : [],
@@ -1854,14 +1853,15 @@ function spalla() {
         }
 
         try {
-          const endTime = new Date(new Date(dataCall).getTime() + (parseInt(f.duracao) || 60) * 60000).toISOString();
+          const startDt = new Date(`${f.data}T${f.horario}:00`);
+          const endDt = new Date(startDt.getTime() + (parseInt(f.duracao) || 60) * 60000);
           const calRes = await fetch(`${CONFIG.API_BASE}/api/calendar/create-event`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               summary: titulo,
-              start_iso: dataCall,
-              end_iso: endTime,
+              start_iso: startDt.toISOString(),
+              end_iso: endDt.toISOString(),
               description: f.notas || '',
               attendees: f.email ? [f.email] : [],
               location: zoomUrl || '',
