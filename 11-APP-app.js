@@ -1521,39 +1521,23 @@ function spalla() {
 
       if (!mediaType) return '';
 
-      // Get instanceId and chatId from UI state
-      const instanceId = this.ui.whatsappSelectedChat?.instanceId || this.ui.whatsappSelectedChat?.id?.split('@')[0] || 'default';
-      const chatId = this.ui.whatsappSelectedChat?.id || 'unknown';
+      // Get Evolution instance UUID and chat ID from config/state
+      const instanceId = EVOLUTION_CONFIG?.INSTANCE || 'default';
+      const chatId = this.ui.whatsappSelectedChat?.id || this.ui.whatsappSelectedChat?.remoteJid || 'unknown';
 
-      // Build S3 key: evolution-api/{instanceId}/{chatId}/{messageType}
+      // Build S3 key: evolution-api/{INSTANCE_UUID}/{CHAT_ID}/{messageType}
       const s3Key = `evolution-api/${instanceId}/${chatId}/${mediaType}`;
 
-      // Fetch URL asynchronously (non-blocking)
-      const presignUrl = `${CONFIG.API_BASE}/api/media/presign?key=${encodeURIComponent(s3Key)}`;
-      console.log(`[Spalla] Presign request for: ${s3Key}`);
+      // Stream URL from backend (avoids CORS issues)
+      const streamUrl = `${CONFIG.API_BASE}/api/media/stream?key=${encodeURIComponent(s3Key)}`;
+      console.log(`[Spalla] Stream request for: ${s3Key}`);
 
-      fetch(presignUrl)
-        .then(res => {
-          if (!res.ok) {
-            console.warn(`[Spalla] Presign ${res.status} for ${s3Key}`);
-            return null;
-          }
-          return res.json();
-        })
-        .then(data => {
-          console.log(`[Spalla] Presign response:`, data);
-          if (data?.url) {
-            if (!this.waMediaUrls) this.waMediaUrls = {};
-            this.waMediaUrls[msgId] = data.url;
-            console.log(`[Spalla] Media loaded: ${msgId}`, data.url.substring(0, 100));
-            console.log(`[Spalla] Full URL: ${data.url}`);
-            // Trigger Alpine update by modifying object reference
-            this.waMediaUrls = { ...this.waMediaUrls };
-          } else {
-            console.warn(`[Spalla] No URL in presign response for ${s3Key}`, data);
-          }
-        })
-        .catch(e => console.error('[Spalla] Presign fetch error:', e.message));
+      // Set URL immediately for streaming
+      if (!this.waMediaUrls) this.waMediaUrls = {};
+      this.waMediaUrls[msgId] = streamUrl;
+      // Trigger Alpine update by modifying object reference
+      this.waMediaUrls = { ...this.waMediaUrls };
+      console.log(`[Spalla] Media stream URL set: ${msgId}`, streamUrl.substring(0, 100));
 
       return ''; // Return empty URL initially (will be filled when fetch completes)
     },
