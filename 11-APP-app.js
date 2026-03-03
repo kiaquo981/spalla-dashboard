@@ -663,8 +663,8 @@ function spalla() {
         this.loadDemoData();
       }
       this.ui.loading = false;
-      // Start auto-refresh after successful load
-      if (this.supabaseConnected) this.startDataRefresh();
+      // Auto-refresh disabled — only WhatsApp polling active
+      // if (this.supabaseConnected) this.startDataRefresh();
     },
 
     _enrichMenteesWithCalls() {
@@ -1496,23 +1496,30 @@ function spalla() {
       if (m.audioMessage) return 'audio';
       if (m.imageMessage) return 'image';
       if (m.videoMessage) return 'video';
+      // Document messages with video MIME types
+      if (m.documentMessage?.mimetype?.includes('video')) return 'video';
+      if (m.documentMessage?.mimetype?.includes('audio')) return 'audio';
+      if (m.documentMessage?.mimetype?.includes('image')) return 'image';
       return 'text';
     },
 
-    async loadWaMedia(msg) {
-      if (!msg?.key?.id) return;
+    loadWaMedia(msg) {
+      if (!msg?.key?.id) return '';
       const msgId = msg.key.id;
 
-      // Check cache first
-      if (this.waMediaUrls && this.waMediaUrls[msgId]) return;
+      // Return cached URL if available
+      if (this.waMediaUrls && this.waMediaUrls[msgId]) {
+        return this.waMediaUrls[msgId];
+      }
 
       // Determine message type and media key path
       let mediaType = null;
       if (msg.message?.audioMessage) mediaType = 'audioMessage';
       else if (msg.message?.imageMessage) mediaType = 'imageMessage';
       else if (msg.message?.videoMessage) mediaType = 'videoMessage';
+      else if (msg.message?.documentMessage) mediaType = 'documentMessage'; // Support document media
 
-      if (!mediaType) return;
+      if (!mediaType) return '';
 
       // Get instanceId and chatId from UI state
       const instanceId = this.ui.whatsappSelectedChat?.instanceId || this.ui.whatsappSelectedChat?.id?.split('@')[0] || 'default';
@@ -1521,18 +1528,34 @@ function spalla() {
       // Build S3 key: evolution-api/{instanceId}/{chatId}/{messageType}
       const s3Key = `evolution-api/${instanceId}/${chatId}/${mediaType}`;
 
-      try {
-        const res = await fetch(`${CONFIG.API_BASE}/api/media/presign?key=${encodeURIComponent(s3Key)}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (!this.waMediaUrls) this.waMediaUrls = {};
-          this.waMediaUrls[msgId] = data.url;
-        } else {
-          console.warn(`[Spalla] Media presign failed: ${res.status}`);
-        }
-      } catch (e) {
-        console.error('[Spalla] Media presign error:', e);
-      }
+      // Fetch URL asynchronously (non-blocking)
+      const presignUrl = `${CONFIG.API_BASE}/api/media/presign?key=${encodeURIComponent(s3Key)}`;
+      console.log(`[Spalla] Presign request for: ${s3Key}`);
+
+      fetch(presignUrl)
+        .then(res => {
+          if (!res.ok) {
+            console.warn(`[Spalla] Presign ${res.status} for ${s3Key}`);
+            return null;
+          }
+          return res.json();
+        })
+        .then(data => {
+          console.log(`[Spalla] Presign response:`, data);
+          if (data?.url) {
+            if (!this.waMediaUrls) this.waMediaUrls = {};
+            this.waMediaUrls[msgId] = data.url;
+            console.log(`[Spalla] Media loaded: ${msgId}`, data.url.substring(0, 100));
+            console.log(`[Spalla] Full URL: ${data.url}`);
+            // Trigger Alpine update by modifying object reference
+            this.waMediaUrls = { ...this.waMediaUrls };
+          } else {
+            console.warn(`[Spalla] No URL in presign response for ${s3Key}`, data);
+          }
+        })
+        .catch(e => console.error('[Spalla] Presign fetch error:', e.message));
+
+      return ''; // Return empty URL initially (will be filled when fetch completes)
     },
 
     getWaMessageTime(msg) {
