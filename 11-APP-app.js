@@ -1828,7 +1828,48 @@ function spalla() {
         const dataFormatada = new Date(f.data + 'T00:00:00').toLocaleDateString('pt-BR');
         const titulo = `[Case] ${f.mentorado} - ${f.tipo} - ${dataFormatada}`;
 
-        // Insert directly into Supabase calls_mentoria
+        // First: Create Zoom meeting + Google Calendar event on backend
+        let zoomUrl = null;
+        let calendarUrl = null;
+        try {
+          const zoomRes = await fetch(`${CONFIG.API_BASE}/api/zoom/create-meeting`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              topic: titulo,
+              start_time: dataCall,
+              duration: parseInt(f.duracao) || 60,
+              description: f.notas || '',
+              invitees: f.email ? [f.email] : [],
+            }),
+          });
+          const zoomData = await zoomRes.json();
+          if (zoomData.join_url) zoomUrl = zoomData.join_url;
+        } catch (e) {
+          console.warn('[Schedule] Zoom creation warning:', e.message);
+        }
+
+        try {
+          const endTime = new Date(new Date(dataCall).getTime() + (parseInt(f.duracao) || 60) * 60000).toISOString();
+          const calRes = await fetch(`${CONFIG.API_BASE}/api/calendar/create-event`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              summary: titulo,
+              start_iso: dataCall,
+              end_iso: endTime,
+              description: f.notas || '',
+              attendees: f.email ? [f.email] : [],
+              location: zoomUrl || '',
+            }),
+          });
+          const calData = await calRes.json();
+          if (calData.html_link) calendarUrl = calData.html_link;
+        } catch (e) {
+          console.warn('[Schedule] Calendar creation warning:', e.message);
+        }
+
+        // Then: Insert into Supabase with links
         if (!sb) {
           this.toast('Supabase não conectado', 'error');
           return;
@@ -1840,14 +1881,16 @@ function spalla() {
             data_call: dataCall,
             duracao_minutos: parseInt(f.duracao) || 60,
             tipo: f.tipo || 'acompanhamento',
-            participantes: JSON.stringify([]),
+            participantes: JSON.stringify([f.email || '']),
             observacoes_equipe: f.notas || '',
+            link_gravacao: zoomUrl || null,
+            zoom_topic: titulo,
           })
           .select();
 
         if (error) throw error;
 
-        this.toast('Call agendada com sucesso! ' + titulo, 'success');
+        this.toast('Call agendada: Zoom ' + (zoomUrl ? '✓' : '○') + ' Calendar ' + (calendarUrl ? '✓' : '○'), 'success');
 
         // Store locally for immediate UI update
         if (!this.data.scheduledCalls) this.data.scheduledCalls = [];
