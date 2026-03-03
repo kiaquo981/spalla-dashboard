@@ -583,7 +583,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
         try:
             url = generate_presigned_url(key)
-            print(f'[Presign] Generated URL length: {len(url)}, URL prefix: {url[:100]}...')
+            # FULL DEBUG: log the complete URL
+            print(f'[Presign] Key: {key}')
+            print(f'[Presign] Generated URL length: {len(url)}')
+            print(f'[Presign] Full URL: {url}')
             self._send_json({'url': url, 'bucket': S3_BUCKET, 'endpoint': S3_ENDPOINT})
         except Exception as e:
             print(f'[S3] Presign error: {e}')
