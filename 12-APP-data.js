@@ -529,11 +529,11 @@ const DOSSIER_PIPELINE = [
   { nome: 'Paula Groisman e Anna Plachta', status: 'enviado', tipo: 'estrategico', ultima_versao: '05/01/2026', titulo: 'Anna Plachta e Paula Groisman | Dossiê Estratégico' },
   { nome: 'Juliana Altavilla', status: 'enviado', tipo: 'estrategico', ultima_versao: '07/01/2026', titulo: 'Juliana Altavilla | Dossiê Estratégico' },
 
-  // --- EM REVISAO (3 docs each) ---
-  { nome: 'Livia Lyra', status: 'aprovado_enviar', tipo: 'individual', data_ai: '06/01/2026', data_queila: '14/02/2026', docs: [
-    { tipo: 'estrategico', titulo: 'Livia Lyra | Dossiê Estratégico' },
+  // --- FINALIZADOS - INDIVIDUAIS (3 docs each) ---
+  { nome: 'Livia Lyra', status: 'enviado', tipo: 'individual', docs: [
+    { tipo: 'estrategico', titulo: 'Livia Lyra | Dossiê Estratégico', data_ai: '06/01/2026', data_queila: '14/02/2026' },
   ]},
-  { nome: 'Yara Gomes', status: 'ajustar', tipo: 'individual', docs: [
+  { nome: 'Yara Gomes', status: 'enviado', tipo: 'individual', docs: [
     { tipo: 'oferta', titulo: 'Dossiê Oferta e Produto - Yara Gomes', data_ai: '06/02/2026', data_kaique: '13/02/2026', data_queila: '13/02/2026' },
     { tipo: 'funil', titulo: 'Dossiê Funil de Vendas - Yara Gomes', data_ai: '06/02/2026', data_kaique: '13/02/2026', data_queila: '13/02/2026' },
     { tipo: 'conteudo', titulo: 'Dossiê Posicionamento e Conteúdo - Yara Gomes', data_ai: '06/02/2026', data_kaique: '13/02/2026', data_queila: '13/02/2026' },
@@ -543,28 +543,50 @@ const DOSSIER_PIPELINE = [
     { tipo: 'funil', titulo: 'Dossiê Funil de Vendas - Michelle Novelli Yoshiy', data_ai: '10/02/2026', data_kaique: '13/02/2026', data_queila: '14/02/2026' },
     { tipo: 'conteudo', titulo: 'Dossiê Posicionamento e Conteúdo - Michelle Novelli Yoshiy', data_ai: '10/02/2026', data_kaique: '13/02/2026', data_queila: '14/02/2026' },
   ]},
-  { nome: 'Tayslara Belarmino', status: 'aprovado_enviar', tipo: 'individual', docs: [
+  { nome: 'Tayslara Belarmino', status: 'enviado', tipo: 'individual', docs: [
     { tipo: 'oferta', titulo: 'Dossiê Oferta e Produto - Dra. Tayslara Belarmino', data_ai: '07/02/2026', data_kaique: '13/02/2026', data_queila: '14/02/2026' },
     { tipo: 'funil', titulo: 'Dossiê Funil de Vendas - Dra. Tayslara Belarmino', data_ai: '11/02/2026', data_kaique: '13/02/2026', data_queila: '14/02/2026' },
     { tipo: 'conteudo', titulo: 'Dossiê Posicionamento e Conteúdo - Dra. Tayslara Belarmino', data_ai: '11/02/2026', data_kaique: '13/02/2026', data_queila: '14/02/2026' },
   ]},
-  { nome: 'Karina Cabelino', status: 'revisao_kaique', tipo: 'individual', docs: [
+  { nome: 'Karina Cabelino', status: 'enviado', tipo: 'individual', docs: [
     { tipo: 'oferta', titulo: 'Dossiê Oferta e Produto - Karina Cabelino', data_ai: '13/02/2026', data_mariza: '13/02/2026', data_kaique: '13/02/2026', data_queila: '14/02/2026', data_envio: '14/02/2026' },
     { tipo: 'funil', titulo: 'Dossiê Funil de Vendas - Karina Cabelino', data_ai: '13/02/2026', data_mariza: '13/02/2026', data_kaique: '14/02/2026', data_queila: '16/02/2026', data_envio: '18/02/2026' },
     { tipo: 'conteudo', titulo: 'Dossiê Posicionamento e Conteúdo - Karina Cabelino', data_ai: '13/02/2026', data_mariza: '14/02/2026', data_kaique: '14/02/2026', data_queila: '16/02/2026', data_envio: '18/02/2026' },
   ]},
+  { nome: 'Érica Macedo', status: 'enviado', tipo: 'individual', docs: [
+    { tipo: 'estrategico', titulo: 'Dossiê Estratégico - Érica Macedo', data_ai: '24/02/2026' },
+  ]},
 
-  // --- NAO INICIADO / PRODUCAO IA ---
-  { nome: 'Rosalie Torrelio', status: 'producao_ia', tipo: 'individual', docs: [
-    { tipo: 'oferta', titulo: 'Dossiê Oferta e Produto - Rosalie Torrelio', data_ai: '13/02/2026' },
+  // --- EM REVISÃO ---
+  { nome: 'Betina Franciosi', status: 'revisao_mariza', tipo: 'individual', docs: [
+    { tipo: 'oferta', titulo: 'Dossiê Oferta e Produto - Dra. Betina Franciosi', data_ai: '23/02/2026', data_mariza: '02/03/2026' },
+    { tipo: 'funil', titulo: 'Dossiê Funil de Vendas - Dra. Betina Franciosi', data_ai: '24/02/2026', data_mariza: '02/03/2026' },
+    { tipo: 'conteudo', titulo: 'Dossiê de Posicionamento e Conteúdo - Betina Franciosi', data_ai: '24/02/2026', data_mariza: '02/03/2026' },
   ]},
-  { nome: 'Thiago Kailer', status: 'producao_ia', tipo: 'individual', docs: [
-    { tipo: 'oferta', titulo: 'Dossiê Oferta e Produto - Thiago Kailer', data_ai: '13/02/2026' },
+  { nome: 'Jordanna Diniz', status: 'revisao_queila', tipo: 'individual', docs: [
+    { tipo: 'oferta', titulo: 'Dossiê Oferta e Produto - Jordanna Diniz', data_ai: '20/02/2026', data_kaique: '20/02/2026', data_queila: '23/02/2026' },
+    { tipo: 'funil', titulo: 'Dossiê Funil de Vendas - Jordanna Diniz', data_ai: '21/02/2026', data_kaique: '20/02/2026' },
+    { tipo: 'conteudo', titulo: 'Dossiê Posicionamento e Conteúdo - Jordanna Diniz', data_ai: '21/02/2026', data_kaique: '20/02/2026' },
   ]},
-  { nome: 'Jordanna Diniz', status: 'producao_ia', tipo: 'individual', docs: [] },
-  { nome: 'Betina Franciosi', status: 'nao_iniciado', tipo: 'individual', docs: [] },
-  { nome: 'Letícia Wenderoscky', status: 'nao_iniciado', tipo: 'individual', docs: [] },
-  { nome: 'Daniela Morais', status: 'nao_iniciado', tipo: 'individual', docs: [] },
+
+  // --- AJUSTANDO ---
+  { nome: 'Rosalie Torrelio', status: 'ajustando', tipo: 'individual', docs: [
+    { tipo: 'oferta', titulo: 'Dossiê Oferta e Produto - Rosalie Torrelio', data_ai: '23/02/2026', data_kaique: '25/02/2026' },
+    { tipo: 'funil', titulo: 'Dossiê Funil de Vendas - Rosalie Torrelio', data_ai: '23/02/2026', data_kaique: '25/02/2026' },
+    { tipo: 'conteudo', titulo: 'Dossiê Posicionamento e Conteúdo - Rosalie Torrelio', data_ai: '23/02/2026', data_kaique: '25/02/2026' },
+  ]},
+  { nome: 'Thiago Kailer', status: 'ajustando', tipo: 'individual', docs: [
+    { tipo: 'oferta', titulo: 'Dossiê Oferta e Produto - Thiago Kailer', data_ai: '13/02/2026', data_kaique: '25/02/2026' },
+    { tipo: 'funil', titulo: 'Dossiê Funil de Vendas - Thiago Kailer', data_ai: '20/02/2026' },
+    { tipo: 'conteudo', titulo: 'Dossiê de Posicionamento - Thiago Kailer', data_ai: '20/02/2026' },
+  ]},
+
+  // --- NAO INICIADO ---
+  { nome: 'Daniela Morais', status: 'onboarding', tipo: 'individual', docs: [] },
+  { nome: 'Danyella Truiz', status: 'onboarding', tipo: 'individual', docs: [] },
+
+  // --- PAUSADO ---
+  { nome: 'Letícia Wenderoscky', status: 'pausado', tipo: 'individual', docs: [] },
 ];
 
 // ===== HELPER: Get Instagram profile by handle =====
