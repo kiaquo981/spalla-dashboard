@@ -510,8 +510,8 @@
                           <span x-show="t.tags?.length" class="detail-task-card__tags"><template x-for="tag in t.tags || []"><span class="badge badge--sm badge--neutral" x-text="tag" style="margin-right:2px"></span></template></span>
                         </div>
                         <div class="detail-task-card__subtasks" x-show="t.subtasks?.length">
-                          <div class="task-card__progress-bar" style="width:80px"><div class="task-card__progress-fill" :style="'width:' + (t.subtasks.filter(s=>s.done).length / t.subtasks.length * 100) + '%'"></div></div>
-                          <span style="font-size:11px;color:#94a3b8" x-text="t.subtasks.filter(s=>s.done).length + '/' + t.subtasks.length"></span>
+                          <div class="task-card__progress-bar" style="width:80px"><div class="task-card__progress-fill" :style="'width:' + ((t.subtasks?.filter(s=>s.done).length || 0) / (t.subtasks?.length || 1) * 100) + '%'"></div></div>
+                          <span style="font-size:11px;color:#94a3b8" x-text="(t.subtasks?.filter(s=>s.done).length || 0) + '/' + (t.subtasks?.length || 0)"></span>
                         </div>
                       </div>
                       <div class="detail-task-card__assignee">
@@ -545,7 +545,9 @@
                         </div>
                         <div x-show="t.handoffs?.length" class="detail-task-card__handoff">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/></svg>
-                          <span style="font-size:11px;color:#f59e0b" x-text="'Passagem: ' + t.handoffs[t.handoffs.length-1].from + ' → ' + t.handoffs[t.handoffs.length-1].to"></span>
+                          <template x-if="t.handoffs?.length">
+                            <span style="font-size:11px;color:#f59e0b" x-text="'Passagem: ' + t.handoffs[t.handoffs.length-1].from + ' → ' + t.handoffs[t.handoffs.length-1].to"></span>
+                          </template>
                         </div>
                       </div>
                       <div class="detail-task-card__assignee">
@@ -831,8 +833,8 @@
                           </div>
                           <!-- Subtask progress -->
                           <div x-show="t.subtasks?.length" class="task-board__card-progress">
-                            <div class="task-card__progress-bar"><div class="task-card__progress-fill" :style="'width:' + (t.subtasks.filter(s=>s.done).length / t.subtasks.length * 100) + '%'"></div></div>
-                            <span class="task-card__progress-text" x-text="t.subtasks.filter(s=>s.done).length + '/' + t.subtasks.length"></span>
+                            <div class="task-card__progress-bar"><div class="task-card__progress-fill" :style="'width:' + ((t.subtasks?.filter(s=>s.done).length || 0) / (t.subtasks?.length || 1) * 100) + '%'"></div></div>
+                            <span class="task-card__progress-text" x-text="(t.subtasks?.filter(s=>s.done).length || 0) + '/' + (t.subtasks?.length || 0)"></span>
                           </div>
                           <!-- Parent task indicator -->
                           <div x-show="t.parent_task_id" class="task-board__card-parent">
@@ -855,7 +857,7 @@
                               </span>
                               <span x-show="t.attachments?.length" title="Anexos" style="font-size:11px;color:#94a3b8;display:flex;align-items:center;gap:2px">
                                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-                                <span x-text="t.attachments.length"></span>
+                                <span x-text="t.attachments?.length || 0"></span>
                               </span>
                             </div>
                           </div>
