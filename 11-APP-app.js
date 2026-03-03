@@ -473,6 +473,10 @@ function spalla() {
       return list;
     },
 
+    get supabase() {
+      return sb;
+    },
+
     // ===================== LIFECYCLE =====================
 
     async init() {
