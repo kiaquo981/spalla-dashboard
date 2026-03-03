@@ -1522,7 +1522,7 @@ function spalla() {
       const s3Key = `evolution-api/${instanceId}/${chatId}/${mediaType}`;
 
       try {
-        const res = await fetch(`/api/media/presign?key=${encodeURIComponent(s3Key)}`);
+        const res = await fetch(`${CONFIG.API_BASE}/api/media/presign?key=${encodeURIComponent(s3Key)}`);
         if (res.ok) {
           const data = await res.json();
           if (!this.waMediaUrls) this.waMediaUrls = {};
