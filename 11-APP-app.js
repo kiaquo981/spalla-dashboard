@@ -1529,17 +1529,28 @@ function spalla() {
       const s3Key = `evolution-api/${instanceId}/${chatId}/${mediaType}`;
 
       // Fetch URL asynchronously (non-blocking)
-      fetch(`${CONFIG.API_BASE}/api/media/presign?key=${encodeURIComponent(s3Key)}`)
-        .then(res => res.ok ? res.json() : null)
+      const presignUrl = `${CONFIG.API_BASE}/api/media/presign?key=${encodeURIComponent(s3Key)}`;
+
+      fetch(presignUrl)
+        .then(res => {
+          if (!res.ok) {
+            console.warn(`[Spalla] Presign ${res.status} for ${s3Key}`);
+            return null;
+          }
+          return res.json();
+        })
         .then(data => {
-          if (data && data.url) {
+          if (data?.url) {
             if (!this.waMediaUrls) this.waMediaUrls = {};
             this.waMediaUrls[msgId] = data.url;
-            // Force Alpine re-render
-            this.$nextTick?.(() => {});
+            console.log(`[Spalla] Media loaded: ${msgId}`, data.url.substring(0, 80));
+            // Trigger Alpine update by modifying object reference
+            this.waMediaUrls = { ...this.waMediaUrls };
+          } else {
+            console.warn(`[Spalla] No URL in presign response for ${s3Key}`);
           }
         })
-        .catch(e => console.warn('[Spalla] Media presign error:', e));
+        .catch(e => console.error('[Spalla] Presign fetch error:', e.message));
 
       return ''; // Return empty URL initially (will be filled when fetch completes)
     },
