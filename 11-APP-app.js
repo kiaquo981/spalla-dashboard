@@ -636,7 +636,6 @@ function spalla() {
             this.loadDemoData();
           }
           if (cohort.data?.length) this.data.cohort = cohort.data;
-          if (alerts.data?.length) this.data.alerts = alerts.data;
           if (calls.data?.length) {
             // Normalize calls data (from calls_mentoria table directly)
             this._supabaseCalls = calls.data.map(c => ({
