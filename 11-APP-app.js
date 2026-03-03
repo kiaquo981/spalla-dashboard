@@ -1642,12 +1642,25 @@ function spalla() {
       const isHandle = !handleOrName.includes(' ');
       const clean = handleOrName.replace('@','').toLowerCase();
 
-      // First: try to find in photo library (local uploads)
-      if (this._photoLibrary[clean]) {
-        return `photos/${this._photoLibrary[clean]}`;
+      // First: try embedded data URLs (PHOTO_DATA_URLS)
+      if (typeof PHOTO_DATA_URLS !== 'undefined' && PHOTO_DATA_URLS[clean]) {
+        return PHOTO_DATA_URLS[clean];
       }
 
-      // Fallback: generate filename from handle/name
+      // Second: try photo library mapping
+      if (this._photoLibrary[clean]) {
+        const filename = this._photoLibrary[clean];
+        const fileKey = filename.replace('.jpg', '');
+        if (typeof PHOTO_DATA_URLS !== 'undefined' && PHOTO_DATA_URLS[fileKey]) {
+          return PHOTO_DATA_URLS[fileKey];
+        }
+        return `photos/${filename}`;
+      }
+
+      // Fallback: try to generate from handle/name
+      if (typeof PHOTO_DATA_URLS !== 'undefined' && PHOTO_DATA_URLS[clean]) {
+        return PHOTO_DATA_URLS[clean];
+      }
       const fileKey = isHandle ? clean : clean.replace(/\s+/g, '_');
       return `photos/${fileKey}.jpg`;
     },
