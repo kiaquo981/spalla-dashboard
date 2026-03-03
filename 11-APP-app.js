@@ -1627,6 +1627,7 @@ function spalla() {
       'drajulienefrighetto': 'drajulienefrighetto.jpg',
       'juliene frighetto': 'drajulienefrighetto.jpg',
       'danyellatruiz': 'danyellatruiz.jpg',
+      'dradanyellatruiz': 'danyellatruiz.jpg',
       'danyella truiz': 'danyellatruiz.jpg',
       'dr.rafaelcastro': 'drrafaelcastro.jpg',
       'doctraction': 'drrafaelcastro.jpg',
