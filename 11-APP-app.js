@@ -1625,6 +1625,8 @@ function spalla() {
       'dra.julienefrighetto': 'drajulienefrighetto.jpg',
       'drajulienefrighetto': 'drajulienefrighetto.jpg',
       'juliene frighetto': 'drajulienefrighetto.jpg',
+      'juliene cristina': 'drajulienefrighetto.jpg',
+      'julienne frighetto': 'drajulienefrighetto.jpg',
       'danyellatruiz': 'danyellatruiz.jpg',
       'dradanyellatruiz': 'danyellatruiz.jpg',
       'danyella truiz': 'danyellatruiz.jpg',
@@ -1821,8 +1823,10 @@ function spalla() {
 
         // Construct datetime from data + horario
         // f.data comes from HTML input type="date" in format YYYY-MM-DD
-        const dateStr = `${f.data}T${f.horario}:00`;
-        const dataCall = new Date(dateStr).toISOString();
+        const d = new Date(`${f.data}T${f.horario}:00`);
+        // Adjust for timezone offset to keep local date
+        const offset = d.getTimezoneOffset() * 60000;
+        const dataCall = new Date(d - offset).toISOString();
 
         // Build title consistent with user naming: "[Case] Nome - Tipo - Data"
         const dataFormatada = new Date(f.data + 'T00:00:00').toLocaleDateString('pt-BR');
