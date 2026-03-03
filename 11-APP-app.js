@@ -587,6 +587,8 @@ function spalla() {
             // Update messages if there are new ones
             if (newMsgs.length !== this.data.whatsappMessages.length) {
               this.data.whatsappMessages = newMsgs;
+              // Eagerly load media URLs for all messages
+              this.eagerlyLoadWaMediaUrls(this.data.whatsappMessages);
               // Auto-scroll to latest
               this.$nextTick(() => {
                 const el = document.getElementById('wa-messages-end');
@@ -1427,6 +1429,8 @@ function spalla() {
           // Evolution API v2 can return { messages: { records: [...] } } or just an array
           const msgs = data.messages?.records || data.messages || data || [];
           this.data.whatsappMessages = (Array.isArray(msgs) ? msgs : []).reverse();
+          // Eagerly load media URLs for all messages
+          this.eagerlyLoadWaMediaUrls(this.data.whatsappMessages);
         } else {
           throw new Error(`HTTP ${res.status}`);
         }
@@ -1503,6 +1507,33 @@ function spalla() {
       return 'text';
     },
 
+    // Eagerly load media URLs for all messages after they're fetched
+    eagerlyLoadWaMediaUrls(messages) {
+      if (!Array.isArray(messages)) return;
+      if (!this.waMediaUrls) this.waMediaUrls = {};
+
+      let updated = false;
+      for (const msg of messages) {
+        if (!msg?.key?.id) continue;
+        const msgId = msg.key.id;
+
+        // Skip if already cached
+        if (this.waMediaUrls[msgId]) continue;
+
+        // Check if Evolution API provided mediaUrl
+        if (msg.message?.mediaUrl) {
+          this.waMediaUrls[msgId] = msg.message.mediaUrl;
+          console.log(`[Spalla] Eagerly loaded mediaUrl: ${msgId}`);
+          updated = true;
+        }
+      }
+
+      // Trigger reactivity once for all updates
+      if (updated) {
+        this.waMediaUrls = { ...this.waMediaUrls };
+      }
+    },
+
     loadWaMedia(msg) {
       if (!msg?.key?.id) return '';
       const msgId = msg.key.id;
@@ -1512,37 +1543,44 @@ function spalla() {
         return this.waMediaUrls[msgId];
       }
 
-      // Determine message type and media key path
+      // Check if Evolution API already provided a presigned mediaUrl (best case!)
+      if (msg.message?.mediaUrl) {
+        if (!this.waMediaUrls) this.waMediaUrls = {};
+        this.waMediaUrls[msgId] = msg.message.mediaUrl;
+        this.waMediaUrls = { ...this.waMediaUrls };
+        console.log(`[Spalla] Using Evolution mediaUrl: ${msgId}`);
+        return msg.message.mediaUrl;
+      }
+
+      // Fallback: construct stream URL via our backend proxy
+      // Determine message type
       let mediaType = null;
       if (msg.message?.audioMessage) mediaType = 'audioMessage';
       else if (msg.message?.imageMessage) mediaType = 'imageMessage';
       else if (msg.message?.videoMessage) mediaType = 'videoMessage';
-      else if (msg.message?.documentMessage) mediaType = 'documentMessage'; // Support document media
+      else if (msg.message?.documentMessage) mediaType = 'documentMessage';
 
       if (!mediaType) return '';
 
-      // Get Evolution instance UUID and chat ID from config/state
+      // Get Evolution instance UUID and chat ID
       const instanceId = EVOLUTION_CONFIG?.INSTANCE_UUID || EVOLUTION_CONFIG?.INSTANCE || 'default';
       const chatId = this.ui.whatsappSelectedChat?.remoteJid || this.ui.whatsappSelectedChat?.id || 'unknown';
 
-      // Build filename: {timestamp}_{messageId}.{extension}
+      // Build filename
       const timestamp = msg.messageTimestamp ? Math.floor(msg.messageTimestamp * 1000) : Date.now();
       const extension = mediaType === 'audioMessage' ? 'oga' : mediaType === 'imageMessage' ? 'jpg' : 'mp4';
       const filename = `${timestamp}_${msgId}.${extension}`;
 
-      // Build S3 key: evolution-api/{INSTANCE_UUID}/{CHAT_ID}/{messageType}/{timestamp}_{messageId}.{ext}
+      // Build S3 key
       const s3Key = `evolution-api/${instanceId}/${chatId}/${mediaType}/${filename}`;
-
-      // Stream URL from backend (avoids CORS issues)
       const streamUrl = `${CONFIG.API_BASE}/api/media/stream?key=${encodeURIComponent(s3Key)}`;
-      console.log(`[Spalla] Stream request for: ${s3Key}`);
 
-      // Set URL immediately for streaming
+      console.log(`[Spalla] Stream fallback: ${s3Key}`);
+
+      // Set URL immediately
       if (!this.waMediaUrls) this.waMediaUrls = {};
       this.waMediaUrls[msgId] = streamUrl;
-      // Trigger Alpine update by modifying object reference
       this.waMediaUrls = { ...this.waMediaUrls };
-      console.log(`[Spalla] Media stream URL set: ${msgId}`, streamUrl.substring(0, 100));
 
       return ''; // Return empty URL initially (will be filled when fetch completes)
     },

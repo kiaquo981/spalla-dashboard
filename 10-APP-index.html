@@ -1495,20 +1495,31 @@
                     <!-- Áudio -->
                     <template x-if="getWaMessageType(msg) === 'audio'">
                       <div class="wa-bubble__media">
-                        <audio controls :src="waMediaUrls[msg.key?.id] || 'data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAAB9AAACABAAZGF0YQIAAAAAAA=='"
-                               @play="loadWaMedia(msg)"
-                               @loadstart="loadWaMedia(msg)"
-                               style="max-width:280px; border-radius:8px;"></audio>
+                        <template x-if="waMediaUrls[msg.key?.id]">
+                          <audio controls :src="waMediaUrls[msg.key?.id]"
+                                 style="max-width:280px; border-radius:8px;"></audio>
+                        </template>
+                        <template x-if="!waMediaUrls[msg.key?.id]">
+                          <div class="wa-media-loading" @click="loadWaMedia(msg)" style="padding:12px;background:#f0f0f0;border-radius:8px;cursor:pointer;text-align:center;font-size:14px;color:#666;">
+                            🔊 Carregando áudio...
+                          </div>
+                        </template>
                       </div>
                     </template>
 
                     <!-- Imagem -->
                     <template x-if="getWaMessageType(msg) === 'image'">
                       <div class="wa-bubble__media">
-                        <img :src="waMediaUrls[msg.key?.id]"
-                             @error="loadWaMedia(msg)"
-                             style="max-width:280px; border-radius:8px; cursor:pointer; object-fit:cover;"
-                             :alt="msg.message?.imageMessage?.caption || 'Imagem'">
+                        <template x-if="waMediaUrls[msg.key?.id]">
+                          <img :src="waMediaUrls[msg.key?.id]"
+                               style="max-width:280px; border-radius:8px; cursor:pointer; object-fit:cover;"
+                               :alt="msg.message?.imageMessage?.caption || 'Imagem'">
+                        </template>
+                        <template x-if="!waMediaUrls[msg.key?.id]">
+                          <div class="wa-media-loading" @click="loadWaMedia(msg)" style="width:280px;height:280px;background:#f0f0f0;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#666;">
+                            📷 Carregando imagem...
+                          </div>
+                        </template>
                         <div x-show="msg.message?.imageMessage?.caption"
                              class="wa-bubble__text"
                              x-text="msg.message?.imageMessage?.caption"></div>
@@ -1518,10 +1529,15 @@
                     <!-- Vídeo -->
                     <template x-if="getWaMessageType(msg) === 'video'">
                       <div class="wa-bubble__media">
-                        <video controls :src="waMediaUrls[msg.key?.id]"
-                               @play="loadWaMedia(msg)"
-                               @loadstart="loadWaMedia(msg)"
-                               style="max-width:280px; border-radius:8px;"></video>
+                        <template x-if="waMediaUrls[msg.key?.id]">
+                          <video controls :src="waMediaUrls[msg.key?.id]"
+                                 style="max-width:280px; border-radius:8px;"></video>
+                        </template>
+                        <template x-if="!waMediaUrls[msg.key?.id]">
+                          <div class="wa-media-loading" @click="loadWaMedia(msg)" style="width:280px;height:280px;background:#f0f0f0;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#666;">
+                            🎬 Carregando vídeo...
+                          </div>
+                        </template>
                         <div x-show="msg.message?.videoMessage?.caption"
                              class="wa-bubble__text"
                              x-text="msg.message?.videoMessage?.caption"></div>
