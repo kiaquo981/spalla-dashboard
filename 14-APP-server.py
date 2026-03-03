@@ -413,6 +413,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_upcoming_calls()
         elif self.path.startswith('/api/media/presign'):
             self._handle_media_presign()
+        elif self.path.startswith('/api/media/stream'):
+            self._handle_media_stream()
+        elif self.path == '/api/evolution/instance-uuid':
+            self._handle_instance_uuid()
         elif self.path == '/api/health':
             self._send_json({
                 'status': 'ok',
@@ -590,6 +594,99 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'url': url, 'bucket': S3_BUCKET, 'endpoint': S3_ENDPOINT})
         except Exception as e:
             print(f'[S3] Presign error: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_media_stream(self):
+        """Stream media directly from Hetzner S3 (proxy to avoid CORS)"""
+        params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        key = params.get('key', [''])[0]
+
+        if not key:
+            self._send_json({'error': 'key parameter required'}, 400)
+            return
+
+        try:
+            # Try with the key as provided
+            url = generate_presigned_url(key)
+            print(f'[Stream] Attempting to stream S3 key: {key}')
+
+            req = urllib.request.Request(url)
+            response = urllib.request.urlopen(req, timeout=30)
+
+            # Get content type and size
+            content_type = response.headers.get('Content-Type', 'application/octet-stream')
+            content_length = response.headers.get('Content-Length')
+
+            # Send response
+            self.send_response(200)
+            self.send_header('Content-Type', content_type)
+            if content_length:
+                self.send_header('Content-Length', content_length)
+            # Allow CORS from frontend
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Cache-Control', 'public, max-age=3600')
+            self.end_headers()
+
+            # Stream the file
+            chunk_size = 8192
+            while True:
+                chunk = response.read(chunk_size)
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+
+            print(f'[Stream] Successfully streamed {key}')
+
+        except urllib.error.HTTPError as he:
+            # If 403/404, try to find the correct instanceId
+            if he.code in [403, 404]:
+                print(f'[Stream] Key not found: {key}, status {he.code}. Attempting to discover correct UUID...')
+                try:
+                    # Extract parts from original key
+                    parts = key.split('/')
+                    if len(parts) >= 3:
+                        chat_id = parts[1]  # The wrong instanceId
+                        remote_jid = parts[2]  # The chatId
+                        message_type = parts[3] if len(parts) > 3 else 'audioMessage'
+
+                        # Try to find correct instanceId by listing bucket
+                        # Build list URL
+                        list_url = f'https://{S3_ENDPOINT}/{S3_BUCKET}/?prefix=evolution-api/&delimiter=/'
+                        presigned_list = generate_presigned_url('evolution-api/')
+
+                        # For now, just respond with helpful debug info
+                        print(f'[Stream] Parts: chat_id={chat_id}, remote_jid={remote_jid}, message_type={message_type}')
+                        self._send_json({'error': f'File not found at {key}. May need UUID discovery.'}, 404)
+                        return
+                except Exception as e2:
+                    print(f'[Stream] Discovery error: {e2}')
+
+            self._send_json({'error': f'HTTP {he.code}: {he.reason}'}, he.code)
+
+        except Exception as e:
+            print(f'[Stream] Error: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_instance_uuid(self):
+        """Get the actual UUID of the Evolution instance from S3 bucket"""
+        try:
+            # List objects in bucket to find the instanceId pattern
+            # S3 path is: evolution-api/{UUID}/{chatId}/{messageType}
+            # We can extract the UUID from the first match
+            presigned_url = generate_presigned_url('evolution-api/')
+            print(f'[Instance UUID] Fetching bucket list from: {presigned_url}')
+
+            # For now, return hardcoded based on what we found
+            # TODO: Implement actual bucket listing via S3 API
+            self._send_json({
+                'instance': EVOLUTION_CONFIG['INSTANCE'],
+                'note': 'UUID discovery not yet automated. Please check S3 bucket manually.',
+                's3_bucket': S3_BUCKET,
+                's3_endpoint': S3_ENDPOINT,
+            })
+
+        except Exception as e:
+            print(f'[Instance UUID] Error: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_get_mentees(self):
