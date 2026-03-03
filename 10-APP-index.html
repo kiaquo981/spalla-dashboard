@@ -1121,51 +1121,6 @@
               </template>
             </div>
           </div>
-
-          <!-- Task Modal (Enhanced) -->
-          <div class="modal-overlay" x-show="ui.taskModal" x-transition.opacity @click.self="closeTaskModal()">
-            <div class="modal modal--lg">
-              <div class="modal__header"><h3>Nova Tarefa</h3><button @click="closeTaskModal()">&times;</button></div>
-              <div class="modal__body">
-                <label>Titulo *</label>
-                <input type="text" x-model="taskForm.titulo" placeholder="O que precisa ser feito?" class="modal__input">
-
-                <label>Descricao</label>
-                <textarea x-model="taskForm.descricao" placeholder="Detalhes, orientacoes..." class="modal__textarea"></textarea>
-
-                <div class="modal__row">
-                  <div><label>Mentorado</label>
-                    <select x-model="taskForm.mentorado_nome" class="modal__select">
-                      <option value="">-- Selecione --</option>
-                      <template x-for="name in menteeNames" :key="name">
-                        <option :value="name" x-text="name"></option>
-                      </template>
-                    </select>
-                  </div>
-                  <div><label>Responsavel</label>
-                    <input type="text" x-model="taskForm.responsavel" placeholder="Mentorado" class="modal__input">
-                  </div>
-                </div>
-
-                <div class="modal__row">
-                  <div><label>Data Inicio</label><input type="date" x-model="taskForm.data_inicio" class="modal__input"></div>
-                  <div><label>Data Fim</label><input type="date" x-model="taskForm.data_fim" class="modal__input"></div>
-                </div>
-
-                <label>Prioridade</label>
-                <select x-model="taskForm.prioridade" class="modal__select">
-                  <option value="baixa">Baixa</option>
-                  <option value="normal">Normal</option>
-                  <option value="alta">Alta</option>
-                  <option value="urgente">Urgente</option>
-                </select>
-              </div>
-              <div class="modal__footer">
-                <button class="btn" @click="closeTaskModal()">Cancelar</button>
-                <button class="btn btn--brand" @click="saveTask()">Salvar</button>
-              </div>
-            </div>
-          </div>
         </div>
 
         <!-- ===== PAGE: AGENDA ===== -->
@@ -1729,6 +1684,51 @@
         </div>
 
       </main>
+
+      <!-- Task Modal — Global (outside pages so visible on all pages) -->
+      <div class="modal-overlay" x-show="ui.taskModal" x-transition.opacity @click.self="closeTaskModal()">
+        <div class="modal modal--lg">
+          <div class="modal__header"><h3>Nova Tarefa</h3><button @click="closeTaskModal()">&times;</button></div>
+          <div class="modal__body">
+            <label>Titulo *</label>
+            <input type="text" x-model="taskForm.titulo" placeholder="O que precisa ser feito?" class="modal__input">
+
+            <label>Descricao</label>
+            <textarea x-model="taskForm.descricao" placeholder="Detalhes, orientacoes..." class="modal__textarea"></textarea>
+
+            <div class="modal__row">
+              <div><label>Mentorado</label>
+                <select x-model="taskForm.mentorado_nome" class="modal__select">
+                  <option value="">-- Selecione --</option>
+                  <template x-for="name in menteeNames" :key="name">
+                    <option :value="name" x-text="name"></option>
+                  </template>
+                </select>
+              </div>
+              <div><label>Responsavel</label>
+                <input type="text" x-model="taskForm.responsavel" placeholder="Mentorado" class="modal__input">
+              </div>
+            </div>
+
+            <div class="modal__row">
+              <div><label>Data Inicio</label><input type="date" x-model="taskForm.data_inicio" class="modal__input"></div>
+              <div><label>Data Fim</label><input type="date" x-model="taskForm.data_fim" class="modal__input"></div>
+            </div>
+
+            <label>Prioridade</label>
+            <select x-model="taskForm.prioridade" class="modal__select">
+              <option value="baixa">Baixa</option>
+              <option value="normal">Normal</option>
+              <option value="alta">Alta</option>
+              <option value="urgente">Urgente</option>
+            </select>
+          </div>
+          <div class="modal__footer">
+            <button class="btn" @click="closeTaskModal()">Cancelar</button>
+            <button class="btn btn--brand" @click="saveTask()">Salvar</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Toast Container -->
