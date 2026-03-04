@@ -80,7 +80,9 @@ function spalla() {
       confirmPassword: '',
       fullName: '',
       error: '',
-      currentUser: null, // Supabase user object
+      currentUser: null,
+      accessToken: null,
+      refreshToken: null,
     },
     supabaseConnected: false,
     _supabaseCalls: [],
@@ -496,31 +498,24 @@ function spalla() {
     async init() {
       console.log('[Spalla] init() starting');
       try {
-        // Initialize Supabase
-        sb = await initSupabase();
-        console.log('[Spalla] Supabase initialized:', !!sb);
+        // Restore JWT session from localStorage
+        const accessToken = localStorage.getItem('spalla_access_token');
+        const refreshToken = localStorage.getItem('spalla_refresh_token');
+        const userStr = localStorage.getItem('spalla_user');
 
-        // Check for existing Supabase session
-        const { data: { session } } = await this.supabase.auth.getSession();
-        if (session) {
+        if (accessToken && userStr) {
           this.auth.authenticated = true;
-          this.auth.currentUser = session.user;
-          console.log('[Spalla] Auth: logged in as', session.user.email);
+          this.auth.currentUser = JSON.parse(userStr);
+          this.auth.accessToken = accessToken;
+          this.auth.refreshToken = refreshToken;
+          console.log('[Spalla] Auth: restored session for', this.auth.currentUser.email);
         } else {
-          console.log('[Spalla] Auth: no active session');
+          console.log('[Spalla] Auth: no saved session');
         }
 
-        // Listen for auth changes
-        this.supabase.auth.onAuthStateChange((event, session) => {
-          console.log('[Spalla] Auth event:', event);
-          if (event === 'SIGNED_OUT') {
-            this.auth.authenticated = false;
-            this.auth.currentUser = null;
-          } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-            this.auth.authenticated = true;
-            this.auth.currentUser = session?.user || null;
-          }
-        });
+        // Initialize Supabase (if still needed for other features)
+        sb = await initSupabase();
+        console.log('[Spalla] Supabase initialized:', !!sb);
 
         await this.loadTasks();
         console.log('[Spalla] Tasks loaded:', this.data.tasks.length);
@@ -588,30 +583,37 @@ function spalla() {
         return;
       }
       try {
-        // Reinitialize Supabase client if needed (e.g., after logout)
-        if (!sb) {
-          sb = await initSupabase();
-        }
-        if (!sb) {
-          this.auth.error = 'Falha ao conectar ao Supabase';
+        const response = await fetch(`${CONFIG.API_BASE}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: this.auth.email,
+            password: this.auth.password,
+          })
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          this.auth.error = data.error || 'Email ou senha incorretos';
+          this.auth.password = '';
           return;
         }
-        const { data, error } = await this.supabase.auth.signInWithPassword({
-          email: this.auth.email,
-          password: this.auth.password,
-        });
-        if (error) {
-          this.auth.error = error.message || 'Email ou senha incorretos';
-          this.auth.password = '';
-        } else if (data.user) {
-          this.auth.authenticated = true;
-          this.auth.currentUser = data.user;
-          this.auth.email = '';
-          this.auth.password = '';
-          await this.loadReminders();
-          await this.loadDashboard();
-          console.log('[Spalla] Login successful:', data.user.email);
-        }
+
+        // Store tokens
+        this.auth.authenticated = true;
+        this.auth.currentUser = data.user;
+        this.auth.accessToken = data.access_token;
+        this.auth.refreshToken = data.refresh_token;
+        localStorage.setItem('spalla_access_token', data.access_token);
+        localStorage.setItem('spalla_refresh_token', data.refresh_token);
+        localStorage.setItem('spalla_user', JSON.stringify(data.user));
+
+        this.auth.email = '';
+        this.auth.password = '';
+
+        await this.loadReminders();
+        await this.loadDashboard();
+        console.log('[Spalla] Login successful:', data.user.email);
       } catch (e) {
         this.auth.error = 'Erro ao fazer login: ' + e.message;
         console.error('[Spalla] Login error:', e);
@@ -633,39 +635,39 @@ function spalla() {
         return;
       }
       try {
-        // Reinitialize Supabase client if needed (e.g., after logout)
-        if (!sb) {
-          sb = await initSupabase();
-        }
-        if (!sb) {
-          this.auth.error = 'Falha ao conectar ao Supabase';
+        const response = await fetch(`${CONFIG.API_BASE}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: this.auth.email,
+            password: this.auth.password,
+            fullName: this.auth.fullName,
+          })
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          this.auth.error = data.error || 'Erro ao criar conta';
           return;
         }
-        const { data, error } = await this.supabase.auth.signUp({
-          email: this.auth.email,
-          password: this.auth.password,
-          options: {
-            data: { full_name: this.auth.fullName }
-          }
-        });
-        if (error) {
-          this.auth.error = error.message || 'Erro ao criar conta';
-          console.error('[Spalla] Signup error:', error);
-        } else if (data.user) {
-          this.auth.authenticated = true;
-          this.auth.currentUser = data.user;
-          this.auth.email = '';
-          this.auth.password = '';
-          this.auth.confirmPassword = '';
-          this.auth.fullName = '';
-          await this.loadReminders();
-          await this.loadDashboard();
-          console.log('[Spalla] Registration successful:', data.user.email);
-        } else {
-          // data.user is null/undefined but no error - likely email already exists
-          this.auth.error = 'Email já cadastrado ou erro desconhecido. Tente fazer login.';
-          console.warn('[Spalla] Signup returned no user and no error:', data);
-        }
+
+        // Store tokens
+        this.auth.authenticated = true;
+        this.auth.currentUser = data.user;
+        this.auth.accessToken = data.access_token;
+        this.auth.refreshToken = data.refresh_token;
+        localStorage.setItem('spalla_access_token', data.access_token);
+        localStorage.setItem('spalla_refresh_token', data.refresh_token);
+        localStorage.setItem('spalla_user', JSON.stringify(data.user));
+
+        this.auth.email = '';
+        this.auth.password = '';
+        this.auth.confirmPassword = '';
+        this.auth.fullName = '';
+
+        await this.loadReminders();
+        await this.loadDashboard();
+        console.log('[Spalla] Registration successful:', data.user.email);
       } catch (e) {
         this.auth.error = 'Erro ao criar conta: ' + e.message;
         console.error('[Spalla] Register error:', e);
@@ -674,14 +676,11 @@ function spalla() {
 
     async logout() {
       try {
-        // Sign out from Supabase
-        if (this.supabase) {
-          await this.supabase.auth.signOut({ scope: 'local' });
-        }
-
         // Clear all auth state
         this.auth.authenticated = false;
         this.auth.currentUser = null;
+        this.auth.accessToken = null;
+        this.auth.refreshToken = null;
         this.auth.email = '';
         this.auth.password = '';
         this.auth.confirmPassword = '';
@@ -692,12 +691,10 @@ function spalla() {
         // Stop data refresh
         this.stopDataRefresh();
 
-        // Clear Supabase session from browser storage
-        localStorage.removeItem('sb-knusqfbvhsqworzyhvip-auth-token');
-        sessionStorage.clear();
-
-        // Reset Supabase client
-        sb = null;
+        // Clear tokens from localStorage
+        localStorage.removeItem('spalla_access_token');
+        localStorage.removeItem('spalla_refresh_token');
+        localStorage.removeItem('spalla_user');
 
         console.log('[Spalla] Logout successful - session cleared');
 
