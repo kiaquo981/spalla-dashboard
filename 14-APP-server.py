@@ -16,7 +16,14 @@ import base64
 import threading
 import hmac
 import hashlib
+import secrets
+import sqlite3
 from datetime import datetime, timedelta, timezone
+
+try:
+    import jwt
+except ImportError:
+    jwt = None  # Will handle gracefully if not installed
 
 PORT = int(os.environ.get('PORT', 8888))
 
@@ -46,6 +53,77 @@ S3_SECRET_KEY = os.environ.get('S3_SECRET_KEY', 'ttypx09B2eZZ4bpSDhjGjBvyLMkedvZ
 S3_BUCKET     = os.environ.get('S3_BUCKET', 'case-evolution-media')
 S3_ENDPOINT   = os.environ.get('S3_ENDPOINT', 'hel1.your-objectstorage.com')
 S3_REGION     = os.environ.get('S3_REGION', 'eu-central')
+
+# ===== JWT AUTH CONFIG =====
+JWT_SECRET = os.environ.get('JWT_SECRET', 'your-secret-key-change-in-production')
+JWT_ALGORITHM = 'HS256'
+ACCESS_TOKEN_EXPIRY_MINUTES = 60
+REFRESH_TOKEN_EXPIRY_DAYS = 7
+AUTH_DB = '.spalla_users.db'  # Local SQLite for users
+
+# ===== AUTH FUNCTIONS =====
+def init_auth_db():
+    """Initialize auth database"""
+    conn = sqlite3.connect(AUTH_DB)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            full_name TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+def hash_password(password):
+    """Hash password using SHA256"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def verify_password(password, hash_):
+    """Verify password against hash"""
+    return hash_password(password) == hash_
+
+def create_jwt_token(email, user_id, expiry_minutes=ACCESS_TOKEN_EXPIRY_MINUTES):
+    """Create JWT access token"""
+    if not jwt:
+        return None
+    payload = {
+        'email': email,
+        'user_id': user_id,
+        'exp': datetime.utcnow() + timedelta(minutes=expiry_minutes),
+        'iat': datetime.utcnow()
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+def create_refresh_token(email, user_id):
+    """Create JWT refresh token (long-lived)"""
+    if not jwt:
+        return None
+    payload = {
+        'email': email,
+        'user_id': user_id,
+        'type': 'refresh',
+        'exp': datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRY_DAYS),
+        'iat': datetime.utcnow()
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+def verify_jwt_token(token):
+    """Verify and decode JWT token"""
+    if not jwt:
+        return None
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return payload
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+
+init_auth_db()
 
 def generate_presigned_url(key, expires=3600):
     """Generate AWS Signature V4 presigned URL for Hetzner S3"""
@@ -436,7 +514,13 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_POST(self):
-        if self.path.startswith('/api/evolution/'):
+        if self.path == '/api/auth/register':
+            self._handle_auth_register()
+        elif self.path == '/api/auth/login':
+            self._handle_auth_login()
+        elif self.path == '/api/auth/refresh':
+            self._handle_auth_refresh()
+        elif self.path.startswith('/api/evolution/'):
             self._proxy_evolution('POST')
         elif self.path == '/api/schedule-call':
             self._handle_schedule_call()
@@ -735,6 +819,120 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(error_msg)
+
+    # ===== AUTH HANDLERS =====
+    def _handle_auth_register(self):
+        """Register new user"""
+        try:
+            body = json.loads(self._read_body())
+            email = body.get('email', '').strip()
+            password = body.get('password', '').strip()
+            full_name = body.get('fullName', body.get('full_name', '')).strip()
+
+            if not email or not password:
+                self._send_json({'error': 'Email and password required'}, 400)
+                return
+
+            if len(password) < 6:
+                self._send_json({'error': 'Password must be at least 6 characters'}, 400)
+                return
+
+            conn = sqlite3.connect(AUTH_DB)
+            cursor = conn.cursor()
+
+            try:
+                password_hash = hash_password(password)
+                cursor.execute(
+                    'INSERT INTO users (email, password_hash, full_name) VALUES (?, ?, ?)',
+                    (email, password_hash, full_name)
+                )
+                conn.commit()
+                user_id = cursor.lastrowid
+
+                access_token = create_jwt_token(email, user_id)
+                refresh_token = create_refresh_token(email, user_id)
+
+                self._send_json({
+                    'success': True,
+                    'user': {'id': user_id, 'email': email, 'full_name': full_name},
+                    'access_token': access_token,
+                    'refresh_token': refresh_token,
+                    'expires_in': ACCESS_TOKEN_EXPIRY_MINUTES * 60
+                }, 201)
+            except sqlite3.IntegrityError:
+                self._send_json({'error': 'Email already exists'}, 409)
+            finally:
+                conn.close()
+        except Exception as e:
+            log_error('AUTH', f'Registration failed: {e}')
+            self._send_json({'error': 'Registration failed'}, 500)
+
+    def _handle_auth_login(self):
+        """Login user and issue JWT"""
+        try:
+            body = json.loads(self._read_body())
+            email = body.get('email', '').strip()
+            password = body.get('password', '').strip()
+
+            if not email or not password:
+                self._send_json({'error': 'Email and password required'}, 400)
+                return
+
+            conn = sqlite3.connect(AUTH_DB)
+            cursor = conn.cursor()
+            cursor.execute('SELECT id, email, full_name, password_hash FROM users WHERE email = ?', (email,))
+            row = cursor.fetchone()
+            conn.close()
+
+            if not row or not verify_password(password, row[3]):
+                self._send_json({'error': 'Invalid email or password'}, 401)
+                return
+
+            user_id, db_email, full_name, _ = row
+            access_token = create_jwt_token(db_email, user_id)
+            refresh_token = create_refresh_token(db_email, user_id)
+
+            self._send_json({
+                'success': True,
+                'user': {'id': user_id, 'email': db_email, 'full_name': full_name},
+                'access_token': access_token,
+                'refresh_token': refresh_token,
+                'expires_in': ACCESS_TOKEN_EXPIRY_MINUTES * 60
+            }, 200)
+        except Exception as e:
+            log_error('AUTH', f'Login failed: {e}')
+            self._send_json({'error': 'Login failed'}, 500)
+
+    def _handle_auth_refresh(self):
+        """Refresh JWT token"""
+        try:
+            body = json.loads(self._read_body())
+            refresh_token = body.get('refresh_token', '').strip()
+
+            if not refresh_token:
+                self._send_json({'error': 'Refresh token required'}, 400)
+                return
+
+            payload = verify_jwt_token(refresh_token)
+            if not payload or payload.get('type') != 'refresh':
+                self._send_json({'error': 'Invalid or expired refresh token'}, 401)
+                return
+
+            email = payload.get('email')
+            user_id = payload.get('user_id')
+
+            new_access_token = create_jwt_token(email, user_id)
+            new_refresh_token = create_refresh_token(email, user_id)
+
+            self._send_json({
+                'success': True,
+                'access_token': new_access_token,
+                'refresh_token': new_refresh_token,
+                'expires_in': ACCESS_TOKEN_EXPIRY_MINUTES * 60
+            }, 200)
+        except Exception as e:
+            log_error('AUTH', f'Token refresh failed: {e}')
+            self._send_json({'error': 'Token refresh failed'}, 500)
 
     def log_message(self, format, *args):
         path = str(args[0]) if args else ''
