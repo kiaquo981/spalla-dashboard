@@ -631,6 +631,7 @@ function spalla() {
         });
         if (error) {
           this.auth.error = error.message || 'Erro ao criar conta';
+          console.error('[Spalla] Signup error:', error);
         } else if (data.user) {
           this.auth.authenticated = true;
           this.auth.currentUser = data.user;
@@ -641,6 +642,10 @@ function spalla() {
           await this.loadReminders();
           await this.loadDashboard();
           console.log('[Spalla] Registration successful:', data.user.email);
+        } else {
+          // data.user is null/undefined but no error - likely email already exists
+          this.auth.error = 'Email já cadastrado ou erro desconhecido. Tente fazer login.';
+          console.warn('[Spalla] Signup returned no user and no error:', data);
         }
       } catch (e) {
         this.auth.error = 'Erro ao criar conta: ' + e.message;
