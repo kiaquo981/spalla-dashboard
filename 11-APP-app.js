@@ -592,6 +592,10 @@ function spalla() {
         if (!sb) {
           sb = await initSupabase();
         }
+        if (!sb) {
+          this.auth.error = 'Falha ao conectar ao Supabase';
+          return;
+        }
         const { data, error } = await this.supabase.auth.signInWithPassword({
           email: this.auth.email,
           password: this.auth.password,
@@ -632,6 +636,10 @@ function spalla() {
         // Reinitialize Supabase client if needed (e.g., after logout)
         if (!sb) {
           sb = await initSupabase();
+        }
+        if (!sb) {
+          this.auth.error = 'Falha ao conectar ao Supabase';
+          return;
         }
         const { data, error } = await this.supabase.auth.signUp({
           email: this.auth.email,
@@ -692,6 +700,9 @@ function spalla() {
         sb = null;
 
         console.log('[Spalla] Logout successful - session cleared');
+
+        // Reload page to reset all state
+        setTimeout(() => window.location.reload(), 500);
       } catch (e) {
         console.error('[Spalla] Logout error:', e);
       }
