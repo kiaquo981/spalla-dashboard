@@ -661,7 +661,15 @@ function spalla() {
         await this.supabase.auth.signOut();
         this.auth.authenticated = false;
         this.auth.currentUser = null;
+        this.auth.email = '';
+        this.auth.password = '';
+        this.auth.confirmPassword = '';
+        this.auth.fullName = '';
+        this.auth.mode = 'login';
+        this.auth.error = '';
         this.stopDataRefresh();
+        // Reset Supabase client to clear any stale tokens
+        sb = null;
         console.log('[Spalla] Logout successful');
       } catch (e) {
         console.error('[Spalla] Logout error:', e);
