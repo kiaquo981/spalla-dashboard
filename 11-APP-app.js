@@ -588,6 +588,10 @@ function spalla() {
         return;
       }
       try {
+        // Reinitialize Supabase client if needed (e.g., after logout)
+        if (!sb) {
+          sb = await initSupabase();
+        }
         const { data, error } = await this.supabase.auth.signInWithPassword({
           email: this.auth.email,
           password: this.auth.password,
@@ -625,6 +629,10 @@ function spalla() {
         return;
       }
       try {
+        // Reinitialize Supabase client if needed (e.g., after logout)
+        if (!sb) {
+          sb = await initSupabase();
+        }
         const { data, error } = await this.supabase.auth.signUp({
           email: this.auth.email,
           password: this.auth.password,
