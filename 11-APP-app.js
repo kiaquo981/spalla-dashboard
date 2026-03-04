@@ -666,7 +666,12 @@ function spalla() {
 
     async logout() {
       try {
-        await this.supabase.auth.signOut();
+        // Sign out from Supabase
+        if (this.supabase) {
+          await this.supabase.auth.signOut({ scope: 'local' });
+        }
+
+        // Clear all auth state
         this.auth.authenticated = false;
         this.auth.currentUser = null;
         this.auth.email = '';
@@ -675,10 +680,18 @@ function spalla() {
         this.auth.fullName = '';
         this.auth.mode = 'login';
         this.auth.error = '';
+
+        // Stop data refresh
         this.stopDataRefresh();
-        // Reset Supabase client to clear any stale tokens
+
+        // Clear Supabase session from browser storage
+        localStorage.removeItem('sb-knusqfbvhsqworzyhvip-auth-token');
+        sessionStorage.clear();
+
+        // Reset Supabase client
         sb = null;
-        console.log('[Spalla] Logout successful');
+
+        console.log('[Spalla] Logout successful - session cleared');
       } catch (e) {
         console.error('[Spalla] Logout error:', e);
       }
