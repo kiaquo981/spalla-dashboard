@@ -246,7 +246,7 @@ function spalla() {
         list = list.filter(m => (m.dias_desde_call || 999) > 21);
       }
       if (this.ui.filters.financeiro === 'sem_contrato') {
-        list = list.filter(m => !m.contrato_assinado);
+        list = list.filter(m => m.contrato_assinado === false);
       } else if (this.ui.filters.financeiro === 'atrasado') {
         list = list.filter(m => m.status_financeiro === 'atrasado');
       } else if (this.ui.filters.financeiro === 'em_dia') {
@@ -273,15 +273,24 @@ function spalla() {
       const totalMentorados = cohort.reduce((s, c) => s + (c.total_mentorados || 0), 0);
       const criticos = cohort.reduce((s, c) => s + (c.criticos || 0), 0);
       const altos = cohort.reduce((s, c) => s + (c.altos || 0), 0);
-      const semContrato = this.data.mentees.filter(m => !m.contrato_assinado).length;
+      const semContrato = this.data.mentees.filter(m => m.contrato_assinado === false).length;
       const pgtoAtrasado = this.data.mentees.filter(m => m.status_financeiro === 'atrasado').length;
+      // Calculate calls in last 30 days from real call data
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const calls30d = (this._supabaseCalls || []).filter(c => {
+        if (!c.data_call) return false;
+        return new Date(c.data_call + 'T12:00:00') >= thirtyDaysAgo;
+      }).length;
+      // Calculate pending tasks from mentees data
+      const tarefasPendentes = this.data.mentees.reduce((s, m) => s + (m.tarefas_pendentes || 0), 0);
       return {
         totalMentorados,
         emDia: totalMentorados - criticos - altos,
         comPendencia: cohort[0]?.pending_responses_global || 0,
         riscoCritico: criticos + altos,
-        calls30d: cohort[0]?.total_calls_30d || 0,
-        tarefasPendentes: cohort[0]?.pending_tasks_global || 0,
+        calls30d,
+        tarefasPendentes,
         semContrato,
         pgtoAtrasado,
       };
