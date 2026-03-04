@@ -777,6 +777,8 @@ function spalla() {
               created_at: c.created_at,
             }));
             console.log('[Spalla] Calls loaded from Supabase:', this._supabaseCalls.length);
+            // Log first 5 calls for debugging
+            console.log('[Spalla] Sample calls:', this._supabaseCalls.slice(0, 5).map(c => ({ nome: c.mentorado_nome, data: c.data_call })));
           }
           // Recalculate dias_desde_call with real call data
           if (this._supabaseCalls?.length) this._enrichMenteesWithCalls();
