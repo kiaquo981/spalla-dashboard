@@ -100,7 +100,7 @@ function spalla() {
 
     // --- UI State ---
     ui: {
-      page: CONFIG.DEFAULT_PAGE,
+      page: localStorage.getItem('spalla_page') || CONFIG.DEFAULT_PAGE,
       sidebarOpen: true,
       mobileMenuOpen: false,
       search: '',
@@ -994,11 +994,13 @@ function spalla() {
       }
       this.ui.page = page;
       this.ui.mobileMenuOpen = false;
+      localStorage.setItem('spalla_page', page);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
 
     goBack() {
       this.ui.page = 'dashboard';
+      localStorage.setItem('spalla_page', 'dashboard');
       this.data.detail = null;
       this.ui.selectedMenteeId = null;
     },
