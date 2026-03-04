@@ -2091,7 +2091,7 @@ function spalla() {
         const dataCall = d.toISOString();
 
         // Build title consistent with user naming: "[Case] Nome - Tipo - Data"
-        const dataFormatada = new Date(f.data + 'T00:00:00').toLocaleDateString('pt-BR');
+        const dataFormatada = new Date(f.data + 'T12:00:00').toLocaleDateString('pt-BR');
         const titulo = `[Case] ${f.mentorado} - ${f.tipo} - ${dataFormatada}`;
 
         // First: Create Zoom meeting + Google Calendar event on backend
@@ -2103,7 +2103,7 @@ function spalla() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               topic: titulo,
-              start_time: `${f.data} ${f.horario}:00`,
+              start_time: `${f.data}T${f.horario}:00`,
               duration: parseInt(f.duracao) || 60,
               description: f.notas || '',
               invitees: f.email ? [f.email] : [],
@@ -2145,7 +2145,7 @@ function spalla() {
           .from('calls_mentoria')
           .insert({
             mentorado_id: menteeId,
-            data_call: dataCall,
+            data_call: f.data,  // Send YYYY-MM-DD directly for date column (avoids UTC timezone shift)
             duracao_minutos: parseInt(f.duracao) || 60,
             tipo: f.tipo || 'acompanhamento',
             participantes: JSON.stringify([f.email || '']),
@@ -2204,7 +2204,9 @@ function spalla() {
 
         if (Array.isArray(calls)) {
           this.data.scheduledCalls = calls.map(c => {
-            const dataCall = new Date(c.data_call);
+            // data_call is a date column ("2026-03-13") — append T12:00:00 to avoid UTC midnight timezone shift
+            const raw = String(c.data_call);
+            const dataCall = raw.includes('T') ? new Date(c.data_call) : new Date(raw + 'T12:00:00');
             const mentee = this.data.mentees?.find(m => m.id === c.mentorado_id);
 
             return {
@@ -2212,7 +2214,7 @@ function spalla() {
               mentorado: mentee?.nome || '',
               mentorado_id: c.mentorado_id,
               data: dataCall.toLocaleDateString('pt-BR'),
-              horario: dataCall.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+              horario: raw.includes('T') ? dataCall.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
               tipo: c.tipo || 'acompanhamento',
               duracao: c.duracao_minutos || 60,
               status: 'agendada',
