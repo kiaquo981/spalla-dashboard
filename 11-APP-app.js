@@ -26,6 +26,9 @@ async function initSupabase() {
     return null;
   }
 
+  // Reuse existing instance if already initialized
+  if (sb) return sb;
+
   // Wait for Supabase JS to load (with timeout)
   let attempts = 0;
   while ((!window.supabase || !window.supabase.createClient) && attempts < 50) {
