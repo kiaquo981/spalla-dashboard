@@ -969,7 +969,16 @@ function spalla() {
 
     async _loadDetailWaMessages() {
       const nome = this.data.detail?.profile?.nome;
-      if (!nome) return;
+      if (!nome) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
+      // Enrich detail with overview WA metrics
+      const overviewMentee = this.data.mentees.find(m => m.id === this.ui.selectedMenteeId);
+      if (this.data.detail && overviewMentee) {
+        this.data.detail._waMetrics = {
+          whatsapp_7d: overviewMentee.whatsapp_7d,
+          whatsapp_30d: overviewMentee.whatsapp_30d,
+          whatsapp_total: overviewMentee.whatsapp_total,
+        };
+      }
       try {
         // Find matching WA chat
         const firstName = nome.split(' ')[0].toLowerCase();
@@ -985,7 +994,7 @@ function spalla() {
           const pushName = (c.pushName || c.name || '').toLowerCase();
           return pushName.includes(firstName);
         });
-        if (!chat) return;
+        if (!chat) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
 
         // Fetch last 10 messages
         const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
@@ -993,7 +1002,7 @@ function spalla() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ where: { key: { remoteJid: chat.remoteJid || chat.id } }, limit: 10 }),
         });
-        if (!res.ok) return;
+        if (!res.ok) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
         const data = await res.json();
         const msgs = data.messages?.records || data.messages || data || [];
         const interactions = (Array.isArray(msgs) ? msgs : []).reverse().map(msg => ({
@@ -1002,12 +1011,16 @@ function spalla() {
           created_at: msg.messageTimestamp ? new Date(msg.messageTimestamp * 1000).toISOString() : null,
         })).filter(i => i.conteudo);
 
-        if (this.data.detail && interactions.length) {
-          this.data.detail.last_interactions = interactions;
-          this.data.detail._waChat = chat;
+        if (this.data.detail) {
+          if (interactions.length) {
+            this.data.detail.last_interactions = interactions;
+            this.data.detail._waChat = chat;
+          }
+          this.data.detail._waLoaded = true;
         }
       } catch (e) {
         console.warn('[Spalla] Could not load detail WA messages:', e.message);
+        if (this.data.detail) this.data.detail._waLoaded = true;
       }
     },
 

@@ -489,6 +489,13 @@
                   <div class="card">
                     <div class="card__header"><h3>WhatsApp</h3><button class="badge badge--success" style="background:#25d366;color:#fff;border:none;cursor:pointer;font-size:12px" @click="openDetailWhatsApp()">Abrir</button></div>
                     <div class="card__body">
+                      <!-- WA metrics from overview -->
+                      <div x-show="data.detail?._waMetrics && (data.detail._waMetrics.whatsapp_7d != null || data.detail._waMetrics.whatsapp_30d != null)" style="display:flex;gap:16px;padding:8px 0;margin-bottom:8px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#475569">
+                        <span><strong x-text="data.detail?._waMetrics?.whatsapp_7d ?? '-'"></strong> msgs 7d</span>
+                        <span><strong x-text="data.detail?._waMetrics?.whatsapp_30d ?? '-'"></strong> msgs 30d</span>
+                        <span><strong x-text="data.detail?._waMetrics?.whatsapp_total ?? '-'"></strong> total</span>
+                      </div>
+                      <!-- Messages preview -->
                       <template x-if="data.detail?.last_interactions?.length">
                         <div>
                           <template x-for="(msg, mi) in (data.detail?.last_interactions || []).slice(0, 3)" :key="mi">
@@ -497,8 +504,11 @@
                           <button x-show="(data.detail?.last_interactions?.length || 0) > 3" class="detail-see-more" @click="ui.activeDetailTab = 'whatsapp_detail'">Ver todas as mensagens</button>
                         </div>
                       </template>
-                      <template x-if="!data.detail?.last_interactions?.length">
-                        <div style="text-align:center;color:#64748b;padding:12px;font-size:13px">Carregando...</div>
+                      <template x-if="!data.detail?.last_interactions?.length && !data.detail?._waLoaded">
+                        <div style="text-align:center;color:#64748b;padding:12px;font-size:13px">Carregando mensagens...</div>
+                      </template>
+                      <template x-if="!data.detail?.last_interactions?.length && data.detail?._waLoaded">
+                        <div style="text-align:center;color:#94a3b8;padding:8px;font-size:13px">Não foi possível carregar mensagens recentes.</div>
                       </template>
                     </div>
                   </div>
