@@ -851,6 +851,7 @@ function spalla() {
               senha_call: c.senha_Call || c.senha_call || null,
               status_call: c.status_call || (c.link_gravacao ? 'realizada' : null),
               horario_call: c.data_call && c.data_call.includes('T') ? c.data_call.substring(11, 16) : null,
+              link_plano_acao: c.link_plano_acao || null,
               created_at: c.created_at,
             }));
             console.log('[Spalla] Calls loaded from Supabase:', this._supabaseCalls.length);
@@ -2028,7 +2029,7 @@ function spalla() {
           horario: c.horario_call || null, status_call: c.status_call || null,
           topic: c.zoom_topic || '', resumo: c.resumo || null,
           gravacao: c.link_gravacao || null, transcricao: c.link_transcricao || null,
-          senha_call: c.senha_call || null,
+          senha_call: c.senha_call || null, plano_acao: c.link_plano_acao || null,
           decisoes: c.decisoes_tomadas || [], gargalos: c.gargalos || [],
           proximos_passos: c.proximos_passos || [], sentimento: null,
         }));
