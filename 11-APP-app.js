@@ -2295,30 +2295,37 @@ function spalla() {
         if (err1) console.warn('[Schedule] agendadas query error:', err1);
         if (err2) console.warn('[Schedule] futuras query error:', err2);
 
-        // Merge and deduplicate by id
+        // Merge and deduplicate by id, only keep future calls
+        const now = new Date();
         const allCalls = [...(agendadas || []), ...(futuras || [])];
         const seen = new Set();
-        const calls = allCalls.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+        const calls = allCalls.filter(c => {
+          if (seen.has(c.id)) return false;
+          seen.add(c.id);
+          // Only include calls that haven't happened yet
+          if (c.status_call === 'realizada') return false;
+          const raw = String(c.data_call);
+          const dt = raw.includes('T') ? new Date(c.data_call) : new Date(raw + 'T23:59:59');
+          return dt >= now;
+        });
 
-        if (calls.length) {
-          this.data.scheduledCalls = calls.map(c => {
-            const raw = String(c.data_call);
-            const dataCall = raw.includes('T') ? new Date(c.data_call) : new Date(raw + 'T12:00:00');
-            const mentee = this.data.mentees?.find(m => m.id === c.mentorado_id);
+        this.data.scheduledCalls = calls.map(c => {
+          const raw = String(c.data_call);
+          const dataCall = raw.includes('T') ? new Date(c.data_call) : new Date(raw + 'T12:00:00');
+          const mentee = this.data.mentees?.find(m => m.id === c.mentorado_id);
 
-            return {
-              id: c.id,
-              mentorado: mentee?.nome || '',
-              mentorado_id: c.mentorado_id,
-              data: dataCall.toLocaleDateString('pt-BR'),
-              horario: raw.includes('T') ? dataCall.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
-              tipo: c.tipo || 'acompanhamento',
-              duracao: c.duracao_minutos || 60,
-              status: c.status_call || 'agendada',
-              zoom_url: c.link_gravacao || null,
-            };
-          });
-        }
+          return {
+            id: c.id,
+            mentorado: mentee?.nome || '',
+            mentorado_id: c.mentorado_id,
+            data: dataCall.toLocaleDateString('pt-BR'),
+            horario: raw.includes('T') ? dataCall.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
+            tipo: c.tipo || 'acompanhamento',
+            duracao: c.duracao_minutos || 60,
+            status: c.status_call || 'agendada',
+            zoom_url: c.link_gravacao || null,
+          };
+        });
       } catch (e) {
         console.log('[Schedule] Could not fetch upcoming calls:', e);
       }
