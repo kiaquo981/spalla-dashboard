@@ -17,7 +17,6 @@ import threading
 import hmac
 import hashlib
 import secrets
-import sqlite3
 import unicodedata
 import re
 from datetime import datetime, timedelta, timezone
@@ -61,25 +60,7 @@ JWT_SECRET = os.environ.get('JWT_SECRET', 'your-secret-key-change-in-production'
 JWT_ALGORITHM = 'HS256'
 ACCESS_TOKEN_EXPIRY_MINUTES = 60
 REFRESH_TOKEN_EXPIRY_DAYS = 7
-AUTH_DB = '.spalla_users.db'  # Local SQLite for users
-
-# ===== AUTH FUNCTIONS =====
-def init_auth_db():
-    """Initialize auth database"""
-    conn = sqlite3.connect(AUTH_DB)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            full_name TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    conn.commit()
-    conn.close()
-
+# ===== AUTH FUNCTIONS (Supabase-backed) =====
 def hash_password(password):
     """Hash password using SHA256"""
     return hashlib.sha256(password.encode()).hexdigest()
@@ -125,7 +106,7 @@ def verify_jwt_token(token):
     except jwt.InvalidTokenError:
         return None
 
-init_auth_db()
+# Auth users stored in Supabase table 'auth_users'
 
 def generate_presigned_url(key, expires=3600):
     """Generate AWS Signature V4 presigned URL for Hetzner S3"""
@@ -1133,10 +1114,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     # ===== AUTH HANDLERS =====
     def _handle_auth_register(self):
-        """Register new user"""
+        """Register new user (Supabase-backed)"""
         try:
             body = json.loads(self._read_body())
-            email = body.get('email', '').strip()
+            email = body.get('email', '').strip().lower()
             password = body.get('password', '').strip()
             full_name = body.get('fullName', body.get('full_name', '')).strip()
 
@@ -1148,58 +1129,65 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': 'Password must be at least 6 characters'}, 400)
                 return
 
-            conn = sqlite3.connect(AUTH_DB)
-            cursor = conn.cursor()
-
-            try:
-                password_hash = hash_password(password)
-                cursor.execute(
-                    'INSERT INTO users (email, password_hash, full_name) VALUES (?, ?, ?)',
-                    (email, password_hash, full_name)
-                )
-                conn.commit()
-                user_id = cursor.lastrowid
-
-                access_token = create_jwt_token(email, user_id)
-                refresh_token = create_refresh_token(email, user_id)
-
-                self._send_json({
-                    'success': True,
-                    'user': {'id': user_id, 'email': email, 'full_name': full_name},
-                    'access_token': access_token,
-                    'refresh_token': refresh_token,
-                    'expires_in': ACCESS_TOKEN_EXPIRY_MINUTES * 60
-                }, 201)
-            except sqlite3.IntegrityError:
+            # Check if email already exists
+            existing = supabase_request('GET', f'auth_users?email=eq.{email}&select=id')
+            if isinstance(existing, list) and len(existing) > 0:
                 self._send_json({'error': 'Email already exists'}, 409)
-            finally:
-                conn.close()
+                return
+
+            password_hash = hash_password(password)
+            result = supabase_request('POST', 'auth_users', {
+                'email': email,
+                'password_hash': password_hash,
+                'full_name': full_name,
+            })
+
+            if isinstance(result, dict) and result.get('error'):
+                self._send_json({'error': 'Registration failed'}, 500)
+                return
+
+            user = result[0] if isinstance(result, list) else result
+            user_id = user.get('id')
+
+            access_token = create_jwt_token(email, user_id)
+            refresh_token = create_refresh_token(email, user_id)
+
+            self._send_json({
+                'success': True,
+                'user': {'id': user_id, 'email': email, 'full_name': full_name},
+                'access_token': access_token,
+                'refresh_token': refresh_token,
+                'expires_in': ACCESS_TOKEN_EXPIRY_MINUTES * 60
+            }, 201)
         except Exception as e:
             log_error('AUTH', f'Registration failed: {e}')
             self._send_json({'error': 'Registration failed'}, 500)
 
     def _handle_auth_login(self):
-        """Login user and issue JWT"""
+        """Login user and issue JWT (Supabase-backed)"""
         try:
             body = json.loads(self._read_body())
-            email = body.get('email', '').strip()
+            email = body.get('email', '').strip().lower()
             password = body.get('password', '').strip()
 
             if not email or not password:
                 self._send_json({'error': 'Email and password required'}, 400)
                 return
 
-            conn = sqlite3.connect(AUTH_DB)
-            cursor = conn.cursor()
-            cursor.execute('SELECT id, email, full_name, password_hash FROM users WHERE email = ?', (email,))
-            row = cursor.fetchone()
-            conn.close()
-
-            if not row or not verify_password(password, row[3]):
+            result = supabase_request('GET', f'auth_users?email=eq.{email}&select=id,email,full_name,password_hash')
+            if not isinstance(result, list) or len(result) == 0:
                 self._send_json({'error': 'Invalid email or password'}, 401)
                 return
 
-            user_id, db_email, full_name, _ = row
+            row = result[0]
+            if not verify_password(password, row['password_hash']):
+                self._send_json({'error': 'Invalid email or password'}, 401)
+                return
+
+            user_id = row['id']
+            db_email = row['email']
+            full_name = row.get('full_name', '')
+
             access_token = create_jwt_token(db_email, user_id)
             refresh_token = create_refresh_token(db_email, user_id)
 
