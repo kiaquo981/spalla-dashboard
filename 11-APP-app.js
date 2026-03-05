@@ -59,6 +59,10 @@ function parseDateStr(dateStr) {
     const [d, m, y] = dateStr.split('/');
     return new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
   }
+  // YYYY-MM-DD: force local timezone (avoid UTC shift showing previous day)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return new Date(dateStr + 'T00:00:00');
+  }
   const date = new Date(dateStr);
   return isNaN(date.getTime()) ? null : date;
 }
@@ -2428,6 +2432,10 @@ function spalla() {
       if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
         const [dd, mm, yy] = dateStr.split('/');
         return new Date(`${yy}-${mm}-${dd}T00:00:00`);
+      }
+      // Handle YYYY-MM-DD (force local timezone, not UTC)
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        return new Date(dateStr + 'T00:00:00');
       }
       const d = new Date(dateStr);
       return isNaN(d.getTime()) ? null : d;
