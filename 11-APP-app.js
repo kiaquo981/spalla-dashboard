@@ -987,7 +987,7 @@ function spalla() {
 
         if (grupoId) {
           remoteJid = grupoId;
-          chatObj = { remoteJid: grupoId, id: grupoId };
+          chatObj = { remoteJid: grupoId, id: grupoId, name: nome, _fromGrupoId: true };
         } else {
           // Strategy 2: Fallback to name matching in Evolution chats
           const firstName = nome.split(' ')[0].toLowerCase();
@@ -1042,7 +1042,12 @@ function spalla() {
       const chat = this.data.detail?._waChat;
       if (chat) {
         this.navigate('whatsapp');
-        this.fetchWhatsAppChats().then(() => this.selectWhatsAppChat(chat));
+        this.fetchWhatsAppChats().then(() => {
+          // Try to find the full chat object (with name/photo) from loaded chats
+          const jid = chat.remoteJid || chat.id;
+          const fullChat = this.data.whatsappChats.find(c => (c.remoteJid || c.id) === jid);
+          this.selectWhatsAppChat(fullChat || chat);
+        });
       } else {
         this.navigate('whatsapp');
         this.fetchWhatsAppChats();
