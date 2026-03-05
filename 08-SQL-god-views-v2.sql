@@ -500,7 +500,12 @@ SELECT
 
   -- TAREFAS
   COALESCE(ts.tarefas_pendentes_total, 0)::integer AS tarefas_pendentes,
-  COALESCE(ts.tarefas_atrasadas, 0)::integer AS tarefas_atrasadas
+  COALESCE(ts.tarefas_atrasadas, 0)::integer AS tarefas_atrasadas,
+
+  -- FINANCEIRO/CONTRATO (from Google Sheets sync)
+  COALESCE(m.contrato_assinado, true) AS contrato_assinado,
+  COALESCE(m.status_financeiro, 'em_dia') AS status_financeiro,
+  m.dia_pagamento
 
 FROM mentorados m
 LEFT JOIN wa_stats wa ON wa.mentorado_id = m.id

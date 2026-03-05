@@ -108,6 +108,7 @@ function spalla() {
       sort: 'nome',
       sortDir: 'asc',
       loading: true,
+      sheetsSyncing: false,
       detailLoading: false,
       selectedMenteeId: null,
       activeDetailTab: 'resumo',
@@ -789,6 +790,26 @@ function spalla() {
     },
 
     // ===================== DATA LOADING =====================
+
+    async syncSheets() {
+      if (this.ui.sheetsSyncing) return;
+      this.ui.sheetsSyncing = true;
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/sheets/sync`, { method: 'POST' });
+        const data = await resp.json();
+        if (data.error) {
+          this.showToast(`Erro no sync: ${data.error}`, 'error');
+        } else {
+          this.showToast(`Sheets sync: ${data.updated} atualizacoes em ${data.elapsed_seconds}s`, 'success');
+          // Reload dashboard to show updated data
+          await this.loadDashboard();
+        }
+      } catch (e) {
+        this.showToast(`Erro no sync: ${e.message}`, 'error');
+      } finally {
+        this.ui.sheetsSyncing = false;
+      }
+    },
 
     async loadDashboard() {
       this.ui.loading = true;
@@ -1926,6 +1947,15 @@ function spalla() {
       return `photos/${fileKey}.jpg`;
     },
 
+    callMenteePhoto(call) {
+      if (!call) return null;
+      // Match by ID first (reliable), then name fallback
+      const m = (call.mentorado_id && this.data.mentees.find(x => String(x.id) === String(call.mentorado_id)))
+             || this.data.mentees.find(x => x.nome === call.mentorado)
+             || this.data.mentees.find(x => x.nome?.toLowerCase().trim() === call.mentorado?.toLowerCase().trim());
+      return this.igPhoto(m?.instagram || call.mentorado);
+    },
+
     igFollowers(handle) {
       return getFollowers(handle);
     },
@@ -1954,7 +1984,7 @@ function spalla() {
       // If real Supabase calls loaded, use them
       if (this._supabaseCalls?.length) {
         return this._supabaseCalls.map(c => ({
-          mentorado: c.mentorado_nome, data: c.data_call,
+          mentorado: c.mentorado_nome, mentorado_id: c.mentorado_id, data: c.data_call,
           tipo: c.tipo_call || 'acompanhamento', duracao: c.duracao_minutos || 0,
           topic: c.zoom_topic || '', resumo: c.resumo || null,
           gravacao: c.link_gravacao || null, transcricao: c.link_transcricao || null,

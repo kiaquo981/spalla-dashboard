@@ -18,6 +18,8 @@ import hmac
 import hashlib
 import secrets
 import sqlite3
+import unicodedata
+import re
 from datetime import datetime, timedelta, timezone
 
 try:
@@ -382,6 +384,292 @@ def list_calendar_events(time_min=None, time_max=None, max_results=50):
         return {'error': str(e)}
 
 
+# ===== GOOGLE SHEETS SYNC =====
+PAYMENTS_SHEET_ID = '1YY6t5ZxRPTLyCHC-EVkyem10caEJw4TuBy3AR14r0ao'
+PAYMENTS_TAB = 'Acompanhamento Pagamentos'
+CONTRACTS_SHEET_ID = '1-Yi5G-bUJanRtmfugFgmVz_DRSV-HOEaP-sSAJqUIxY'
+CONTRACTS_TAB = 'Dossiê Estratégico Mentorados'
+
+_sheets_service = None
+_sheets_last_sync = None
+_sheets_last_result = None
+
+
+def get_sheets_service():
+    """Initialize Google Sheets API service using service account"""
+    global _sheets_service
+    if _sheets_service:
+        return _sheets_service
+
+    try:
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build
+
+        if not os.path.exists(GOOGLE_SA_PATH):
+            log_error('Sheets', f'Service account not found at {GOOGLE_SA_PATH}')
+            return None
+
+        SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
+        credentials = service_account.Credentials.from_service_account_file(
+            GOOGLE_SA_PATH, scopes=SCOPES
+        )
+        _sheets_service = build('sheets', 'v4', credentials=credentials)
+        return _sheets_service
+    except Exception as e:
+        log_error('Sheets', 'Init error', e)
+        return None
+
+
+def _normalize_name(name):
+    """Normalize name for matching: remove accents, 'Dra.', 'Dr.', lowercase, strip"""
+    if not name:
+        return ''
+    # Remove Dra./Dr. prefix
+    n = re.sub(r'^(Dra?\.?\s*)', '', name.strip(), flags=re.IGNORECASE)
+    # Remove accents
+    n = unicodedata.normalize('NFD', n)
+    n = ''.join(c for c in n if unicodedata.category(c) != 'Mn')
+    return n.lower().strip()
+
+
+def _name_tokens(name):
+    """Get set of name tokens for fuzzy matching"""
+    return set(_normalize_name(name).split())
+
+
+def _match_name(sheet_name, mentorados):
+    """Match a sheet name to a mentorado. Returns mentorado dict or None."""
+    norm = _normalize_name(sheet_name)
+    if not norm:
+        return None
+
+    # Exact normalized match
+    for m in mentorados:
+        if _normalize_name(m['nome']) == norm:
+            return m
+
+    # Token overlap: at least 2 tokens in common, or all tokens of shorter name match
+    sheet_tokens = _name_tokens(sheet_name)
+    if len(sheet_tokens) < 1:
+        return None
+
+    best_match = None
+    best_score = 0
+    for m in mentorados:
+        m_tokens = _name_tokens(m['nome'])
+        overlap = sheet_tokens & m_tokens
+        if len(overlap) >= 2 or (len(overlap) >= 1 and len(overlap) == min(len(sheet_tokens), len(m_tokens))):
+            score = len(overlap) / max(len(sheet_tokens | m_tokens), 1)
+            if score > best_score:
+                best_score = score
+                best_match = m
+
+    return best_match if best_score >= 0.4 else None
+
+
+def read_payments_sheet():
+    """Read payments sheet and return list of dicts (one per row)"""
+    service = get_sheets_service()
+    if not service:
+        return []
+
+    try:
+        result = service.spreadsheets().values().get(
+            spreadsheetId=PAYMENTS_SHEET_ID,
+            range=f"'{PAYMENTS_TAB}'"
+        ).execute()
+        rows = result.get('values', [])
+        if len(rows) < 2:
+            return []
+
+        headers = [h.strip().lower() for h in rows[0]]
+        data = []
+        for row in rows[1:]:
+            d = {}
+            for i, h in enumerate(headers):
+                d[h] = row[i].strip() if i < len(row) and row[i] else ''
+            if d.get('nome') or d.get('mentorado') or d.get('mentorada'):
+                data.append(d)
+        log_info('Sheets', f'Read {len(data)} rows from payments sheet')
+        return data
+    except Exception as e:
+        log_error('Sheets', 'Error reading payments sheet', e)
+        return []
+
+
+def read_contracts_sheet():
+    """Read contracts sheet and return list of dicts (one per row)"""
+    service = get_sheets_service()
+    if not service:
+        return []
+
+    try:
+        result = service.spreadsheets().values().get(
+            spreadsheetId=CONTRACTS_SHEET_ID,
+            range=f"'{CONTRACTS_TAB}'"
+        ).execute()
+        rows = result.get('values', [])
+        if len(rows) < 2:
+            return []
+
+        headers = [h.strip().lower() for h in rows[0]]
+        data = []
+        for row in rows[1:]:
+            d = {}
+            for i, h in enumerate(headers):
+                d[h] = row[i].strip() if i < len(row) and row[i] else ''
+            if d.get('nome') or d.get('mentorado') or d.get('mentorada'):
+                data.append(d)
+        log_info('Sheets', f'Read {len(data)} rows from contracts sheet')
+        return data
+    except Exception as e:
+        log_error('Sheets', 'Error reading contracts sheet', e)
+        return []
+
+
+def _parse_status_financeiro(row):
+    """Parse financial status from a payments row"""
+    # Look for common column names
+    for key in ('status', 'status financeiro', 'status_financeiro', 'situação', 'situacao'):
+        val = row.get(key, '').lower().strip()
+        if val:
+            if any(w in val for w in ('atrasa', 'inadimpl', 'pendente', 'devendo')):
+                return 'atrasado'
+            if any(w in val for w in ('quita', 'pago', 'encerrad')):
+                return 'quitado'
+            if any(w in val for w in ('dia', 'ok', 'regular', 'ativ')):
+                return 'em_dia'
+    return None
+
+
+def _parse_dia_pagamento(row):
+    """Parse payment day from a payments row"""
+    for key in ('dia', 'dia pagamento', 'dia_pagamento', 'vencimento', 'dia vencimento'):
+        val = row.get(key, '').strip()
+        if val:
+            # Extract first number found
+            match = re.search(r'(\d{1,2})', val)
+            if match:
+                day = int(match.group(1))
+                if 1 <= day <= 31:
+                    return day
+    return None
+
+
+def _parse_contrato(row):
+    """Parse contract status from a contracts row"""
+    # Column M is typically index 12 (0-based), but we use headers
+    for key in ('contrato', 'contrato assinado', 'contrato_assinado', 'status contrato'):
+        val = row.get(key, '').lower().strip()
+        if val:
+            if any(w in val for w in ('sim', 'yes', 'assinado', 'ok', 'true', '1')):
+                return True
+            if any(w in val for w in ('não', 'nao', 'no', 'false', '0', 'pendente', 'falta')):
+                return False
+    return None
+
+
+def sync_sheets_to_supabase():
+    """Sync Google Sheets data to Supabase mentorados table"""
+    global _sheets_last_sync, _sheets_last_result
+
+    log_info('Sheets', 'Starting sync...')
+    start_time = time.time()
+
+    # Fetch mentorados from Supabase
+    mentorados = supabase_request('GET', 'mentorados?select=id,nome&ativo=eq.true&cohort=not.eq.tese&order=nome')
+    if isinstance(mentorados, dict) and 'error' in mentorados:
+        log_error('Sheets', f'Failed to fetch mentorados: {mentorados}')
+        _sheets_last_result = {'error': mentorados['error'], 'timestamp': datetime.now().isoformat()}
+        return _sheets_last_result
+
+    if not mentorados:
+        _sheets_last_result = {'error': 'No mentorados found', 'timestamp': datetime.now().isoformat()}
+        return _sheets_last_result
+
+    # Read both sheets
+    payments = read_payments_sheet()
+    contracts = read_contracts_sheet()
+
+    updated = 0
+    unmatched_payments = []
+    unmatched_contracts = []
+    updates_log = []
+
+    # Process payments sheet
+    for row in payments:
+        name = row.get('nome') or row.get('mentorado') or row.get('mentorada') or ''
+        m = _match_name(name, mentorados)
+        if not m:
+            if name.strip():
+                unmatched_payments.append(name)
+            continue
+
+        patch = {}
+        status = _parse_status_financeiro(row)
+        if status:
+            patch['status_financeiro'] = status
+        dia = _parse_dia_pagamento(row)
+        if dia:
+            patch['dia_pagamento'] = dia
+
+        if patch:
+            result = supabase_request('PATCH', f"mentorados?id=eq.{m['id']}", patch)
+            if not (isinstance(result, dict) and 'error' in result):
+                updated += 1
+                updates_log.append({'id': m['id'], 'nome': m['nome'], 'fields': patch})
+
+    # Process contracts sheet
+    for row in contracts:
+        name = row.get('nome') or row.get('mentorado') or row.get('mentorada') or ''
+        m = _match_name(name, mentorados)
+        if not m:
+            if name.strip():
+                unmatched_contracts.append(name)
+            continue
+
+        contrato = _parse_contrato(row)
+        if contrato is not None:
+            patch = {'contrato_assinado': contrato}
+            result = supabase_request('PATCH', f"mentorados?id=eq.{m['id']}", patch)
+            if not (isinstance(result, dict) and 'error' in result):
+                updated += 1
+                updates_log.append({'id': m['id'], 'nome': m['nome'], 'fields': patch})
+
+    elapsed = round(time.time() - start_time, 2)
+    _sheets_last_sync = datetime.now().isoformat()
+    _sheets_last_result = {
+        'success': True,
+        'updated': updated,
+        'payments_rows': len(payments),
+        'contracts_rows': len(contracts),
+        'unmatched_payments': unmatched_payments,
+        'unmatched_contracts': unmatched_contracts,
+        'updates': updates_log,
+        'elapsed_seconds': elapsed,
+        'timestamp': _sheets_last_sync,
+    }
+    log_info('Sheets', f'Sync complete: {updated} updates in {elapsed}s')
+    if unmatched_payments:
+        log_info('Sheets', f'Unmatched payments: {unmatched_payments}')
+    if unmatched_contracts:
+        log_info('Sheets', f'Unmatched contracts: {unmatched_contracts}')
+
+    return _sheets_last_result
+
+
+# ===== SHEETS SYNC SCHEDULER =====
+def _sheets_sync_loop():
+    """Background thread: sync every 6 hours"""
+    time.sleep(30)  # Initial delay
+    while True:
+        try:
+            sync_sheets_to_supabase()
+        except Exception as e:
+            log_error('Sheets', 'Scheduler sync failed', e)
+        time.sleep(6 * 3600)  # 6 hours
+
+
 # ===== SUPABASE HELPERS =====
 def supabase_request(method, path, body=None, _retries=3, _backoff=1.0):
     """Make a request to Supabase REST API with retry logic and connection pooling"""
@@ -495,12 +783,15 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_media_stream()
         elif self.path == '/api/evolution/instance-uuid':
             self._handle_instance_uuid()
+        elif self.path == '/api/sheets/status':
+            self._handle_sheets_status()
         elif self.path == '/api/health':
             self._send_json({
                 'status': 'ok',
                 'zoom_configured': bool(ZOOM_ACCOUNT_ID and ZOOM_CLIENT_ID),
                 'gcal_configured': os.path.exists(GOOGLE_SA_PATH),
                 'supabase_configured': bool(SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY),
+                'sheets_configured': get_sheets_service() is not None,
             })
         else:
             super().do_GET()
@@ -528,6 +819,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_create_zoom_meeting()
         elif self.path == '/api/calendar/create-event':
             self._handle_create_calendar_event()
+        elif self.path == '/api/sheets/sync':
+            self._handle_sheets_sync()
         else:
             self.send_error(404)
 
@@ -820,6 +1113,24 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(error_msg)
 
+    # ===== SHEETS HANDLERS =====
+    def _handle_sheets_status(self):
+        self._send_json({
+            'sheets_configured': get_sheets_service() is not None,
+            'last_sync': _sheets_last_sync,
+            'last_result': _sheets_last_result,
+            'payments_sheet': PAYMENTS_SHEET_ID,
+            'contracts_sheet': CONTRACTS_SHEET_ID,
+        })
+
+    def _handle_sheets_sync(self):
+        try:
+            result = sync_sheets_to_supabase()
+            self._send_json(result)
+        except Exception as e:
+            log_error('Sheets', 'Manual sync failed', e)
+            self._send_json({'error': str(e)}, 500)
+
     # ===== AUTH HANDLERS =====
     def _handle_auth_register(self):
         """Register new user"""
@@ -949,14 +1260,22 @@ if __name__ == '__main__':
     print(f'[Spalla] GCal:     {"✓ service account found" if os.path.exists(GOOGLE_SA_PATH) else "✗ no service account"}')
     print(f'[Spalla] Supabase: {"✓ configured" if SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY else "✗ set SUPABASE_SERVICE_KEY"}')
     print(f'[Spalla] Evolution: ✓ proxy at /api/evolution/*')
+    print(f'[Spalla] Sheets:   {"✓ service account found" if os.path.exists(GOOGLE_SA_PATH) else "✗ no service account"}')
     print(f'[Spalla] Endpoints:')
     print(f'  POST /api/schedule-call    — Full scheduling (Zoom + Calendar + DB)')
     print(f'  POST /api/zoom/create-meeting')
     print(f'  POST /api/calendar/create-event')
+    print(f'  POST /api/sheets/sync      — Manual Google Sheets sync')
+    print(f'  GET  /api/sheets/status    — Sheets sync status')
     print(f'  GET  /api/mentees          — Mentorados with email')
     print(f'  GET  /api/calendar/events   — Upcoming calendar events')
     print(f'  GET  /api/calls/upcoming    — Scheduled calls from DB')
     print(f'  GET  /api/health')
+
+    # Start sheets sync background thread
+    sync_thread = threading.Thread(target=_sheets_sync_loop, daemon=True)
+    sync_thread.start()
+    print(f'[Spalla] Sheets sync: background thread started (every 6h, first in 30s)')
 
     server = ReuseAddrHTTPServer(('', PORT), ProxyHandler)
     try:
