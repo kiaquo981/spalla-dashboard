@@ -1985,7 +1985,7 @@ function spalla() {
       // If real Supabase calls loaded, use them
       if (this._supabaseCalls?.length) {
         return this._supabaseCalls.map(c => ({
-          mentorado: c.mentorado_nome, mentorado_id: c.mentorado_id, data: c.data_call,
+          mentorado: c.mentorado_nome, mentorado_id: c.mentorado_id, data: (c.data_call || '').substring(0, 10),
           tipo: c.tipo_call || 'acompanhamento', duracao: c.duracao_minutos || 0,
           topic: c.zoom_topic || '', resumo: c.resumo || null,
           gravacao: c.link_gravacao || null, transcricao: c.link_transcricao || null,
