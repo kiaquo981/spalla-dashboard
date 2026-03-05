@@ -2277,19 +2277,31 @@ function spalla() {
           return;
         }
 
-        // Fetch future calls OR any call marked as 'agendada'
-        const today = new Date().toISOString().substring(0, 10);
-        const { data: calls, error } = await window.supabase
+        // Fetch calls with status 'agendada'
+        const { data: agendadas, error: err1 } = await window.supabase
           .from('calls_mentoria')
           .select('*')
-          .or(`data_call.gte.${today},status_call.eq.agendada`)
+          .eq('status_call', 'agendada')
           .order('data_call', { ascending: true });
 
-        if (error) throw error;
+        // Also fetch future calls (data_call >= today) that may not have status set
+        const today = new Date().toISOString().substring(0, 10);
+        const { data: futuras, error: err2 } = await window.supabase
+          .from('calls_mentoria')
+          .select('*')
+          .gte('data_call', today)
+          .order('data_call', { ascending: true });
 
-        if (Array.isArray(calls)) {
+        if (err1) console.warn('[Schedule] agendadas query error:', err1);
+        if (err2) console.warn('[Schedule] futuras query error:', err2);
+
+        // Merge and deduplicate by id
+        const allCalls = [...(agendadas || []), ...(futuras || [])];
+        const seen = new Set();
+        const calls = allCalls.filter(c => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+
+        if (calls.length) {
           this.data.scheduledCalls = calls.map(c => {
-            // data_call is a date column ("2026-03-13") — append T12:00:00 to avoid UTC midnight timezone shift
             const raw = String(c.data_call);
             const dataCall = raw.includes('T') ? new Date(c.data_call) : new Date(raw + 'T12:00:00');
             const mentee = this.data.mentees?.find(m => m.id === c.mentorado_id);
