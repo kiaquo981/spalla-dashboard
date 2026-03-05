@@ -844,7 +844,7 @@ function spalla() {
               link_gravacao: c.link_gravacao,
               link_transcricao: c.link_transcricao,
               zoom_topic: c.zoom_topic,
-              senha_call: c.senha_call || null,
+              senha_call: c.senha_Call || c.senha_call || null,
               created_at: c.created_at,
             }));
             console.log('[Spalla] Calls loaded from Supabase:', this._supabaseCalls.length);
