@@ -1225,7 +1225,7 @@
             </div>
             <div class="ag-alert__pills">
               <template x-for="r in retorativasUrgentes.slice(0, 5)" :key="r.id">
-                <span class="ag-alert__pill" @click="loadMenteeDetail(r.id)" x-text="r.nome.split(' ')[0] + ' (' + r.dias + 'd)'"></span>
+                <span class="ag-alert__pill" @click="loadMenteeDetail(r.id)" x-text="r.nome.split(' ')[0] + ' (' + (r.dias != null ? r.dias + 'd' : 'sem call') + ')'"></span>
               </template>
               <span class="ag-alert__pill ag-alert__pill--more" x-show="retorativasUrgentes.length > 5" x-text="'+' + (retorativasUrgentes.length - 5)"></span>
             </div>

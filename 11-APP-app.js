@@ -2258,10 +2258,12 @@ function spalla() {
           return;
         }
 
+        // Fetch future calls OR any call marked as 'agendada'
+        const today = new Date().toISOString().substring(0, 10);
         const { data: calls, error } = await window.supabase
           .from('calls_mentoria')
           .select('*')
-          .gte('data_call', new Date().toISOString())
+          .or(`data_call.gte.${today},status_call.eq.agendada`)
           .order('data_call', { ascending: true });
 
         if (error) throw error;
@@ -2281,7 +2283,8 @@ function spalla() {
               horario: raw.includes('T') ? dataCall.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
               tipo: c.tipo || 'acompanhamento',
               duracao: c.duracao_minutos || 60,
-              status: 'agendada',
+              status: c.status_call || 'agendada',
+              zoom_url: c.link_gravacao || null,
             };
           });
         }
