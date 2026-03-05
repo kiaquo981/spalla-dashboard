@@ -980,27 +980,41 @@ function spalla() {
         };
       }
       try {
-        // Find matching WA chat
-        const firstName = nome.split(' ')[0].toLowerCase();
-        let chats = this.data.whatsappChats;
-        // If chats not loaded yet, fetch them
-        if (!chats.length) {
-          const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
-          });
-          if (res.ok) chats = await res.json();
-        }
-        const chat = (chats || []).find(c => {
-          const pushName = (c.pushName || c.name || '').toLowerCase();
-          return pushName.includes(firstName);
-        });
-        if (!chat) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
+        // Strategy 1: Use grupo_whatsapp_id from mentorados table (reliable)
+        const grupoId = overviewMentee?.grupo_whatsapp_id;
+        let remoteJid = null;
+        let chatObj = null;
 
-        // Fetch last 10 messages
+        if (grupoId) {
+          remoteJid = grupoId;
+          chatObj = { remoteJid: grupoId, id: grupoId };
+        } else {
+          // Strategy 2: Fallback to name matching in Evolution chats
+          const firstName = nome.split(' ')[0].toLowerCase();
+          let chats = this.data.whatsappChats;
+          if (!chats.length) {
+            const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+            });
+            if (res.ok) chats = await res.json();
+          }
+          const chat = (chats || []).find(c => {
+            const pushName = (c.pushName || c.name || '').toLowerCase();
+            return pushName.includes(firstName);
+          });
+          if (chat) {
+            remoteJid = chat.remoteJid || chat.id;
+            chatObj = chat;
+          }
+        }
+
+        if (!remoteJid) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
+
+        // Fetch last 10 messages using remoteJid
         const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ where: { key: { remoteJid: chat.remoteJid || chat.id } }, limit: 10 }),
+          body: JSON.stringify({ where: { key: { remoteJid } }, limit: 10 }),
         });
         if (!res.ok) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
         const data = await res.json();
@@ -1014,7 +1028,7 @@ function spalla() {
         if (this.data.detail) {
           if (interactions.length) {
             this.data.detail.last_interactions = interactions;
-            this.data.detail._waChat = chat;
+            this.data.detail._waChat = chatObj;
           }
           this.data.detail._waLoaded = true;
         }

@@ -505,7 +505,10 @@ SELECT
   -- FINANCEIRO/CONTRATO (from Google Sheets sync)
   COALESCE(m.contrato_assinado, true) AS contrato_assinado,
   COALESCE(m.status_financeiro, 'em_dia') AS status_financeiro,
-  m.dia_pagamento
+  m.dia_pagamento,
+
+  -- WHATSAPP GROUP ID (para buscar mensagens direto na Evolution API)
+  m.grupo_whatsapp_id
 
 FROM mentorados m
 LEFT JOIN wa_stats wa ON wa.mentorado_id = m.id
