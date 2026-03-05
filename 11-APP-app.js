@@ -844,6 +844,7 @@ function spalla() {
               link_gravacao: c.link_gravacao,
               link_transcricao: c.link_transcricao,
               zoom_topic: c.zoom_topic,
+              senha_call: c.senha_call || null,
               created_at: c.created_at,
             }));
             console.log('[Spalla] Calls loaded from Supabase:', this._supabaseCalls.length);
@@ -1988,6 +1989,7 @@ function spalla() {
           tipo: c.tipo_call || 'acompanhamento', duracao: c.duracao_minutos || 0,
           topic: c.zoom_topic || '', resumo: c.resumo || null,
           gravacao: c.link_gravacao || null, transcricao: c.link_transcricao || null,
+          senha_call: c.senha_call || null,
           decisoes: c.decisoes_tomadas || [], gargalos: c.gargalos || [],
           proximos_passos: c.proximos_passos || [], sentimento: null,
         }));
