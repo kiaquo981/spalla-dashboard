@@ -1298,7 +1298,9 @@
                         <span class="ag-call-card__name" x-text="c.mentorado"></span>
                         <span class="ag-call-card__meta">
                           <span x-text="formatDateFull(c.data)"></span>
+                          <span x-show="c.horario" x-text="c.horario" style="font-weight:600"></span>
                           <span class="ag-call-card__dur" x-show="c.duracao" x-text="c.duracao + ' min'"></span>
+                          <span x-show="c.status_call === 'agendada'" class="badge badge--sm badge--info" style="font-size:10px;padding:1px 6px">Agendada</span>
                         </span>
                       </div>
                       <span class="ag-call-card__type" :class="'ag-call-card__type--' + c.tipo" x-text="c.tipo"></span>

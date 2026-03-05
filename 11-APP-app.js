@@ -849,6 +849,8 @@ function spalla() {
               link_transcricao: c.link_transcricao,
               zoom_topic: c.zoom_topic,
               senha_call: c.senha_Call || c.senha_call || null,
+              status_call: c.status_call || (c.link_gravacao ? 'realizada' : null),
+              horario_call: c.data_call && c.data_call.includes('T') ? c.data_call.substring(11, 16) : null,
               created_at: c.created_at,
             }));
             console.log('[Spalla] Calls loaded from Supabase:', this._supabaseCalls.length);
@@ -1991,6 +1993,7 @@ function spalla() {
         return this._supabaseCalls.map(c => ({
           mentorado: c.mentorado_nome, mentorado_id: c.mentorado_id, data: (c.data_call || '').substring(0, 10),
           tipo: c.tipo_call || 'acompanhamento', duracao: c.duracao_minutos || 0,
+          horario: c.horario_call || null, status_call: c.status_call || null,
           topic: c.zoom_topic || '', resumo: c.resumo || null,
           gravacao: c.link_gravacao || null, transcricao: c.link_transcricao || null,
           senha_call: c.senha_call || null,
@@ -2192,9 +2195,10 @@ function spalla() {
           .from('calls_mentoria')
           .insert({
             mentorado_id: menteeId,
-            data_call: f.data,  // Send YYYY-MM-DD directly for date column (avoids UTC timezone shift)
+            data_call: `${f.data}T${f.horario}:00`,
             duracao_minutos: parseInt(f.duracao) || 60,
             tipo: f.tipo || 'acompanhamento',
+            status_call: 'agendada',
             participantes: JSON.stringify([f.email || '']),
             observacoes_equipe: f.notas || '',
             link_gravacao: zoomUrl || null,
