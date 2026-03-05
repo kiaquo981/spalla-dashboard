@@ -2272,13 +2272,13 @@ function spalla() {
 
     async fetchUpcomingCalls() {
       try {
-        if (!window.supabase) {
+        if (!sb) {
           console.log('[Schedule] Supabase not available, using demo data');
           return;
         }
 
         // Fetch calls with status 'agendada'
-        const { data: agendadas, error: err1 } = await window.supabase
+        const { data: agendadas, error: err1 } = await sb
           .from('calls_mentoria')
           .select('*')
           .eq('status_call', 'agendada')
@@ -2286,7 +2286,7 @@ function spalla() {
 
         // Also fetch future calls (data_call >= today) that may not have status set
         const today = new Date().toISOString().substring(0, 10);
-        const { data: futuras, error: err2 } = await window.supabase
+        const { data: futuras, error: err2 } = await sb
           .from('calls_mentoria')
           .select('*')
           .gte('data_call', today)
