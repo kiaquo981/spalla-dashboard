@@ -441,7 +441,14 @@ function spalla() {
 
       return {
         total,
-        breakdown: { scoreWa, scoreCalls, scoreTarefas, scoreVendas, scoreImpl, scoreFin },
+        breakdown: {
+          'WhatsApp': { score: Math.round(scoreWa * 0.25), max: 25 },
+          'Calls': { score: Math.round(scoreCalls * 0.20), max: 20 },
+          'Tarefas': { score: Math.round(scoreTarefas * 0.20), max: 20 },
+          'Vendas': { score: Math.round(scoreVendas * 0.15), max: 15 },
+          'Implementação': { score: Math.round(scoreImpl * 0.10), max: 10 },
+          'Financeiro': { score: Math.round(scoreFin * 0.10), max: 10 },
+        },
         color: total >= 80 ? 'success' : total >= 50 ? 'warning' : 'danger',
       };
     },
