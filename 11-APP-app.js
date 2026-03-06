@@ -372,7 +372,7 @@ function spalla() {
         return;
       }
       // Remove from local list
-      this.data.pendencias = this.data.pendencias.filter(p => p.id !== interacaoId);
+      this.data.pendencias = this.data.pendencias.filter(p => p.interacao_id !== interacaoId);
       // Update mentee counts
       const pending = this.data.pendencias;
       this.data.mentees = this.data.mentees.map(m => {
@@ -380,6 +380,22 @@ function spalla() {
         return { ...m, msgs_pendentes_resposta: count };
       });
       this.toast('Mensagem marcada como respondida', 'success');
+    },
+
+    async markAllAsResponded() {
+      if (!confirm('Marcar TODAS as ' + this.data.pendencias.length + ' mensagens como respondidas?')) return;
+      const sb2 = await initSupabase();
+      if (!sb2) return;
+      const ids = this.data.pendencias.map(p => p.interacao_id);
+      const { error } = await sb2.from('interacoes_mentoria').update({ respondido: true }).in('id', ids);
+      if (error) {
+        this.toast('Erro ao marcar mensagens', 'error');
+        console.error('[Spalla] markAllAsResponded error:', error);
+        return;
+      }
+      this.data.pendencias = [];
+      this.data.mentees = this.data.mentees.map(m => ({ ...m, msgs_pendentes_resposta: 0 }));
+      this.toast('Todas as mensagens marcadas como respondidas', 'success');
     },
 
     waBadgeClass(m) {

@@ -4176,6 +4176,23 @@ img { max-width: 100%; display: block; }
   text-align: center;
 }
 
+.wa-pendencias__bulk-btn {
+  margin-left: auto;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--danger);
+  background: white;
+  color: var(--danger);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.wa-pendencias__bulk-btn:hover {
+  background: var(--danger);
+  color: white;
+}
+
 .wa-pendencias__list {
   max-height: 480px;
   overflow-y: auto;
