@@ -19,7 +19,7 @@ const CONFIG = {
 
 // ===== TEAM MEMBERS =====
 const TEAM_MEMBERS = [
-  { name: 'Kaique', email: 'kaiquerodrigues@gmail.com' },
+  { name: 'Kaique', email: 'kaique.azevedoo@outlook.com' },
   { name: 'Heitor', email: 'heitorms15@gmail.com' },
   { name: 'Hugo', email: 'hugo.nicchio@gmail.com' },
   { name: 'Queila', email: 'queilatrizotti@gmail.com' },
