@@ -709,6 +709,13 @@ function spalla() {
       return { pendente: '⏳', em_andamento: '🔄', concluida: '✅' }[status] || '📋';
     },
 
+    _taskTable(t) {
+      return t?._source === 'tarefas_equipe' ? 'tarefas_equipe' : 'god_tasks';
+    },
+    _taskDbId(t) {
+      return t?._source === 'tarefas_equipe' ? t._source_id : t.id;
+    },
+
     async moveTask(taskId, newStatus) {
       const t = this.data.tasks.find(x => x.id === taskId);
       if (!t) return;
@@ -717,7 +724,12 @@ function spalla() {
       t.updated_at = new Date().toISOString();
       this._cacheTasksLocal();
       if (sb) {
-        const { error } = await sb.from('god_tasks').update({ status: newStatus, updated_at: t.updated_at }).eq('id', taskId);
+        const table = this._taskTable(t);
+        const dbId = this._taskDbId(t);
+        const updateData = table === 'tarefas_equipe'
+          ? { status: newStatus, updated_at: t.updated_at, data_conclusao: newStatus === 'concluida' ? new Date().toISOString() : null }
+          : { status: newStatus, updated_at: t.updated_at };
+        const { error } = await sb.from(table).update(updateData).eq('id', dbId);
         if (error) { t.status = oldStatus; this._cacheTasksLocal(); this.toast('Erro ao mover tarefa', 'error'); return; }
       }
       this.toast(`Tarefa movida para ${this.taskStatusLabel(newStatus)}`, 'success');
@@ -1480,19 +1492,55 @@ function spalla() {
     async loadTasks() {
       if (sb) {
         try {
-          const { data, error } = await sb.from('vw_god_tasks_full').select('*').order('created_at', { ascending: false }).limit(200);
-          if (!error && data) {
-            this.data.tasks = data.map(t => ({
-              ...t, prazo: t.data_fim,
-              subtasks: (t.subtasks || []).map(s => ({ text: s.texto || s.text, done: s.done })),
-              checklist: (t.checklist || []).map(c => ({ text: c.texto || c.text, done: c.done })),
-              comments: (t.comments || []).map(c => ({ id: c.id, author: c.author, text: c.texto || c.text, timestamp: c.created_at || c.timestamp })),
-              handoffs: (t.handoffs || []).map(h => ({ from: h.from_person || h.from, to: h.to_person || h.to, note: h.note, date: h.created_at || h.date })),
-              tags: t.tags || [], attachments: [],
-            }));
+          // Load god_tasks (board tasks) + tarefas_equipe (auto-generated) in parallel
+          const [godResult, equipeResult] = await Promise.all([
+            sb.from('vw_god_tasks_full').select('*').order('created_at', { ascending: false }).limit(200),
+            sb.from('tarefas_equipe').select('*').neq('status', 'concluida').order('created_at', { ascending: false }).limit(100),
+          ]);
+
+          const godTasks = (godResult.data || []).map(t => ({
+            ...t, prazo: t.data_fim, _source: 'god_tasks',
+            subtasks: (t.subtasks || []).map(s => ({ text: s.texto || s.text, done: s.done })),
+            checklist: (t.checklist || []).map(c => ({ text: c.texto || c.text, done: c.done })),
+            comments: (t.comments || []).map(c => ({ id: c.id, author: c.author, text: c.texto || c.text, timestamp: c.created_at || c.timestamp })),
+            handoffs: (t.handoffs || []).map(h => ({ from: h.from_person || h.from, to: h.to_person || h.to, note: h.note, date: h.created_at || h.date })),
+            tags: t.tags || [], attachments: [],
+          }));
+
+          const equipeTasks = (equipeResult.data || []).map(t => {
+            const mentee = this.data.mentees.find(m => m.id === t.mentorado_id);
+            return {
+              id: `equipe_${t.id}`,
+              _source: 'tarefas_equipe',
+              _source_id: t.id,
+              titulo: t.tarefa,
+              descricao: t.observacoes || '',
+              status: t.status === 'em_andamento' ? 'em_andamento' : t.status,
+              prioridade: t.prioridade || 'normal',
+              responsavel: t.responsavel_nome || '',
+              acompanhante: '',
+              mentorado_id: t.mentorado_id,
+              mentorado_nome: mentee?.nome || t.mentorado_nome || '',
+              data_inicio: null,
+              data_fim: t.prazo,
+              prazo: t.prazo,
+              space_id: null,
+              list_id: null,
+              parent_task_id: null,
+              tags: ['equipe'],
+              fonte: 'tarefas_equipe',
+              created_at: t.created_at,
+              updated_at: t.updated_at,
+              created_by: t.criado_por || 'Sistema',
+              subtasks: [], checklist: [], comments: [], handoffs: [], attachments: [],
+            };
+          });
+
+          if (!godResult.error || !equipeResult.error) {
+            this.data.tasks = [...godTasks, ...equipeTasks];
             this._autoCategorize();
             this._cacheTasksLocal();
-            console.log('[Spalla] Tasks loaded from Supabase:', data.length);
+            console.log(`[Spalla] Tasks loaded: ${godTasks.length} god_tasks + ${equipeTasks.length} tarefas_equipe`);
             return;
           }
         } catch (e) { console.warn('[Spalla] Tasks fetch error, falling back:', e.message); }
@@ -1705,10 +1753,17 @@ function spalla() {
           const updated = { ...backup, ...formData, updated_at: new Date().toISOString() };
           this.data.tasks[idx] = updated;
           this._cacheTasksLocal();
-          const r = await this._sbUpsertTask(updated);
-          if (!r.ok) { this.data.tasks[idx] = backup; this._cacheTasksLocal(); this.toast('Erro ao salvar tarefa', 'error'); return; }
-          await this._sbSyncSubtasks(updated.id, updated.subtasks);
-          await this._sbSyncChecklist(updated.id, updated.checklist);
+          // Route to correct table
+          if (updated._source === 'tarefas_equipe') {
+            const eqRow = { tarefa: updated.titulo, status: updated.status, prioridade: updated.prioridade, responsavel_nome: updated.responsavel, prazo: updated.data_fim || updated.prazo, observacoes: updated.descricao, updated_at: updated.updated_at };
+            const { error } = sb ? await sb.from('tarefas_equipe').update(eqRow).eq('id', updated._source_id) : { error: true };
+            if (error) { this.data.tasks[idx] = backup; this._cacheTasksLocal(); this.toast('Erro ao salvar tarefa', 'error'); return; }
+          } else {
+            const r = await this._sbUpsertTask(updated);
+            if (!r.ok) { this.data.tasks[idx] = backup; this._cacheTasksLocal(); this.toast('Erro ao salvar tarefa', 'error'); return; }
+            await this._sbSyncSubtasks(updated.id, updated.subtasks);
+            await this._sbSyncChecklist(updated.id, updated.checklist);
+          }
         }
       } else {
         const newId = crypto.randomUUID ? crypto.randomUUID() : 'task_' + Date.now();
@@ -1739,7 +1794,12 @@ function spalla() {
       t.updated_at = new Date().toISOString();
       this._cacheTasksLocal();
       if (sb) {
-        const { error } = await sb.from('god_tasks').update({ status: newStatus, updated_at: t.updated_at }).eq('id', taskId);
+        const table = this._taskTable(t);
+        const dbId = this._taskDbId(t);
+        const updateData = table === 'tarefas_equipe'
+          ? { status: newStatus, updated_at: t.updated_at, data_conclusao: newStatus === 'concluida' ? new Date().toISOString() : null }
+          : { status: newStatus, updated_at: t.updated_at };
+        const { error } = await sb.from(table).update(updateData).eq('id', dbId);
         if (error) { t.status = oldStatus; this._cacheTasksLocal(); this.toast('Erro ao atualizar status', 'error'); return; }
       }
       if (newStatus === 'concluida') this._checkRecurringTasks();
@@ -1749,7 +1809,17 @@ function spalla() {
       const backup = this.data.tasks.find(t => t.id === taskId);
       this.data.tasks = this.data.tasks.filter(t => t.id !== taskId);
       this._cacheTasksLocal();
-      const r = await this._sbDeleteTask(taskId);
+      let r;
+      if (backup?._source === 'tarefas_equipe') {
+        if (!sb) { r = { ok: false }; } else {
+          try {
+            const { error } = await sb.from('tarefas_equipe').delete().eq('id', backup._source_id);
+            r = error ? { ok: false } : { ok: true };
+          } catch (e) { r = { ok: false }; }
+        }
+      } else {
+        r = await this._sbDeleteTask(taskId);
+      }
       if (!r.ok && backup) { this.data.tasks.push(backup); this._cacheTasksLocal(); this.toast('Erro ao remover tarefa', 'error'); return; }
       this.toast('Tarefa removida', 'info');
     },
