@@ -87,12 +87,13 @@ function spalla() {
     // --- Auth ---
     auth: {
       authenticated: false,
-      mode: 'login', // 'login' | 'register'
+      mode: 'login', // 'login' | 'register' | 'reset'
       email: '',
       password: '',
       confirmPassword: '',
       fullName: '',
       error: '',
+      success: '',
       currentUser: null,
       accessToken: null,
       refreshToken: null,
@@ -1064,10 +1065,39 @@ function spalla() {
     toggleAuthMode() {
       this.auth.mode = this.auth.mode === 'login' ? 'register' : 'login';
       this.auth.error = '';
+      this.auth.success = '';
       this.auth.email = '';
       this.auth.password = '';
       this.auth.confirmPassword = '';
       this.auth.fullName = '';
+    },
+
+    async resetPassword() {
+      this.auth.error = '';
+      this.auth.success = '';
+      if (!this.auth.email) {
+        this.auth.error = 'Digite seu email para recuperar a senha';
+        return;
+      }
+      try {
+        const client = await initSupabase();
+        if (!client) {
+          this.auth.error = 'Erro de conexão. Tente novamente.';
+          return;
+        }
+        const { error } = await client.auth.resetPasswordForEmail(this.auth.email, {
+          redirectTo: window.location.origin
+        });
+        if (error) {
+          this.auth.error = error.message || 'Erro ao enviar email de recuperação';
+          return;
+        }
+        this.auth.success = 'Email de recuperação enviado! Verifique sua caixa de entrada (e spam).';
+        console.log('[Spalla] Password reset email sent to:', this.auth.email);
+      } catch (e) {
+        this.auth.error = 'Erro ao enviar email: ' + e.message;
+        console.error('[Spalla] Reset password error:', e);
+      }
     },
 
     startDataRefresh() {

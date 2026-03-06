@@ -34,6 +34,9 @@
             <input type="password" class="auth-card__input" placeholder="Senha" x-model="auth.password" @keydown.enter="login()">
             <button class="auth-card__btn" @click="login()">Entrar</button>
             <div class="auth-card__toggle">
+              <button @click="auth.mode='reset'; auth.error=''; auth.success=''" style="background:none;border:none;color:#94a3b8;cursor:pointer;text-decoration:underline;font-size:13px">Esqueci minha senha</button>
+            </div>
+            <div class="auth-card__toggle">
               Ainda não tem conta? <button @click="toggleAuthMode()" style="background:none;border:none;color:#6366f1;cursor:pointer;text-decoration:underline">Cadastre-se</button>
             </div>
           </div>
@@ -44,7 +47,7 @@
           <div>
             <input type="text" class="auth-card__input" placeholder="Nome completo" x-model="auth.fullName" @keydown.enter="register()">
             <input type="email" class="auth-card__input" placeholder="Email" x-model="auth.email" @keydown.enter="register()">
-            <input type="password" class="auth-card__input" placeholder="Senha (mín. 6 caracteres)" x-model="auth.password" @keydown.enter="register()">
+            <input type="password" class="auth-card__input" placeholder="Senha (min. 6 caracteres)" x-model="auth.password" @keydown.enter="register()">
             <input type="password" class="auth-card__input" placeholder="Confirmar senha" x-model="auth.confirmPassword" @keydown.enter="register()">
             <button class="auth-card__btn" @click="register()">Criar conta</button>
             <div class="auth-card__toggle">
@@ -53,6 +56,19 @@
           </div>
         </template>
 
+        <!-- Reset Password Mode -->
+        <template x-if="auth.mode === 'reset'">
+          <div>
+            <p style="color:#94a3b8;font-size:14px;margin-bottom:16px;text-align:center">Digite seu email e enviaremos um link para redefinir sua senha.</p>
+            <input type="email" class="auth-card__input" placeholder="Email" x-model="auth.email" @keydown.enter="resetPassword()">
+            <button class="auth-card__btn" @click="resetPassword()">Enviar link de recuperação</button>
+            <div class="auth-card__toggle">
+              <button @click="auth.mode='login'; auth.error=''; auth.success=''" style="background:none;border:none;color:#6366f1;cursor:pointer;text-decoration:underline">Voltar ao login</button>
+            </div>
+          </div>
+        </template>
+
+        <div class="auth-card__success" x-show="auth.success" x-text="auth.success" style="color:#10b981;font-size:13px;text-align:center;margin-top:12px"></div>
         <div class="auth-card__error" x-show="auth.error" x-text="auth.error"></div>
       </div>
     </div>
