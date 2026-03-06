@@ -87,6 +87,10 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             <span x-show="ui.sidebarOpen">Agenda</span>
           </a>
+          <a class="sidebar__item" :class="{ active: ui.page === 'equipe' }" @click="navigate('equipe')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span x-show="ui.sidebarOpen">Equipe</span>
+          </a>
 
           <div class="sidebar__section-label" x-show="ui.sidebarOpen">Comunicacao</div>
           <a class="sidebar__item" :class="{ active: ui.page === 'whatsapp' }" @click="navigate('whatsapp'); fetchWhatsAppChats()">
@@ -366,11 +370,11 @@
                     <span x-text="m.tarefas_pendentes"></span>
                     <span class="mc-card__tasks-late" x-show="m.tarefas_atrasadas > 0" x-text="'(' + m.tarefas_atrasadas + ' atr)'"></span>
                   </div>
-                  <div class="mc-card__engagement">
-                    <div class="mc-card__eng-bar">
-                      <div class="mc-card__eng-fill" :style="'width:' + (m.engagement_score || 0) + '%'" :class="m.engagement_score >= 70 ? 'mc-card__eng-fill--good' : m.engagement_score >= 40 ? 'mc-card__eng-fill--mid' : 'mc-card__eng-fill--low'"></div>
+                  <div class="mc-card__health" x-data="{ hs: calcHealthScore(m) }">
+                    <div class="mc-card__health-bar">
+                      <div class="mc-card__health-fill" :style="'width:' + hs.total + '%'" :class="'mc-card__health-fill--' + hs.color"></div>
                     </div>
-                    <span class="mc-card__eng-val" x-text="(m.engagement_score || 0) + '%'"></span>
+                    <span class="mc-card__health-val" :class="'text--' + hs.color" x-text="hs.total"></span>
                   </div>
                 </div>
               </div>
@@ -462,6 +466,29 @@
 
             <!-- ===== TAB: RESUMO ===== -->
             <div class="detail-tab-content" x-show="ui.activeDetailTab === 'resumo'">
+              <!-- Health Score Breakdown -->
+              <div class="card health-breakdown" x-data="{ hs: calcHealthScore(data.detail?.profile || {}) }">
+                <div class="card__header">
+                  <h3>Health Score</h3>
+                  <span class="badge" :class="'badge--' + hs.color" x-text="hs.total + '/100'"></span>
+                </div>
+                <div class="card__body">
+                  <div class="health-breakdown__grid">
+                    <template x-for="dim in Object.entries(hs.breakdown)" :key="dim[0]">
+                      <div class="health-breakdown__item">
+                        <div class="health-breakdown__label">
+                          <span x-text="dim[0]"></span>
+                          <span class="health-breakdown__score" x-text="dim[1].score + '/' + dim[1].max"></span>
+                        </div>
+                        <div class="health-breakdown__bar">
+                          <div class="health-breakdown__fill" :style="'width:' + (dim[1].score / dim[1].max * 100) + '%'" :class="(dim[1].score / dim[1].max) >= 0.7 ? 'health-breakdown__fill--good' : (dim[1].score / dim[1].max) >= 0.4 ? 'health-breakdown__fill--mid' : 'health-breakdown__fill--low'"></div>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+
               <div class="detail-grid">
                 <div class="detail-grid__left">
                   <!-- Context IA -->
@@ -917,7 +944,12 @@
                               </button>
                             </div>
                           </div>
-                          <div class="task-board__card-title" x-text="t.titulo"></div>
+                          <div class="task-board__card-title">
+                            <span x-text="t.titulo"></span>
+                            <span class="task-recurring-badge" x-show="t.recorrencia && t.recorrencia !== 'nenhuma'" :title="'Recorrente: ' + recorrenciaLabel(t.recorrencia)">
+                              <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                            </span>
+                          </div>
                           <!-- Tags -->
                           <div x-show="t.tags?.length" class="task-board__card-tags">
                             <template x-for="tag in (t.tags || []).slice(0, 3)" :key="tag">
@@ -1795,6 +1827,55 @@
           </div>
         </div>
 
+        <!-- ===== PAGE: EQUIPE ===== -->
+        <div class="page-content" x-show="ui.page === 'equipe'" x-transition>
+          <div class="page-header"><h2>Dashboard da Equipe</h2></div>
+          <div class="team-grid">
+            <template x-for="member in teamStats" :key="member.name">
+              <div class="team-card" @click="taskAssignee = member.name; navigate('tasks')">
+                <div class="team-card__header">
+                  <div class="avatar avatar--md avatar--brand" :style="'background:' + avatarGradient(member.name)" x-text="avatarInitials(member.name)"></div>
+                  <div>
+                    <div class="team-card__name" x-text="member.name"></div>
+                    <div class="team-card__role" x-text="member.email"></div>
+                  </div>
+                  <span class="badge badge--sm" x-show="member.carga >= 85" :class="'badge--danger'">SOBRECARGA</span>
+                </div>
+                <div class="team-card__metrics">
+                  <div class="team-card__metric">
+                    <span class="team-card__metric-val" x-text="member.pendentes"></span>
+                    <span class="team-card__metric-label">Pendentes</span>
+                  </div>
+                  <div class="team-card__metric">
+                    <span class="team-card__metric-val" x-text="member.emAndamento"></span>
+                    <span class="team-card__metric-label">Em andamento</span>
+                  </div>
+                  <div class="team-card__metric">
+                    <span class="team-card__metric-val team-card__metric-val--danger" x-text="member.atrasadas" x-show="member.atrasadas > 0"></span>
+                    <span class="team-card__metric-label" x-show="member.atrasadas > 0">Atrasadas</span>
+                  </div>
+                  <div class="team-card__metric">
+                    <span class="team-card__metric-val team-card__metric-val--success" x-text="member.concluidas7d"></span>
+                    <span class="team-card__metric-label">Concl. 7d</span>
+                  </div>
+                </div>
+                <div class="team-card__footer">
+                  <span class="team-card__mentees">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    <span x-text="member.mentorados + ' mentorados'"></span>
+                  </span>
+                  <div class="team-card__load">
+                    <div class="team-card__load-bar">
+                      <div class="team-card__load-fill" :style="'width:' + Math.min(member.carga, 100) + '%'" :class="'team-card__load-fill--' + member.cargaStatus"></div>
+                    </div>
+                    <span class="team-card__load-val" x-text="member.carga + '%'"></span>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
       </main>
 
       <!-- Task Modal — Global (outside pages so visible on all pages) -->
@@ -1838,6 +1919,32 @@
               <option value="alta">Alta</option>
               <option value="urgente">Urgente</option>
             </select>
+
+            <!-- Recorrencia -->
+            <div style="margin-top:12px">
+              <label>Recorrencia</label>
+              <select x-model="taskForm.recorrencia" class="modal__select">
+                <option value="nenhuma">Nenhuma (tarefa unica)</option>
+                <option value="diario">Diaria (dias uteis)</option>
+                <option value="semanal">Semanal</option>
+                <option value="quinzenal">Quinzenal</option>
+                <option value="mensal">Mensal</option>
+              </select>
+            </div>
+            <div x-show="taskForm.recorrencia === 'semanal' || taskForm.recorrencia === 'quinzenal'" style="margin-top:8px">
+              <label>Dia da semana</label>
+              <select x-model="taskForm.dia_recorrencia" class="modal__select">
+                <option value="1">Segunda</option>
+                <option value="2">Terca</option>
+                <option value="3">Quarta</option>
+                <option value="4">Quinta</option>
+                <option value="5">Sexta</option>
+              </select>
+            </div>
+            <div x-show="taskForm.recorrencia === 'mensal'" style="margin-top:8px">
+              <label>Dia do mes</label>
+              <input type="number" x-model="taskForm.dia_recorrencia" min="1" max="28" placeholder="Ex: 5" class="modal__input">
+            </div>
           </div>
           <div class="modal__footer">
             <button class="btn" @click="closeTaskModal()">Cancelar</button>

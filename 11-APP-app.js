@@ -222,6 +222,8 @@ function spalla() {
       newCheckItem: '',
       newComment: '',
       newTag: '',
+      recorrencia: 'nenhuma',
+      dia_recorrencia: null,
     },
 
     // --- Reminder Form ---
@@ -387,6 +389,171 @@ function spalla() {
       return 'mc-card__wa-badge--success';
     },
 
+    // ===================== HEALTH SCORE =====================
+
+    calcHealthScore(m) {
+      // Dim 1: Engagement WA (25%)
+      let scoreWa = 0;
+      const wa7d = m.whatsapp_7d || 0;
+      if (wa7d >= 10) scoreWa = 100;
+      else if (wa7d >= 5) scoreWa = 80;
+      else if (wa7d >= 2) scoreWa = 50;
+      else if (wa7d >= 1) scoreWa = 30;
+      const hsr = m.horas_sem_resposta_equipe || 0;
+      if (hsr > 48) scoreWa -= 40;
+      else if (hsr > 24) scoreWa -= 20;
+      else if (hsr > 12) scoreWa -= 10;
+      scoreWa = Math.max(0, Math.min(100, scoreWa));
+
+      // Dim 2: Frequencia Calls (20%)
+      const dc = m.dias_desde_call ?? 999;
+      let scoreCalls = dc <= 14 ? 100 : dc <= 21 ? 80 : dc <= 30 ? 50 : dc <= 45 ? 25 : 0;
+
+      // Dim 3: Progresso Tarefas (20%)
+      const scoreTarefas = Math.max(0, 100 - (m.tarefas_pendentes || 0) * 5 - (m.tarefas_atrasadas || 0) * 15);
+
+      // Dim 4: Evolucao Vendas (15%)
+      let scoreVendas = 20;
+      const meta = m.meta_faturamento || 0;
+      const fat = m.faturamento_atual || 0;
+      if (meta > 0) {
+        const pct = fat / meta;
+        scoreVendas = pct >= 1 ? 100 : pct >= 0.5 ? 70 : pct >= 0.2 ? 40 : 10;
+      } else if (m.ja_vendeu) {
+        scoreVendas = 60;
+      }
+
+      // Dim 5: Implementacao (10%)
+      const scoreImpl = Math.min(100, Math.max(0, Math.round(
+        (m.engagement_score || 50) * 0.5 + (m.implementation_score || 50) * 0.5
+      )));
+
+      // Dim 6: Financeiro (10%)
+      let scoreFin = 50;
+      if (m.contrato_assinado && ['em_dia', 'quitado', 'pago'].includes(m.status_financeiro)) scoreFin = 100;
+      else if (m.contrato_assinado && m.status_financeiro === 'atrasado') scoreFin = 40;
+      else if (m.contrato_assinado === false) scoreFin = 20;
+
+      const total = Math.round(
+        scoreWa * 0.25 + scoreCalls * 0.20 + scoreTarefas * 0.20 +
+        scoreVendas * 0.15 + scoreImpl * 0.10 + scoreFin * 0.10
+      );
+
+      return {
+        total,
+        breakdown: { scoreWa, scoreCalls, scoreTarefas, scoreVendas, scoreImpl, scoreFin },
+        color: total >= 80 ? 'success' : total >= 50 ? 'warning' : 'danger',
+      };
+    },
+
+    // ===================== TEAM DASHBOARD =====================
+
+    get teamStats() {
+      return TEAM_MEMBERS.map(member => {
+        const mName = member.name.toLowerCase();
+        const myTasks = this.data.tasks.filter(t => t.responsavel?.toLowerCase().includes(mName));
+        const pendentes = myTasks.filter(t => t.status === 'pendente').length;
+        const emAndamento = myTasks.filter(t => t.status === 'em_andamento').length;
+        const atrasadas = myTasks.filter(t =>
+          t.status === 'pendente' && t.data_fim && parseDateStr(t.data_fim) < SYSTEM_TODAY
+        ).length;
+        const week = new Date(); week.setDate(week.getDate() - 7);
+        const concluidas7d = myTasks.filter(t => {
+          if (t.status !== 'concluida' || !t.updated_at) return false;
+          return new Date(t.updated_at) >= week;
+        }).length;
+        const mentorados = [...new Set(myTasks.map(t => t.mentorado_nome).filter(Boolean))].length;
+        const carga = Math.min(Math.round((pendentes + emAndamento) / 20 * 100), 100);
+        return {
+          name: member.name,
+          email: member.email,
+          pendentes, emAndamento, atrasadas, concluidas7d, mentorados, carga,
+          cargaStatus: carga >= 85 ? 'danger' : carga >= 60 ? 'warning' : 'success',
+        };
+      });
+    },
+
+    // ===================== RECURRING TASKS =====================
+
+    async _checkRecurringTasks() {
+      const recurring = this.data.tasks.filter(t =>
+        t.recorrencia && t.recorrencia !== 'nenhuma' && t.status === 'concluida'
+      );
+      for (const task of recurring) {
+        const nextDate = this._calcNextOccurrence(task);
+        if (!nextDate) continue;
+        const originId = task.recorrencia_origem_id || task.id;
+        const exists = this.data.tasks.find(t =>
+          (t.recorrencia_origem_id === originId || t.id === originId) &&
+          t.status === 'pendente' && t.id !== task.id
+        );
+        if (exists) continue;
+        const newId = crypto.randomUUID ? crypto.randomUUID() : 'task_' + Date.now();
+        const newTask = {
+          id: newId,
+          titulo: task.titulo,
+          descricao: task.descricao,
+          responsavel: task.responsavel,
+          mentorado_nome: task.mentorado_nome,
+          mentorado_id: task.mentorado_id,
+          prioridade: task.prioridade,
+          space_id: task.space_id,
+          list_id: task.list_id,
+          tags: task.tags || [],
+          recorrencia: task.recorrencia,
+          dia_recorrencia: task.dia_recorrencia,
+          recorrencia_origem_id: originId,
+          data_inicio: nextDate,
+          data_fim: nextDate,
+          status: 'pendente',
+          fonte: 'recorrencia',
+          comments: [], attachments: [], handoffs: [], subtasks: [], checklist: [],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        this.data.tasks.push(newTask);
+        this._sbUpsertTask(newTask, true);
+        this._cacheTasksLocal();
+      }
+    },
+
+    _calcNextOccurrence(task) {
+      const completed = task.updated_at ? new Date(task.updated_at) : new Date();
+      switch (task.recorrencia) {
+        case 'diario': {
+          const n = new Date(completed);
+          n.setDate(n.getDate() + 1);
+          while (n.getDay() === 0 || n.getDay() === 6) n.setDate(n.getDate() + 1);
+          return n.toISOString().split('T')[0];
+        }
+        case 'semanal': {
+          const day = task.dia_recorrencia ?? completed.getDay();
+          const n = new Date(completed);
+          n.setDate(n.getDate() + ((7 + day - n.getDay()) % 7 || 7));
+          return n.toISOString().split('T')[0];
+        }
+        case 'quinzenal': {
+          const day = task.dia_recorrencia ?? completed.getDay();
+          const n = new Date(completed);
+          n.setDate(n.getDate() + 7 + ((7 + day - n.getDay()) % 7 || 7));
+          return n.toISOString().split('T')[0];
+        }
+        case 'mensal': {
+          const dayOfMonth = task.dia_recorrencia ?? completed.getDate();
+          const n = new Date(completed);
+          n.setMonth(n.getMonth() + 1);
+          const lastDay = new Date(n.getFullYear(), n.getMonth() + 1, 0).getDate();
+          n.setDate(Math.min(dayOfMonth, lastDay));
+          return n.toISOString().split('T')[0];
+        }
+        default: return null;
+      }
+    },
+
+    recorrenciaLabel(r) {
+      return { diario: 'Diaria', semanal: 'Semanal', quinzenal: 'Quinzenal', mensal: 'Mensal' }[r] || '';
+    },
+
     // Kanban: group mentees by phase
     menteesByPhase(fase) {
       return this.data.mentees.filter(m => m.fase_jornada === fase);
@@ -524,8 +691,9 @@ function spalla() {
         t.status = newStatus;
         t.updated_at = new Date().toISOString();
         this._cacheTasksLocal();
-        if (sb) sb.from('god_tasks').update({ status: newStatus }).eq('id', taskId).then(() => {});
+        if (sb) sb.from('god_tasks').update({ status: newStatus, updated_at: t.updated_at }).eq('id', taskId).then(() => {});
         this.toast(`Tarefa movida para ${this.taskStatusLabel(newStatus)}`, 'success');
+        if (newStatus === 'concluida') this._checkRecurringTasks();
       }
     },
 
@@ -1297,7 +1465,7 @@ function spalla() {
     async _sbUpsertTask(task, isNew = false) {
       if (!sb) return;
       // Only send columns that exist in god_tasks table
-      const VALID_COLS = ['id','titulo','descricao','status','prioridade','responsavel','acompanhante','mentorado_id','mentorado_nome','data_inicio','data_fim','space_id','list_id','parent_task_id','tags','fonte','doc_link','created_at','updated_at','created_by'];
+      const VALID_COLS = ['id','titulo','descricao','status','prioridade','responsavel','acompanhante','mentorado_id','mentorado_nome','data_inicio','data_fim','space_id','list_id','parent_task_id','tags','fonte','doc_link','created_at','updated_at','created_by','recorrencia','dia_recorrencia','recorrencia_ativa','recorrencia_origem_id'];
       const row = {};
       for (const k of VALID_COLS) {
         if (task[k] !== undefined) row[k] = task[k];
@@ -1371,6 +1539,8 @@ function spalla() {
           parent_task_id: task.parent_task_id || null,
           space_id: task.space_id || 'space_jornada',
           list_id: task.list_id || '',
+          recorrencia: task.recorrencia || 'nenhuma',
+          dia_recorrencia: task.dia_recorrencia || null,
           newSubtask: '',
           newCheckItem: '',
           newComment: '',
@@ -1378,7 +1548,7 @@ function spalla() {
         };
         this.ui.taskEditId = task.id;
       } else {
-        this.taskForm = { titulo: '', descricao: '', responsavel: '', acompanhante: '', mentorado_nome: '', prioridade: 'normal', prazo: '', data_inicio: '', data_fim: '', doc_link: '', subtasks: [], checklist: [], comments: [], attachments: [], tags: [], parent_task_id: null, space_id: 'space_jornada', list_id: '', newSubtask: '', newCheckItem: '', newComment: '', newTag: '' };
+        this.taskForm = { titulo: '', descricao: '', responsavel: '', acompanhante: '', mentorado_nome: '', prioridade: 'normal', prazo: '', data_inicio: '', data_fim: '', doc_link: '', subtasks: [], checklist: [], comments: [], attachments: [], tags: [], parent_task_id: null, space_id: 'space_jornada', list_id: '', recorrencia: 'nenhuma', dia_recorrencia: null, newSubtask: '', newCheckItem: '', newComment: '', newTag: '' };
         this.ui.taskEditId = null;
       }
       this.ui.taskModal = true;
@@ -1436,6 +1606,7 @@ function spalla() {
         if (sb) {
           try { await sb.from('god_tasks').update({ status: newStatus, updated_at: t.updated_at }).eq('id', taskId); } catch (e) {}
         }
+        if (newStatus === 'concluida') this._checkRecurringTasks();
       }
     },
 

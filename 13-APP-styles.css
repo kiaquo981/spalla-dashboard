@@ -4333,3 +4333,237 @@ img { max-width: 100%; display: block; }
   background: var(--danger-light);
   color: var(--danger-dark);
 }
+
+/* ===== HEALTH SCORE — Mentee Cards ===== */
+.mc-card__health {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.mc-card__health-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--neutral-200);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.mc-card__health-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.mc-card__health-fill--success { background: var(--success); }
+.mc-card__health-fill--warning { background: var(--warning); }
+.mc-card__health-fill--danger { background: var(--danger); }
+
+.mc-card__health-val {
+  font-size: 12px;
+  font-weight: 700;
+  min-width: 24px;
+  text-align: right;
+}
+
+.text--success { color: var(--success-dark); }
+.text--warning { color: var(--warning-dark); }
+.text--danger { color: var(--danger-dark); }
+
+/* ===== HEALTH SCORE — Detail Breakdown ===== */
+.health-breakdown {
+  margin-bottom: 16px;
+}
+
+.health-breakdown__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.health-breakdown__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.health-breakdown__label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--neutral-600);
+  text-transform: capitalize;
+}
+
+.health-breakdown__score {
+  font-weight: 700;
+  color: var(--neutral-800);
+}
+
+.health-breakdown__bar {
+  height: 8px;
+  background: var(--neutral-200);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.health-breakdown__fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+.health-breakdown__fill--good { background: var(--success); }
+.health-breakdown__fill--mid { background: var(--warning); }
+.health-breakdown__fill--low { background: var(--danger); }
+
+@media (max-width: 480px) {
+  .health-breakdown__grid { grid-template-columns: 1fr; }
+}
+
+/* ===== TEAM DASHBOARD ===== */
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.team-card {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid var(--neutral-200);
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.team-card:hover {
+  border-color: var(--brand);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  transform: translateY(-2px);
+}
+
+.team-card__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.team-card__name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--neutral-900);
+}
+
+.team-card__role {
+  font-size: 11px;
+  color: var(--neutral-500);
+}
+
+.team-card__metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.team-card__metric {
+  text-align: center;
+  padding: 8px 4px;
+  background: var(--neutral-50);
+  border-radius: 8px;
+}
+
+.team-card__metric-val {
+  display: block;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--neutral-800);
+}
+
+.team-card__metric-val--danger { color: var(--danger); }
+.team-card__metric-val--success { color: var(--success); }
+
+.team-card__metric-label {
+  font-size: 10px;
+  color: var(--neutral-500);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.team-card__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid var(--neutral-100);
+}
+
+.team-card__mentees {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--neutral-600);
+}
+
+.team-card__load {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.team-card__load-bar {
+  width: 60px;
+  height: 6px;
+  background: var(--neutral-200);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.team-card__load-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.team-card__load-fill--success { background: var(--success); }
+.team-card__load-fill--warning { background: var(--warning); }
+.team-card__load-fill--danger { background: var(--danger); }
+
+.team-card__load-val {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--neutral-600);
+}
+
+@media (max-width: 900px) {
+  .team-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 600px) {
+  .team-grid { grid-template-columns: 1fr; }
+}
+
+/* ===== RECURRING TASK BADGE ===== */
+.task-recurring-badge {
+  display: inline-flex;
+  align-items: center;
+  color: var(--purple, #7c3aed);
+  background: var(--purple-light, #ede9fe);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.task-board__card-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
