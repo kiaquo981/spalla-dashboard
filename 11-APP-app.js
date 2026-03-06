@@ -61,7 +61,7 @@ async function initSupabase() {
 }
 
 // ===== TEMPORAL AWARENESS =====
-const SYSTEM_TODAY = new Date();
+function SYSTEM_TODAY() { return new Date(); }
 function parseDateStr(dateStr) {
   if (!dateStr) return null;
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
@@ -78,7 +78,7 @@ function parseDateStr(dateStr) {
 function daysBetween(dateStr) {
   const d = parseDateStr(dateStr);
   if (!d) return null;
-  return Math.floor((SYSTEM_TODAY - d) / (1000 * 60 * 60 * 24));
+  return Math.floor((SYSTEM_TODAY() - d) / (1000 * 60 * 60 * 24));
 }
 
 // ===== ALPINE APP =====
@@ -478,7 +478,7 @@ function spalla() {
         const pendentes = myTasks.filter(t => t.status === 'pendente').length;
         const emAndamento = myTasks.filter(t => t.status === 'em_andamento').length;
         const atrasadas = myTasks.filter(t =>
-          t.status === 'pendente' && t.data_fim && parseDateStr(t.data_fim) < SYSTEM_TODAY
+          t.status === 'pendente' && t.data_fim && parseDateStr(t.data_fim) < SYSTEM_TODAY()
         ).length;
         const week = new Date(); week.setDate(week.getDate() - 7);
         const concluidas7d = myTasks.filter(t => {
@@ -587,7 +587,7 @@ function spalla() {
       let list = [...this.data.tasks];
       if (this.ui.taskFilter !== 'all') {
         if (this.ui.taskFilter === 'atrasada') {
-          list = list.filter(t => t.status === 'pendente' && (t.data_fim || t.prazo) && parseDateStr(t.data_fim || t.prazo) < SYSTEM_TODAY);
+          list = list.filter(t => t.status === 'pendente' && (t.data_fim || t.prazo) && parseDateStr(t.data_fim || t.prazo) < SYSTEM_TODAY());
         } else {
           list = list.filter(t => t.status === this.ui.taskFilter);
         }
@@ -710,14 +710,17 @@ function spalla() {
 
     async moveTask(taskId, newStatus) {
       const t = this.data.tasks.find(x => x.id === taskId);
-      if (t) {
-        t.status = newStatus;
-        t.updated_at = new Date().toISOString();
-        this._cacheTasksLocal();
-        if (sb) sb.from('god_tasks').update({ status: newStatus, updated_at: t.updated_at }).eq('id', taskId).then(() => {});
-        this.toast(`Tarefa movida para ${this.taskStatusLabel(newStatus)}`, 'success');
-        if (newStatus === 'concluida') this._checkRecurringTasks();
+      if (!t) return;
+      const oldStatus = t.status;
+      t.status = newStatus;
+      t.updated_at = new Date().toISOString();
+      this._cacheTasksLocal();
+      if (sb) {
+        const { error } = await sb.from('god_tasks').update({ status: newStatus, updated_at: t.updated_at }).eq('id', taskId);
+        if (error) { t.status = oldStatus; this._cacheTasksLocal(); this.toast('Erro ao mover tarefa', 'error'); return; }
       }
+      this.toast(`Tarefa movida para ${this.taskStatusLabel(newStatus)}`, 'success');
+      if (newStatus === 'concluida') this._checkRecurringTasks();
     },
 
     // Drag and drop
@@ -762,7 +765,7 @@ function spalla() {
         pendente: tasks.filter(t => t.status === 'pendente').length,
         em_andamento: tasks.filter(t => t.status === 'em_andamento').length,
         concluida: tasks.filter(t => t.status === 'concluida').length,
-        atrasada: tasks.filter(t => t.status === 'pendente' && (t.data_fim || t.prazo) && parseDateStr(t.data_fim || t.prazo) < SYSTEM_TODAY).length,
+        atrasada: tasks.filter(t => t.status === 'pendente' && (t.data_fim || t.prazo) && parseDateStr(t.data_fim || t.prazo) < SYSTEM_TODAY()).length,
       };
     },
 
@@ -801,18 +804,61 @@ function spalla() {
     async init() {
       console.log('[Spalla] init() starting');
       try {
-        // Restore JWT session from localStorage
+        // Restore JWT session from localStorage + validate with server
         const accessToken = localStorage.getItem('spalla_access_token');
         const refreshToken = localStorage.getItem('spalla_refresh_token');
         const userStr = localStorage.getItem('spalla_user');
 
         if (accessToken && userStr) {
-          this.auth.authenticated = true;
-          this.auth.currentUser = JSON.parse(userStr);
-          this.auth.accessToken = accessToken;
-          this.auth.refreshToken = refreshToken;
-          this.ui.taskAssignee = '__mine__';
-          console.log('[Spalla] Auth: restored session for', this.auth.currentUser.email);
+          try {
+            // Validate token with backend
+            const resp = await fetch(`${CONFIG.API_BASE}/api/auth/me`, {
+              headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            if (resp.ok) {
+              const userData = await resp.json();
+              this.auth.authenticated = true;
+              this.auth.currentUser = userData.user || JSON.parse(userStr);
+              this.auth.accessToken = accessToken;
+              this.auth.refreshToken = refreshToken;
+              this.ui.taskAssignee = '__mine__';
+              console.log('[Spalla] Auth: session validated for', this.auth.currentUser.email);
+            } else if (resp.status === 401 && refreshToken) {
+              // Try refresh
+              const refreshResp = await fetch(`${CONFIG.API_BASE}/api/auth/refresh`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refresh_token: refreshToken })
+              });
+              if (refreshResp.ok) {
+                const data = await refreshResp.json();
+                this.auth.authenticated = true;
+                this.auth.currentUser = data.user || JSON.parse(userStr);
+                this.auth.accessToken = data.access_token;
+                this.auth.refreshToken = data.refresh_token;
+                localStorage.setItem('spalla_access_token', data.access_token);
+                localStorage.setItem('spalla_refresh_token', data.refresh_token);
+                if (data.user) localStorage.setItem('spalla_user', JSON.stringify(data.user));
+                this.ui.taskAssignee = '__mine__';
+                console.log('[Spalla] Auth: session refreshed for', this.auth.currentUser.email);
+              } else {
+                // Refresh failed — clear session
+                this._clearAuthStorage();
+                console.log('[Spalla] Auth: session expired, cleared');
+              }
+            } else {
+              this._clearAuthStorage();
+              console.log('[Spalla] Auth: invalid session, cleared');
+            }
+          } catch (e) {
+            // Network error — trust local session as fallback
+            this.auth.authenticated = true;
+            this.auth.currentUser = JSON.parse(userStr);
+            this.auth.accessToken = accessToken;
+            this.auth.refreshToken = refreshToken;
+            this.ui.taskAssignee = '__mine__';
+            console.warn('[Spalla] Auth: offline, using cached session');
+          }
         } else {
           console.log('[Spalla] Auth: no saved session');
         }
@@ -979,6 +1025,12 @@ function spalla() {
       }
     },
 
+    _clearAuthStorage() {
+      localStorage.removeItem('spalla_access_token');
+      localStorage.removeItem('spalla_refresh_token');
+      localStorage.removeItem('spalla_user');
+    },
+
     async logout() {
       try {
         // Clear all auth state
@@ -996,10 +1048,9 @@ function spalla() {
         // Stop data refresh
         this.stopDataRefresh();
 
-        // Clear tokens from localStorage
-        localStorage.removeItem('spalla_access_token');
-        localStorage.removeItem('spalla_refresh_token');
-        localStorage.removeItem('spalla_user');
+        // Clear tokens and cached data from localStorage
+        this._clearAuthStorage();
+        localStorage.removeItem(CONFIG.TASKS_STORAGE_KEY);
 
         console.log('[Spalla] Logout successful - session cleared');
 
@@ -1121,6 +1172,12 @@ function spalla() {
               .limit(500),
             sb.from('vw_god_pendencias').select('*').order('created_at', { ascending: true }),
           ]);
+          // Check individual query errors
+          if (mentees.error) console.error('[Spalla] Mentees query error:', mentees.error.message);
+          if (cohort.error) console.error('[Spalla] Cohort query error:', cohort.error.message);
+          if (calls.error) console.error('[Spalla] Calls query error:', calls.error.message);
+          if (pendencias.error) console.error('[Spalla] Pendencias query error:', pendencias.error.message);
+
           if (mentees.data?.length) {
             this.data.mentees = mentees.data;
           } else {
@@ -1128,6 +1185,7 @@ function spalla() {
             this.loadDemoData();
           }
           if (cohort.data?.length) this.data.cohort = cohort.data;
+          if (pendencias.data) this.data.pendencias = pendencias.data;
           if (calls.data?.length) {
             // Normalize calls data (from calls_mentoria table directly)
             this._supabaseCalls = calls.data.map(c => ({
@@ -1150,7 +1208,6 @@ function spalla() {
             // Log first 5 calls for debugging
             console.log('[Spalla] Sample calls:', this._supabaseCalls.slice(0, 5).map(c => ({ nome: c.mentorado_nome, data: c.data_call })));
           }
-          if (pendencias.data?.length) this.data.pendencias = pendencias.data;
           // Recalculate dias_desde_call with real call data
           if (this._supabaseCalls?.length) this._enrichMenteesWithCalls();
           this.supabaseConnected = true;
@@ -1486,59 +1543,79 @@ function spalla() {
     },
 
     async _sbUpsertTask(task, isNew = false) {
-      if (!sb) return;
-      // Only send columns that exist in god_tasks table
+      if (!sb) return { ok: false };
       const VALID_COLS = ['id','titulo','descricao','status','prioridade','responsavel','acompanhante','mentorado_id','mentorado_nome','data_inicio','data_fim','space_id','list_id','parent_task_id','tags','fonte','doc_link','created_at','updated_at','created_by','recorrencia','dia_recorrencia','recorrencia_ativa','recorrencia_origem_id'];
       const row = {};
-      for (const k of VALID_COLS) {
-        if (task[k] !== undefined) row[k] = task[k];
-      }
+      for (const k of VALID_COLS) { if (task[k] !== undefined) row[k] = task[k]; }
       if (row.mentorado_id) row.mentorado_id = parseInt(row.mentorado_id) || null;
-      // Set created_by for new tasks
-      if (isNew && this.auth.currentUser) {
-        row.created_by = this.auth.currentUser.id;
-      }
-      try { await sb.from('god_tasks').upsert(row, { onConflict: 'id' }); } catch (e) { console.warn('[Spalla] Task upsert error:', e.message); }
+      if (isNew && this.auth.currentUser) row.created_by = this.auth.currentUser.id;
+      try {
+        const { error } = await sb.from('god_tasks').upsert(row, { onConflict: 'id' });
+        if (error) { console.warn('[Spalla] Task upsert error:', error.message); return { ok: false, error }; }
+        return { ok: true };
+      } catch (e) { console.warn('[Spalla] Task upsert error:', e.message); return { ok: false }; }
     },
 
     async _sbDeleteTask(taskId) {
-      if (!sb) return;
-      try { await sb.from('god_tasks').delete().eq('id', taskId); } catch (e) { console.warn('[Spalla] Task delete error:', e.message); }
+      if (!sb) return { ok: false };
+      try {
+        const { error } = await sb.from('god_tasks').delete().eq('id', taskId);
+        if (error) { console.warn('[Spalla] Task delete error:', error.message); return { ok: false }; }
+        return { ok: true };
+      } catch (e) { console.warn('[Spalla] Task delete error:', e.message); return { ok: false }; }
     },
 
     async _sbSyncSubtasks(taskId, subtasks) {
-      if (!sb) return;
+      if (!sb) return { ok: false };
       try {
-        await sb.from('god_task_subtasks').delete().eq('task_id', taskId);
+        const { error: delErr } = await sb.from('god_task_subtasks').delete().eq('task_id', taskId);
+        if (delErr) { console.warn('[Spalla] Subtask delete error:', delErr.message); return { ok: false }; }
         if (subtasks?.length) {
-          await sb.from('god_task_subtasks').insert(subtasks.map((s, i) => ({ task_id: taskId, texto: s.text, done: s.done, sort_order: i })));
+          const { error: insErr } = await sb.from('god_task_subtasks').insert(subtasks.map((s, i) => ({ task_id: taskId, texto: s.text, done: s.done, sort_order: i })));
+          if (insErr) { console.warn('[Spalla] Subtask insert error:', insErr.message); return { ok: false }; }
         }
-      } catch (e) { console.warn('[Spalla] Subtask sync error:', e.message); }
+        return { ok: true };
+      } catch (e) { console.warn('[Spalla] Subtask sync error:', e.message); return { ok: false }; }
     },
 
     async _sbSyncChecklist(taskId, checklist) {
-      if (!sb) return;
+      if (!sb) return { ok: false };
       try {
-        await sb.from('god_task_checklist').delete().eq('task_id', taskId);
+        const { error: delErr } = await sb.from('god_task_checklist').delete().eq('task_id', taskId);
+        if (delErr) { console.warn('[Spalla] Checklist delete error:', delErr.message); return { ok: false }; }
         if (checklist?.length) {
-          await sb.from('god_task_checklist').insert(checklist.map((c, i) => ({ task_id: taskId, texto: c.text, done: c.done, sort_order: i })));
+          const { error: insErr } = await sb.from('god_task_checklist').insert(checklist.map((c, i) => ({ task_id: taskId, texto: c.text, done: c.done, sort_order: i })));
+          if (insErr) { console.warn('[Spalla] Checklist insert error:', insErr.message); return { ok: false }; }
         }
-      } catch (e) { console.warn('[Spalla] Checklist sync error:', e.message); }
+        return { ok: true };
+      } catch (e) { console.warn('[Spalla] Checklist sync error:', e.message); return { ok: false }; }
     },
 
     async _sbAddComment(taskId, author, text) {
-      if (!sb) return;
-      try { await sb.from('god_task_comments').insert({ task_id: taskId, author, texto: text }); } catch (e) { console.warn('[Spalla] Comment error:', e.message); }
+      if (!sb) return { ok: false };
+      try {
+        const { error } = await sb.from('god_task_comments').insert({ task_id: taskId, author, texto: text });
+        if (error) { console.warn('[Spalla] Comment error:', error.message); return { ok: false }; }
+        return { ok: true };
+      } catch (e) { console.warn('[Spalla] Comment error:', e.message); return { ok: false }; }
     },
 
     async _sbDeleteComment(commentId) {
-      if (!sb) return;
-      try { await sb.from('god_task_comments').delete().eq('id', commentId); } catch (e) { console.warn('[Spalla] Delete comment error:', e.message); }
+      if (!sb) return { ok: false };
+      try {
+        const { error } = await sb.from('god_task_comments').delete().eq('id', commentId);
+        if (error) { console.warn('[Spalla] Delete comment error:', error.message); return { ok: false }; }
+        return { ok: true };
+      } catch (e) { console.warn('[Spalla] Delete comment error:', e.message); return { ok: false }; }
     },
 
     async _sbAddHandoff(taskId, from, to, note) {
-      if (!sb) return;
-      try { await sb.from('god_task_handoffs').insert({ task_id: taskId, from_person: from, to_person: to, note }); } catch (e) { console.warn('[Spalla] Handoff error:', e.message); }
+      if (!sb) return { ok: false };
+      try {
+        const { error } = await sb.from('god_task_handoffs').insert({ task_id: taskId, from_person: from, to_person: to, note });
+        if (error) { console.warn('[Spalla] Handoff error:', error.message); return { ok: false }; }
+        return { ok: true };
+      } catch (e) { console.warn('[Spalla] Handoff error:', e.message); return { ok: false }; }
     },
 
     openTaskModal(task = null) {
@@ -1594,11 +1671,14 @@ function spalla() {
       if (this.ui.taskEditId) {
         const idx = this.data.tasks.findIndex(t => t.id === this.ui.taskEditId);
         if (idx !== -1) {
-          const updated = { ...this.data.tasks[idx], ...formData, updated_at: new Date().toISOString() };
+          const backup = { ...this.data.tasks[idx] };
+          const updated = { ...backup, ...formData, updated_at: new Date().toISOString() };
           this.data.tasks[idx] = updated;
-          this._sbUpsertTask(updated);
-          this._sbSyncSubtasks(updated.id, updated.subtasks);
-          this._sbSyncChecklist(updated.id, updated.checklist);
+          this._cacheTasksLocal();
+          const r = await this._sbUpsertTask(updated);
+          if (!r.ok) { this.data.tasks[idx] = backup; this._cacheTasksLocal(); this.toast('Erro ao salvar tarefa', 'error'); return; }
+          await this._sbSyncSubtasks(updated.id, updated.subtasks);
+          await this._sbSyncChecklist(updated.id, updated.checklist);
         }
       } else {
         const newId = crypto.randomUUID ? crypto.randomUUID() : 'task_' + Date.now();
@@ -1610,10 +1690,11 @@ function spalla() {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
+        const r = await this._sbUpsertTask(newTask, true);
+        if (!r.ok) { this.toast('Erro ao criar tarefa', 'error'); return; }
         this.data.tasks.push(newTask);
-        this._sbUpsertTask(newTask, true); // Pass true for isNew
-        if (newTask.subtasks?.length) this._sbSyncSubtasks(newId, newTask.subtasks);
-        if (newTask.checklist?.length) this._sbSyncChecklist(newId, newTask.checklist);
+        if (newTask.subtasks?.length) await this._sbSyncSubtasks(newId, newTask.subtasks);
+        if (newTask.checklist?.length) await this._sbSyncChecklist(newId, newTask.checklist);
       }
       this._cacheTasksLocal();
       this.closeTaskModal();
@@ -1622,21 +1703,24 @@ function spalla() {
 
     async updateTaskStatus(taskId, newStatus) {
       const t = this.data.tasks.find(x => x.id === taskId);
-      if (t) {
-        t.status = newStatus;
-        t.updated_at = new Date().toISOString();
-        this._cacheTasksLocal();
-        if (sb) {
-          try { await sb.from('god_tasks').update({ status: newStatus, updated_at: t.updated_at }).eq('id', taskId); } catch (e) {}
-        }
-        if (newStatus === 'concluida') this._checkRecurringTasks();
+      if (!t) return;
+      const oldStatus = t.status;
+      t.status = newStatus;
+      t.updated_at = new Date().toISOString();
+      this._cacheTasksLocal();
+      if (sb) {
+        const { error } = await sb.from('god_tasks').update({ status: newStatus, updated_at: t.updated_at }).eq('id', taskId);
+        if (error) { t.status = oldStatus; this._cacheTasksLocal(); this.toast('Erro ao atualizar status', 'error'); return; }
       }
+      if (newStatus === 'concluida') this._checkRecurringTasks();
     },
 
     async deleteTask(taskId) {
+      const backup = this.data.tasks.find(t => t.id === taskId);
       this.data.tasks = this.data.tasks.filter(t => t.id !== taskId);
       this._cacheTasksLocal();
-      this._sbDeleteTask(taskId);
+      const r = await this._sbDeleteTask(taskId);
+      if (!r.ok && backup) { this.data.tasks.push(backup); this._cacheTasksLocal(); this.toast('Erro ao remover tarefa', 'error'); return; }
       this.toast('Tarefa removida', 'info');
     },
 
@@ -1728,34 +1812,33 @@ function spalla() {
     },
 
     // Tags
-    addTag(taskId) {
+    async addTag(taskId) {
       const t = this.data.tasks.find(x => x.id === taskId);
       if (t && this.taskForm.newTag?.trim()) {
         if (!t.tags) t.tags = [];
-        if (!t.tags.includes(this.taskForm.newTag.trim())) {
-          t.tags.push(this.taskForm.newTag.trim());
-        }
+        const tag = this.taskForm.newTag.trim();
+        if (!t.tags.includes(tag)) t.tags.push(tag);
         this.taskForm.newTag = '';
         this._cacheTasksLocal();
-        if (sb) sb.from('god_tasks').update({ tags: t.tags }).eq('id', taskId).then(() => {});
+        if (sb) { const { error } = await sb.from('god_tasks').update({ tags: t.tags }).eq('id', taskId); if (error) this.toast('Erro ao salvar tag', 'error'); }
       }
     },
 
-    removeTag(taskId, tag) {
+    async removeTag(taskId, tag) {
       const t = this.data.tasks.find(x => x.id === taskId);
       if (t && t.tags) {
         t.tags = t.tags.filter(tg => tg !== tag);
         this._cacheTasksLocal();
-        if (sb) sb.from('god_tasks').update({ tags: t.tags }).eq('id', taskId).then(() => {});
+        if (sb) { const { error } = await sb.from('god_tasks').update({ tags: t.tags }).eq('id', taskId); if (error) this.toast('Erro ao remover tag', 'error'); }
       }
     },
 
-    setParentTask(taskId, parentId) {
+    async setParentTask(taskId, parentId) {
       const t = this.data.tasks.find(x => x.id === taskId);
       if (t) {
         t.parent_task_id = parentId || null;
         this._cacheTasksLocal();
-        if (sb) sb.from('god_tasks').update({ parent_task_id: parentId || null }).eq('id', taskId).then(() => {});
+        if (sb) { const { error } = await sb.from('god_tasks').update({ parent_task_id: parentId || null }).eq('id', taskId); if (error) this.toast('Erro ao vincular tarefa', 'error'); }
       }
     },
 
@@ -1772,16 +1855,16 @@ function spalla() {
     // Handoffs (passagem de bastão)
     async addHandoff(taskId, from, to, note) {
       const t = this.data.tasks.find(x => x.id === taskId);
-      if (t) {
-        if (!t.handoffs) t.handoffs = [];
-        t.handoffs.push({ from, to, note, date: new Date().toISOString() });
-        t.responsavel = to;
-        t.updated_at = new Date().toISOString();
-        this._cacheTasksLocal();
-        this._sbAddHandoff(taskId, from, to, note);
-        if (sb) sb.from('god_tasks').update({ responsavel: to }).eq('id', taskId).then(() => {});
-        this.toast(`Tarefa passada de ${from} para ${to}`, 'success');
-      }
+      if (!t) return;
+      if (!t.handoffs) t.handoffs = [];
+      t.handoffs.push({ from, to, note, date: new Date().toISOString() });
+      t.responsavel = to;
+      t.updated_at = new Date().toISOString();
+      this._cacheTasksLocal();
+      const r = await this._sbAddHandoff(taskId, from, to, note);
+      if (sb) { const { error } = await sb.from('god_tasks').update({ responsavel: to }).eq('id', taskId); if (error) this.toast('Erro ao atualizar responsável', 'error'); }
+      if (r.ok) this.toast(`Tarefa passada de ${from} para ${to}`, 'success');
+      else this.toast('Erro ao registrar handoff', 'error');
     },
 
     // Gantt helpers
@@ -2797,7 +2880,7 @@ function spalla() {
     },
 
     systemDateLabel() {
-      return SYSTEM_TODAY.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+      return SYSTEM_TODAY().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
     },
 
     formatDate(dateStr) {
@@ -2818,7 +2901,7 @@ function spalla() {
       if (!dateStr) return '-';
       const d = this._parseDate(dateStr);
       if (!d) return '-';
-      const days = Math.floor((SYSTEM_TODAY - d) / (1000 * 60 * 60 * 24));
+      const days = Math.floor((SYSTEM_TODAY() - d) / (1000 * 60 * 60 * 24));
       if (days === 0) return 'Hoje';
       if (days === 1) return 'Ontem';
       if (days < 7) return `${days}d atras`;
@@ -2830,17 +2913,17 @@ function spalla() {
       if (!dateStr) return 999;
       const d = this._parseDate(dateStr);
       if (!d) return 999;
-      return Math.floor((SYSTEM_TODAY - d) / (1000 * 60 * 60 * 24));
+      return Math.floor((SYSTEM_TODAY() - d) / (1000 * 60 * 60 * 24));
     },
 
     today() {
-      return SYSTEM_TODAY.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+      return SYSTEM_TODAY().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
     },
 
     isOverdue(dateStr) {
       if (!dateStr) return false;
       const d = this._parseDate(dateStr);
-      return d ? d < SYSTEM_TODAY : false;
+      return d ? d < SYSTEM_TODAY() : false;
     },
 
     sparklineSvg(values, color = '#10b981', w = 60, h = 20) {

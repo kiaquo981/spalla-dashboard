@@ -527,52 +527,7 @@ img { max-width: 100%; display: block; }
   margin-bottom: var(--sp-8);
 }
 
-.kpi-card {
-  background: #fff;
-  border: 1px solid var(--neutral-200);
-  border-left: 4px solid var(--neutral-300);
-  border-radius: var(--r-xl);
-  padding: var(--sp-4) var(--sp-5);
-  display: flex;
-  align-items: center;
-  gap: var(--sp-4);
-  transition: all var(--t-base) var(--ease-out);
-  position: relative;
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
-}
-
-.kpi-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: 0;
-  opacity: 0;
-  transition: opacity var(--t-base) ease;
-}
-
-.kpi-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-}
-
-.kpi-card:hover::before { opacity: 0; }
-
-.kpi-card--brand { border-left-color: var(--brand-500); }
-.kpi-card--success { border-left-color: var(--success); }
-.kpi-card--warning { border-left-color: var(--warning); }
-.kpi-card--danger { border-left-color: var(--danger); }
-.kpi-card--info { border-left-color: var(--info); }
-.kpi-card--purple { border-left-color: var(--purple); }
-
-.kpi-card--brand::before { background: transparent; }
-.kpi-card--success::before { background: transparent; }
-.kpi-card--warning::before { background: transparent; }
-.kpi-card--danger::before { background: transparent; }
-.kpi-card--info::before { background: transparent; }
-.kpi-card--purple::before { background: transparent; }
+/* Old .kpi-card removed — use .sp-kpi-card instead */
 
 .kpi-card__icon {
   width: 48px;
@@ -954,14 +909,7 @@ img { max-width: 100%; display: block; }
   border-color: var(--neutral-300);
 }
 
-.mentee-card--critico { border-left: 4px solid var(--danger); background: linear-gradient(90deg, #fef2f200 0%, #fff 6%); }
-.mentee-card--critico:hover { border-left-color: var(--danger); box-shadow: 0 8px 25px rgba(239,68,68,0.15); }
-.mentee-card--alto { border-left: 4px solid var(--warning); background: linear-gradient(90deg, #fffbeb00 0%, #fff 6%); }
-.mentee-card--alto:hover { border-left-color: var(--warning); box-shadow: 0 8px 25px rgba(245,158,11,0.12); }
-.mentee-card--medio { border-left: 4px solid var(--info); }
-.mentee-card--medio:hover { border-left-color: var(--info); }
-.mentee-card--baixo { border-left: 4px solid var(--success); }
-.mentee-card--baixo:hover { border-left-color: var(--success); }
+/* Old .mentee-card variants removed — use .mc-card instead */
 
 .mentee-card__top {
   display: flex;
