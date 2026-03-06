@@ -1676,7 +1676,7 @@ img { max-width: 100%; display: block; }
 /* ===== PAGE HEADER ===== */
 .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-5); }
 .page-header h2 { font-size: var(--text-2xl); font-weight: 700; color: var(--neutral-900); margin: 0; }
-.page-content--full { padding: 0 !important; height: calc(100vh - var(--topbar-h)); }
+.page-content--full { padding: 0 !important; height: calc(100vh - var(--topbar-h)); overflow: hidden; }
 
 /* ===== BUTTONS ===== */
 .btn { display: inline-flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-4); border-radius: var(--r-md); border: 1px solid var(--neutral-300); background: #fff; color: var(--neutral-700); font-size: var(--text-sm); font-weight: 500; cursor: pointer; transition: all var(--t-fast); }
@@ -1767,7 +1767,7 @@ img { max-width: 100%; display: block; }
 .wa-sidebar__item-name { font-weight: 500; font-size: var(--text-sm); color: var(--neutral-900); }
 .wa-sidebar__loading, .wa-sidebar__empty { padding: var(--sp-6); text-align: center; color: var(--neutral-400); font-size: var(--text-sm); }
 
-.wa-chat { flex: 1; display: flex; flex-direction: column; background: var(--neutral-50); }
+.wa-chat { flex: 1; display: flex; flex-direction: column; background: var(--neutral-50); min-width: 0; overflow: hidden; }
 .wa-chat__header { padding: var(--sp-3) var(--sp-4); background: #fff; border-bottom: 1px solid var(--neutral-200); display: flex; align-items: center; gap: var(--sp-3); }
 .wa-chat__header h3 { font-size: var(--text-md); font-weight: 600; margin: 0; }
 .wa-chat__messages { flex: 1; overflow-y: auto; padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-2); }
