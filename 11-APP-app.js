@@ -1507,8 +1507,16 @@ function spalla() {
             tags: t.tags || [], attachments: [],
           }));
 
-          const equipeTasks = (equipeResult.data || []).map(t => {
-            const mentee = this.data.mentees.find(m => m.id === t.mentorado_id);
+          // Resolve mentorado names for equipe tasks
+          const equipeData = equipeResult.data || [];
+          const menteeIds = [...new Set(equipeData.map(t => t.mentorado_id).filter(Boolean))];
+          let menteeMap = {};
+          if (menteeIds.length && sb) {
+            const { data: menteeNames } = await sb.from('mentorados').select('id,nome').in('id', menteeIds);
+            if (menteeNames) menteeNames.forEach(m => { menteeMap[m.id] = m.nome; });
+          }
+
+          const equipeTasks = equipeData.map(t => {
             return {
               id: `equipe_${t.id}`,
               _source: 'tarefas_equipe',
@@ -1520,7 +1528,7 @@ function spalla() {
               responsavel: t.responsavel_nome || '',
               acompanhante: '',
               mentorado_id: t.mentorado_id,
-              mentorado_nome: mentee?.nome || t.mentorado_nome || '',
+              mentorado_nome: menteeMap[t.mentorado_id] || t.mentorado_nome || '',
               data_inicio: null,
               data_fim: t.prazo,
               prazo: t.prazo,
