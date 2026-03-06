@@ -17,6 +17,16 @@ const CONFIG = {
   ITEMS_PER_PAGE: 50,
 };
 
+// ===== TEAM MEMBERS =====
+const TEAM_MEMBERS = [
+  { name: 'Kaique', email: 'kaiquerodrigues@gmail.com' },
+  { name: 'Heitor', email: 'heitorms15@gmail.com' },
+  { name: 'Hugo', email: 'hugo.nicchio@gmail.com' },
+  { name: 'Queila', email: 'queilatrizotti@gmail.com' },
+  { name: 'Mariza', email: 'mariza.rg22@gmail.com' },
+  { name: 'Lara', email: 'santoslarafreitas@gmail.com' },
+];
+
 // ===== SUPABASE CLIENT =====
 let sb = null;
 
@@ -159,6 +169,7 @@ function spalla() {
       whatsappChats: [],
       whatsappMessages: [],
       scheduledCalls: [],
+      pendencias: [],
     },
 
     // --- Media Cache ---
@@ -289,6 +300,9 @@ function spalla() {
       }).length;
       // Calculate pending tasks from mentees data
       const tarefasPendentes = this.data.mentees.reduce((s, m) => s + (m.tarefas_pendentes || 0), 0);
+      // WhatsApp pending messages
+      const msgsPendentes = this.data.mentees.reduce((s, m) => s + (m.msgs_pendentes_resposta || 0), 0);
+      const mentoradosCriticos = this.data.mentees.filter(m => (m.horas_sem_resposta_equipe || 0) > 24).length;
       return {
         totalMentorados,
         emDia: totalMentorados - criticos - altos,
@@ -298,6 +312,8 @@ function spalla() {
         tarefasPendentes,
         semContrato,
         pgtoAtrasado,
+        msgsPendentes,
+        mentoradosCriticos,
       };
     },
 
@@ -311,6 +327,64 @@ function spalla() {
 
     get totalMenteesInPhases() {
       return this.phaseDistribution.reduce((s, p) => s + p.total, 0);
+    },
+
+    // Pendencias: sorted by priority
+    get pendenciasList() {
+      const prioOrder = { critico: 0, alto: 1, medio: 2, baixo: 3 };
+      return [...this.data.pendencias].sort((a, b) => {
+        return (prioOrder[a.prioridade_calculada] ?? 3) - (prioOrder[b.prioridade_calculada] ?? 3);
+      });
+    },
+
+    pendenciasExpanded: false,
+
+    get pendenciasVisible() {
+      return this.pendenciasExpanded ? this.pendenciasList : this.pendenciasList.slice(0, 15);
+    },
+
+    formatHorasPendente(horas) {
+      if (horas == null) return '-';
+      if (horas < 1) return '<1h';
+      if (horas < 24) return Math.round(horas) + 'h';
+      return Math.round(horas / 24) + 'd ' + Math.round(horas % 24) + 'h';
+    },
+
+    urgenciaClass(prioridade) {
+      const map = { critico: 'wa-urgencia--critico', alto: 'wa-urgencia--alto', medio: 'wa-urgencia--medio', baixo: 'wa-urgencia--baixo' };
+      return map[prioridade] || 'wa-urgencia--baixo';
+    },
+
+    urgenciaLabel(prioridade) {
+      const map = { critico: 'Crítico', alto: 'Alto', medio: 'Médio', baixo: 'Baixo' };
+      return map[prioridade] || prioridade;
+    },
+
+    async markAsResponded(interacaoId) {
+      const sb2 = await initSupabase();
+      if (!sb2) return;
+      const { error } = await sb2.from('interacoes_mentoria').update({ respondido: true }).eq('id', interacaoId);
+      if (error) {
+        this.toast('Erro ao marcar como respondido', 'error');
+        console.error('[Spalla] markAsResponded error:', error);
+        return;
+      }
+      // Remove from local list
+      this.data.pendencias = this.data.pendencias.filter(p => p.id !== interacaoId);
+      // Update mentee counts
+      const pending = this.data.pendencias;
+      this.data.mentees = this.data.mentees.map(m => {
+        const count = pending.filter(p => p.mentorado_id === m.id).length;
+        return { ...m, msgs_pendentes_resposta: count };
+      });
+      this.toast('Mensagem marcada como respondida', 'success');
+    },
+
+    waBadgeClass(m) {
+      const h = m.horas_sem_resposta_equipe || 0;
+      if (h > 24) return 'mc-card__wa-badge--danger';
+      if (h > 12) return 'mc-card__wa-badge--warning';
+      return 'mc-card__wa-badge--success';
     },
 
     // Kanban: group mentees by phase
@@ -329,7 +403,10 @@ function spalla() {
         }
       }
       if (this.ui.taskAssignee) {
-        list = list.filter(t => t.responsavel?.toLowerCase().includes(this.ui.taskAssignee.toLowerCase()));
+        const assignee = this.ui.taskAssignee === '__mine__'
+          ? (this.auth.currentUser?.full_name || '').toLowerCase()
+          : this.ui.taskAssignee.toLowerCase();
+        if (assignee) list = list.filter(t => t.responsavel?.toLowerCase().includes(assignee));
       }
       if (this.ui.taskSpaceFilter !== 'all') {
         list = list.filter(t => t.space_id === this.ui.taskSpaceFilter);
@@ -355,7 +432,10 @@ function spalla() {
       for (const s of statuses) {
         let list = [...this.data.tasks].filter(t => t.status === s);
         if (this.ui.taskAssignee) {
-          list = list.filter(t => t.responsavel?.toLowerCase().includes(this.ui.taskAssignee.toLowerCase()));
+          const assignee = this.ui.taskAssignee === '__mine__'
+            ? (this.auth.currentUser?.full_name || '').toLowerCase()
+            : this.ui.taskAssignee.toLowerCase();
+          if (assignee) list = list.filter(t => t.responsavel?.toLowerCase().includes(assignee));
         }
         if (this.ui.taskSpaceFilter !== 'all') {
           list = list.filter(t => t.space_id === this.ui.taskSpaceFilter);
@@ -370,6 +450,24 @@ function spalla() {
         result[s] = list.slice(0, 50); // Limit to 50 per column for performance
       }
       return result;
+    },
+
+    // Task KPIs for current user
+    get myTaskKpis() {
+      const myName = (this.auth.currentUser?.full_name || '').toLowerCase();
+      if (!myName) return { pendentes: 0, emAndamento: 0, total: this.data.tasks.length };
+      const myTasks = this.data.tasks.filter(t => t.responsavel?.toLowerCase().includes(myName));
+      return {
+        pendentes: myTasks.filter(t => t.status === 'pendente').length,
+        emAndamento: myTasks.filter(t => t.status === 'em_andamento').length,
+        total: this.data.tasks.length,
+      };
+    },
+
+    // Check if task belongs to current user
+    isMyTask(t) {
+      const myName = (this.auth.currentUser?.full_name || '').toLowerCase();
+      return myName && t.responsavel?.toLowerCase().includes(myName);
     },
 
     // Detail view: tasks for this specific mentee
@@ -388,10 +486,10 @@ function spalla() {
     get detailTasksEquipe() {
       const nome = this.data.detail?.profile?.nome?.toLowerCase();
       if (!nome) return [];
-      const teamMembers = ['kaique', 'mariza', 'equipe', 'heitor', 'lara', 'hugo'];
+      const teamNames = TEAM_MEMBERS.map(m => m.name.toLowerCase());
       return this.data.tasks.filter(t => {
         const isForMentee = t.mentorado_nome?.toLowerCase() === nome;
-        const isTeam = teamMembers.some(tm => t.responsavel?.toLowerCase()?.includes(tm));
+        const isTeam = teamNames.some(tm => t.responsavel?.toLowerCase()?.includes(tm));
         return isForMentee && isTeam && t.status !== 'concluida';
       });
     },
@@ -522,6 +620,7 @@ function spalla() {
           this.auth.currentUser = JSON.parse(userStr);
           this.auth.accessToken = accessToken;
           this.auth.refreshToken = refreshToken;
+          this.ui.taskAssignee = '__mine__';
           console.log('[Spalla] Auth: restored session for', this.auth.currentUser.email);
         } else {
           console.log('[Spalla] Auth: no saved session');
@@ -624,6 +723,7 @@ function spalla() {
 
         this.auth.email = '';
         this.auth.password = '';
+        this.ui.taskAssignee = '__mine__';
 
         await this.loadReminders();
         await this.loadDashboard();
@@ -820,7 +920,7 @@ function spalla() {
       sb = await initSupabase();
       if (sb) {
         try {
-          const [mentees, cohort, calls] = await Promise.all([
+          const [mentees, cohort, calls, pendencias] = await Promise.all([
             sb.from('vw_god_overview').select('*'),
             sb.from('vw_god_cohort').select('*'),
             // Query directly from calls_mentoria table to get latest data
@@ -828,6 +928,7 @@ function spalla() {
               .select('*,mentorados(id,nome)')
               .order('data_call', { ascending: false })
               .limit(500),
+            sb.from('vw_god_pendencias').select('*').order('created_at', { ascending: true }),
           ]);
           if (mentees.data?.length) {
             this.data.mentees = mentees.data;
@@ -858,6 +959,7 @@ function spalla() {
             // Log first 5 calls for debugging
             console.log('[Spalla] Sample calls:', this._supabaseCalls.slice(0, 5).map(c => ({ nome: c.mentorado_nome, data: c.data_call })));
           }
+          if (pendencias.data?.length) this.data.pendencias = pendencias.data;
           // Recalculate dias_desde_call with real call data
           if (this._supabaseCalls?.length) this._enrichMenteesWithCalls();
           this.supabaseConnected = true;

@@ -214,6 +214,15 @@
                 <span class="sp-kpi-card__label">Tarefas pend.</span>
               </div>
             </div>
+            <div class="sp-kpi-card" @click="ui.filters.status = ui.filters.status === 'com_pendencia' ? '' : 'com_pendencia'" style="cursor:pointer">
+              <div class="sp-kpi-card__icon" :class="kpis.msgsPendentes > 0 ? 'sp-kpi-card__icon--danger' : 'sp-kpi-card__icon--success'">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/></svg>
+              </div>
+              <div class="sp-kpi-card__body">
+                <span class="sp-kpi-card__val" :class="kpis.msgsPendentes > 0 ? 'sp-kpi-card__val--danger' : ''" x-text="kpis.msgsPendentes || 0"></span>
+                <span class="sp-kpi-card__label">Msgs s/ resposta</span>
+              </div>
+            </div>
             <div class="sp-kpi-card" @click="ui.filters.financeiro = ui.filters.financeiro === 'sem_contrato' ? '' : 'sem_contrato'" style="cursor:pointer">
               <div class="sp-kpi-card__icon" :class="kpis.semContrato > 0 ? 'sp-kpi-card__icon--danger' : 'sp-kpi-card__icon--success'">
                 <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
@@ -252,6 +261,42 @@
             <span class="ln-count" x-text="filteredMentees.length"></span>
           </div>
 
+          <!-- WhatsApp Pending Messages Widget -->
+          <div class="wa-pendencias" x-show="!ui.loading && data.pendencias.length > 0">
+            <div class="wa-pendencias__header">
+              <div class="wa-pendencias__title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--whatsapp)"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/></svg>
+                <span>Mensagens Aguardando Resposta</span>
+                <span class="wa-pendencias__count" x-text="data.pendencias.length"></span>
+              </div>
+            </div>
+            <div class="wa-pendencias__list">
+              <template x-for="p in pendenciasVisible" :key="p.id">
+                <div class="wa-pendencia-item">
+                  <div class="wa-pendencia-item__avatar">
+                    <div class="mc-card__avatar-inner" style="width:32px;height:32px;font-size:0.7rem" :style="'background:' + avatarGradient(p.mentorado_nome)" x-text="avatarInitials(p.mentorado_nome)"></div>
+                  </div>
+                  <div class="wa-pendencia-item__body">
+                    <div class="wa-pendencia-item__top">
+                      <span class="wa-pendencia-item__nome" x-text="p.mentorado_nome"></span>
+                      <span class="wa-pendencia-item__tempo" x-text="formatHorasPendente(p.horas_pendente)"></span>
+                    </div>
+                    <div class="wa-pendencia-item__content" x-text="p.conteudo_truncado || '(sem conteúdo)'"></div>
+                  </div>
+                  <div class="wa-pendencia-item__actions">
+                    <span class="wa-urgencia-badge" :class="urgenciaClass(p.prioridade_calculada)" x-text="urgenciaLabel(p.prioridade_calculada)"></span>
+                    <button class="wa-pendencia-item__btn" @click.stop="markAsResponded(p.id)" title="Marcar como respondido">
+                      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </template>
+            </div>
+            <button class="wa-pendencias__toggle" x-show="pendenciasList.length > 15" @click="pendenciasExpanded = !pendenciasExpanded">
+              <span x-text="pendenciasExpanded ? 'Mostrar menos' : 'Ver todos (' + pendenciasList.length + ')'"></span>
+            </button>
+          </div>
+
           <!-- Mentee Card Grid -->
           <div class="mc-grid" x-show="!ui.loading">
             <template x-for="m in filteredMentees" :key="m.id">
@@ -288,6 +333,10 @@
                   <span class="mc-card__fin-badge mc-card__fin-badge--danger" x-show="m.contrato_assinado === false" title="Contrato nao assinado">SEM CONTRATO</span>
                   <span class="mc-card__fin-badge mc-card__fin-badge--danger" x-show="m.status_financeiro === 'atrasado'" title="Pagamento atrasado">INADIMPLENTE</span>
                   <span class="mc-card__fin-badge mc-card__fin-badge--success" x-show="m.status_financeiro === 'quitado'">QUITADO</span>
+                  <span class="mc-card__wa-badge" :class="waBadgeClass(m)" x-show="m.msgs_pendentes_resposta > 0">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/></svg>
+                    <span x-text="m.msgs_pendentes_resposta"></span>
+                  </span>
                 </div>
 
                 <!-- Metrics grid -->
@@ -551,7 +600,7 @@
                         </div>
                       </div>
                       <div class="detail-task-card__assignee">
-                        <span class="avatar avatar--sm" :class="'avatar--' + (t.responsavel === 'Queila' ? 'brand' : t.responsavel === 'Kaique' ? 'info' : 'neutral')" x-text="avatarInitials(t.responsavel || '?')" style="width:24px;height:24px;font-size:9px"></span>
+                        <span class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel)" x-text="avatarInitials(t.responsavel || '?')" style="width:24px;height:24px;font-size:9px"></span>
                       </div>
                     </div>
                   </template>
@@ -587,7 +636,7 @@
                         </div>
                       </div>
                       <div class="detail-task-card__assignee">
-                        <span class="avatar avatar--sm" :class="'avatar--' + (t.responsavel === 'Queila' ? 'brand' : t.responsavel === 'Kaique' ? 'info' : 'neutral')" x-text="avatarInitials(t.responsavel || '?')" style="width:24px;height:24px;font-size:9px"></span>
+                        <span class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel)" x-text="avatarInitials(t.responsavel || '?')" style="width:24px;height:24px;font-size:9px"></span>
                       </div>
                     </div>
                   </template>
@@ -815,9 +864,30 @@
                 </div>
               </div>
 
+              <!-- Task KPIs -->
+              <div class="task-kpis" x-show="auth.currentUser">
+                <div class="task-kpi task-kpi--warning">
+                  <span class="task-kpi__value" x-text="myTaskKpis.pendentes"></span>
+                  <span class="task-kpi__label">Minhas pendentes</span>
+                </div>
+                <div class="task-kpi task-kpi--info">
+                  <span class="task-kpi__value" x-text="myTaskKpis.emAndamento"></span>
+                  <span class="task-kpi__label">Minhas em andamento</span>
+                </div>
+                <div class="task-kpi task-kpi--neutral">
+                  <span class="task-kpi__value" x-text="myTaskKpis.total"></span>
+                  <span class="task-kpi__label">Total equipe</span>
+                </div>
+              </div>
+
               <!-- Task Filters -->
               <div class="filter-bar">
-                <input type="text" class="filter-bar__input" placeholder="Filtrar responsavel..." x-model="ui.taskAssignee">
+                <select class="filter-bar__select" x-model="ui.taskAssignee" style="min-width:160px">
+                  <option value="">Todos</option>
+                  <option value="__mine__">Minhas Tarefas</option>
+                  <template x-for="tm in TEAM_MEMBERS" :key="tm.email"><option :value="tm.name" x-text="tm.name"></option></template>
+                  <option value="Mentorado">Mentorado</option>
+                </select>
                 <select class="filter-bar__select" x-model="ui.taskGroupBy" style="width:auto;min-width:120px">
                   <option value="status">Agrupar: Status</option>
                   <option value="assignee">Agrupar: Responsavel</option>
@@ -838,7 +908,7 @@
                     </div>
                     <div class="task-board__column-body" @dragover.prevent="onDragOver($event, status)" @dragleave="onDragLeave($event, status)" @drop="onDrop($event, status)" :class="{'task-board__column-body--dragover': dragOverColumn === status}">
                       <template x-for="t in tasksByStatus[status]" :key="t.id">
-                        <div class="task-board__card" draggable="true" @dragstart="onDragStart($event, t.id)" @dragend="onDragEnd($event)" @click="openTaskDetail(t.id)" :class="{ 'task-board__card--overdue': status === 'pendente' && isOverdue(t.data_fim || t.prazo) }">
+                        <div class="task-board__card" draggable="true" @dragstart="onDragStart($event, t.id)" @dragend="onDragEnd($event)" @click="openTaskDetail(t.id)" :class="{ 'task-board__card--overdue': status === 'pendente' && isOverdue(t.data_fim || t.prazo), 'task-board__card--mine': isMyTask(t) }">
                           <div class="task-board__card-header">
                             <span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span>
                             <div class="task-board__card-actions">
@@ -879,7 +949,7 @@
                           </div>
                           <div class="task-board__card-footer">
                             <span x-show="t.responsavel" class="task-board__card-assignee">
-                              <span class="avatar avatar--sm" :class="'avatar--' + (t.responsavel === 'Queila' ? 'brand' : t.responsavel === 'Kaique' ? 'info' : 'neutral')" x-text="avatarInitials(t.responsavel)" style="width:22px;height:22px;font-size:9px"></span>
+                              <span class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel)" x-text="avatarInitials(t.responsavel)" style="width:22px;height:22px;font-size:9px"></span>
                               <span x-text="t.responsavel"></span>
                             </span>
                             <span x-show="t.acompanhante" class="task-board__card-tracker" title="Acompanhante do time">
@@ -927,7 +997,7 @@
                   <div class="task-list__col task-list__col--actions"></div>
                 </div>
                 <template x-for="t in filteredTasks" :key="t.id">
-                  <div class="task-list__row" :class="{ 'task-list__row--done': t.status === 'concluida', 'task-list__row--overdue': t.status === 'pendente' && isOverdue(t.data_fim || t.prazo) }" @click="openTaskDetail(t.id)">
+                  <div class="task-list__row" :class="{ 'task-list__row--done': t.status === 'concluida', 'task-list__row--overdue': t.status === 'pendente' && isOverdue(t.data_fim || t.prazo), 'task-list__row--mine': isMyTask(t) }" @click="openTaskDetail(t.id)">
                     <div class="task-list__col task-list__col--check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
                     <div class="task-list__col task-list__col--title">
                       <div class="task-list__title" x-text="t.titulo"></div>
@@ -936,7 +1006,7 @@
                     </div>
                     <div class="task-list__col task-list__col--assignee">
                       <span x-show="t.responsavel" class="task-list__assignee-pill">
-                        <span class="avatar avatar--sm" :class="'avatar--' + (t.responsavel === 'Queila' ? 'brand' : t.responsavel === 'Kaique' ? 'info' : 'neutral')" x-text="avatarInitials(t.responsavel)" style="width:20px;height:20px;font-size:8px"></span>
+                        <span class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel)" x-text="avatarInitials(t.responsavel)" style="width:20px;height:20px;font-size:8px"></span>
                         <span x-text="t.responsavel"></span>
                       </span>
                     </div>
@@ -1037,7 +1107,7 @@
                     <div class="task-drawer__meta-item">
                       <label>Responsavel</label>
                       <div class="task-drawer__meta-val">
-                        <span class="avatar avatar--sm" :class="'avatar--' + (activeTaskDetail.responsavel === 'Queila' ? 'brand' : activeTaskDetail.responsavel === 'Kaique' ? 'info' : 'neutral')" x-text="avatarInitials(activeTaskDetail.responsavel || '?')" style="width:22px;height:22px;font-size:9px"></span>
+                        <span class="avatar avatar--sm" :style="'background:' + avatarGradient(activeTaskDetail.responsavel)" x-text="avatarInitials(activeTaskDetail.responsavel || '?')" style="width:22px;height:22px;font-size:9px"></span>
                         <span x-text="activeTaskDetail.responsavel || 'Nao atribuido'"></span>
                       </div>
                     </div>
@@ -1748,7 +1818,11 @@
                 </select>
               </div>
               <div><label>Responsavel</label>
-                <input type="text" x-model="taskForm.responsavel" placeholder="Mentorado" class="modal__input">
+                <select x-model="taskForm.responsavel" class="modal__input">
+                  <option value="">-- Selecione --</option>
+                  <option value="Mentorado">Mentorado</option>
+                  <template x-for="tm in TEAM_MEMBERS" :key="tm.email"><option :value="tm.name" x-text="tm.name"></option></template>
+                </select>
               </div>
             </div>
 
