@@ -339,6 +339,7 @@ function spalla() {
       });
     },
 
+    pendenciasMinimized: false,
     pendenciasExpanded: false,
 
     get pendenciasVisible() {

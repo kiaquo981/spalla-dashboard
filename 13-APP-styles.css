@@ -4176,6 +4176,15 @@ img { max-width: 100%; display: block; }
   text-align: center;
 }
 
+.wa-pendencias__chevron {
+  color: var(--neutral-400);
+  transition: transform 0.2s;
+  transform: rotate(0deg);
+}
+.wa-pendencias__chevron--up {
+  transform: rotate(180deg);
+}
+
 .wa-pendencias__bulk-btn {
   margin-left: auto;
   padding: 3px 10px;
