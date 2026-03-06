@@ -1395,7 +1395,7 @@ function spalla() {
       if (sb) {
         try {
           const { data, error } = await sb.from('vw_god_tasks_full').select('*').order('created_at', { ascending: false }).limit(200);
-          if (!error && data?.length) {
+          if (!error && data) {
             this.data.tasks = data.map(t => ({
               ...t, prazo: t.data_fim,
               subtasks: (t.subtasks || []).map(s => ({ text: s.texto || s.text, done: s.done })),
