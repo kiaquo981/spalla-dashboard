@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="13-APP-styles.css?v=38">
+  <link rel="stylesheet" href="13-APP-styles.css?v=39">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a,#1e293b,#0f172a);font-family:'Inter',sans-serif;color:#10b981;font-size:24px;font-weight:800; }
@@ -122,6 +122,10 @@
           <a class="sidebar__item" :class="{ active: ui.page === 'dossies' }" @click="navigate('dossies')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             <span x-show="ui.sidebarOpen">Dossies</span>
+          </a>
+          <a class="sidebar__item" :class="{ active: ui.page === 'planos_acao' }" @click="navigate('planos_acao')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            <span x-show="ui.sidebarOpen">Planos de Acao</span>
           </a>
           <a class="sidebar__item" :class="{ active: ui.page === 'docs' }" @click="navigate('docs')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
@@ -261,6 +265,24 @@
                 <span class="sp-kpi-card__label">Pgto atrasado</span>
               </div>
             </div>
+            <div class="sp-kpi-card" @click="navigate('planos_acao')" style="cursor:pointer">
+              <div class="sp-kpi-card__icon sp-kpi-card__icon--info">
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              </div>
+              <div class="sp-kpi-card__body">
+                <span class="sp-kpi-card__val sp-kpi-card__val--info" x-text="kpis.paEmExecucao || 0"></span>
+                <span class="sp-kpi-card__label">PA em execucao</span>
+              </div>
+            </div>
+            <div class="sp-kpi-card" @click="navigate('planos_acao'); ui.paFilter = 'em_andamento'" style="cursor:pointer">
+              <div class="sp-kpi-card__icon" :class="kpis.paParados > 0 ? 'sp-kpi-card__icon--warning' : 'sp-kpi-card__icon--success'">
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              </div>
+              <div class="sp-kpi-card__body">
+                <span class="sp-kpi-card__val" :class="kpis.paParados > 0 ? 'sp-kpi-card__val--warning' : ''" x-text="kpis.paParados || 0"></span>
+                <span class="sp-kpi-card__label">PA parados 14d+</span>
+              </div>
+            </div>
           </div>
 
           <!-- Phase Pills -->
@@ -388,6 +410,14 @@
                     <span x-text="m.tarefas_pendentes"></span>
                     <span class="mc-card__tasks-late" x-show="m.tarefas_atrasadas > 0" x-text="'(' + m.tarefas_atrasadas + ' atr)'"></span>
                   </div>
+                  <template x-if="getPaForMentee(m.id)">
+                    <div class="mc-card__pa-mini" :title="'PA: ' + (getPaForMentee(m.id)?.pct_concluido || 0) + '%'">
+                      <div class="pa-progress-bar pa-progress-bar--mini">
+                        <div class="pa-progress-bar__fill" :style="'width:' + (getPaForMentee(m.id)?.pct_concluido || 0) + '%'"></div>
+                      </div>
+                      <span class="mc-card__pa-label" x-text="(getPaForMentee(m.id)?.pct_concluido || 0) + '%'"></span>
+                    </div>
+                  </template>
                   <div class="mc-card__health" x-data="{ hs: calcHealthScore(m) }">
                     <div class="mc-card__health-bar">
                       <div class="mc-card__health-fill" :style="'width:' + hs.total + '%'" :class="'mc-card__health-fill--' + hs.color"></div>
@@ -479,6 +509,13 @@
               <button class="detail-tabs__btn" :class="{ active: ui.activeDetailTab === 'vendas' }" @click="ui.activeDetailTab = 'vendas'">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                 Vendas
+              </button>
+              <button class="detail-tabs__btn" :class="{ active: ui.activeDetailTab === 'plano_acao' }" @click="ui.activeDetailTab = 'plano_acao'; loadMenteePa()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                Plano de Acao
+                <template x-if="getPaForMentee(data.detail?.profile?.id)">
+                  <span class="detail-tabs__count" x-text="(getPaForMentee(data.detail?.profile?.id)?.pct_concluido || 0) + '%'"></span>
+                </template>
               </button>
             </div>
 
@@ -797,6 +834,119 @@
                 </div>
               </div>
               <div class="empty-state" x-show="!data.detail?.financial"><p>Dados financeiros nao disponiveis.</p></div>
+            </div>
+
+            <!-- ===== TAB: PLANO DE AÇÃO ===== -->
+            <div class="detail-tab-content" x-show="ui.activeDetailTab === 'plano_acao'">
+              <!-- No plan yet -->
+              <div x-show="!data.paMenteePa && !ui.paModal" class="empty-state">
+                <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="margin-bottom:12px;color:var(--text-secondary)"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                <p>Nenhum plano de acao cadastrado.</p>
+                <button class="btn btn--primary" @click="ui.paModal = true" style="margin-top:12px">Criar Plano de Acao</button>
+              </div>
+
+              <!-- Create Plan Modal (inline) -->
+              <div x-show="ui.paModal" class="card" style="margin-bottom:16px">
+                <div class="card__header"><h3>Novo Plano de Acao</h3></div>
+                <div class="card__body" style="display:flex;flex-direction:column;gap:12px">
+                  <input type="text" class="form-input" placeholder="Titulo do plano" x-model="paForm.titulo">
+                  <input type="url" class="form-input" placeholder="Link do Google Doc (opcional)" x-model="paForm.google_doc_url">
+                  <select class="form-input" x-model="paForm.formato">
+                    <option value="fases">Formato: Fases</option>
+                    <option value="passos">Formato: Passos</option>
+                  </select>
+                  <div style="display:flex;gap:8px">
+                    <button class="btn btn--primary" @click="createPlano()">Criar</button>
+                    <button class="btn btn--ghost" @click="ui.paModal = false">Cancelar</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Plan exists: show phases accordion -->
+              <template x-if="data.paMenteePa">
+                <div>
+                  <!-- Plan header -->
+                  <div class="card" style="margin-bottom:16px">
+                    <div class="card__body" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                      <h3 x-text="data.paMenteePa.titulo" style="margin:0;flex:1"></h3>
+                      <span class="badge" :class="'pa-status--' + data.paMenteePa.status_geral" x-text="paStatusLabel(data.paMenteePa.status_geral)"></span>
+                      <template x-if="data.paMenteePa.google_doc_url">
+                        <a :href="data.paMenteePa.google_doc_url" target="_blank" class="btn btn--ghost btn--sm" @click.stop>Abrir Google Doc</a>
+                      </template>
+                    </div>
+                    <!-- Overall progress -->
+                    <div style="padding:0 16px 16px">
+                      <div class="pa-progress-bar">
+                        <div class="pa-progress-bar__fill" :style="'width:' + (getPaForMentee(data.paMenteePa.mentorado_id)?.pct_concluido || 0) + '%'"></div>
+                      </div>
+                      <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">
+                        <span x-text="(getPaForMentee(data.paMenteePa.mentorado_id)?.acoes_concluidas || 0)"></span> de
+                        <span x-text="(getPaForMentee(data.paMenteePa.mentorado_id)?.total_acoes || 0)"></span> acoes concluidas
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Phases -->
+                  <template x-for="fase in data.paMenteePa.fases" :key="fase.id">
+                    <div class="pa-fase" :class="'pa-fase--' + fase.status">
+                      <div class="pa-fase__header" @click="togglePaFase(fase.id)">
+                        <svg class="pa-fase__chevron" :class="{ 'pa-fase__chevron--open': isPaFaseExpanded(fase.id) }" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                        <span class="pa-fase__titulo" x-text="fase.titulo"></span>
+                        <span class="badge badge--sm" :class="'pa-status--' + fase.status" x-text="paStatusLabel(fase.status)" style="margin-left:8px"></span>
+                        <div style="flex:1"></div>
+                        <div class="pa-progress-bar pa-progress-bar--sm" style="width:80px">
+                          <div class="pa-progress-bar__fill" :style="'width:' + paFaseProgress(fase) + '%'"></div>
+                        </div>
+                        <span style="font-size:11px;color:var(--text-secondary);margin-left:6px;min-width:30px" x-text="paFaseProgress(fase) + '%'"></span>
+                        <button class="btn btn--ghost btn--sm pa-fase__delete" @click.stop="deleteFase(fase.id)" title="Excluir fase">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                      </div>
+                      <div class="pa-fase__body" x-show="isPaFaseExpanded(fase.id)" x-transition>
+                        <!-- Actions list -->
+                        <template x-for="acao in fase.acoes" :key="acao.id">
+                          <div class="pa-acao" :class="'pa-acao--' + acao.status">
+                            <button class="pa-acao__toggle" @click="toggleAcaoStatus(acao)" :title="acao.status">
+                              <span x-text="paAcaoStatusIcon(acao.status)"></span>
+                            </button>
+                            <div class="pa-acao__content">
+                              <input type="text" class="pa-acao__titulo" x-model="acao.titulo" @change="saveAcao(acao)" :class="{ 'pa-acao__titulo--done': acao.status === 'concluido' }">
+                              <div class="pa-acao__meta">
+                                <input type="date" class="pa-acao__date" x-model="acao.data_prevista" @change="saveAcao(acao)" title="Data prevista">
+                                <select class="pa-acao__resp" x-model="acao.responsavel" @change="saveAcao(acao)">
+                                  <option value="mentorado">Mentorado</option>
+                                  <option value="equipe">Equipe</option>
+                                  <option value="queila">Queila</option>
+                                </select>
+                              </div>
+                            </div>
+                            <button class="pa-acao__delete" @click="deleteAcao(acao.id)" title="Excluir">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                          </div>
+                        </template>
+                        <!-- Add action form -->
+                        <div class="pa-acao pa-acao--add">
+                          <span class="pa-acao__toggle" style="opacity:0.3">+</span>
+                          <input type="text" class="pa-acao__titulo" placeholder="Nova acao..." x-model="paAcaoForm.titulo" @keydown.enter="if(paAcaoForm.titulo) addAcao(fase.id)">
+                          <button class="btn btn--ghost btn--sm" @click="if(paAcaoForm.titulo) addAcao(fase.id)" x-show="paAcaoForm.titulo">Adicionar</button>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+
+                  <!-- Add phase form -->
+                  <div class="pa-add-fase" style="margin-top:12px">
+                    <input type="text" class="form-input" placeholder="Nome da nova fase..." x-model="paFaseForm.titulo" @keydown.enter="if(paFaseForm.titulo) addFase()" style="flex:1">
+                    <select class="form-input" x-model="paFaseForm.tipo" style="width:160px">
+                      <option value="fase">Fase</option>
+                      <option value="revisao_dossie">Revisao Dossie</option>
+                      <option value="passo_executivo">Passo Executivo</option>
+                    </select>
+                    <button class="btn btn--primary btn--sm" @click="if(paFaseForm.titulo) addFase()">+ Fase</button>
+                  </div>
+                </div>
+              </template>
             </div>
 
           </div>
@@ -1810,6 +1960,90 @@
           </div>
         </div>
 
+        <!-- ===== PAGE: PLANOS DE AÇÃO ===== -->
+        <div class="page-content" x-show="ui.page === 'planos_acao'" x-transition>
+          <div class="page-header">
+            <h2>Planos de Acao</h2>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select class="ln-select" x-model="ui.paFilter">
+                <option value="all">Todos</option>
+                <option value="nao_iniciado">Nao Iniciado</option>
+                <option value="em_andamento">Em Andamento</option>
+                <option value="pausado">Pausado</option>
+                <option value="concluido">Concluido</option>
+              </select>
+              <button class="btn btn--ghost btn--sm" :class="{ 'btn--active': ui.paView === 'pipeline' }" @click="ui.paView = 'pipeline'">Pipeline</button>
+              <button class="btn btn--ghost btn--sm" :class="{ 'btn--active': ui.paView === 'list' }" @click="ui.paView = 'list'">Lista</button>
+            </div>
+          </div>
+
+          <!-- Pipeline View -->
+          <div class="pa-pipeline" x-show="ui.paView === 'pipeline'">
+            <template x-for="col in paPipelineColumns()" :key="col.status">
+              <div class="pa-pipeline__col">
+                <div class="pa-pipeline__col-header" :style="'border-top:3px solid ' + paStatusColor(col.status)">
+                  <span x-text="col.label"></span>
+                  <span class="badge badge--sm badge--neutral" x-text="col.items.length"></span>
+                </div>
+                <div class="pa-pipeline__cards">
+                  <template x-for="p in col.items" :key="p.plano_id">
+                    <div class="pa-pipeline__card" @click="loadMenteeDetail(p.mentorado_id); $nextTick(() => { ui.activeDetailTab = 'plano_acao'; loadMenteePa(p.mentorado_id); })">
+                      <div class="pa-pipeline__card-name" x-text="p.mentorado_nome"></div>
+                      <div class="pa-pipeline__card-fase" x-text="p.fase_atual || '-'" x-show="p.fase_atual"></div>
+                      <div class="pa-progress-bar pa-progress-bar--sm" style="margin:6px 0">
+                        <div class="pa-progress-bar__fill" :style="'width:' + (p.pct_concluido || 0) + '%'"></div>
+                      </div>
+                      <div class="pa-pipeline__card-meta">
+                        <span x-text="(p.pct_concluido || 0) + '%'"></span>
+                        <span x-show="p.dias_sem_update > 7" class="pa-pipeline__card-stale" x-text="p.dias_sem_update + 'd sem update'"></span>
+                      </div>
+                    </div>
+                  </template>
+                  <div class="pa-pipeline__empty" x-show="!col.items.length">Nenhum plano</div>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- List View -->
+          <div class="pa-list" x-show="ui.paView === 'list'">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Mentorado</th>
+                  <th>Status</th>
+                  <th>Fase Atual</th>
+                  <th>Progresso</th>
+                  <th>Acoes</th>
+                  <th>Dias s/ Update</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="p in filteredPaPlanos" :key="p.plano_id">
+                  <tr style="cursor:pointer" @click="loadMenteeDetail(p.mentorado_id); $nextTick(() => { ui.activeDetailTab = 'plano_acao'; loadMenteePa(p.mentorado_id); })">
+                    <td x-text="p.mentorado_nome"></td>
+                    <td><span class="badge badge--sm" :class="'pa-status--' + p.status_geral" x-text="paStatusLabel(p.status_geral)"></span></td>
+                    <td x-text="p.fase_atual || '-'"></td>
+                    <td>
+                      <div style="display:flex;align-items:center;gap:8px">
+                        <div class="pa-progress-bar pa-progress-bar--sm" style="width:60px">
+                          <div class="pa-progress-bar__fill" :style="'width:' + (p.pct_concluido || 0) + '%'"></div>
+                        </div>
+                        <span style="font-size:12px" x-text="(p.pct_concluido || 0) + '%'"></span>
+                      </div>
+                    </td>
+                    <td x-text="(p.acoes_concluidas || 0) + '/' + (p.total_acoes || 0)"></td>
+                    <td>
+                      <span :class="(p.dias_sem_update || 0) > 14 ? 'text--danger' : ''" x-text="(p.dias_sem_update || 0) + 'd'"></span>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+            <div class="empty-state" x-show="!filteredPaPlanos.length"><p>Nenhum plano de acao encontrado.</p></div>
+          </div>
+        </div>
+
         <!-- ===== PAGE: DOCS ===== -->
         <div class="page-content" x-show="ui.page === 'docs'" x-transition>
           <div class="page-header"><h2>Documentos Google Drive</h2></div>
@@ -1983,9 +2217,9 @@
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js" integrity="sha384-Sm2s7OXxsAMTyJ4iIyRBgVpeGUvMPk2lRQnnZhE78Wej7oggIoolKt+SCt0XJbUB" crossorigin="anonymous"></script>
-  <script src="12-APP-data.js?v=38"></script>
-  <script src="13-APP-photos.js?v=38"></script>
-  <script src="11-APP-app.js?v=38"></script>
+  <script src="12-APP-data.js?v=39"></script>
+  <script src="13-APP-photos.js?v=39"></script>
+  <script src="11-APP-app.js?v=39"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {

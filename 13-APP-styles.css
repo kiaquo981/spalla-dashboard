@@ -3672,6 +3672,7 @@ img { max-width: 100%; display: block; }
    ================================================================ */
 .detail-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 2px;
   background: #f1f5f9;
   border-radius: 10px;
@@ -4541,3 +4542,224 @@ img { max-width: 100%; display: block; }
   align-items: center;
   flex-wrap: wrap;
 }
+
+/* ================================================================
+   PLANO DE AÇÃO (PA) STYLES
+   ================================================================ */
+
+/* --- Progress Bar --- */
+.pa-progress-bar {
+  height: 8px;
+  background: var(--bg-secondary, #e5e7eb);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.pa-progress-bar--sm { height: 5px; }
+.pa-progress-bar--mini { height: 4px; width: 48px; }
+.pa-progress-bar__fill {
+  height: 100%;
+  background: var(--primary, #6366f1);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  min-width: 0;
+}
+
+/* --- PA Status Badge Colors --- */
+.pa-status--nao_iniciado { background: #6b728020; color: #6b7280; }
+.pa-status--em_andamento { background: #3b82f620; color: #3b82f6; }
+.pa-status--pausado { background: #f59e0b20; color: #f59e0b; }
+.pa-status--concluido { background: #10b98120; color: #10b981; }
+
+/* --- Fase (collapsible section) --- */
+.pa-fase {
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.pa-fase--concluido { border-left: 3px solid #10b981; }
+.pa-fase--em_andamento { border-left: 3px solid #3b82f6; }
+.pa-fase__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+.pa-fase__header:hover { background: var(--bg-secondary, #f9fafb); }
+.pa-fase__chevron {
+  transition: transform 0.2s;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+.pa-fase__chevron--open { transform: rotate(90deg); }
+.pa-fase__titulo {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.pa-fase__delete {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.pa-fase__header:hover .pa-fase__delete { opacity: 0.5; }
+.pa-fase__delete:hover { opacity: 1 !important; }
+.pa-fase__body { padding: 0 16px 12px; }
+
+/* --- Ação (action item row) --- */
+.pa-acao {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border, #f3f4f6);
+}
+.pa-acao:last-child { border-bottom: none; }
+.pa-acao--concluido { opacity: 0.6; }
+.pa-acao--add { opacity: 0.7; border-bottom: none; padding-top: 8px; }
+.pa-acao__toggle {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.pa-acao__toggle:hover { background: var(--bg-secondary, #f3f4f6); }
+.pa-acao--pendente .pa-acao__toggle { color: #9ca3af; }
+.pa-acao--em_andamento .pa-acao__toggle { color: #3b82f6; }
+.pa-acao--concluido .pa-acao__toggle { color: #10b981; }
+.pa-acao--bloqueado .pa-acao__toggle { color: #ef4444; }
+.pa-acao--nao_aplicavel .pa-acao__toggle { color: #9ca3af; }
+.pa-acao__content { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pa-acao__titulo {
+  border: none;
+  background: none;
+  font-size: 13px;
+  color: var(--text-primary);
+  padding: 2px 4px;
+  border-radius: 4px;
+  width: 100%;
+}
+.pa-acao__titulo:focus { outline: none; background: var(--bg-secondary, #f3f4f6); }
+.pa-acao__titulo--done { text-decoration: line-through; color: var(--text-secondary); }
+.pa-acao__meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.pa-acao__date, .pa-acao__resp {
+  border: none;
+  background: none;
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 1px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.pa-acao__date:focus, .pa-acao__resp:focus {
+  outline: none;
+  background: var(--bg-secondary, #f3f4f6);
+}
+.pa-acao__delete {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  opacity: 0;
+  transition: opacity 0.15s;
+  padding: 4px;
+}
+.pa-acao:hover .pa-acao__delete { opacity: 0.5; }
+.pa-acao__delete:hover { opacity: 1 !important; color: #ef4444; }
+
+/* --- Add Fase form --- */
+.pa-add-fase {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* --- Pipeline View --- */
+.pa-pipeline {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  min-height: 400px;
+}
+@media (max-width: 900px) { .pa-pipeline { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .pa-pipeline { grid-template-columns: 1fr; } }
+.pa-pipeline__col {
+  background: var(--bg-secondary, #f9fafb);
+  border-radius: 8px;
+  padding: 0;
+  min-height: 200px;
+}
+.pa-pipeline__col-header {
+  padding: 12px 16px;
+  font-weight: 600;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pa-pipeline__cards { padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+.pa-pipeline__card {
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+.pa-pipeline__card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); transform: translateY(-1px); }
+.pa-pipeline__card-name { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+.pa-pipeline__card-fase { font-size: 12px; color: var(--text-secondary); }
+.pa-pipeline__card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+.pa-pipeline__card-stale { color: #f59e0b; font-weight: 600; }
+.pa-pipeline__empty {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+/* --- Mini PA bar in mentee card --- */
+.mc-card__pa-mini {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.mc-card__pa-label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+/* --- PA List Table --- */
+.pa-list .table { width: 100%; }
+.pa-list .table th { font-size: 12px; text-transform: uppercase; color: var(--text-secondary); }
+.pa-list .table td { padding: 10px 12px; vertical-align: middle; }
+.pa-list .table tr:hover { background: var(--bg-secondary, #f9fafb); }
+.text--danger { color: #ef4444; font-weight: 600; }
+
+/* --- Button active state --- */
+.btn--active { background: var(--primary, #6366f1); color: #fff !important; }

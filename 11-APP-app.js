@@ -147,6 +147,11 @@ function spalla() {
       // Reminders
       reminderModal: false,
       reminderFilter: 'ativo', // ativo | concluido | all
+      // Plano de Ação
+      paFilter: 'all',          // all | nao_iniciado | em_andamento | pausado | concluido
+      paView: 'pipeline',       // pipeline | list
+      paModal: false,           // create plan modal
+      paExpandedFases: {},      // { faseId: true } for accordion
       // Docs
       docSearch: '',
       // Agenda Calendar
@@ -170,6 +175,8 @@ function spalla() {
       whatsappMessages: [],
       scheduledCalls: [],
       pendencias: [],
+      paPlanos: [],       // vw_pa_pipeline data
+      paMenteePa: null,   // full PA for current mentee detail
     },
 
     // --- Media Cache ---
@@ -318,6 +325,9 @@ function spalla() {
         pgtoAtrasado,
         msgsPendentes,
         mentoradosCriticos,
+        paEmExecucao: this.data.paPlanos.filter(p => p.status_geral === 'em_andamento').length,
+        paParados: this.data.paPlanos.filter(p => p.status_geral === 'em_andamento' && (p.dias_sem_update || 0) > 14).length,
+        paConcluidos: this.data.paPlanos.filter(p => p.status_geral === 'concluido').length,
       };
     },
 
@@ -1194,7 +1204,7 @@ function spalla() {
       sb = await initSupabase();
       if (sb) {
         try {
-          const [mentees, cohort, calls, pendencias] = await Promise.all([
+          const [mentees, cohort, calls, pendencias, paPipeline] = await Promise.all([
             sb.from('vw_god_overview').select('*'),
             sb.from('vw_god_cohort').select('*'),
             // Query directly from calls_mentoria table to get latest data
@@ -1203,12 +1213,15 @@ function spalla() {
               .order('data_call', { ascending: false })
               .limit(500),
             sb.from('vw_god_pendencias').select('*').order('created_at', { ascending: true }),
+            sb.from('vw_pa_pipeline').select('*'),
           ]);
           // Check individual query errors
           if (mentees.error) console.error('[Spalla] Mentees query error:', mentees.error.message);
           if (cohort.error) console.error('[Spalla] Cohort query error:', cohort.error.message);
           if (calls.error) console.error('[Spalla] Calls query error:', calls.error.message);
           if (pendencias.error) console.error('[Spalla] Pendencias query error:', pendencias.error.message);
+          if (paPipeline.error) console.error('[Spalla] PA Pipeline query error:', paPipeline.error?.message);
+          if (paPipeline.data) this.data.paPlanos = paPipeline.data;
 
           if (mentees.data?.length) {
             this.data.mentees = mentees.data;
@@ -1455,6 +1468,246 @@ function spalla() {
       localStorage.setItem('spalla_page', 'dashboard');
       this.data.detail = null;
       this.ui.selectedMenteeId = null;
+    },
+
+    // ===================== PLANO DE AÇÃO (PA) =====================
+
+    // PA Form state
+    paForm: { titulo: 'Plano de Ação', google_doc_url: '', formato: 'fases' },
+    paFaseForm: { titulo: '', tipo: 'fase' },
+    paAcaoForm: { titulo: '', data_prevista: '', responsavel: 'mentorado' },
+
+    // Load full PA for a mentee (called when opening PA tab)
+    async loadMenteePa(mentoradoId) {
+      if (!sb) return;
+      const mid = mentoradoId || this.ui.selectedMenteeId;
+      if (!mid) return;
+      try {
+        const { data: planos } = await sb.from('pa_planos')
+          .select('*')
+          .eq('mentorado_id', mid)
+          .limit(1)
+          .single();
+        if (!planos) { this.data.paMenteePa = null; return; }
+        const [fasesRes, acoesRes] = await Promise.all([
+          sb.from('pa_fases').select('*').eq('plano_id', planos.id).order('ordem'),
+          sb.from('pa_acoes').select('*').eq('plano_id', planos.id).order('ordem'),
+        ]);
+        const fases = (fasesRes.data || []).map(f => ({
+          ...f,
+          acoes: (acoesRes.data || []).filter(a => a.fase_id === f.id),
+        }));
+        this.data.paMenteePa = { ...planos, fases };
+      } catch (e) {
+        console.error('[Spalla] loadMenteePa error:', e);
+        this.data.paMenteePa = null;
+      }
+    },
+
+    // Get PA summary for a mentee (from pipeline data)
+    getPaForMentee(id) {
+      return this.data.paPlanos.find(p => p.mentorado_id === id) || null;
+    },
+
+    // Create a new PA plan
+    async createPlano() {
+      if (!sb) return;
+      const mid = this.ui.selectedMenteeId;
+      if (!mid) return;
+      const user = this.auth.currentUser?.user_metadata?.full_name || this.auth.currentUser?.email || '';
+      const { data, error } = await sb.from('pa_planos').insert({
+        mentorado_id: mid,
+        titulo: this.paForm.titulo || 'Plano de Ação',
+        formato: this.paForm.formato,
+        google_doc_url: this.paForm.google_doc_url || null,
+        created_by: user,
+      }).select().single();
+      if (error) { this.toast('Erro ao criar plano: ' + error.message, 'error'); return; }
+      this.ui.paModal = false;
+      this.paForm = { titulo: 'Plano de Ação', google_doc_url: '', formato: 'fases' };
+      await this.loadMenteePa(mid);
+      // Refresh pipeline
+      const { data: pipe } = await sb.from('vw_pa_pipeline').select('*');
+      if (pipe) this.data.paPlanos = pipe;
+      this.toast('Plano criado com sucesso', 'success');
+    },
+
+    // Add a phase to the current plan
+    async addFase() {
+      if (!sb || !this.data.paMenteePa) return;
+      const plano = this.data.paMenteePa;
+      const ordem = (plano.fases?.length || 0) + 1;
+      const { error } = await sb.from('pa_fases').insert({
+        plano_id: plano.id,
+        mentorado_id: plano.mentorado_id,
+        titulo: this.paFaseForm.titulo || 'Nova Fase',
+        tipo: this.paFaseForm.tipo,
+        ordem,
+      });
+      if (error) { this.toast('Erro ao adicionar fase', 'error'); return; }
+      this.paFaseForm = { titulo: '', tipo: 'fase' };
+      await this.loadMenteePa();
+      this.toast('Fase adicionada', 'success');
+    },
+
+    // Add an action to a phase
+    async addAcao(faseId) {
+      if (!sb || !this.data.paMenteePa) return;
+      const plano = this.data.paMenteePa;
+      const fase = plano.fases?.find(f => f.id === faseId);
+      const ordem = (fase?.acoes?.length || 0) + 1;
+      const { error } = await sb.from('pa_acoes').insert({
+        fase_id: faseId,
+        plano_id: plano.id,
+        mentorado_id: plano.mentorado_id,
+        numero: ordem,
+        titulo: this.paAcaoForm.titulo || 'Nova Ação',
+        data_prevista: this.paAcaoForm.data_prevista || null,
+        responsavel: this.paAcaoForm.responsavel || 'mentorado',
+        ordem,
+      });
+      if (error) { this.toast('Erro ao adicionar ação', 'error'); return; }
+      this.paAcaoForm = { titulo: '', data_prevista: '', responsavel: 'mentorado' };
+      await this.loadMenteePa();
+    },
+
+    // Toggle action status (click-cycle)
+    async toggleAcaoStatus(acao) {
+      if (!sb) return;
+      const cycle = ['pendente', 'em_andamento', 'concluido'];
+      const idx = cycle.indexOf(acao.status);
+      const next = cycle[(idx + 1) % cycle.length];
+      // Optimistic update
+      acao.status = next;
+      if (next === 'concluido') acao.data_conclusao = new Date().toISOString().split('T')[0];
+      const { error } = await sb.from('pa_acoes').update({
+        status: next,
+        data_conclusao: next === 'concluido' ? new Date().toISOString().split('T')[0] : null,
+      }).eq('id', acao.id);
+      if (error) { this.toast('Erro ao atualizar status', 'error'); await this.loadMenteePa(); return; }
+      // Auto-update phase status
+      await this._updateFaseStatus(acao.fase_id);
+      // Auto-update plan status
+      await this._updatePlanoStatus();
+      // Refresh pipeline
+      const { data: pipe } = await sb.from('vw_pa_pipeline').select('*');
+      if (pipe) this.data.paPlanos = pipe;
+    },
+
+    // Save inline-edited action fields
+    async saveAcao(acao) {
+      if (!sb) return;
+      const { error } = await sb.from('pa_acoes').update({
+        titulo: acao.titulo,
+        data_prevista: acao.data_prevista || null,
+        responsavel: acao.responsavel,
+        notas: acao.notas || null,
+      }).eq('id', acao.id);
+      if (error) this.toast('Erro ao salvar ação', 'error');
+    },
+
+    // Delete a phase
+    async deleteFase(faseId) {
+      if (!sb || !confirm('Excluir esta fase e todas as ações?')) return;
+      const { error } = await sb.from('pa_fases').delete().eq('id', faseId);
+      if (error) { this.toast('Erro ao excluir fase', 'error'); return; }
+      await this.loadMenteePa();
+      this.toast('Fase excluída', 'success');
+    },
+
+    // Delete an action
+    async deleteAcao(acaoId) {
+      if (!sb || !confirm('Excluir esta ação?')) return;
+      const { error } = await sb.from('pa_acoes').delete().eq('id', acaoId);
+      if (error) { this.toast('Erro ao excluir ação', 'error'); return; }
+      await this.loadMenteePa();
+    },
+
+    // Auto-update phase status based on actions
+    async _updateFaseStatus(faseId) {
+      if (!sb || !this.data.paMenteePa) return;
+      const fase = this.data.paMenteePa.fases?.find(f => f.id === faseId);
+      if (!fase || !fase.acoes?.length) return;
+      const all = fase.acoes.length;
+      const done = fase.acoes.filter(a => a.status === 'concluido' || a.status === 'nao_aplicavel').length;
+      const inProgress = fase.acoes.some(a => a.status === 'em_andamento');
+      let newStatus = 'nao_iniciado';
+      if (done === all) newStatus = 'concluido';
+      else if (done > 0 || inProgress) newStatus = 'em_andamento';
+      if (fase.status !== newStatus) {
+        fase.status = newStatus;
+        await sb.from('pa_fases').update({ status: newStatus }).eq('id', faseId);
+      }
+    },
+
+    // Auto-update plan status based on phases
+    async _updatePlanoStatus() {
+      if (!sb || !this.data.paMenteePa) return;
+      const plano = this.data.paMenteePa;
+      const fases = plano.fases || [];
+      if (!fases.length) return;
+      const allDone = fases.every(f => f.status === 'concluido');
+      const anyActive = fases.some(f => f.status === 'em_andamento' || f.status === 'concluido');
+      let newStatus = 'nao_iniciado';
+      if (allDone) newStatus = 'concluido';
+      else if (anyActive) newStatus = 'em_andamento';
+      if (plano.status_geral !== newStatus) {
+        plano.status_geral = newStatus;
+        await sb.from('pa_planos').update({ status_geral: newStatus }).eq('id', plano.id);
+      }
+    },
+
+    // PA Pipeline helpers
+    get filteredPaPlanos() {
+      let list = [...this.data.paPlanos];
+      if (this.ui.paFilter && this.ui.paFilter !== 'all') {
+        list = list.filter(p => p.status_geral === this.ui.paFilter);
+      }
+      return list;
+    },
+
+    paPipelineColumns() {
+      const statuses = ['nao_iniciado', 'em_andamento', 'pausado', 'concluido'];
+      return statuses.map(s => ({
+        status: s,
+        label: this.paStatusLabel(s),
+        items: this.data.paPlanos.filter(p => p.status_geral === s),
+      }));
+    },
+
+    paStatusLabel(s) {
+      const map = { nao_iniciado: 'Não Iniciado', em_andamento: 'Em Andamento', pausado: 'Pausado', concluido: 'Concluído' };
+      return map[s] || s;
+    },
+
+    paStatusColor(s) {
+      const map = { nao_iniciado: '#6b7280', em_andamento: '#3b82f6', pausado: '#f59e0b', concluido: '#10b981' };
+      return map[s] || '#6b7280';
+    },
+
+    paAcaoStatusIcon(s) {
+      const map = {
+        pendente: '○',
+        em_andamento: '◐',
+        concluido: '●',
+        bloqueado: '✕',
+        nao_aplicavel: '—',
+      };
+      return map[s] || '○';
+    },
+
+    paFaseProgress(fase) {
+      if (!fase.acoes?.length) return 0;
+      const done = fase.acoes.filter(a => a.status === 'concluido' || a.status === 'nao_aplicavel').length;
+      return Math.round((done / fase.acoes.length) * 100);
+    },
+
+    togglePaFase(faseId) {
+      this.ui.paExpandedFases[faseId] = !this.ui.paExpandedFases[faseId];
+    },
+
+    isPaFaseExpanded(faseId) {
+      return !!this.ui.paExpandedFases[faseId];
     },
 
     // ===================== SORTING / FILTERS =====================
