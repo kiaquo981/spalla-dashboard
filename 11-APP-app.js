@@ -262,6 +262,8 @@ function spalla() {
         list = list.filter(m => (m.tarefas_atrasadas || 0) === 0 && (m.risco_churn === 'baixo' || m.risco_churn === 'medio'));
       } else if (this.ui.filters.status === 'sem_call') {
         list = list.filter(m => (m.dias_desde_call || 999) > 21);
+      } else if (this.ui.filters.status === 'risco_critico') {
+        list = list.filter(m => m.risco_churn === 'critico' || m.risco_churn === 'alto');
       }
       if (this.ui.filters.financeiro === 'sem_contrato') {
         list = list.filter(m => m.contrato_assinado === false);
