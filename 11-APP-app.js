@@ -302,8 +302,8 @@ function spalla() {
         if (!c.data_call) return false;
         return new Date(c.data_call + 'T12:00:00') >= thirtyDaysAgo;
       }).length;
-      // Calculate pending tasks from mentees data
-      const tarefasPendentes = this.data.mentees.reduce((s, m) => s + (m.tarefas_pendentes || 0), 0);
+      // Calculate pending tasks from board (god_tasks)
+      const tarefasPendentes = this.data.tasks.filter(t => t.status === 'pendente' || t.status === 'em_andamento').length;
       // WhatsApp pending messages
       const msgsPendentes = this.data.mentees.reduce((s, m) => s + (m.msgs_pendentes_resposta || 0), 0);
       const mentoradosCriticos = this.data.mentees.filter(m => (m.horas_sem_resposta_equipe || 0) > 24).length;
