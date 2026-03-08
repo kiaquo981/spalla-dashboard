@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="13-APP-styles.css?v=39">
+  <link rel="stylesheet" href="13-APP-styles.css?v=40">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a,#1e293b,#0f172a);font-family:'Inter',sans-serif;color:#10b981;font-size:24px;font-weight:800; }
@@ -874,6 +874,16 @@
                         <a :href="data.paMenteePa.google_doc_url" target="_blank" class="btn btn--ghost btn--sm" @click.stop>Abrir Google Doc</a>
                       </template>
                     </div>
+                    <!-- Source info -->
+                    <div class="pa-plan__source" x-show="data.paMenteePa.fonte_doc_data || data.paMenteePa.created_by">
+                      <template x-if="data.paMenteePa.created_by === 'migração v2'">
+                        <span class="pa-origem pa-origem--dossie">Extraido do Dossie</span>
+                      </template>
+                      <template x-if="data.paMenteePa.fonte_doc_data">
+                        <span class="pa-plan__date">Dossie de <span x-text="new Date(data.paMenteePa.fonte_doc_data).toLocaleDateString('pt-BR')"></span></span>
+                      </template>
+                      <span class="pa-plan__date" x-show="data.paMenteePa.notas" x-text="'Foco: ' + data.paMenteePa.notas" style="font-style:italic"></span>
+                    </div>
                     <!-- Overall progress -->
                     <div style="padding:0 16px 16px">
                       <div class="pa-progress-bar">
@@ -882,6 +892,9 @@
                       <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">
                         <span x-text="(getPaForMentee(data.paMenteePa.mentorado_id)?.acoes_concluidas || 0)"></span> de
                         <span x-text="(getPaForMentee(data.paMenteePa.mentorado_id)?.total_acoes || 0)"></span> acoes concluidas
+                        <template x-if="getPaForMentee(data.paMenteePa.mentorado_id)?.acoes_dossie > 0">
+                          <span> (<span x-text="getPaForMentee(data.paMenteePa.mentorado_id)?.acoes_dossie"></span> do dossie, <span x-text="getPaForMentee(data.paMenteePa.mentorado_id)?.acoes_manual || 0"></span> manuais)</span>
+                        </template>
                       </div>
                     </div>
                   </div>
@@ -893,6 +906,9 @@
                         <svg class="pa-fase__chevron" :class="{ 'pa-fase__chevron--open': isPaFaseExpanded(fase.id) }" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                         <span class="pa-fase__titulo" x-text="fase.titulo"></span>
                         <span class="badge badge--sm" :class="'pa-status--' + fase.status" x-text="paStatusLabel(fase.status)" style="margin-left:8px"></span>
+                        <span class="pa-origem pa-origem--dossie pa-origem--sm" x-show="fase.origem === 'dossie_auto'">Dossie</span>
+                        <span class="pa-origem pa-origem--call pa-origem--sm" x-show="fase.origem === 'call_plano'">Call</span>
+                        <span class="pa-origem pa-origem--manual pa-origem--sm" x-show="fase.origem === 'manual'">Manual</span>
                         <div style="flex:1"></div>
                         <div class="pa-progress-bar pa-progress-bar--sm" style="width:80px">
                           <div class="pa-progress-bar__fill" :style="'width:' + paFaseProgress(fase) + '%'"></div>
@@ -918,6 +934,9 @@
                                   <option value="equipe">Equipe</option>
                                   <option value="queila">Queila</option>
                                 </select>
+                                <span class="pa-acao__origem" x-show="acao.origem === 'dossie_auto'" title="Extraido automaticamente do dossie">D</span>
+                                <span class="pa-acao__origem pa-acao__origem--call" x-show="acao.origem === 'call_plano'" title="Gerado apos call">C</span>
+                                <span class="pa-acao__created" x-show="acao.created_at" x-text="new Date(acao.created_at).toLocaleDateString('pt-BR')" title="Data de cadastro"></span>
                               </div>
                             </div>
                             <button class="pa-acao__delete" @click="deleteAcao(acao.id)" title="Excluir">
@@ -2217,9 +2236,9 @@
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js" integrity="sha384-Sm2s7OXxsAMTyJ4iIyRBgVpeGUvMPk2lRQnnZhE78Wej7oggIoolKt+SCt0XJbUB" crossorigin="anonymous"></script>
-  <script src="12-APP-data.js?v=39"></script>
-  <script src="13-APP-photos.js?v=39"></script>
-  <script src="11-APP-app.js?v=39"></script>
+  <script src="12-APP-data.js?v=40"></script>
+  <script src="13-APP-photos.js?v=40"></script>
+  <script src="11-APP-app.js?v=40"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {
