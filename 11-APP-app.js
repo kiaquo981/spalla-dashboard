@@ -152,6 +152,7 @@ function spalla() {
       paView: 'painel',         // painel | pipeline | list
       paModal: false,           // create plan modal
       paExpandedFases: {},      // { faseId: true } for accordion
+      paLoading: false,         // loading state for PA detail
       paSearchQuery: '',        // busca por nome do mentorado
       // Docs
       docSearch: '',
@@ -1486,20 +1487,21 @@ function spalla() {
     paForm: { titulo: 'Plano de Ação', google_doc_url: '', formato: 'fases' },
     paFaseForm: { titulo: '', tipo: 'fase' },
     paAcaoForm: { titulo: '', data_prevista: '', responsavel: 'mentorado' },
-    paSubAcaoForm: { titulo: '' },
+    paSubAcaoForm: {},  // keyed by acao_id: { titulo: '' }
 
     // Load full PA for a mentee (called when opening PA tab)
     async loadMenteePa(mentoradoId) {
       if (!sb) return;
       const mid = mentoradoId || this.ui.selectedMenteeId;
       if (!mid) return;
+      this.ui.paLoading = true;
       try {
         const { data: planos } = await sb.from('pa_planos')
           .select('*')
           .eq('mentorado_id', mid)
           .limit(1)
           .single();
-        if (!planos) { this.data.paMenteePa = null; return; }
+        if (!planos) { this.data.paMenteePa = null; this.ui.paLoading = false; return; }
         const [fasesRes, acoesRes, subAcoesRes] = await Promise.all([
           sb.from('pa_fases').select('*').eq('plano_id', planos.id).order('ordem'),
           sb.from('pa_acoes').select('*').eq('plano_id', planos.id).order('ordem'),
@@ -1513,10 +1515,16 @@ function spalla() {
           })),
         }));
         this.data.paMenteePa = { ...planos, fases };
+        // Auto-expand first em_andamento or nao_iniciado phase
+        if (fases.length && !Object.values(this.ui.paExpandedFases).some(v => v)) {
+          const first = fases.find(f => f.status === 'em_andamento') || fases.find(f => f.status === 'nao_iniciado') || fases[0];
+          if (first) this.ui.paExpandedFases[first.id] = true;
+        }
       } catch (e) {
         console.error('[Spalla] loadMenteePa error:', e);
         this.data.paMenteePa = null;
       }
+      this.ui.paLoading = false;
     },
 
     // Get PA summary for a mentee (from pipeline data)
@@ -1666,6 +1674,12 @@ function spalla() {
       await this.loadMenteePa();
     },
 
+    // Get per-action sub-acao form state
+    getSubAcaoForm(acaoId) {
+      if (!this.paSubAcaoForm[acaoId]) this.paSubAcaoForm[acaoId] = { titulo: '' };
+      return this.paSubAcaoForm[acaoId];
+    },
+
     // Add a new sub-action to an action
     async addSubAcao(acaoId, faseId) {
       if (!sb || !this.data.paMenteePa) return;
@@ -1673,17 +1687,18 @@ function spalla() {
       const fase = plano.fases?.find(f => f.id === faseId);
       const acao = fase?.acoes?.find(a => a.id === acaoId);
       const ordem = (acao?.sub_acoes?.length || 0) + 1;
+      const form = this.getSubAcaoForm(acaoId);
       const { error } = await sb.from('pa_sub_acoes').insert({
         plano_id: plano.id,
         fase_id: faseId,
         acao_id: acaoId,
-        titulo: this.paSubAcaoForm.titulo || 'Nova sub-ação',
+        titulo: form.titulo || 'Nova sub-ação',
         ordem,
         status: 'pendente',
         origem: 'manual',
       });
       if (error) { this.toast('Erro ao adicionar sub-ação', 'error'); return; }
-      this.paSubAcaoForm = { titulo: '' };
+      this.paSubAcaoForm[acaoId] = { titulo: '' };
       await this.loadMenteePa();
     },
 
@@ -1880,6 +1895,14 @@ function spalla() {
     isPaFaseExpanded(faseId) {
       return !!this.ui.paExpandedFases[faseId];
     },
+    expandAllPaFases() {
+      const pa = this.data.paMenteePa;
+      if (!pa?.fases) return;
+      pa.fases.forEach(f => { this.ui.paExpandedFases[f.id] = true; });
+    },
+    collapseAllPaFases() {
+      this.ui.paExpandedFases = {};
+    },
 
     // Check if acao is overdue
     paAcaoOverdue(acao) {
@@ -1891,14 +1914,17 @@ function spalla() {
     // Detail summary stats from paMenteePa (loaded detail)
     paDetailStats() {
       const pa = this.data.paMenteePa;
-      if (!pa || !pa.fases) return { total: 0, concluidas: 0, bloqueadas: 0, vencidas: 0 };
+      if (!pa || !pa.fases) return { total: 0, concluidas: 0, bloqueadas: 0, vencidas: 0, subTotal: 0, subConcluidas: 0 };
       const acoes = pa.fases.flatMap(f => f.acoes || []);
+      const subs = acoes.flatMap(a => a.sub_acoes || []);
       const today = new Date().toISOString().split('T')[0];
       return {
         total: acoes.length,
         concluidas: acoes.filter(a => a.status === 'concluido').length,
         bloqueadas: acoes.filter(a => a.status === 'bloqueado').length,
         vencidas: acoes.filter(a => a.data_prevista && a.data_prevista < today && a.status !== 'concluido' && a.status !== 'nao_aplicavel').length,
+        subTotal: subs.length,
+        subConcluidas: subs.filter(s => s.status === 'concluido').length,
       };
     },
 

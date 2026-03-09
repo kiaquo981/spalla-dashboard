@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="13-APP-styles.css?v=43">
+  <link rel="stylesheet" href="13-APP-styles.css?v=44">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a,#1e293b,#0f172a);font-family:'Inter',sans-serif;color:#10b981;font-size:24px;font-weight:800; }
@@ -862,6 +862,12 @@
                 </div>
               </div>
 
+              <!-- Loading state -->
+              <div x-show="ui.paLoading && !data.paMenteePa" class="empty-state" style="padding:32px">
+                <div class="spinner" style="margin:0 auto 12px"></div>
+                <p style="color:var(--text-secondary)">Carregando plano de ação...</p>
+              </div>
+
               <!-- Plan exists: show dashboard + phases -->
               <template x-if="data.paMenteePa">
                 <div>
@@ -903,6 +909,10 @@
                     <div class="pa-detail-summary__card">
                       <div class="pa-detail-summary__val" :style="(ds?.vencidas || 0) > 0 ? 'color:#f59e0b' : ''" x-text="ds?.vencidas || 0"></div>
                       <div class="pa-detail-summary__label">Vencidas</div>
+                    </div>
+                    <div class="pa-detail-summary__card" x-show="(ds?.subTotal || 0) > 0">
+                      <div class="pa-detail-summary__val" x-text="(ds?.subConcluidas || 0) + '/' + (ds?.subTotal || 0)"></div>
+                      <div class="pa-detail-summary__label">Sub-ações</div>
                     </div>
                   </div>
 
@@ -946,6 +956,15 @@
                     </div>
                   </div>
 
+                  <!-- Expand/Collapse all + phase count -->
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                    <span style="font-size:12px;color:var(--text-secondary)" x-text="(data.paMenteePa.fases?.length || 0) + ' fases'"></span>
+                    <div style="display:flex;gap:4px">
+                      <button class="btn btn--ghost btn--sm" style="font-size:11px;padding:2px 8px" @click="expandAllPaFases()">Expandir tudo</button>
+                      <button class="btn btn--ghost btn--sm" style="font-size:11px;padding:2px 8px" @click="collapseAllPaFases()">Colapsar tudo</button>
+                    </div>
+                  </div>
+
                   <!-- Phases accordion (tipo-aware) -->
                   <template x-for="fase in data.paMenteePa.fases" :key="fase.id">
                     <div class="pa-fase" :class="[
@@ -965,6 +984,7 @@
                           <div class="pa-progress-bar__fill" :style="'width:' + paFaseProgress(fase) + '%;background:' + paTipoColor(fase.tipo || 'fase')"></div>
                         </div>
                         <span style="font-size:11px;color:var(--text-secondary);margin-left:6px;min-width:30px" x-text="paFaseProgress(fase) + '%'"></span>
+                        <span class="pa-fase__counts" x-text="(fase.acoes?.length || 0) + ' ações' + (fase.acoes?.reduce((s,a) => s + (a.sub_acoes?.length || 0), 0) > 0 ? ' · ' + fase.acoes.reduce((s,a) => s + (a.sub_acoes?.length || 0), 0) + ' sub' : '')"></span>
                         <button class="btn btn--ghost btn--sm pa-fase__delete" @click.stop="deleteFase(fase.id)" title="Excluir fase">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                         </button>
@@ -1022,7 +1042,7 @@
                           <div class="pa-sub-acoes pa-sub-acoes--add-row" :class="{ 'pa-sub-acoes--no-border': !acao.sub_acoes?.length }">
                             <div class="pa-sub-acao pa-sub-acao--add">
                               <span class="pa-sub-acao__toggle" style="opacity:0.3;font-size:11px">+</span>
-                              <input type="text" class="pa-sub-acao__titulo" placeholder="Nova sub-ação..." x-model="paSubAcaoForm.titulo" @keydown.enter="if(paSubAcaoForm.titulo) addSubAcao(acao.id, fase.id)">
+                              <input type="text" class="pa-sub-acao__titulo" placeholder="Nova sub-ação..." x-model="getSubAcaoForm(acao.id).titulo" @keydown.enter="if(getSubAcaoForm(acao.id).titulo) addSubAcao(acao.id, fase.id)">
                             </div>
                           </div>
                         </template>
@@ -2122,7 +2142,7 @@
                   <span class="badge badge--sm" :class="'pa-status--' + p.status_geral" x-text="paStatusLabel(p.status_geral)"></span>
                 </div>
                 <!-- Current phase -->
-                <div class="pa-sentinel-card__fase" x-show="p.fase_atual" x-text="'Fase: ' + (p.fase_atual || '')"></div>
+                <div class="pa-sentinel-card__fase" x-show="p.fase_atual" x-text="p.fase_atual || ''"></div>
                 <!-- Overall progress bar -->
                 <div class="pa-sentinel-card__progress">
                   <div class="pa-progress-bar" style="flex:1">
@@ -2440,9 +2460,9 @@
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js" integrity="sha384-Sm2s7OXxsAMTyJ4iIyRBgVpeGUvMPk2lRQnnZhE78Wej7oggIoolKt+SCt0XJbUB" crossorigin="anonymous"></script>
-  <script src="12-APP-data.js?v=43"></script>
-  <script src="13-APP-photos.js?v=43"></script>
-  <script src="11-APP-app.js?v=43"></script>
+  <script src="12-APP-data.js?v=44"></script>
+  <script src="13-APP-photos.js?v=44"></script>
+  <script src="11-APP-app.js?v=44"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {
