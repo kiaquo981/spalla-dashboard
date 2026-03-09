@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="13-APP-styles.css?v=42">
+  <link rel="stylesheet" href="13-APP-styles.css?v=43">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a,#1e293b,#0f172a);font-family:'Inter',sans-serif;color:#10b981;font-size:24px;font-weight:800; }
@@ -1003,8 +1003,8 @@
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                             </button>
                           </div>
-                          <!-- Sub-ações -->
-                          <div x-show="acao.sub_acoes?.length || false" class="pa-sub-acoes">
+                          <!-- Sub-ações existentes -->
+                          <div x-show="acao.sub_acoes?.length" class="pa-sub-acoes">
                             <template x-for="sub in acao.sub_acoes" :key="sub.id">
                               <div class="pa-sub-acao" :class="'pa-sub-acao--' + sub.status">
                                 <button class="pa-sub-acao__toggle" @click="toggleSubAcaoStatus(sub)" :title="sub.status">
@@ -1017,7 +1017,9 @@
                                 <button class="pa-sub-acao__delete" @click="deleteSubAcao(sub.id)" title="Excluir">×</button>
                               </div>
                             </template>
-                            <!-- Add sub-ação inline -->
+                          </div>
+                          <!-- Add sub-ação (sempre visível ao expandir fase) -->
+                          <div class="pa-sub-acoes pa-sub-acoes--add-row" :class="{ 'pa-sub-acoes--no-border': !acao.sub_acoes?.length }">
                             <div class="pa-sub-acao pa-sub-acao--add">
                               <span class="pa-sub-acao__toggle" style="opacity:0.3;font-size:11px">+</span>
                               <input type="text" class="pa-sub-acao__titulo" placeholder="Nova sub-ação..." x-model="paSubAcaoForm.titulo" @keydown.enter="if(paSubAcaoForm.titulo) addSubAcao(acao.id, fase.id)">
@@ -2438,9 +2440,9 @@
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js" integrity="sha384-Sm2s7OXxsAMTyJ4iIyRBgVpeGUvMPk2lRQnnZhE78Wej7oggIoolKt+SCt0XJbUB" crossorigin="anonymous"></script>
-  <script src="12-APP-data.js?v=42"></script>
-  <script src="13-APP-photos.js?v=42"></script>
-  <script src="11-APP-app.js?v=42"></script>
+  <script src="12-APP-data.js?v=43"></script>
+  <script src="13-APP-photos.js?v=43"></script>
+  <script src="11-APP-app.js?v=43"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {
