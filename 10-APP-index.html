@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="13-APP-styles.css?v=40">
+  <link rel="stylesheet" href="13-APP-styles.css?v=42">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a,#1e293b,#0f172a);font-family:'Inter',sans-serif;color:#10b981;font-size:24px;font-weight:800; }
@@ -125,7 +125,7 @@
           </a>
           <a class="sidebar__item" :class="{ active: ui.page === 'planos_acao' }" @click="navigate('planos_acao')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-            <span x-show="ui.sidebarOpen">Planos de Acao</span>
+            <span x-show="ui.sidebarOpen">Sentinela PA</span>
           </a>
           <a class="sidebar__item" :class="{ active: ui.page === 'docs' }" @click="navigate('docs')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
@@ -271,7 +271,7 @@
               </div>
               <div class="sp-kpi-card__body">
                 <span class="sp-kpi-card__val sp-kpi-card__val--info" x-text="kpis.paEmExecucao || 0"></span>
-                <span class="sp-kpi-card__label">PA em execucao</span>
+                <span class="sp-kpi-card__label">PA em execução</span>
               </div>
             </div>
             <div class="sp-kpi-card" @click="navigate('planos_acao'); ui.paFilter = 'em_andamento'" style="cursor:pointer">
@@ -841,15 +841,15 @@
               <!-- No plan yet -->
               <div x-show="!data.paMenteePa && !ui.paModal" class="empty-state">
                 <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="margin-bottom:12px;color:var(--text-secondary)"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                <p>Nenhum plano de acao cadastrado.</p>
-                <button class="btn btn--primary" @click="ui.paModal = true" style="margin-top:12px">Criar Plano de Acao</button>
+                <p>Nenhum plano de ação cadastrado.</p>
+                <button class="btn btn--primary" @click="ui.paModal = true" style="margin-top:12px">Criar Plano de Ação</button>
               </div>
 
               <!-- Create Plan Modal (inline) -->
               <div x-show="ui.paModal" class="card" style="margin-bottom:16px">
-                <div class="card__header"><h3>Novo Plano de Acao</h3></div>
+                <div class="card__header"><h3>Novo Plano de Ação</h3></div>
                 <div class="card__body" style="display:flex;flex-direction:column;gap:12px">
-                  <input type="text" class="form-input" placeholder="Titulo do plano" x-model="paForm.titulo">
+                  <input type="text" class="form-input" placeholder="Título do plano" x-model="paForm.titulo">
                   <input type="url" class="form-input" placeholder="Link do Google Doc (opcional)" x-model="paForm.google_doc_url">
                   <select class="form-input" x-model="paForm.formato">
                     <option value="fases">Formato: Fases</option>
@@ -862,7 +862,7 @@
                 </div>
               </div>
 
-              <!-- Plan exists: show phases accordion -->
+              <!-- Plan exists: show dashboard + phases -->
               <template x-if="data.paMenteePa">
                 <div>
                   <!-- Plan header -->
@@ -877,41 +877,92 @@
                     <!-- Source info -->
                     <div class="pa-plan__source" x-show="data.paMenteePa.fonte_doc_data || data.paMenteePa.created_by">
                       <template x-if="data.paMenteePa.created_by === 'migração v2'">
-                        <span class="pa-origem pa-origem--dossie">Extraido do Dossie</span>
+                        <span class="pa-origem pa-origem--dossie">Extraído do Dossiê</span>
                       </template>
                       <template x-if="data.paMenteePa.fonte_doc_data">
-                        <span class="pa-plan__date">Dossie de <span x-text="new Date(data.paMenteePa.fonte_doc_data).toLocaleDateString('pt-BR')"></span></span>
+                        <span class="pa-plan__date">Dossiê de <span x-text="new Date(data.paMenteePa.fonte_doc_data).toLocaleDateString('pt-BR')"></span></span>
                       </template>
                       <span class="pa-plan__date" x-show="data.paMenteePa.notas" x-text="'Foco: ' + data.paMenteePa.notas" style="font-style:italic"></span>
                     </div>
-                    <!-- Overall progress -->
-                    <div style="padding:0 16px 16px">
-                      <div class="pa-progress-bar">
-                        <div class="pa-progress-bar__fill" :style="'width:' + (getPaForMentee(data.paMenteePa.mentorado_id)?.pct_concluido || 0) + '%'"></div>
-                      </div>
-                      <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">
-                        <span x-text="(getPaForMentee(data.paMenteePa.mentorado_id)?.acoes_concluidas || 0)"></span> de
-                        <span x-text="(getPaForMentee(data.paMenteePa.mentorado_id)?.total_acoes || 0)"></span> acoes concluidas
-                        <template x-if="getPaForMentee(data.paMenteePa.mentorado_id)?.acoes_dossie > 0">
-                          <span> (<span x-text="getPaForMentee(data.paMenteePa.mentorado_id)?.acoes_dossie"></span> do dossie, <span x-text="getPaForMentee(data.paMenteePa.mentorado_id)?.acoes_manual || 0"></span> manuais)</span>
-                        </template>
-                      </div>
+                  </div>
+
+                  <!-- Dashboard Summary: 4 metric cards -->
+                  <div class="pa-detail-summary" x-data="{ ds: null }" x-effect="ds = paDetailStats()">
+                    <div class="pa-detail-summary__card">
+                      <div class="pa-detail-summary__val" x-text="ds?.total || 0"></div>
+                      <div class="pa-detail-summary__label">Total Ações</div>
+                    </div>
+                    <div class="pa-detail-summary__card">
+                      <div class="pa-detail-summary__val" style="color:#10b981" x-text="ds?.concluidas || 0"></div>
+                      <div class="pa-detail-summary__label">Concluídas</div>
+                    </div>
+                    <div class="pa-detail-summary__card">
+                      <div class="pa-detail-summary__val" :style="(ds?.bloqueadas || 0) > 0 ? 'color:#ef4444' : ''" x-text="ds?.bloqueadas || 0"></div>
+                      <div class="pa-detail-summary__label">Bloqueadas</div>
+                    </div>
+                    <div class="pa-detail-summary__card">
+                      <div class="pa-detail-summary__val" :style="(ds?.vencidas || 0) > 0 ? 'color:#f59e0b' : ''" x-text="ds?.vencidas || 0"></div>
+                      <div class="pa-detail-summary__label">Vencidas</div>
                     </div>
                   </div>
 
-                  <!-- Phases -->
+                  <!-- 3 tipo progress bars -->
+                  <div class="pa-detail-tipo-bars">
+                    <template x-for="tipo in ['revisao_dossie', 'fase', 'passo_executivo']" :key="tipo">
+                      <div class="pa-tipo-bar" x-data="{ tp: null }" x-effect="tp = paDetailTipoProgress(tipo)" x-show="tp?.total > 0">
+                        <span class="pa-tipo-bar__label" :style="'color:' + paTipoColor(tipo)">
+                          <span x-text="paTipoIcon(tipo)"></span>
+                          <span x-text="paTipoLabel(tipo)"></span>
+                        </span>
+                        <div class="pa-tipo-bar__track" style="height:6px">
+                          <div class="pa-tipo-bar__fill" :style="'width:' + (tp?.pct || 0) + '%;background:' + paTipoColor(tipo)"></div>
+                        </div>
+                        <span class="pa-tipo-bar__pct" x-text="(tp?.pct || 0) + '% (' + (tp?.done || 0) + '/' + (tp?.total || 0) + ')'"></span>
+                      </div>
+                    </template>
+                  </div>
+
+                  <!-- Composition badges + Timeline -->
+                  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:16px">
+                    <div style="display:flex;gap:6px" x-data="{ or: null }" x-effect="or = paDetailOrigem()">
+                      <span class="pa-origem pa-origem--dossie" x-show="or?.dossie_auto > 0" x-text="'Dossiê: ' + (or?.dossie_auto || 0)"></span>
+                      <span class="pa-origem pa-origem--call" x-show="or?.call_plano > 0" x-text="'Call: ' + (or?.call_plano || 0)"></span>
+                      <span class="pa-origem pa-origem--manual" x-show="or?.manual > 0" x-text="'Manual: ' + (or?.manual || 0)"></span>
+                    </div>
+                    <div class="pa-detail-timeline">
+                      <span x-show="data.paMenteePa.created_at">Criado: <span x-text="new Date(data.paMenteePa.created_at).toLocaleDateString('pt-BR')"></span></span>
+                      <span x-show="data.paMenteePa.updated_at">Atualizado: <span x-text="new Date(data.paMenteePa.updated_at).toLocaleDateString('pt-BR')"></span></span>
+                    </div>
+                  </div>
+
+                  <!-- Overall progress bar -->
+                  <div style="margin-bottom:16px">
+                    <div class="pa-progress-bar">
+                      <div class="pa-progress-bar__fill" :style="'width:' + (getPaForMentee(data.paMenteePa.mentorado_id)?.pct_concluido || 0) + '%'"></div>
+                    </div>
+                    <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">
+                      <span x-text="(getPaForMentee(data.paMenteePa.mentorado_id)?.acoes_concluidas || 0)"></span> de
+                      <span x-text="(getPaForMentee(data.paMenteePa.mentorado_id)?.total_acoes || 0)"></span> ações concluídas
+                    </div>
+                  </div>
+
+                  <!-- Phases accordion (tipo-aware) -->
                   <template x-for="fase in data.paMenteePa.fases" :key="fase.id">
-                    <div class="pa-fase" :class="'pa-fase--' + fase.status">
+                    <div class="pa-fase" :class="[
+                      'pa-fase--' + fase.status,
+                      (fase.tipo || 'fase') === 'revisao_dossie' ? 'pa-fase--tipo-diagnostico' : '',
+                      (fase.tipo || 'fase') === 'fase' ? 'pa-fase--tipo-estrategia' : '',
+                      (fase.tipo || 'fase') === 'passo_executivo' ? 'pa-fase--tipo-execucao' : ''
+                    ].join(' ')">
                       <div class="pa-fase__header" @click="togglePaFase(fase.id)">
                         <svg class="pa-fase__chevron" :class="{ 'pa-fase__chevron--open': isPaFaseExpanded(fase.id) }" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                        <span class="pa-fase__tipo-icon" x-text="paTipoIcon(fase.tipo || 'fase')"></span>
                         <span class="pa-fase__titulo" x-text="fase.titulo"></span>
-                        <span class="badge badge--sm" :class="'pa-status--' + fase.status" x-text="paStatusLabel(fase.status)" style="margin-left:8px"></span>
-                        <span class="pa-origem pa-origem--dossie pa-origem--sm" x-show="fase.origem === 'dossie_auto'">Dossie</span>
-                        <span class="pa-origem pa-origem--call pa-origem--sm" x-show="fase.origem === 'call_plano'">Call</span>
-                        <span class="pa-origem pa-origem--manual pa-origem--sm" x-show="fase.origem === 'manual'">Manual</span>
+                        <span class="badge badge--sm" :class="'pa-status--' + fase.status" x-text="paStatusLabel(fase.status)" style="margin-left:4px"></span>
+                        <span class="pa-origem pa-origem--sm" :class="paOrigemColor(fase.origem)" x-show="fase.origem" x-text="paOrigemLabel(fase.origem)"></span>
                         <div style="flex:1"></div>
                         <div class="pa-progress-bar pa-progress-bar--sm" style="width:80px">
-                          <div class="pa-progress-bar__fill" :style="'width:' + paFaseProgress(fase) + '%'"></div>
+                          <div class="pa-progress-bar__fill" :style="'width:' + paFaseProgress(fase) + '%;background:' + paTipoColor(fase.tipo || 'fase')"></div>
                         </div>
                         <span style="font-size:11px;color:var(--text-secondary);margin-left:6px;min-width:30px" x-text="paFaseProgress(fase) + '%'"></span>
                         <button class="btn btn--ghost btn--sm pa-fase__delete" @click.stop="deleteFase(fase.id)" title="Excluir fase">
@@ -921,33 +972,62 @@
                       <div class="pa-fase__body" x-show="isPaFaseExpanded(fase.id)" x-transition>
                         <!-- Actions list -->
                         <template x-for="acao in fase.acoes" :key="acao.id">
-                          <div class="pa-acao" :class="'pa-acao--' + acao.status">
-                            <button class="pa-acao__toggle" @click="toggleAcaoStatus(acao)" :title="acao.status">
+                          <div class="pa-acao" :class="[
+                            'pa-acao--' + acao.status,
+                            paAcaoOverdue(acao) ? 'pa-acao--overdue' : ''
+                          ].join(' ')">
+                            <button class="pa-acao__toggle" @click="toggleAcaoStatus(acao)" :title="paAcaoStatusLabel(acao.status)">
                               <span x-text="paAcaoStatusIcon(acao.status)"></span>
                             </button>
                             <div class="pa-acao__content">
                               <input type="text" class="pa-acao__titulo" x-model="acao.titulo" @change="saveAcao(acao)" :class="{ 'pa-acao__titulo--done': acao.status === 'concluido' }">
                               <div class="pa-acao__meta">
-                                <input type="date" class="pa-acao__date" x-model="acao.data_prevista" @change="saveAcao(acao)" title="Data prevista">
+                                <input type="date" class="pa-acao__date" x-model="acao.data_prevista" @change="saveAcao(acao)" title="Data prevista" :style="paAcaoOverdue(acao) ? 'color:#ef4444;font-weight:600' : ''">
                                 <select class="pa-acao__resp" x-model="acao.responsavel" @change="saveAcao(acao)">
                                   <option value="mentorado">Mentorado</option>
                                   <option value="equipe">Equipe</option>
                                   <option value="queila">Queila</option>
                                 </select>
-                                <span class="pa-acao__origem" x-show="acao.origem === 'dossie_auto'" title="Extraido automaticamente do dossie">D</span>
-                                <span class="pa-acao__origem pa-acao__origem--call" x-show="acao.origem === 'call_plano'" title="Gerado apos call">C</span>
+                                <span class="pa-acao__origem-badge" :class="paOrigemColor(acao.origem)" x-show="acao.origem" x-text="paOrigemLabel(acao.origem)"></span>
                                 <span class="pa-acao__created" x-show="acao.created_at" x-text="new Date(acao.created_at).toLocaleDateString('pt-BR')" title="Data de cadastro"></span>
                               </div>
+                              <!-- Expandable notes -->
+                              <template x-if="acao.notas">
+                                <div style="margin-top:4px">
+                                  <button class="btn btn--ghost btn--sm" style="font-size:10px;padding:2px 6px" @click.stop="acao._showNotas = !acao._showNotas" x-text="acao._showNotas ? 'Ocultar notas' : 'Ver notas'"></button>
+                                  <div x-show="acao._showNotas" style="font-size:12px;color:var(--text-secondary);margin-top:4px;padding:6px 8px;background:var(--bg-secondary);border-radius:6px" x-text="acao.notas"></div>
+                                </div>
+                              </template>
                             </div>
                             <button class="pa-acao__delete" @click="deleteAcao(acao.id)" title="Excluir">
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                             </button>
                           </div>
+                          <!-- Sub-ações -->
+                          <div x-show="acao.sub_acoes?.length || false" class="pa-sub-acoes">
+                            <template x-for="sub in acao.sub_acoes" :key="sub.id">
+                              <div class="pa-sub-acao" :class="'pa-sub-acao--' + sub.status">
+                                <button class="pa-sub-acao__toggle" @click="toggleSubAcaoStatus(sub)" :title="sub.status">
+                                  <span x-text="paAcaoStatusIcon(sub.status)"></span>
+                                </button>
+                                <input type="text" class="pa-sub-acao__titulo" x-model="sub.titulo"
+                                       @change="saveSubAcao(sub)"
+                                       :class="{ 'pa-sub-acao__titulo--done': sub.status === 'concluido' }">
+                                <span class="pa-sub-acao__resp" x-text="sub.responsavel" x-show="sub.responsavel"></span>
+                                <button class="pa-sub-acao__delete" @click="deleteSubAcao(sub.id)" title="Excluir">×</button>
+                              </div>
+                            </template>
+                            <!-- Add sub-ação inline -->
+                            <div class="pa-sub-acao pa-sub-acao--add">
+                              <span class="pa-sub-acao__toggle" style="opacity:0.3;font-size:11px">+</span>
+                              <input type="text" class="pa-sub-acao__titulo" placeholder="Nova sub-ação..." x-model="paSubAcaoForm.titulo" @keydown.enter="if(paSubAcaoForm.titulo) addSubAcao(acao.id, fase.id)">
+                            </div>
+                          </div>
                         </template>
                         <!-- Add action form -->
                         <div class="pa-acao pa-acao--add">
                           <span class="pa-acao__toggle" style="opacity:0.3">+</span>
-                          <input type="text" class="pa-acao__titulo" placeholder="Nova acao..." x-model="paAcaoForm.titulo" @keydown.enter="if(paAcaoForm.titulo) addAcao(fase.id)">
+                          <input type="text" class="pa-acao__titulo" placeholder="Nova ação..." x-model="paAcaoForm.titulo" @keydown.enter="if(paAcaoForm.titulo) addAcao(fase.id)">
                           <button class="btn btn--ghost btn--sm" @click="if(paAcaoForm.titulo) addAcao(fase.id)" x-show="paAcaoForm.titulo">Adicionar</button>
                         </div>
                       </div>
@@ -958,9 +1038,9 @@
                   <div class="pa-add-fase" style="margin-top:12px">
                     <input type="text" class="form-input" placeholder="Nome da nova fase..." x-model="paFaseForm.titulo" @keydown.enter="if(paFaseForm.titulo) addFase()" style="flex:1">
                     <select class="form-input" x-model="paFaseForm.tipo" style="width:160px">
-                      <option value="fase">Fase</option>
-                      <option value="revisao_dossie">Revisao Dossie</option>
-                      <option value="passo_executivo">Passo Executivo</option>
+                      <option value="fase">Estratégia</option>
+                      <option value="revisao_dossie">Diagnóstico</option>
+                      <option value="passo_executivo">Execução</option>
                     </select>
                     <button class="btn btn--primary btn--sm" @click="if(paFaseForm.titulo) addFase()">+ Fase</button>
                   </div>
@@ -1979,24 +2059,114 @@
           </div>
         </div>
 
-        <!-- ===== PAGE: PLANOS DE AÇÃO ===== -->
+        <!-- ===== PAGE: SENTINELA PA ===== -->
         <div class="page-content" x-show="ui.page === 'planos_acao'" x-transition>
           <div class="page-header">
-            <h2>Planos de Acao</h2>
-            <div style="display:flex;gap:8px;align-items:center">
-              <select class="ln-select" x-model="ui.paFilter">
-                <option value="all">Todos</option>
-                <option value="nao_iniciado">Nao Iniciado</option>
-                <option value="em_andamento">Em Andamento</option>
-                <option value="pausado">Pausado</option>
-                <option value="concluido">Concluido</option>
-              </select>
-              <button class="btn btn--ghost btn--sm" :class="{ 'btn--active': ui.paView === 'pipeline' }" @click="ui.paView = 'pipeline'">Pipeline</button>
-              <button class="btn btn--ghost btn--sm" :class="{ 'btn--active': ui.paView === 'list' }" @click="ui.paView = 'list'">Lista</button>
+            <h2>Sentinela — Planos de Ação</h2>
+          </div>
+
+          <!-- KPI Strip -->
+          <div class="pa-page-kpis" x-data="{ pk: null }" x-init="$watch('data.paPlanos', () => pk = paPageKpis())" x-effect="pk = paPageKpis()">
+            <div class="pa-page-kpis__card">
+              <span class="pa-page-kpis__val" x-text="pk?.total || 0"></span>
+              <span class="pa-page-kpis__label">Total Planos</span>
+            </div>
+            <div class="pa-page-kpis__card">
+              <span class="pa-page-kpis__val pa-page-kpis__val--info" x-text="pk?.emExecucao || 0"></span>
+              <span class="pa-page-kpis__label">Em Execução</span>
+            </div>
+            <div class="pa-page-kpis__card">
+              <span class="pa-page-kpis__val" :class="(pk?.parados || 0) > 0 ? 'pa-page-kpis__val--warning' : ''" x-text="pk?.parados || 0"></span>
+              <span class="pa-page-kpis__label">Parados &gt;14d</span>
+            </div>
+            <div class="pa-page-kpis__card">
+              <span class="pa-page-kpis__val" :class="(pk?.bloqueadas || 0) > 0 ? 'pa-page-kpis__val--danger' : ''" x-text="pk?.bloqueadas || 0"></span>
+              <span class="pa-page-kpis__label">Ações Bloqueadas</span>
+            </div>
+            <div class="pa-page-kpis__card">
+              <span class="pa-page-kpis__val pa-page-kpis__val--success" x-text="(pk?.taxaConclusao || 0) + '%'"></span>
+              <span class="pa-page-kpis__label">Taxa Conclusão</span>
+            </div>
+            <div class="pa-page-kpis__card">
+              <span class="pa-page-kpis__val" x-text="(pk?.mediaDias || 0) + 'd'"></span>
+              <span class="pa-page-kpis__label">Média s/ Update</span>
             </div>
           </div>
 
-          <!-- Pipeline View -->
+          <!-- Search + Filters + View Toggle -->
+          <div class="pa-search">
+            <input type="text" class="pa-search__input" placeholder="Buscar mentorado..." x-model="ui.paSearchQuery">
+            <select class="ln-select" x-model="ui.paFilter">
+              <option value="all">Todos os status</option>
+              <option value="nao_iniciado">Aguardando Início</option>
+              <option value="em_andamento">Em Execução</option>
+              <option value="pausado">Pausado</option>
+              <option value="concluido">Concluído</option>
+            </select>
+            <div class="pa-view-toggle">
+              <button class="pa-view-toggle__btn" :class="{ 'pa-view-toggle__btn--active': ui.paView === 'painel' }" @click="ui.paView = 'painel'">Painel</button>
+              <button class="pa-view-toggle__btn" :class="{ 'pa-view-toggle__btn--active': ui.paView === 'pipeline' }" @click="ui.paView = 'pipeline'">Pipeline</button>
+              <button class="pa-view-toggle__btn" :class="{ 'pa-view-toggle__btn--active': ui.paView === 'list' }" @click="ui.paView = 'list'">Lista</button>
+            </div>
+          </div>
+
+          <!-- ===== VIEW: PAINEL (Sentinel Cards) ===== -->
+          <div class="pa-sentinel-grid" x-show="ui.paView === 'painel'">
+            <template x-for="p in filteredPaPlanos" :key="p.plano_id">
+              <div class="pa-sentinel-card" @click="loadMenteeDetail(p.mentorado_id); $nextTick(() => { ui.activeDetailTab = 'plano_acao'; loadMenteePa(p.mentorado_id); })">
+                <!-- Header: name + status -->
+                <div class="pa-sentinel-card__header">
+                  <span class="pa-sentinel-card__name" x-text="p.mentorado_nome"></span>
+                  <span class="badge badge--sm" :class="'pa-status--' + p.status_geral" x-text="paStatusLabel(p.status_geral)"></span>
+                </div>
+                <!-- Current phase -->
+                <div class="pa-sentinel-card__fase" x-show="p.fase_atual" x-text="'Fase: ' + (p.fase_atual || '')"></div>
+                <!-- Overall progress bar -->
+                <div class="pa-sentinel-card__progress">
+                  <div class="pa-progress-bar" style="flex:1">
+                    <div class="pa-progress-bar__fill" :style="'width:' + (p.pct_concluido || 0) + '%'"></div>
+                  </div>
+                  <span class="pa-sentinel-card__progress-label" x-text="(p.acoes_concluidas || 0) + '/' + (p.total_acoes || 0) + ' ações'"></span>
+                </div>
+                <!-- 3 mini-bars by tipo -->
+                <div class="pa-sentinel-card__tipo-bars" x-data="{ sd: null }" x-init="sd = paSentinelData(p.plano_id)" x-effect="sd = paSentinelData(p.plano_id)">
+                  <template x-for="tipo in ['revisao_dossie', 'fase', 'passo_executivo']" :key="tipo">
+                    <div class="pa-tipo-bar" x-show="sd?.byTipo?.[tipo]?.total > 0">
+                      <span class="pa-tipo-bar__label" :style="'color:' + paTipoColor(tipo)">
+                        <span x-text="paTipoIcon(tipo)"></span>
+                        <span x-text="paTipoLabel(tipo)"></span>
+                      </span>
+                      <div class="pa-tipo-bar__track">
+                        <div class="pa-tipo-bar__fill" :style="'width:' + (sd?.byTipo?.[tipo]?.total > 0 ? Math.round((sd.byTipo[tipo].done / sd.byTipo[tipo].total) * 100) : 0) + '%;background:' + paTipoColor(tipo)"></div>
+                      </div>
+                      <span class="pa-tipo-bar__pct" x-text="(sd?.byTipo?.[tipo]?.total > 0 ? Math.round((sd.byTipo[tipo].done / sd.byTipo[tipo].total) * 100) : 0) + '%'"></span>
+                    </div>
+                  </template>
+                </div>
+                <!-- Composition -->
+                <div class="pa-sentinel-card__composition" x-data="{ sd: null }" x-init="sd = paSentinelData(p.plano_id)" x-effect="sd = paSentinelData(p.plano_id)">
+                  <span class="pa-origem pa-origem--dossie pa-origem--sm" x-show="sd?.byOrigem?.dossie_auto > 0" x-text="'Dossiê: ' + (sd?.byOrigem?.dossie_auto || 0)"></span>
+                  <span class="pa-origem pa-origem--call pa-origem--sm" x-show="sd?.byOrigem?.call_plano > 0" x-text="'Call: ' + (sd?.byOrigem?.call_plano || 0)"></span>
+                  <span class="pa-origem pa-origem--manual pa-origem--sm" x-show="sd?.byOrigem?.manual > 0" x-text="'Manual: ' + (sd?.byOrigem?.manual || 0)"></span>
+                </div>
+                <!-- Footer: alerts + last update -->
+                <div class="pa-sentinel-card__footer">
+                  <div class="pa-sentinel-card__alerts">
+                    <span class="pa-alert--blocked" x-show="paBlockedCount(p.plano_id) > 0">
+                      <span>⊘</span> <span x-text="paBlockedCount(p.plano_id) + ' bloq.'"></span>
+                    </span>
+                    <span class="pa-alert--overdue" x-show="paOverdueCount(p.plano_id) > 0">
+                      <span>⚠</span> <span x-text="paOverdueCount(p.plano_id) + ' venc.'"></span>
+                    </span>
+                  </div>
+                  <span x-text="paLastUpdate(p.plano_id) || ''"></span>
+                </div>
+              </div>
+            </template>
+            <div class="empty-state" x-show="!filteredPaPlanos.length" style="grid-column:1/-1"><p>Nenhum plano encontrado.</p></div>
+          </div>
+
+          <!-- ===== VIEW: PIPELINE (Kanban) ===== -->
           <div class="pa-pipeline" x-show="ui.paView === 'pipeline'">
             <template x-for="col in paPipelineColumns()" :key="col.status">
               <div class="pa-pipeline__col">
@@ -2013,8 +2183,26 @@
                         <div class="pa-progress-bar__fill" :style="'width:' + (p.pct_concluido || 0) + '%'"></div>
                       </div>
                       <div class="pa-pipeline__card-meta">
-                        <span x-text="(p.pct_concluido || 0) + '%'"></span>
+                        <span x-text="(p.acoes_concluidas || 0) + '/' + (p.total_acoes || 0)"></span>
                         <span x-show="p.dias_sem_update > 7" class="pa-pipeline__card-stale" x-text="p.dias_sem_update + 'd sem update'"></span>
+                      </div>
+                      <!-- Mini tipo bars + alerts -->
+                      <div class="pa-sentinel-card__tipo-bars" style="margin-top:6px" x-data="{ sd: null }" x-init="sd = paSentinelData(p.plano_id)" x-effect="sd = paSentinelData(p.plano_id)">
+                        <template x-for="tipo in ['revisao_dossie', 'fase', 'passo_executivo']" :key="tipo">
+                          <div class="pa-tipo-bar" x-show="sd?.byTipo?.[tipo]?.total > 0">
+                            <span class="pa-tipo-bar__label" :style="'color:' + paTipoColor(tipo)" style="min-width:55px;font-size:10px">
+                              <span x-text="paTipoIcon(tipo)"></span>
+                              <span x-text="paTipoLabel(tipo).substring(0,4)"></span>
+                            </span>
+                            <div class="pa-tipo-bar__track">
+                              <div class="pa-tipo-bar__fill" :style="'width:' + (sd?.byTipo?.[tipo]?.total > 0 ? Math.round((sd.byTipo[tipo].done / sd.byTipo[tipo].total) * 100) : 0) + '%;background:' + paTipoColor(tipo)"></div>
+                            </div>
+                          </div>
+                        </template>
+                      </div>
+                      <div class="pa-pipeline__card-alerts" x-show="paBlockedCount(p.plano_id) > 0 || paOverdueCount(p.plano_id) > 0">
+                        <span class="pa-alert--blocked" x-show="paBlockedCount(p.plano_id) > 0"><span>⊘</span> <span x-text="paBlockedCount(p.plano_id)"></span></span>
+                        <span class="pa-alert--overdue" x-show="paOverdueCount(p.plano_id) > 0"><span>⚠</span> <span x-text="paOverdueCount(p.plano_id)"></span></span>
                       </div>
                     </div>
                   </template>
@@ -2024,8 +2212,9 @@
             </template>
           </div>
 
-          <!-- List View -->
+          <!-- ===== VIEW: LISTA (10-column table) ===== -->
           <div class="pa-list" x-show="ui.paView === 'list'">
+            <div style="overflow-x:auto">
             <table class="table">
               <thead>
                 <tr>
@@ -2033,33 +2222,46 @@
                   <th>Status</th>
                   <th>Fase Atual</th>
                   <th>Progresso</th>
-                  <th>Acoes</th>
-                  <th>Dias s/ Update</th>
+                  <th>Ações</th>
+                  <th>Bloqueadas</th>
+                  <th>Vencidas</th>
+                  <th>Diagnóstico</th>
+                  <th>Composição</th>
+                  <th>Última Atualiz.</th>
                 </tr>
               </thead>
               <tbody>
                 <template x-for="p in filteredPaPlanos" :key="p.plano_id">
                   <tr style="cursor:pointer" @click="loadMenteeDetail(p.mentorado_id); $nextTick(() => { ui.activeDetailTab = 'plano_acao'; loadMenteePa(p.mentorado_id); })">
-                    <td x-text="p.mentorado_nome"></td>
+                    <td style="font-weight:600" x-text="p.mentorado_nome"></td>
                     <td><span class="badge badge--sm" :class="'pa-status--' + p.status_geral" x-text="paStatusLabel(p.status_geral)"></span></td>
-                    <td x-text="p.fase_atual || '-'"></td>
+                    <td style="font-size:12px" x-text="p.fase_atual || '-'"></td>
                     <td>
-                      <div style="display:flex;align-items:center;gap:8px">
-                        <div class="pa-progress-bar pa-progress-bar--sm" style="width:60px">
+                      <div style="display:flex;align-items:center;gap:6px">
+                        <div class="pa-progress-bar pa-progress-bar--sm" style="width:50px">
                           <div class="pa-progress-bar__fill" :style="'width:' + (p.pct_concluido || 0) + '%'"></div>
                         </div>
-                        <span style="font-size:12px" x-text="(p.pct_concluido || 0) + '%'"></span>
+                        <span style="font-size:11px;font-weight:600" x-text="(p.pct_concluido || 0) + '%'"></span>
                       </div>
                     </td>
-                    <td x-text="(p.acoes_concluidas || 0) + '/' + (p.total_acoes || 0)"></td>
+                    <td style="font-size:12px" x-text="(p.acoes_concluidas || 0) + '/' + (p.total_acoes || 0)"></td>
+                    <td><span :class="paBlockedCount(p.plano_id) > 0 ? 'text--danger' : ''" x-text="paBlockedCount(p.plano_id)"></span></td>
+                    <td><span :class="paOverdueCount(p.plano_id) > 0 ? 'text--warning' : ''" x-text="paOverdueCount(p.plano_id)"></span></td>
+                    <td style="font-size:11px" x-text="paTipoProgress(p.plano_id, 'revisao_dossie') + '%'"></td>
                     <td>
-                      <span :class="(p.dias_sem_update || 0) > 14 ? 'text--danger' : ''" x-text="(p.dias_sem_update || 0) + 'd'"></span>
+                      <div style="display:flex;gap:4px" x-data="{ sd: paSentinelData(p.plano_id) }">
+                        <span class="pa-origem pa-origem--dossie pa-origem--sm" x-show="sd.byOrigem.dossie_auto > 0" x-text="'D:' + sd.byOrigem.dossie_auto"></span>
+                        <span class="pa-origem pa-origem--call pa-origem--sm" x-show="sd.byOrigem.call_plano > 0" x-text="'C:' + sd.byOrigem.call_plano"></span>
+                        <span class="pa-origem pa-origem--manual pa-origem--sm" x-show="sd.byOrigem.manual > 0" x-text="'M:' + sd.byOrigem.manual"></span>
+                      </div>
                     </td>
+                    <td style="font-size:11px;white-space:nowrap" x-text="paLastUpdate(p.plano_id) || '-'"></td>
                   </tr>
                 </template>
               </tbody>
             </table>
-            <div class="empty-state" x-show="!filteredPaPlanos.length"><p>Nenhum plano de acao encontrado.</p></div>
+            </div>
+            <div class="empty-state" x-show="!filteredPaPlanos.length"><p>Nenhum plano encontrado.</p></div>
           </div>
         </div>
 
@@ -2236,9 +2438,9 @@
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js" integrity="sha384-Sm2s7OXxsAMTyJ4iIyRBgVpeGUvMPk2lRQnnZhE78Wej7oggIoolKt+SCt0XJbUB" crossorigin="anonymous"></script>
-  <script src="12-APP-data.js?v=40"></script>
-  <script src="13-APP-photos.js?v=40"></script>
-  <script src="11-APP-app.js?v=40"></script>
+  <script src="12-APP-data.js?v=42"></script>
+  <script src="13-APP-photos.js?v=42"></script>
+  <script src="11-APP-app.js?v=42"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {

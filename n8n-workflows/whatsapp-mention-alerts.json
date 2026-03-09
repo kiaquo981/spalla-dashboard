@@ -1,0 +1,294 @@
+{
+  "name": "WhatsApp Mention Alerts - Spalla",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "trigger-schedule",
+      "name": "A cada 30 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Buscar mensagens com menções a membros da equipe que ainda não foram respondidas\n-- e que têm entre 2h e 9h de idade (janela de alertas)\n-- min_nivel: nível mínimo de alerta para enviar (Queila 6464 só recebe nível 4 = 8h)\nWITH team_phones AS (\n  SELECT * FROM (VALUES\n    ('Kaique',       '5511964682447',  1),\n    ('Heitor',       '5527999473185',  1),\n    ('Hugo',         '5527992640273',  1),\n    ('Queila',       '5527988918032',  1),\n    ('Queila',       '5567991076464',  4),\n    ('Lara',         '5524992514909',  1)\n  ) AS t(nome, whatsapp_number, min_nivel)\n)\nSELECT\n  i.id AS interacao_id,\n  i.mentorado_id,\n  m.nome AS mentorado_nome,\n  i.conteudo,\n  i.sender_name,\n  i.group_id,\n  i.created_at,\n  ROUND(EXTRACT(EPOCH FROM (NOW() - i.created_at)) / 3600, 1) AS horas_pendente,\n  tp.nome AS membro_mencionado,\n  tp.whatsapp_number AS membro_whatsapp,\n  tp.min_nivel,\n  CASE\n    WHEN EXTRACT(EPOCH FROM (NOW() - i.created_at)) / 3600 BETWEEN 7.5 AND 9 THEN 4\n    WHEN EXTRACT(EPOCH FROM (NOW() - i.created_at)) / 3600 BETWEEN 5.5 AND 7.5 THEN 3\n    WHEN EXTRACT(EPOCH FROM (NOW() - i.created_at)) / 3600 BETWEEN 3.5 AND 5.5 THEN 2\n    WHEN EXTRACT(EPOCH FROM (NOW() - i.created_at)) / 3600 BETWEEN 1.5 AND 3.5 THEN 1\n    ELSE 0\n  END AS alerta_nivel\nFROM interacoes_mentoria i\nJOIN mentorados m ON i.mentorado_id = m.id\nCROSS JOIN team_phones tp\nWHERE i.eh_equipe = false\n  AND i.requer_resposta = true\n  AND i.respondido = false\n  AND m.ativo = true\n  AND (\n    i.conteudo ILIKE '%@' || LOWER(tp.nome) || '%'\n    OR i.conteudo ILIKE '%' || tp.nome || '%'\n  )\n  AND i.created_at BETWEEN NOW() - INTERVAL '9 hours' AND NOW() - INTERVAL '90 minutes'\n  AND NOT EXISTS (\n    SELECT 1 FROM interacoes_mentoria resp\n    WHERE resp.mentorado_id = i.mentorado_id\n      AND resp.eh_equipe = true\n      AND resp.sender_name ILIKE '%' || tp.nome || '%'\n      AND resp.created_at > i.created_at\n  )\n  -- Só inclui se o nível de alerta >= min_nivel do número\n  AND CASE\n    WHEN EXTRACT(EPOCH FROM (NOW() - i.created_at)) / 3600 BETWEEN 7.5 AND 9 THEN 4\n    WHEN EXTRACT(EPOCH FROM (NOW() - i.created_at)) / 3600 BETWEEN 5.5 AND 7.5 THEN 3\n    WHEN EXTRACT(EPOCH FROM (NOW() - i.created_at)) / 3600 BETWEEN 3.5 AND 5.5 THEN 2\n    WHEN EXTRACT(EPOCH FROM (NOW() - i.created_at)) / 3600 BETWEEN 1.5 AND 3.5 THEN 1\n    ELSE 0\n  END >= tp.min_nivel\nORDER BY i.created_at ASC",
+        "options": {}
+      },
+      "id": "buscar-mencoes",
+      "name": "Buscar mensagens com mencoes",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [240, 300],
+      "credentials": {
+        "postgres": {
+          "id": "SUPABASE_POSTGRES_CREDENTIAL_ID",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-results",
+              "leftValue": "={{ $json.interacao_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-tem-mencoes",
+      "name": "Tem mencoes pendentes?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Verificar se já enviamos este nível de alerta para esta interação\nSELECT interacao_id, alerta_nivel\nFROM god_mention_alerts\nWHERE interacao_id = {{ $json.interacao_id }}\n  AND alerta_nivel = {{ $json.alerta_nivel }}",
+        "options": {}
+      },
+      "id": "check-ja-enviado",
+      "name": "Ja enviou este alerta?",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [720, 200],
+      "credentials": {
+        "postgres": {
+          "id": "SUPABASE_POSTGRES_CREDENTIAL_ID",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "not-sent",
+              "leftValue": "={{ $node['Ja enviou este alerta?'].json.interacao_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isEmpty"
+              }
+            },
+            {
+              "id": "nivel-valido",
+              "leftValue": "={{ $node['Tem mencoes pendentes?'].json.alerta_nivel }}",
+              "rightValue": "={{ $node['Tem mencoes pendentes?'].json.min_nivel || 1 }}",
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-nao-enviado",
+      "name": "Alerta ainda nao enviado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [960, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Montar mensagem de alerta escalonada\nconst data = $input.first().json;\nconst nivel = data.alerta_nivel;\nconst horas = Math.round(data.horas_pendente);\nconst mentorado = data.mentorado_nome;\nconst conteudo = (data.conteudo || '').substring(0, 150);\nconst membro = data.membro_mencionado;\n\nconst emojis = ['', '⏰', '⚠️', '🔴', '🚨'];\nconst urgencias = ['', 'Lembrete', 'Atenção', 'Urgente', 'CRÍTICO'];\n\nconst msg = `${emojis[nivel]} *${urgencias[nivel]}* — Menção sem resposta há ${horas}h\n\n👤 *${mentorado}* te mencionou no grupo:\n\n_\"${conteudo}${conteudo.length >= 150 ? '...' : ''}\"_\n\n⏳ Pendente há *${horas} horas*\n${nivel >= 3 ? '\\n❗ Essa é a ' + nivel + 'ª notificação. Por favor responda o mais rápido possível.' : ''}\n\n— Spalla Bot 🤖`;\n\nreturn [{\n  json: {\n    ...data,\n    alert_message: msg,\n    whatsapp_to: data.membro_whatsapp + '@s.whatsapp.net'\n  }\n}];"
+      },
+      "id": "montar-mensagem",
+      "name": "Montar mensagem de alerta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evolution.manager01.feynmanproject.com/message/sendText/producao002",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.membro_whatsapp }}\",\n  \"text\": {{ JSON.stringify($json.alert_message) }}\n}",
+        "options": {}
+      },
+      "id": "enviar-whatsapp",
+      "name": "Enviar alerta WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 100],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "EVOLUTION_API_CREDENTIAL_ID",
+          "name": "Evolution API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Registrar que este alerta foi enviado\nINSERT INTO god_mention_alerts (interacao_id, membro_nome, alerta_nivel, mensagem_enviada)\nVALUES (\n  {{ $node['Montar mensagem de alerta'].json.interacao_id }},\n  '{{ $node['Montar mensagem de alerta'].json.membro_mencionado }}',\n  {{ $node['Montar mensagem de alerta'].json.alerta_nivel }},\n  {{ $node['Montar mensagem de alerta'].json.alert_message.replace(/'/g, \"''\") }}\n)\nON CONFLICT (interacao_id, alerta_nivel) DO NOTHING",
+        "options": {}
+      },
+      "id": "registrar-alerta",
+      "name": "Registrar alerta enviado",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1680, 100],
+      "credentials": {
+        "postgres": {
+          "id": "SUPABASE_POSTGRES_CREDENTIAL_ID",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "noop-sem-mencoes",
+      "name": "Sem mencoes",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [720, 440]
+    },
+    {
+      "parameters": {},
+      "id": "noop-ja-enviado",
+      "name": "Ja notificado",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1200, 340]
+    }
+  ],
+  "connections": {
+    "A cada 30 min": {
+      "main": [
+        [
+          {
+            "node": "Buscar mensagens com mencoes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar mensagens com mencoes": {
+      "main": [
+        [
+          {
+            "node": "Tem mencoes pendentes?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem mencoes pendentes?": {
+      "main": [
+        [
+          {
+            "node": "Ja enviou este alerta?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sem mencoes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ja enviou este alerta?": {
+      "main": [
+        [
+          {
+            "node": "Alerta ainda nao enviado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alerta ainda nao enviado?": {
+      "main": [
+        [
+          {
+            "node": "Montar mensagem de alerta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ja notificado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar mensagem de alerta": {
+      "main": [
+        [
+          {
+            "node": "Enviar alerta WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar alerta WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Registrar alerta enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "tags": [
+    { "name": "whatsapp" },
+    { "name": "alerts" },
+    { "name": "spalla" }
+  ]
+}

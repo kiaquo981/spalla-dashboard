@@ -149,9 +149,10 @@ function spalla() {
       reminderFilter: 'ativo', // ativo | concluido | all
       // Plano de Ação
       paFilter: 'all',          // all | nao_iniciado | em_andamento | pausado | concluido
-      paView: 'pipeline',       // pipeline | list
+      paView: 'painel',         // painel | pipeline | list
       paModal: false,           // create plan modal
       paExpandedFases: {},      // { faseId: true } for accordion
+      paSearchQuery: '',        // busca por nome do mentorado
       // Docs
       docSearch: '',
       // Agenda Calendar
@@ -177,6 +178,8 @@ function spalla() {
       pendencias: [],
       paPlanos: [],       // vw_pa_pipeline data
       paMenteePa: null,   // full PA for current mentee detail
+      paAllFases: [],     // lightweight fases for sentinel calcs
+      paAllAcoes: [],     // lightweight acoes for sentinel calcs
     },
 
     // --- Media Cache ---
@@ -1222,6 +1225,13 @@ function spalla() {
           if (pendencias.error) console.error('[Spalla] Pendencias query error:', pendencias.error.message);
           if (paPipeline.error) console.error('[Spalla] PA Pipeline query error:', paPipeline.error?.message);
           if (paPipeline.data) this.data.paPlanos = paPipeline.data;
+          // Load lightweight fases + acoes for sentinel calculations
+          const [paFasesRes, paAcoesRes] = await Promise.all([
+            sb.from('pa_fases').select('id, plano_id, titulo, tipo, status, ordem, origem'),
+            sb.from('pa_acoes').select('id, fase_id, plano_id, status, origem, data_prevista, responsavel, updated_at'),
+          ]);
+          if (paFasesRes.data) this.data.paAllFases = paFasesRes.data;
+          if (paAcoesRes.data) this.data.paAllAcoes = paAcoesRes.data;
 
           if (mentees.data?.length) {
             this.data.mentees = mentees.data;
@@ -1476,6 +1486,7 @@ function spalla() {
     paForm: { titulo: 'Plano de Ação', google_doc_url: '', formato: 'fases' },
     paFaseForm: { titulo: '', tipo: 'fase' },
     paAcaoForm: { titulo: '', data_prevista: '', responsavel: 'mentorado' },
+    paSubAcaoForm: { titulo: '' },
 
     // Load full PA for a mentee (called when opening PA tab)
     async loadMenteePa(mentoradoId) {
@@ -1489,13 +1500,17 @@ function spalla() {
           .limit(1)
           .single();
         if (!planos) { this.data.paMenteePa = null; return; }
-        const [fasesRes, acoesRes] = await Promise.all([
+        const [fasesRes, acoesRes, subAcoesRes] = await Promise.all([
           sb.from('pa_fases').select('*').eq('plano_id', planos.id).order('ordem'),
           sb.from('pa_acoes').select('*').eq('plano_id', planos.id).order('ordem'),
+          sb.from('pa_sub_acoes').select('*').eq('plano_id', planos.id).order('ordem'),
         ]);
         const fases = (fasesRes.data || []).map(f => ({
           ...f,
-          acoes: (acoesRes.data || []).filter(a => a.fase_id === f.id),
+          acoes: (acoesRes.data || []).filter(a => a.fase_id === f.id).map(a => ({
+            ...a,
+            sub_acoes: (subAcoesRes.data || []).filter(s => s.acao_id === a.id),
+          })),
         }));
         this.data.paMenteePa = { ...planos, fases };
       } catch (e) {
@@ -1623,6 +1638,55 @@ function spalla() {
       await this.loadMenteePa();
     },
 
+    // Toggle sub-action status: pendente → em_andamento → concluido → pendente
+    async toggleSubAcaoStatus(subacao) {
+      if (!sb) return;
+      const cycle = { pendente: 'em_andamento', em_andamento: 'concluido', concluido: 'pendente' };
+      const newStatus = cycle[subacao.status] || 'pendente';
+      const { error } = await sb.from('pa_sub_acoes').update({ status: newStatus }).eq('id', subacao.id);
+      if (error) { this.toast('Erro ao atualizar sub-ação', 'error'); return; }
+      await this.loadMenteePa();
+    },
+
+    // Save sub-action inline edits (titulo, responsavel)
+    async saveSubAcao(subacao) {
+      if (!sb) return;
+      const { error } = await sb.from('pa_sub_acoes').update({
+        titulo: subacao.titulo,
+        responsavel: subacao.responsavel,
+      }).eq('id', subacao.id);
+      if (error) { this.toast('Erro ao salvar sub-ação', 'error'); return; }
+    },
+
+    // Delete a sub-action
+    async deleteSubAcao(subacaoId) {
+      if (!sb || !confirm('Excluir esta sub-ação?')) return;
+      const { error } = await sb.from('pa_sub_acoes').delete().eq('id', subacaoId);
+      if (error) { this.toast('Erro ao excluir sub-ação', 'error'); return; }
+      await this.loadMenteePa();
+    },
+
+    // Add a new sub-action to an action
+    async addSubAcao(acaoId, faseId) {
+      if (!sb || !this.data.paMenteePa) return;
+      const plano = this.data.paMenteePa;
+      const fase = plano.fases?.find(f => f.id === faseId);
+      const acao = fase?.acoes?.find(a => a.id === acaoId);
+      const ordem = (acao?.sub_acoes?.length || 0) + 1;
+      const { error } = await sb.from('pa_sub_acoes').insert({
+        plano_id: plano.id,
+        fase_id: faseId,
+        acao_id: acaoId,
+        titulo: this.paSubAcaoForm.titulo || 'Nova sub-ação',
+        ordem,
+        status: 'pendente',
+        origem: 'manual',
+      });
+      if (error) { this.toast('Erro ao adicionar sub-ação', 'error'); return; }
+      this.paSubAcaoForm = { titulo: '' };
+      await this.loadMenteePa();
+    },
+
     // Auto-update phase status based on actions
     async _updateFaseStatus(faseId) {
       if (!sb || !this.data.paMenteePa) return;
@@ -1663,20 +1727,25 @@ function spalla() {
       if (this.ui.paFilter && this.ui.paFilter !== 'all') {
         list = list.filter(p => p.status_geral === this.ui.paFilter);
       }
+      if (this.ui.paSearchQuery) {
+        const q = this.ui.paSearchQuery.toLowerCase();
+        list = list.filter(p => (p.mentorado_nome || '').toLowerCase().includes(q));
+      }
       return list;
     },
 
     paPipelineColumns() {
       const statuses = ['nao_iniciado', 'em_andamento', 'pausado', 'concluido'];
+      const list = this.ui.paSearchQuery ? this.filteredPaPlanos : this.data.paPlanos;
       return statuses.map(s => ({
         status: s,
         label: this.paStatusLabel(s),
-        items: this.data.paPlanos.filter(p => p.status_geral === s),
+        items: list.filter(p => p.status_geral === s),
       }));
     },
 
     paStatusLabel(s) {
-      const map = { nao_iniciado: 'Não Iniciado', em_andamento: 'Em Andamento', pausado: 'Pausado', concluido: 'Concluído' };
+      const map = { nao_iniciado: 'Aguardando Início', em_andamento: 'Em Execução', pausado: 'Pausado', concluido: 'Concluído' };
       return map[s] || s;
     },
 
@@ -1688,12 +1757,114 @@ function spalla() {
     paAcaoStatusIcon(s) {
       const map = {
         pendente: '○',
-        em_andamento: '◐',
-        concluido: '●',
-        bloqueado: '✕',
+        em_andamento: '◉',
+        concluido: '✓',
+        bloqueado: '⊘',
         nao_aplicavel: '—',
       };
       return map[s] || '○';
+    },
+
+    paAcaoStatusLabel(s) {
+      const map = { pendente: 'Pendente', em_andamento: 'Em Progresso', concluido: 'Concluída', bloqueado: 'Bloqueada', nao_aplicavel: 'N/A' };
+      return map[s] || s;
+    },
+
+    paTipoLabel(tipo) {
+      const map = { revisao_dossie: 'Diagnóstico', fase: 'Estratégia', passo_executivo: 'Execução' };
+      return map[tipo] || tipo;
+    },
+
+    paTipoColor(tipo) {
+      const map = { revisao_dossie: '#8b5cf6', fase: '#0ea5e9', passo_executivo: '#f97316' };
+      return map[tipo] || '#6b7280';
+    },
+
+    paTipoBgColor(tipo) {
+      const map = { revisao_dossie: '#8b5cf620', fase: '#0ea5e920', passo_executivo: '#f9731620' };
+      return map[tipo] || '#6b728020';
+    },
+
+    paTipoIcon(tipo) {
+      const map = { revisao_dossie: '📋', fase: '🧭', passo_executivo: '⚡' };
+      return map[tipo] || '📌';
+    },
+
+    paOrigemLabel(origem) {
+      const map = { dossie_auto: 'Dossiê', call_plano: 'Call', manual: 'Manual' };
+      return map[origem] || origem || 'Manual';
+    },
+
+    paOrigemColor(origem) {
+      const map = { dossie_auto: 'pa-origem--dossie', call_plano: 'pa-origem--call', manual: 'pa-origem--manual' };
+      return map[origem] || 'pa-origem--manual';
+    },
+
+    // Sentinel data for a plan (breakdown by tipo, origem, blocked, overdue)
+    paSentinelData(planoId) {
+      const fases = this.data.paAllFases.filter(f => f.plano_id === planoId);
+      const acoes = this.data.paAllAcoes.filter(a => a.plano_id === planoId);
+      const today = new Date().toISOString().split('T')[0];
+      const byTipo = {};
+      for (const f of fases) {
+        const tipo = f.tipo || 'fase';
+        if (!byTipo[tipo]) byTipo[tipo] = { total: 0, done: 0 };
+        const fAcoes = acoes.filter(a => a.fase_id === f.id);
+        byTipo[tipo].total += fAcoes.length;
+        byTipo[tipo].done += fAcoes.filter(a => a.status === 'concluido' || a.status === 'nao_aplicavel').length;
+      }
+      const byOrigem = { dossie_auto: 0, call_plano: 0, manual: 0 };
+      for (const a of acoes) {
+        const o = a.origem || 'manual';
+        byOrigem[o] = (byOrigem[o] || 0) + 1;
+      }
+      const blocked = acoes.filter(a => a.status === 'bloqueado').length;
+      const overdue = acoes.filter(a => a.data_prevista && a.data_prevista < today && a.status !== 'concluido' && a.status !== 'nao_aplicavel').length;
+      return { byTipo, byOrigem, blocked, overdue, totalAcoes: acoes.length };
+    },
+
+    // Page-level KPIs for the Sentinela PA page
+    paPageKpis() {
+      const plans = this.data.paPlanos;
+      const total = plans.length;
+      const emExecucao = plans.filter(p => p.status_geral === 'em_andamento').length;
+      const parados = plans.filter(p => p.status_geral === 'em_andamento' && (p.dias_sem_update || 0) > 14).length;
+      const allAcoes = this.data.paAllAcoes;
+      const today = new Date().toISOString().split('T')[0];
+      const bloqueadas = allAcoes.filter(a => a.status === 'bloqueado').length;
+      const totalAcoes = allAcoes.length;
+      const concluidas = allAcoes.filter(a => a.status === 'concluido' || a.status === 'nao_aplicavel').length;
+      const taxaConclusao = totalAcoes > 0 ? Math.round((concluidas / totalAcoes) * 100) : 0;
+      const diasSemUpdate = plans.filter(p => p.dias_sem_update != null);
+      const mediaDias = diasSemUpdate.length > 0 ? Math.round(diasSemUpdate.reduce((s, p) => s + (p.dias_sem_update || 0), 0) / diasSemUpdate.length) : 0;
+      return { total, emExecucao, parados, bloqueadas, taxaConclusao, mediaDias };
+    },
+
+    paBlockedCount(planoId) {
+      return this.data.paAllAcoes.filter(a => a.plano_id === planoId && a.status === 'bloqueado').length;
+    },
+
+    paOverdueCount(planoId) {
+      const today = new Date().toISOString().split('T')[0];
+      return this.data.paAllAcoes.filter(a => a.plano_id === planoId && a.data_prevista && a.data_prevista < today && a.status !== 'concluido' && a.status !== 'nao_aplicavel').length;
+    },
+
+    paLastUpdate(planoId) {
+      const acoes = this.data.paAllAcoes.filter(a => a.plano_id === planoId && a.updated_at);
+      if (!acoes.length) return null;
+      const latest = acoes.reduce((max, a) => a.updated_at > max ? a.updated_at : max, acoes[0].updated_at);
+      const diff = Math.floor((Date.now() - new Date(latest).getTime()) / 86400000);
+      if (diff === 0) return 'hoje';
+      if (diff === 1) return 'ontem';
+      return 'há ' + diff + ' dias';
+    },
+
+    // Tipo progress percentage for a plan
+    paTipoProgress(planoId, tipo) {
+      const sd = this.paSentinelData(planoId);
+      const t = sd.byTipo[tipo];
+      if (!t || t.total === 0) return 0;
+      return Math.round((t.done / t.total) * 100);
     },
 
     paFaseProgress(fase) {
@@ -1708,6 +1879,47 @@ function spalla() {
 
     isPaFaseExpanded(faseId) {
       return !!this.ui.paExpandedFases[faseId];
+    },
+
+    // Check if acao is overdue
+    paAcaoOverdue(acao) {
+      if (!acao.data_prevista) return false;
+      if (acao.status === 'concluido' || acao.status === 'nao_aplicavel') return false;
+      return acao.data_prevista < new Date().toISOString().split('T')[0];
+    },
+
+    // Detail summary stats from paMenteePa (loaded detail)
+    paDetailStats() {
+      const pa = this.data.paMenteePa;
+      if (!pa || !pa.fases) return { total: 0, concluidas: 0, bloqueadas: 0, vencidas: 0 };
+      const acoes = pa.fases.flatMap(f => f.acoes || []);
+      const today = new Date().toISOString().split('T')[0];
+      return {
+        total: acoes.length,
+        concluidas: acoes.filter(a => a.status === 'concluido').length,
+        bloqueadas: acoes.filter(a => a.status === 'bloqueado').length,
+        vencidas: acoes.filter(a => a.data_prevista && a.data_prevista < today && a.status !== 'concluido' && a.status !== 'nao_aplicavel').length,
+      };
+    },
+
+    // Detail: progress by tipo from paMenteePa
+    paDetailTipoProgress(tipo) {
+      const pa = this.data.paMenteePa;
+      if (!pa || !pa.fases) return { pct: 0, done: 0, total: 0 };
+      const fases = pa.fases.filter(f => (f.tipo || 'fase') === tipo);
+      const acoes = fases.flatMap(f => f.acoes || []);
+      const done = acoes.filter(a => a.status === 'concluido' || a.status === 'nao_aplicavel').length;
+      return { pct: acoes.length > 0 ? Math.round((done / acoes.length) * 100) : 0, done, total: acoes.length };
+    },
+
+    // Detail: origin composition from paMenteePa
+    paDetailOrigem() {
+      const pa = this.data.paMenteePa;
+      if (!pa || !pa.fases) return { dossie_auto: 0, call_plano: 0, manual: 0 };
+      const acoes = pa.fases.flatMap(f => f.acoes || []);
+      const r = { dossie_auto: 0, call_plano: 0, manual: 0 };
+      for (const a of acoes) { r[a.origem || 'manual'] = (r[a.origem || 'manual'] || 0) + 1; }
+      return r;
     },
 
     // ===================== SORTING / FILTERS =====================

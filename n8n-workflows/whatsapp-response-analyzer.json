@@ -1,0 +1,438 @@
+{
+  "name": "WhatsApp Response Analyzer - Spalla",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "A cada 30 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT DISTINCT ON (mentorado_id)\n  mentorado_id,\n  mentorado_nome,\n  COUNT(*) as total_pendentes\nFROM vw_god_pendencias\nGROUP BY mentorado_id, mentorado_nome\nORDER BY mentorado_id, total_pendentes DESC\nLIMIT 15",
+        "options": {}
+      },
+      "id": "fetch-mentorados-pendentes",
+      "name": "Buscar mentorados com pendencias",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [220, 0],
+      "credentials": {
+        "postgres": {
+          "id": "SUPABASE_POSTGRES_CREDENTIAL_ID",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "loop-mentorados",
+      "name": "Loop por mentorado",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, LEFT(conteudo, 300) as conteudo, sender_name, message_type, created_at\nFROM interacoes_mentoria\nWHERE mentorado_id = {{ $json.mentorado_id }}\n  AND requer_resposta = true\n  AND respondido = false\nORDER BY created_at ASC\nLIMIT 20",
+        "options": {}
+      },
+      "id": "fetch-pendentes",
+      "name": "Buscar msgs pendentes",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [660, 0],
+      "credentials": {
+        "postgres": {
+          "id": "SUPABASE_POSTGRES_CREDENTIAL_ID",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT LEFT(conteudo, 300) as conteudo, sender_name, eh_equipe, message_type, created_at\nFROM interacoes_mentoria\nWHERE mentorado_id = {{ $node['Loop por mentorado'].json.mentorado_id }}\nORDER BY created_at DESC\nLIMIT 30",
+        "options": {}
+      },
+      "id": "fetch-contexto",
+      "name": "Buscar contexto conversa",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [660, 220],
+      "credentials": {
+        "postgres": {
+          "id": "SUPABASE_POSTGRES_CREDENTIAL_ID",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "id": "merge-dados",
+      "name": "Merge pendentes + contexto",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [880, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Preparar dados para o AI Agent\nconst items = $input.all();\n\n// Separar pendentes (input 1) e contexto (input 2)\n// O Merge combineAll junta tudo - precisamos reconstruir\nconst loopData = $node['Loop por mentorado'].json;\nconst mentoradoNome = loopData.mentorado_nome;\nconst mentoradoId = loopData.mentorado_id;\n\nconst pendentesRaw = $node['Buscar msgs pendentes'].json;\nconst contextoRaw = $node['Buscar contexto conversa'].json;\n\n// Formatar pendentes como lista\nconst pendentesArr = Array.isArray(pendentesRaw) ? pendentesRaw : [pendentesRaw];\nconst contextoArr = Array.isArray(contextoRaw) ? contextoRaw : [contextoRaw];\n\nconst pendentesText = pendentesArr\n  .filter(p => p && p.id)\n  .map(p => `[ID: ${p.id}] ${p.sender_name} (${p.message_type}) em ${p.created_at}: \"${p.conteudo}\"`)\n  .join('\\n');\n\nconst contextoText = contextoArr\n  .filter(c => c && c.conteudo)\n  .reverse()\n  .map(c => {\n    const role = c.eh_equipe ? '[EQUIPE]' : '[MENTORADO]';\n    return `${role} ${c.sender_name} (${c.created_at}): \"${c.conteudo}\"`;\n  })\n  .join('\\n');\n\nreturn [{\n  json: {\n    mentorado_id: mentoradoId,\n    mentorado_nome: mentoradoNome,\n    prompt: `MENTORADO: ${mentoradoNome}\\n\\nMENSAGENS PENDENTES DE RESPOSTA (analise cada uma):\\n${pendentesText}\\n\\nCONTEXTO DA CONVERSA (ordem cronologica, mais antigas primeiro):\\n${contextoText}`\n  }\n}];"
+      },
+      "id": "preparar-prompt",
+      "name": "Preparar prompt para IA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 100]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "options": {
+          "systemMessage": "Voce e um analisador de conversas WhatsApp de uma equipe de mentoria (Spalla). Sua tarefa e analisar mensagens pendentes de resposta de um mentorado e determinar quais ja foram EFETIVAMENTE respondidas pela equipe no contexto da conversa.\n\nREGRAS IMPORTANTES:\n1. Uma mensagem e considerada \"respondida\" SOMENTE se alguem da equipe [EQUIPE] endereçou o CONTEUDO especifico daquela mensagem — nao basta ter respondido qualquer coisa no grupo\n2. Se o mentorado mandou 4 mensagens sobre temas diferentes e a equipe respondeu apenas 1 tema, as outras 3 continuam PENDENTES\n3. Mensagens do mentorado tipo \"ok\", \"entendi\", \"valeu\", emojis, figurinhas NAO sao pendencias reais — marque como respondidas (nao requerem resposta)\n4. Se a equipe mandou uma mensagem generica que cobre multiplos temas do mentorado, pode marcar varias como respondidas\n5. Audios/imagens do mentorado sem contexto claro: se a equipe respondeu algo relacionado depois, considere respondido\n6. Se NAO ha nenhuma mensagem da [EQUIPE] APOS a mensagem pendente do mentorado, ela NAO foi respondida\n7. Mensagens automaticas, links sem pergunta, memes, stickers do mentorado devem ser marcadas como respondidas (nao precisam de resposta)\n8. Perguntas diretas do mentorado (com ?) que nao tiveram resposta da equipe sao DEFINITIVAMENTE pendentes\n\nRETORNE APENAS um JSON valido neste formato exato:\n{\"respondidas\": [123, 456, 789], \"nao_requerem_resposta\": [111, 222], \"motivo\": \"breve explicacao\"}\n\n- respondidas: IDs de mensagens que a equipe JA respondeu no contexto\n- nao_requerem_resposta: IDs de mensagens que nao precisam de resposta (ok, emojis, stickers, links sem pergunta)\n- motivo: breve explicacao da analise\n\nSe nenhuma se aplica: {\"respondidas\": [], \"nao_requerem_resposta\": [], \"motivo\": \"todas pendentes reais\"}"
+        }
+      },
+      "id": "ai-agent",
+      "name": "Analisar respostas",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [1320, 100]
+    },
+    {
+      "parameters": {
+        "model": "claude-sonnet-4-20250514",
+        "options": {
+          "maxTokensToSample": 1024,
+          "temperature": 0.1
+        }
+      },
+      "id": "anthropic-model",
+      "name": "Claude Sonnet",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [1320, 320],
+      "credentials": {
+        "anthropicApi": {
+          "id": "ANTHROPIC_API_CREDENTIAL_ID",
+          "name": "Anthropic API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parsear resposta da IA e extrair IDs para update\nconst aiResponse = $input.first().json.output || $input.first().json.text || '';\n\nlet parsed;\ntry {\n  // Tentar extrair JSON da resposta (pode ter texto antes/depois)\n  const jsonMatch = aiResponse.match(/\\{[\\s\\S]*\\}/);\n  if (!jsonMatch) {\n    return [{ json: { ids_to_update: [], error: 'No JSON found in AI response', raw: aiResponse } }];\n  }\n  parsed = JSON.parse(jsonMatch[0]);\n} catch (e) {\n  return [{ json: { ids_to_update: [], error: 'JSON parse error: ' + e.message, raw: aiResponse } }];\n}\n\n// Combinar respondidas + nao_requerem_resposta\nconst respondidas = Array.isArray(parsed.respondidas) ? parsed.respondidas : [];\nconst naoRequerem = Array.isArray(parsed.nao_requerem_resposta) ? parsed.nao_requerem_resposta : [];\nconst allIds = [...new Set([...respondidas, ...naoRequerem])].filter(id => typeof id === 'number' && id > 0);\n\nif (allIds.length === 0) {\n  return [{ json: { ids_to_update: [], motivo: parsed.motivo || 'nenhuma respondida', skip_update: true } }];\n}\n\nreturn [{\n  json: {\n    ids_to_update: allIds,\n    ids_respondidas: respondidas,\n    ids_nao_requerem: naoRequerem,\n    motivo: parsed.motivo || '',\n    mentorado_id: $node['Preparar prompt para IA'].json.mentorado_id,\n    mentorado_nome: $node['Preparar prompt para IA'].json.mentorado_nome,\n    total_marcadas: allIds.length,\n    skip_update: false\n  }\n}];"
+      },
+      "id": "parse-ai-response",
+      "name": "Parsear resposta IA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1540, 100]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "skip-check",
+              "leftValue": "={{ $json.skip_update }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-tem-updates",
+      "name": "Tem IDs para atualizar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1760, 100]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE interacoes_mentoria\nSET respondido = true\nWHERE id IN ({{ $json.ids_to_update.join(',') }})\n  AND respondido = false\nRETURNING id",
+        "options": {}
+      },
+      "id": "update-respondidas",
+      "name": "Marcar como respondidas",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1980, 0],
+      "credentials": {
+        "postgres": {
+          "id": "SUPABASE_POSTGRES_CREDENTIAL_ID",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE interacoes_mentoria\nSET requer_resposta = false, respondido = true\nWHERE id IN ({{ $json.ids_nao_requerem.join(',') }})\nRETURNING id",
+        "options": {}
+      },
+      "id": "update-nao-requerem",
+      "name": "Marcar nao requer resposta",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1980, 220],
+      "credentials": {
+        "postgres": {
+          "id": "SUPABASE_POSTGRES_CREDENTIAL_ID",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log da execução\nconst data = $node['Parsear resposta IA'].json;\nconst updated = $node['Marcar como respondidas'].json;\n\nreturn [{\n  json: {\n    mentorado: data.mentorado_nome,\n    respondidas: data.ids_respondidas?.length || 0,\n    nao_requerem: data.ids_nao_requerem?.length || 0,\n    total_marcadas: data.total_marcadas || 0,\n    motivo: data.motivo,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "log-resultado",
+      "name": "Log resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2200, 100]
+    },
+    {
+      "parameters": {},
+      "id": "no-op-skip",
+      "name": "Nenhuma para atualizar",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1980, 400]
+    }
+  ],
+  "connections": {
+    "A cada 30 min": {
+      "main": [
+        [
+          {
+            "node": "Buscar mentorados com pendencias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar mentorados com pendencias": {
+      "main": [
+        [
+          {
+            "node": "Loop por mentorado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop por mentorado": {
+      "main": [
+        [
+          {
+            "node": "Buscar msgs pendentes",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Buscar contexto conversa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar msgs pendentes": {
+      "main": [
+        [
+          {
+            "node": "Merge pendentes + contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar contexto conversa": {
+      "main": [
+        [
+          {
+            "node": "Merge pendentes + contexto",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge pendentes + contexto": {
+      "main": [
+        [
+          {
+            "node": "Preparar prompt para IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar prompt para IA": {
+      "main": [
+        [
+          {
+            "node": "Analisar respostas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Sonnet": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Analisar respostas",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analisar respostas": {
+      "main": [
+        [
+          {
+            "node": "Parsear resposta IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear resposta IA": {
+      "main": [
+        [
+          {
+            "node": "Tem IDs para atualizar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem IDs para atualizar?": {
+      "main": [
+        [
+          {
+            "node": "Marcar como respondidas",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Marcar nao requer resposta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Nenhuma para atualizar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar como respondidas": {
+      "main": [
+        [
+          {
+            "node": "Log resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar nao requer resposta": {
+      "main": [
+        [
+          {
+            "node": "Log resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log resultado": {
+      "main": [
+        [
+          {
+            "node": "Loop por mentorado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nenhuma para atualizar": {
+      "main": [
+        [
+          {
+            "node": "Loop por mentorado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "whatsapp"
+    },
+    {
+      "name": "ai-analysis"
+    },
+    {
+      "name": "spalla"
+    }
+  ]
+}
