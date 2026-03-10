@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="13-APP-styles.css?v=45">
+  <link rel="stylesheet" href="13-APP-styles.css?v=46">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a,#1e293b,#0f172a);font-family:'Inter',sans-serif;color:#10b981;font-size:24px;font-weight:800; }
@@ -2140,34 +2140,30 @@
             <div x-show="ui.dsLoading" style="text-align:center; padding:40px; color:var(--text-secondary);">Carregando...</div>
 
             <!-- KPI Strip -->
-            <div class="ds-page-kpis" x-show="!ui.dsLoading" x-data="{ kpis: dsPageKpis() }">
+            <div class="ds-page-kpis" x-show="!ui.dsLoading">
               <div class="ds-page-kpis__card">
-                <span class="ds-page-kpis__val" x-text="kpis.total"></span>
+                <span class="ds-page-kpis__val" x-text="dsPageKpis().total"></span>
                 <span class="ds-page-kpis__label">Total</span>
               </div>
               <div class="ds-page-kpis__card">
-                <span class="ds-page-kpis__val" style="color:#8b5cf6" x-text="kpis.producaoIa"></span>
+                <span class="ds-page-kpis__val" style="color:#8b5cf6" x-text="dsPageKpis().producaoIa"></span>
                 <span class="ds-page-kpis__label">Producao</span>
               </div>
               <div class="ds-page-kpis__card">
-                <span class="ds-page-kpis__val" style="color:#f59e0b" x-text="kpis.emRevisao"></span>
+                <span class="ds-page-kpis__val" style="color:#f59e0b" x-text="dsPageKpis().emRevisao"></span>
                 <span class="ds-page-kpis__label">Em Revisao</span>
               </div>
               <div class="ds-page-kpis__card">
-                <span class="ds-page-kpis__val" style="color:#10b981" x-text="kpis.aprovados"></span>
+                <span class="ds-page-kpis__val" style="color:#10b981" x-text="dsPageKpis().aprovados"></span>
                 <span class="ds-page-kpis__label">Aprovados</span>
               </div>
               <div class="ds-page-kpis__card">
-                <span class="ds-page-kpis__val" style="color:#06b6d4" x-text="kpis.enviados"></span>
+                <span class="ds-page-kpis__val" style="color:#06b6d4" x-text="dsPageKpis().enviados"></span>
                 <span class="ds-page-kpis__label">Enviados</span>
               </div>
               <div class="ds-page-kpis__card">
-                <span class="ds-page-kpis__val" style="color:#059669" x-text="kpis.finalizados"></span>
+                <span class="ds-page-kpis__val" style="color:#059669" x-text="dsPageKpis().finalizados"></span>
                 <span class="ds-page-kpis__label">Finalizados</span>
-              </div>
-              <div class="ds-page-kpis__card">
-                <span class="ds-page-kpis__val" x-text="kpis.agingMedio + 'd'"></span>
-                <span class="ds-page-kpis__label">Aging Medio</span>
               </div>
             </div>
 
@@ -2235,15 +2231,15 @@
 
             <!-- VIEW: Pipeline Kanban -->
             <div x-show="ui.dsView === 'pipeline' && !ui.dsLoading">
-              <div class="ds-pipeline" x-data="{ cols: dsPipelineColumns() }">
+              <div class="ds-pipeline">
                 <template x-for="stage in DS_ESTAGIOS" :key="stage.id">
                   <div class="ds-pipeline__col">
                     <div class="ds-pipeline__col-header" :style="'border-bottom: 3px solid ' + stage.color">
                       <span x-text="stage.icon + ' ' + stage.label"></span>
-                      <span class="ds-pipeline__col-count" x-text="(cols[stage.id] || []).length"></span>
+                      <span class="ds-pipeline__col-count" x-text="(dsPipelineColumns()[stage.id] || []).length"></span>
                     </div>
                     <div class="ds-pipeline__col-body">
-                      <template x-for="p in (cols[stage.id] || [])" :key="p.producao_id">
+                      <template x-for="p in (dsPipelineColumns()[stage.id] || [])" :key="p.producao_id">
                         <div class="ds-pipeline__card" @click="openDsDetail(p.producao_id)">
                           <span class="ds-pipeline__card-name" x-text="p.mentorado_nome"></span>
                           <div class="ds-pipeline__card-dots">
@@ -2680,9 +2676,9 @@
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js" integrity="sha384-Sm2s7OXxsAMTyJ4iIyRBgVpeGUvMPk2lRQnnZhE78Wej7oggIoolKt+SCt0XJbUB" crossorigin="anonymous"></script>
-  <script src="12-APP-data.js?v=45"></script>
-  <script src="13-APP-photos.js?v=45"></script>
-  <script src="11-APP-app.js?v=45"></script>
+  <script src="12-APP-data.js?v=46"></script>
+  <script src="13-APP-photos.js?v=46"></script>
+  <script src="11-APP-app.js?v=46"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {

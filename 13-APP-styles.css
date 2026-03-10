@@ -5166,7 +5166,7 @@ img { max-width: 100%; display: block; }
 /* --- KPI Strip --- */
 .ds-page-kpis {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 12px;
   margin-bottom: 20px;
 }
@@ -5403,13 +5403,15 @@ img { max-width: 100%; display: block; }
 /* --- Pipeline Kanban --- */
 .ds-pipeline {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   overflow-x: auto;
   padding-bottom: 16px;
+  min-width: 0;
 }
 .ds-pipeline__col {
-  min-width: 160px;
-  flex: 1;
+  min-width: 130px;
+  max-width: 180px;
+  flex: 1 0 0;
   display: flex;
   flex-direction: column;
 }
