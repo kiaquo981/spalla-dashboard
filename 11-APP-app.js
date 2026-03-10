@@ -151,7 +151,7 @@ function spalla() {
       dsConfirm: null,          // { title, msg, onConfirm }
       dsSortField: 'mentorado_nome',
       dsSortAsc: true,
-      transcricaoModal: null,   // URL para iframe preview de transcrição
+      mediaModal: null,          // { url, originalUrl, label } para iframe preview
       dsAjusteError: false,
       // WhatsApp
       whatsappSelectedChat: null,
@@ -2945,39 +2945,35 @@ function spalla() {
     // ===================== AGENDA (calls globais) =====================
 
     /**
-     * Transforma URL do Google Drive file em URL visualizável.
-     * drive.google.com/file/d/ID/view → docs.google.com/viewer?srcid=ID&pid=explorer&efh=false&a=v&chrome=false&embedded=true
-     * docs.google.com/document/d/ID/edit → retorna como está (já abre no navegador)
+     * Abre mídia (gravação ou transcrição):
+     * - Google Drive files → modal com iframe /preview (evita download)
+     * - YouTube → abre em nova aba (já funciona)
+     * - Google Docs → abre em nova aba (já funciona)
+     * - Qualquer outro link → nova aba
      */
-    fixTranscricaoUrl(url) {
-      if (!url) return url;
-      // Google Drive file link → Google Viewer embed
-      const driveMatch = url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
-      if (driveMatch) {
-        return `https://drive.google.com/file/d/${driveMatch[1]}/preview`;
-      }
-      return url;
-    },
-
-    /**
-     * Abre transcrição: se é Drive file, abre modal com iframe preview.
-     * Se é Google Docs, abre em nova aba normalmente.
-     */
-    openTranscricao(url) {
+    openMedia(url, label) {
       if (!url) return;
       const driveMatch = url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
       if (driveMatch) {
-        // Abre modal com iframe preview
-        this.ui.transcricaoModal = `https://drive.google.com/file/d/${driveMatch[1]}/preview`;
+        this.ui.mediaModal = {
+          url: `https://drive.google.com/file/d/${driveMatch[1]}/preview`,
+          originalUrl: url,
+          label: label || 'Arquivo',
+        };
       } else {
-        // Google Docs ou outro link — abre em nova aba
         window.open(url, '_blank', 'noopener');
       }
     },
 
-    closeTranscricao() {
-      this.ui.transcricaoModal = null;
+    // Compat alias
+    openTranscricao(url) { this.openMedia(url, 'Transcrição'); },
+
+    closeMedia() {
+      this.ui.mediaModal = null;
     },
+
+    // Compat alias
+    closeTranscricao() { this.closeMedia(); },
 
     get allCallsGlobal() {
       // If real Supabase calls loaded, use them

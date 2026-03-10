@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="13-APP-styles.css?v=51">
+  <link rel="stylesheet" href="13-APP-styles.css?v=52">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a,#1e293b,#0f172a);font-family:'Inter',sans-serif;color:#10b981;font-size:24px;font-weight:800; }
@@ -779,9 +779,9 @@
                       <div class="call-card__header"><span class="badge badge--sm badge--info" x-text="c.tipo"></span><span x-text="formatDateFull(c.data_call)"></span><span x-show="c.duracao" x-text="c.duracao + 'min'"></span></div>
                       <div class="call-card__body" x-text="c.resumo"></div>
                       <div class="call-card__links" style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
-                        <a x-show="c.gravacao" :href="c.gravacao" target="_blank" rel="noopener" class="badge badge--sm badge--danger" style="text-decoration:none;cursor:pointer">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:3px"><polygon points="5 3 19 12 5 21 5 3"/></svg> Gravacao
-                        </a>
+                        <button x-show="c.gravacao" @click.stop="openMedia(c.gravacao, 'Gravação')" class="badge badge--sm badge--danger" style="border:none;cursor:pointer;display:inline-flex;align-items:center;gap:3px">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Gravacao
+                        </button>
                         <button x-show="c.transcricao" @click.stop="openTranscricao(c.transcricao)" class="badge badge--sm badge--purple" style="border:none;cursor:pointer;display:inline-flex;align-items:center;gap:3px">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Transcricao
                         </button>
@@ -1706,9 +1706,9 @@
                       </div>
                       <span class="ag-call-card__type" :class="'ag-call-card__type--' + c.tipo" x-text="c.tipo"></span>
                       <div class="ag-call-card__badges">
-                        <a x-show="c.gravacao" :href="c.gravacao" target="_blank" rel="noopener" class="ag-call-card__link ag-call-card__link--video" @click.stop>
+                        <button x-show="c.gravacao" @click.stop="openMedia(c.gravacao, 'Gravação')" class="ag-call-card__link ag-call-card__link--video" title="Ver Gravação">
                           <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                        </a>
+                        </button>
                         <button x-show="c.transcricao" @click.stop="openTranscricao(c.transcricao)" class="ag-call-card__link ag-call-card__link--doc" title="Ver Transcrição">
                           <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                         </button>
@@ -2005,16 +2005,16 @@
             </div>
           </template>
 
-          <!-- Transcription preview modal (iframe) -->
-          <template x-if="ui.transcricaoModal">
-            <div class="transcricao-modal" @click.self="closeTranscricao()" @keydown.escape.window="closeTranscricao()">
-              <div class="transcricao-modal__box" role="dialog" aria-label="Transcrição da call">
+          <!-- Media preview modal (iframe for Drive files) -->
+          <template x-if="ui.mediaModal">
+            <div class="transcricao-modal" @click.self="closeMedia()" @keydown.escape.window="closeMedia()">
+              <div class="transcricao-modal__box" role="dialog" :aria-label="ui.mediaModal.label">
                 <div class="transcricao-modal__header">
-                  <span class="transcricao-modal__title">Transcrição</span>
-                  <a :href="ui.transcricaoModal.replace('/preview','/view')" target="_blank" rel="noopener" class="btn btn--sm" title="Abrir em nova aba">Abrir no Drive</a>
-                  <button class="transcricao-modal__close" @click="closeTranscricao()" aria-label="Fechar">&times;</button>
+                  <span class="transcricao-modal__title" x-text="ui.mediaModal.label"></span>
+                  <a :href="ui.mediaModal.originalUrl" target="_blank" rel="noopener" class="btn btn--sm" title="Abrir em nova aba">Abrir no Drive</a>
+                  <button class="transcricao-modal__close" @click="closeMedia()" aria-label="Fechar">&times;</button>
                 </div>
-                <iframe :src="ui.transcricaoModal" class="transcricao-modal__iframe" allow="autoplay" allowfullscreen></iframe>
+                <iframe :src="ui.mediaModal.url" class="transcricao-modal__iframe" allow="autoplay" allowfullscreen></iframe>
               </div>
             </div>
           </template>
@@ -2751,9 +2751,9 @@
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js" integrity="sha384-Sm2s7OXxsAMTyJ4iIyRBgVpeGUvMPk2lRQnnZhE78Wej7oggIoolKt+SCt0XJbUB" crossorigin="anonymous"></script>
-  <script src="12-APP-data.js?v=51"></script>
-  <script src="13-APP-photos.js?v=51"></script>
-  <script src="11-APP-app.js?v=51"></script>
+  <script src="12-APP-data.js?v=52"></script>
+  <script src="13-APP-photos.js?v=52"></script>
+  <script src="11-APP-app.js?v=52"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {
