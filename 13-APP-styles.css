@@ -3467,6 +3467,7 @@ img { max-width: 100%; display: block; }
   display: inline-flex; align-items: center; justify-content: center;
   width: 30px; height: 30px; border-radius: 8px;
   text-decoration: none; transition: all 0.15s;
+  border: none; cursor: pointer; padding: 0;
 }
 .ag-call-card__link--video { background: rgba(239,68,68,0.06); color: #dc2626; }
 .ag-call-card__link--video:hover { background: rgba(239,68,68,0.15); }
@@ -3507,6 +3508,46 @@ img { max-width: 100%; display: block; }
 .ag-call-card__section p { margin: 0; line-height: 1.6; }
 .ag-call-card__section ul { margin: 4px 0 0; padding-left: 18px; }
 .ag-call-card__section li { margin-bottom: 4px; line-height: 1.5; }
+
+/* --- Transcription Preview Modal --- */
+.transcricao-modal {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  backdrop-filter: blur(4px);
+}
+.transcricao-modal__box {
+  background: #fff; border-radius: 12px;
+  width: 90vw; max-width: 960px; height: 85vh;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+.transcricao-modal__header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--neutral-200, #e5e7eb);
+  background: var(--neutral-50, #f8fafc);
+}
+.transcricao-modal__title {
+  font-weight: 700; font-size: 15px; color: var(--neutral-800, #1e293b);
+  flex: 1;
+}
+.transcricao-modal__close {
+  width: 32px; height: 32px; border-radius: 8px;
+  border: none; background: transparent;
+  font-size: 22px; color: var(--neutral-400, #9ca3af);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.transcricao-modal__close:hover {
+  background: var(--neutral-100, #f1f5f9); color: var(--neutral-700, #334155);
+}
+.transcricao-modal__iframe {
+  flex: 1; border: none; width: 100%;
+  background: var(--neutral-100, #f1f5f9);
+}
 
 /* --- Loading --- */
 .ln-loading { display: flex; flex-direction: column; gap: 8px; padding: 24px 0; }

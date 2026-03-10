@@ -151,6 +151,7 @@ function spalla() {
       dsConfirm: null,          // { title, msg, onConfirm }
       dsSortField: 'mentorado_nome',
       dsSortAsc: true,
+      transcricaoModal: null,   // URL para iframe preview de transcrição
       dsAjusteError: false,
       // WhatsApp
       whatsappSelectedChat: null,
@@ -2942,6 +2943,41 @@ function spalla() {
     },
 
     // ===================== AGENDA (calls globais) =====================
+
+    /**
+     * Transforma URL do Google Drive file em URL visualizável.
+     * drive.google.com/file/d/ID/view → docs.google.com/viewer?srcid=ID&pid=explorer&efh=false&a=v&chrome=false&embedded=true
+     * docs.google.com/document/d/ID/edit → retorna como está (já abre no navegador)
+     */
+    fixTranscricaoUrl(url) {
+      if (!url) return url;
+      // Google Drive file link → Google Viewer embed
+      const driveMatch = url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
+      if (driveMatch) {
+        return `https://drive.google.com/file/d/${driveMatch[1]}/preview`;
+      }
+      return url;
+    },
+
+    /**
+     * Abre transcrição: se é Drive file, abre modal com iframe preview.
+     * Se é Google Docs, abre em nova aba normalmente.
+     */
+    openTranscricao(url) {
+      if (!url) return;
+      const driveMatch = url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
+      if (driveMatch) {
+        // Abre modal com iframe preview
+        this.ui.transcricaoModal = `https://drive.google.com/file/d/${driveMatch[1]}/preview`;
+      } else {
+        // Google Docs ou outro link — abre em nova aba
+        window.open(url, '_blank', 'noopener');
+      }
+    },
+
+    closeTranscricao() {
+      this.ui.transcricaoModal = null;
+    },
 
     get allCallsGlobal() {
       // If real Supabase calls loaded, use them
