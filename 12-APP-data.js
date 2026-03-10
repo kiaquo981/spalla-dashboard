@@ -761,6 +761,40 @@ const DOSSIER_STATUS_CONFIG = {
   cancelado:          { label: 'Cancelado',         color: 'danger',   icon: 'x' },
 };
 
+// ===== DOSSIÊ PRODUCTION SYSTEM CONSTANTS =====
+const DS_ESTAGIOS = [
+  { id: 'pendente', label: 'Pendente', color: '#6b7280', icon: '⏳', responsavel: null },
+  { id: 'producao_ia', label: 'Produção IA', color: '#8b5cf6', icon: '🤖', responsavel: 'Sistema' },
+  { id: 'revisao_mariza', label: 'Rev. Mariza', color: '#f59e0b', icon: '✏️', responsavel: 'Mariza' },
+  { id: 'revisao_kaique', label: 'Rev. Kaique', color: '#3b82f6', icon: '✏️', responsavel: 'Kaique' },
+  { id: 'revisao_queila', label: 'Rev. Queila', color: '#ec4899', icon: '👁️', responsavel: 'Queila' },
+  { id: 'aprovado', label: 'Aprovado', color: '#10b981', icon: '✅', responsavel: null },
+  { id: 'enviado', label: 'Enviado', color: '#06b6d4', icon: '📤', responsavel: null },
+  { id: 'feedback_mentorado', label: 'Feedback', color: '#f97316', icon: '💬', responsavel: 'Mentorado' },
+  { id: 'ajustes', label: 'Ajustes', color: '#ef4444', icon: '🔧', responsavel: null },
+  { id: 'finalizado', label: 'Finalizado', color: '#059669', icon: '🏁', responsavel: null },
+];
+
+const DS_DOC_TIPOS = [
+  { id: 'oferta', label: 'Oferta e Produto', icon: '📦', color: '#8b5cf6' },
+  { id: 'funil', label: 'Funil de Vendas', icon: '🔄', color: '#3b82f6' },
+  { id: 'conteudo', label: 'Posicionamento e Conteúdo', icon: '📝', color: '#f97316' },
+];
+
+const DS_STATUS_PRODUCAO = [
+  { id: 'nao_iniciado', label: 'Não Iniciado', color: '#6b7280' },
+  { id: 'call_estrategia', label: 'Call Estratégia', color: '#0ea5e9' },
+  { id: 'producao', label: 'Produção', color: '#8b5cf6' },
+  { id: 'revisao', label: 'Em Revisão', color: '#f59e0b' },
+  { id: 'aprovado', label: 'Aprovado', color: '#10b981' },
+  { id: 'enviado', label: 'Enviado', color: '#06b6d4' },
+  { id: 'apresentado', label: 'Apresentado', color: '#6366f1' },
+  { id: 'ajustes', label: 'Ajustes', color: '#ef4444' },
+  { id: 'finalizado', label: 'Finalizado', color: '#059669' },
+  { id: 'pausado', label: 'Pausado', color: '#9ca3af' },
+  { id: 'cancelado', label: 'Cancelado', color: '#dc2626' },
+];
+
 // ===== PER-MENTEE CONTEXT DATA (from real spreadsheet) =====
 const MENTEE_CONTEXTS = {
   'Livia Lyra': {

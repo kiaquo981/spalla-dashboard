@@ -138,8 +138,16 @@ function spalla() {
       taskSpaceFilter: 'all', // space_id filter
       taskListFilter: 'all', // list_id filter
       taskGroupBy: 'status', // 'status' | 'assignee' | 'priority' | 'list'
-      // Dossiers
-      dossierFilter: 'all', // all | enviado | em_revisao | producao_ia | nao_iniciado
+      // Dossiers (legacy)
+      dossierFilter: 'all',
+      // Dossiê Production System
+      dsFilter: 'all',
+      dsView: 'painel',        // painel | pipeline | lista
+      dsSearchQuery: '',
+      dsExpandedDocs: {},       // { producaoId: true }
+      dsLoading: false,
+      dsModal: false,
+      dsDetailProducaoId: null, // for detail view
       // WhatsApp
       whatsappSelectedChat: null,
       whatsappMessage: '',
@@ -181,6 +189,12 @@ function spalla() {
       paMenteePa: null,   // full PA for current mentee detail
       paAllFases: [],     // lightweight fases for sentinel calcs
       paAllAcoes: [],     // lightweight acoes for sentinel calcs
+      // Dossiê Production System
+      dsProducoes: [],          // vw_ds_pipeline
+      dsAllDocs: [],            // ds_documentos (lightweight)
+      dsMenteeDetail: null,     // full detail for one mentee
+      dsEventos: [],            // audit trail for detail view
+      dsAjustes: [],            // ajustes for detail view
     },
 
     // --- Media Cache ---
@@ -1233,6 +1247,8 @@ function spalla() {
           ]);
           if (paFasesRes.data) this.data.paAllFases = paFasesRes.data;
           if (paAcoesRes.data) this.data.paAllAcoes = paAcoesRes.data;
+          // Load DS pipeline data
+          this.loadDsData();
 
           if (mentees.data?.length) {
             this.data.mentees = mentees.data;
@@ -3320,6 +3336,377 @@ function spalla() {
       const direct = getDossierDirectLink(title);
       if (direct) return direct;
       return `https://drive.google.com/drive/search?q=${encodeURIComponent(title)}`;
+    },
+
+    // ===================== DOSSIÊ PRODUCTION SYSTEM =====================
+
+    // --- DS Config helpers ---
+    dsEstagioConfig(estagio) {
+      return DS_ESTAGIOS.find(e => e.id === estagio) || DS_ESTAGIOS[0];
+    },
+
+    dsDocTipoConfig(tipo) {
+      return DS_DOC_TIPOS.find(t => t.id === tipo) || DS_DOC_TIPOS[0];
+    },
+
+    dsStatusConfig(status) {
+      return DS_STATUS_PRODUCAO.find(s => s.id === status) || DS_STATUS_PRODUCAO[0];
+    },
+
+    dsEstagioNum(estagio) {
+      const idx = DS_ESTAGIOS.findIndex(e => e.id === estagio);
+      return idx >= 0 ? idx + 1 : 0;
+    },
+
+    dsAgingClass(dias) {
+      if (dias == null) return '';
+      if (dias <= 2) return 'ds-aging--green';
+      if (dias <= 5) return 'ds-aging--yellow';
+      if (dias <= 10) return 'ds-aging--orange';
+      return 'ds-aging--red';
+    },
+
+    dsProgressPercent(estagio) {
+      const num = this.dsEstagioNum(estagio);
+      return Math.round((num / DS_ESTAGIOS.length) * 100);
+    },
+
+    // --- DS Data Loading ---
+    async loadDsData() {
+      if (!sb) return;
+      this.ui.dsLoading = true;
+      try {
+        const [prodRes, docsRes] = await Promise.all([
+          sb.from('vw_ds_pipeline').select('*').order('mentorado_nome'),
+          sb.from('ds_documentos').select('id, producao_id, mentorado_id, tipo, titulo, estagio_atual, responsavel_atual, estagio_desde, link_doc, ordem').order('ordem'),
+        ]);
+        if (prodRes.data) this.data.dsProducoes = prodRes.data;
+        if (docsRes.data) this.data.dsAllDocs = docsRes.data;
+      } catch (e) {
+        console.error('[DS] loadDsData error:', e);
+      } finally {
+        this.ui.dsLoading = false;
+      }
+    },
+
+    async loadDsMenteeDetail(producaoId) {
+      if (!sb) return;
+      this.ui.dsLoading = true;
+      try {
+        const [prodRes, docsRes, eventsRes, ajustesRes] = await Promise.all([
+          sb.from('ds_producoes').select('*').eq('id', producaoId).single(),
+          sb.from('ds_documentos').select('*').eq('producao_id', producaoId).order('ordem'),
+          sb.from('ds_eventos').select('*').eq('producao_id', producaoId).order('created_at', { ascending: false }).limit(50),
+          sb.from('ds_ajustes').select('*').eq('producao_id', producaoId).order('created_at', { ascending: false }),
+        ]);
+        if (prodRes.data) this.data.dsMenteeDetail = prodRes.data;
+        if (docsRes.data) this.data.dsAllDocs = docsRes.data;
+        if (eventsRes.data) this.data.dsEventos = eventsRes.data;
+        if (ajustesRes.data) this.data.dsAjustes = ajustesRes.data;
+      } catch (e) {
+        console.error('[DS] loadDsMenteeDetail error:', e);
+      } finally {
+        this.ui.dsLoading = false;
+      }
+    },
+
+    getDsForMentee(mentoradoId) {
+      return this.data.dsProducoes.find(p => p.mentorado_id === mentoradoId) || null;
+    },
+
+    getDsDocs(producaoId) {
+      return this.data.dsAllDocs.filter(d => d.producao_id === producaoId);
+    },
+
+    // --- DS KPIs ---
+    dsPageKpis() {
+      const prods = this.data.dsProducoes;
+      const total = prods.length;
+      const producaoIa = prods.filter(p => p.status === 'producao').length;
+      const emRevisao = prods.filter(p => p.status === 'revisao').length;
+      const aprovados = prods.filter(p => p.status === 'aprovado').length;
+      const enviados = prods.filter(p => p.status === 'enviado' || p.status === 'apresentado').length;
+      const finalizados = prods.filter(p => p.status === 'finalizado').length;
+      const agingArr = prods.filter(p => p.dias_no_estagio != null && !['finalizado', 'cancelado', 'pausado'].includes(p.status)).map(p => p.dias_no_estagio);
+      const agingMedio = agingArr.length ? Math.round(agingArr.reduce((a, b) => a + b, 0) / agingArr.length) : 0;
+      return { total, producaoIa, emRevisao, aprovados, enviados, finalizados, agingMedio };
+    },
+
+    // --- DS Filters ---
+    get filteredDsProducoes() {
+      let list = this.data.dsProducoes;
+      // Status filter
+      if (this.ui.dsFilter !== 'all') {
+        const statusMap = {
+          nao_iniciado: ['nao_iniciado', 'call_estrategia'],
+          producao: ['producao'],
+          revisao: ['revisao'],
+          aprovado: ['aprovado'],
+          enviado: ['enviado', 'apresentado'],
+          finalizado: ['finalizado'],
+          pausado: ['pausado', 'cancelado'],
+        };
+        const statuses = statusMap[this.ui.dsFilter] || [this.ui.dsFilter];
+        list = list.filter(p => statuses.includes(p.status));
+      }
+      // Search filter
+      if (this.ui.dsSearchQuery) {
+        const q = this.ui.dsSearchQuery.toLowerCase();
+        list = list.filter(p => (p.mentorado_nome || '').toLowerCase().includes(q) || (p.responsavel_atual || '').toLowerCase().includes(q));
+      }
+      return list;
+    },
+
+    dsPipelineColumns() {
+      const cols = {};
+      DS_ESTAGIOS.forEach(e => { cols[e.id] = []; });
+      this.filteredDsProducoes.forEach(p => {
+        // Use estagio_min_num to determine which column
+        const minNum = p.estagio_min_num || 1;
+        const estagio = DS_ESTAGIOS[Math.min(minNum - 1, DS_ESTAGIOS.length - 1)];
+        if (estagio && cols[estagio.id]) cols[estagio.id].push(p);
+      });
+      return cols;
+    },
+
+    // --- DS CRUD + Handoff ---
+    async advanceDocStage(docId, notas) {
+      if (!sb) return;
+      const doc = this.data.dsAllDocs.find(d => d.id === docId);
+      if (!doc) return;
+      const curIdx = DS_ESTAGIOS.findIndex(e => e.id === doc.estagio_atual);
+      if (curIdx < 0 || curIdx >= DS_ESTAGIOS.length - 1) return;
+
+      // Dependency check: enviado requires all 3 docs approved
+      const nextEstagio = DS_ESTAGIOS[curIdx + 1];
+      if (nextEstagio.id === 'enviado') {
+        const siblings = this.data.dsAllDocs.filter(d => d.producao_id === doc.producao_id && d.id !== docId);
+        const allApproved = siblings.every(s => this.dsEstagioNum(s.estagio_atual) >= this.dsEstagioNum('aprovado'));
+        if (!allApproved) {
+          this.toast('Todos os 3 documentos precisam estar aprovados antes de enviar', 'warning');
+          return;
+        }
+      }
+
+      const user = this.auth.currentUser?.user_metadata?.full_name || this.auth.currentUser?.email || 'Sistema';
+      const proximoResp = nextEstagio.responsavel || user;
+      const now = new Date().toISOString();
+
+      // Build update object
+      const update = {
+        estagio_atual: nextEstagio.id,
+        responsavel_atual: nextEstagio.responsavel || null,
+        estagio_desde: now,
+      };
+      // Set timestamp for the stage
+      const tsField = 'data_' + nextEstagio.id.replace('revisao_', 'revisao_');
+      const tsMap = {
+        producao_ia: 'data_producao_ia',
+        revisao_mariza: 'data_revisao_mariza',
+        revisao_kaique: 'data_revisao_kaique',
+        revisao_queila: 'data_revisao_queila',
+        enviado: 'data_envio',
+        feedback_mentorado: 'data_feedback_mentorado',
+        finalizado: 'data_finalizado',
+      };
+      if (tsMap[nextEstagio.id]) update[tsMap[nextEstagio.id]] = now;
+
+      const { error } = await sb.from('ds_documentos').update(update).eq('id', docId);
+      if (error) { this.toast('Erro ao avançar estágio: ' + error.message, 'error'); return; }
+
+      // Log event
+      await this._logDsEvento(doc.producao_id, docId, 'estagio_change', doc.estagio_atual, nextEstagio.id, user, notas || `Avançou para ${nextEstagio.label}`);
+
+      // Auto-update producao status
+      await this._updateDsProducaoStatus(doc.producao_id);
+
+      // Refresh
+      await this.loadDsMenteeDetail(doc.producao_id);
+      await this.loadDsData();
+      this.toast(`Avançou para ${nextEstagio.label}`, 'success');
+    },
+
+    async regressDocStage(docId, motivo) {
+      if (!sb) return;
+      const doc = this.data.dsAllDocs.find(d => d.id === docId);
+      if (!doc) return;
+      const curIdx = DS_ESTAGIOS.findIndex(e => e.id === doc.estagio_atual);
+      if (curIdx <= 0) return;
+
+      const prevEstagio = DS_ESTAGIOS[curIdx - 1];
+      const user = this.auth.currentUser?.user_metadata?.full_name || this.auth.currentUser?.email || 'Sistema';
+
+      const { error } = await sb.from('ds_documentos').update({
+        estagio_atual: prevEstagio.id,
+        responsavel_atual: prevEstagio.responsavel || null,
+        estagio_desde: new Date().toISOString(),
+      }).eq('id', docId);
+
+      if (error) { this.toast('Erro ao voltar estágio: ' + error.message, 'error'); return; }
+
+      await this._logDsEvento(doc.producao_id, docId, 'estagio_change', doc.estagio_atual, prevEstagio.id, user, motivo || `Retornou para ${prevEstagio.label}`);
+      await this._updateDsProducaoStatus(doc.producao_id);
+      await this.loadDsMenteeDetail(doc.producao_id);
+      await this.loadDsData();
+      this.toast(`Retornou para ${prevEstagio.label}`, 'info');
+    },
+
+    async saveDsNotas(producaoId, notas) {
+      if (!sb) return;
+      const { error } = await sb.from('ds_producoes').update({ notas }).eq('id', producaoId);
+      if (error) this.toast('Erro ao salvar notas: ' + error.message, 'error');
+      else this.toast('Notas salvas', 'success');
+    },
+
+    async updateContrato(producaoId, valor) {
+      if (!sb) return;
+      const { error } = await sb.from('ds_producoes').update({ contrato_assinado: valor }).eq('id', producaoId);
+      if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      const user = this.auth.currentUser?.user_metadata?.full_name || 'Sistema';
+      await this._logDsEvento(producaoId, null, 'nota', null, valor, user, `Contrato: ${valor}`);
+      await this.loadDsData();
+      this.toast('Contrato atualizado', 'success');
+    },
+
+    async setCallDate(producaoId, campo, data) {
+      if (!sb) return;
+      const update = {};
+      update[campo] = data || null;
+      const { error } = await sb.from('ds_producoes').update(update).eq('id', producaoId);
+      if (error) this.toast('Erro: ' + error.message, 'error');
+      else {
+        const user = this.auth.currentUser?.user_metadata?.full_name || 'Sistema';
+        await this._logDsEvento(producaoId, null, 'nota', null, data, user, `${campo} definido: ${data}`);
+        await this.loadDsData();
+        this.toast('Data atualizada', 'success');
+      }
+    },
+
+    async createAjuste(producaoId, docId, descricao, responsavel, deadline) {
+      if (!sb || !descricao) return;
+      const mentoradoId = this.data.dsMenteeDetail?.mentorado_id;
+      const { error } = await sb.from('ds_ajustes').insert({
+        producao_id: producaoId,
+        documento_id: docId || null,
+        mentorado_id: mentoradoId,
+        descricao,
+        responsavel: responsavel || null,
+        deadline: deadline || null,
+      });
+      if (error) { this.toast('Erro ao criar ajuste: ' + error.message, 'error'); return; }
+      const user = this.auth.currentUser?.user_metadata?.full_name || 'Sistema';
+      await this._logDsEvento(producaoId, docId, 'ajuste_criado', null, descricao, user, `Ajuste: ${descricao}`);
+      await this.loadDsMenteeDetail(producaoId);
+      this.toast('Ajuste criado', 'success');
+    },
+
+    async toggleAjusteStatus(ajusteId) {
+      if (!sb) return;
+      const aj = this.data.dsAjustes.find(a => a.id === ajusteId);
+      if (!aj) return;
+      const nextStatus = aj.status === 'pendente' ? 'em_andamento' : aj.status === 'em_andamento' ? 'concluido' : 'pendente';
+      const { error } = await sb.from('ds_ajustes').update({ status: nextStatus }).eq('id', ajusteId);
+      if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      if (nextStatus === 'concluido') {
+        const user = this.auth.currentUser?.user_metadata?.full_name || 'Sistema';
+        await this._logDsEvento(aj.producao_id, aj.documento_id, 'ajuste_concluido', aj.status, 'concluido', user, aj.descricao);
+      }
+      await this.loadDsMenteeDetail(aj.producao_id);
+    },
+
+    async _updateDsProducaoStatus(producaoId) {
+      if (!sb) return;
+      const docs = this.data.dsAllDocs.filter(d => d.producao_id === producaoId);
+      if (!docs.length) return;
+
+      const stages = docs.map(d => this.dsEstagioNum(d.estagio_atual));
+      const minStage = Math.min(...stages);
+      const maxStage = Math.max(...stages);
+
+      let newStatus;
+      if (stages.every(s => s >= 10)) newStatus = 'finalizado';
+      else if (stages.every(s => s >= 7)) newStatus = 'enviado';
+      else if (stages.every(s => s >= 6)) newStatus = 'aprovado';
+      else if (minStage >= 3) newStatus = 'revisao';
+      else if (minStage >= 2) newStatus = 'producao';
+      else newStatus = 'nao_iniciado';
+
+      // Determine current responsavel
+      const mostBehindDoc = docs.reduce((a, b) => this.dsEstagioNum(a.estagio_atual) <= this.dsEstagioNum(b.estagio_atual) ? a : b);
+      const responsavel = mostBehindDoc.responsavel_atual;
+
+      await sb.from('ds_producoes').update({ status: newStatus, responsavel_atual: responsavel }).eq('id', producaoId);
+    },
+
+    async _logDsEvento(producaoId, docId, tipo, de, para, responsavel, descricao) {
+      if (!sb) return;
+      const mentoradoId = this.data.dsMenteeDetail?.mentorado_id || null;
+      await sb.from('ds_eventos').insert({
+        producao_id: producaoId,
+        documento_id: docId || null,
+        mentorado_id: mentoradoId,
+        tipo_evento: tipo,
+        de_valor: de || null,
+        para_valor: para || null,
+        responsavel,
+        descricao,
+      });
+    },
+
+    dsCanAdvance(doc) {
+      if (!doc) return false;
+      const curIdx = DS_ESTAGIOS.findIndex(e => e.id === doc.estagio_atual);
+      if (curIdx < 0 || curIdx >= DS_ESTAGIOS.length - 1) return false;
+      const next = DS_ESTAGIOS[curIdx + 1];
+      if (next.id === 'enviado') {
+        const siblings = this.data.dsAllDocs.filter(d => d.producao_id === doc.producao_id && d.id !== doc.id);
+        return siblings.every(s => this.dsEstagioNum(s.estagio_atual) >= this.dsEstagioNum('aprovado'));
+      }
+      return true;
+    },
+
+    async openDsDetail(producaoId) {
+      this.ui.dsDetailProducaoId = producaoId;
+      await this.loadDsMenteeDetail(producaoId);
+    },
+
+    closeDsDetail() {
+      this.ui.dsDetailProducaoId = null;
+      this.data.dsMenteeDetail = null;
+      this.data.dsEventos = [];
+      this.data.dsAjustes = [];
+    },
+
+    dsFormatDate(d) {
+      if (!d) return '-';
+      const dt = new Date(d);
+      return dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    },
+
+    dsFormatDateTime(d) {
+      if (!d) return '-';
+      const dt = new Date(d);
+      return dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    },
+
+    // --- DS Ajuste Form ---
+    dsAjusteForm: { descricao: '', responsavel: '', deadline: '', docId: null },
+
+    dsResetAjusteForm() {
+      this.dsAjusteForm = { descricao: '', responsavel: '', deadline: '', docId: null };
+    },
+
+    async dsSubmitAjuste(producaoId) {
+      if (!this.dsAjusteForm.descricao) return;
+      await this.createAjuste(producaoId, this.dsAjusteForm.docId, this.dsAjusteForm.descricao, this.dsAjusteForm.responsavel, this.dsAjusteForm.deadline);
+      this.dsResetAjusteForm();
+    },
+
+    async updateDocLink(docId, link) {
+      if (!sb) return;
+      const { error } = await sb.from('ds_documentos').update({ link_doc: link }).eq('id', docId);
+      if (error) this.toast('Erro ao salvar link: ' + error.message, 'error');
+      else this.toast('Link salvo', 'success');
     },
 
     // ===================== TOASTS =====================

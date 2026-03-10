@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="13-APP-styles.css?v=44">
+  <link rel="stylesheet" href="13-APP-styles.css?v=45">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a,#1e293b,#0f172a);font-family:'Inter',sans-serif;color:#10b981;font-size:24px;font-weight:800; }
@@ -1988,96 +1988,316 @@
           </div>
         </div>
 
-        <!-- ===== PAGE: DOSSIES ===== -->
+        <!-- ===== PAGE: DOSSIÊS PRODUÇÃO ===== -->
         <div class="page-content" x-show="ui.page === 'dossies'" x-transition>
-          <div class="page-header"><h2>Pipeline de Dossies</h2></div>
 
-          <!-- Dossier KPIs -->
-          <div class="sp-kpi-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 20px;">
-            <div class="sp-kpi-card">
-              <div class="sp-kpi-card__icon sp-kpi-card__icon--success">
-                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-              </div>
-              <div class="sp-kpi-card__body">
-                <span class="sp-kpi-card__val sp-kpi-card__val--success" x-text="dossierStats().enviados"></span>
-                <span class="sp-kpi-card__label">Enviados</span>
-              </div>
-            </div>
-            <div class="sp-kpi-card">
-              <div class="sp-kpi-card__icon sp-kpi-card__icon--warning">
-                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              </div>
-              <div class="sp-kpi-card__body">
-                <span class="sp-kpi-card__val sp-kpi-card__val--warning" x-text="dossierStats().emRevisao"></span>
-                <span class="sp-kpi-card__label">Em Revisao</span>
-              </div>
-            </div>
-            <div class="sp-kpi-card">
-              <div class="sp-kpi-card__icon sp-kpi-card__icon--info">
-                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-              </div>
-              <div class="sp-kpi-card__body">
-                <span class="sp-kpi-card__val sp-kpi-card__val--info" x-text="dossierStats().producaoIa"></span>
-                <span class="sp-kpi-card__label">Producao IA</span>
-              </div>
-            </div>
-            <div class="sp-kpi-card">
-              <div class="sp-kpi-card__icon" style="background: var(--neutral-100); color: var(--neutral-500);">
-                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-              </div>
-              <div class="sp-kpi-card__body">
-                <span class="sp-kpi-card__val" x-text="dossierStats().naoIniciado"></span>
-                <span class="sp-kpi-card__label">Nao Iniciado</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="filter-bar">
-            <select class="filter-bar__select" x-model="ui.dossierFilter"><option value="all">Todos</option><option value="enviado">Enviados</option><option value="em_revisao">Em Revisao</option><option value="producao_ia">Producao IA</option><option value="nao_iniciado">Nao Iniciado</option></select>
-            <span class="filter-bar__count" x-text="filteredDossiers.length + ' dossies'"></span>
-          </div>
-
-          <!-- Dossier Cards -->
-          <div class="ds-grid">
-            <template x-for="d in filteredDossiers" :key="d.nome">
-              <div class="ds-card" :class="'ds-card--' + d.status">
-                <div class="ds-card__header">
-                  <div class="ds-card__avatar" :style="'background:' + avatarGradient(d.nome)" x-text="avatarInitials(d.nome)"></div>
-                  <div class="ds-card__identity">
-                    <span class="ds-card__name" x-text="d.nome"></span>
-                    <span class="ds-card__type" x-text="d.tipo === 'estrategico' ? 'Dossie Estrategico' : 'Individual (3 docs)'"></span>
-                  </div>
-                  <span class="ds-card__status" :class="'ds-card__status--' + d.status" x-text="dossierStatusConfig(d.status).label"></span>
+          <!-- Detail overlay -->
+          <template x-if="ui.dsDetailProducaoId && data.dsMenteeDetail">
+            <div class="ds-detail-overlay">
+              <div class="ds-detail">
+                <div class="ds-detail__header">
+                  <button class="btn btn--sm" @click="closeDsDetail()">← Voltar</button>
+                  <h2 class="ds-detail__title" x-text="data.dsProducoes.find(p => p.producao_id === ui.dsDetailProducaoId)?.mentorado_nome || 'Detalhe'"></h2>
+                  <span class="ds-status-badge" :style="'background:' + dsStatusConfig(data.dsMenteeDetail.status).color + '20; color:' + dsStatusConfig(data.dsMenteeDetail.status).color" x-text="dsStatusConfig(data.dsMenteeDetail.status).label"></span>
                 </div>
-                <div class="ds-card__docs">
-                  <template x-if="d.titulo">
-                    <a :href="dossierSearchUrl(d.titulo)" target="_blank" rel="noopener" class="ds-card__doc-link" @click.stop>
-                      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                      <span x-text="d.titulo"></span>
-                      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" class="ds-card__doc-arrow"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                    </a>
-                  </template>
-                  <template x-if="d.docs?.length">
-                    <template x-for="doc in d.docs" :key="doc.titulo">
-                      <a :href="dossierSearchUrl(doc.titulo)" target="_blank" rel="noopener" class="ds-card__doc-link" @click.stop>
-                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                        <span x-text="doc.titulo"></span>
-                        <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" class="ds-card__doc-arrow"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                      </a>
-                    </template>
-                  </template>
-                  <template x-if="!d.titulo && !d.docs?.length">
-                    <div class="ds-card__no-doc">
-                      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-                      Sem documento
+
+                <!-- Marcos Globais -->
+                <div class="ds-marcos">
+                  <div class="ds-marcos__item">
+                    <label class="ds-marcos__label">Call Estrategia</label>
+                    <input type="date" class="ds-marcos__input" :value="data.dsMenteeDetail.data_call_estrategia || ''" @change="setCallDate(ui.dsDetailProducaoId, 'data_call_estrategia', $event.target.value)">
+                  </div>
+                  <div class="ds-marcos__item">
+                    <label class="ds-marcos__label">Call Apresentacao</label>
+                    <input type="date" class="ds-marcos__input" :value="data.dsMenteeDetail.data_call_apresentacao || ''" @change="setCallDate(ui.dsDetailProducaoId, 'data_call_apresentacao', $event.target.value)">
+                  </div>
+                  <div class="ds-marcos__item">
+                    <label class="ds-marcos__label">Call Onboarding</label>
+                    <input type="date" class="ds-marcos__input" :value="data.dsMenteeDetail.data_call_onboarding || ''" @change="setCallDate(ui.dsDetailProducaoId, 'data_call_onboarding', $event.target.value)">
+                  </div>
+                  <div class="ds-marcos__item">
+                    <label class="ds-marcos__label">Contrato</label>
+                    <select class="ds-marcos__input" :value="data.dsMenteeDetail.contrato_assinado || 'pendente'" @change="updateContrato(ui.dsDetailProducaoId, $event.target.value)">
+                      <option value="pendente">Pendente</option>
+                      <option value="sim">Sim</option>
+                      <option value="nao">Nao</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Documentos Accordion -->
+                <div class="ds-docs-section">
+                  <h3 style="margin-bottom:12px; font-size:15px; font-weight:700;">Documentos</h3>
+                  <template x-for="doc in getDsDocs(ui.dsDetailProducaoId)" :key="doc.id">
+                    <div class="ds-doc-accordion">
+                      <div class="ds-doc-accordion__header" @click="ui.dsExpandedDocs[doc.id] = !ui.dsExpandedDocs[doc.id]">
+                        <span class="ds-doc-accordion__icon" x-text="dsDocTipoConfig(doc.tipo).icon"></span>
+                        <span class="ds-doc-accordion__title" x-text="dsDocTipoConfig(doc.tipo).label"></span>
+                        <span class="ds-doc-accordion__stage" :style="'color:' + dsEstagioConfig(doc.estagio_atual).color" x-text="dsEstagioConfig(doc.estagio_atual).label"></span>
+                        <div class="ds-doc-bar" style="flex:1; max-width:200px;">
+                          <div class="ds-doc-bar__fill" :style="'width:' + dsProgressPercent(doc.estagio_atual) + '%; background:' + dsDocTipoConfig(doc.tipo).color"></div>
+                        </div>
+                        <span style="font-size:12px; color:var(--text-secondary);" x-text="dsProgressPercent(doc.estagio_atual) + '%'"></span>
+                        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="ui.dsExpandedDocs[doc.id] ? 'transform:rotate(180deg)' : ''"><polyline points="6 9 12 15 18 9"/></svg>
+                      </div>
+
+                      <div class="ds-doc-accordion__body" x-show="ui.dsExpandedDocs[doc.id]" x-transition>
+                        <!-- Timeline visual -->
+                        <div class="ds-timeline">
+                          <template x-for="(stage, si) in DS_ESTAGIOS" :key="stage.id">
+                            <div class="ds-timeline__step" :class="{
+                              'ds-timeline__step--done': dsEstagioNum(doc.estagio_atual) > si + 1,
+                              'ds-timeline__step--active': dsEstagioNum(doc.estagio_atual) === si + 1,
+                              'ds-timeline__step--pending': dsEstagioNum(doc.estagio_atual) < si + 1
+                            }">
+                              <div class="ds-timeline__dot" :style="dsEstagioNum(doc.estagio_atual) >= si + 1 ? 'background:' + stage.color : ''"></div>
+                              <span class="ds-timeline__label" x-text="stage.icon + ' ' + stage.label"></span>
+                            </div>
+                          </template>
+                        </div>
+
+                        <!-- Doc info -->
+                        <div style="display:flex; gap:12px; align-items:center; margin:12px 0; flex-wrap:wrap;">
+                          <template x-if="doc.link_doc">
+                            <a :href="doc.link_doc" target="_blank" class="btn btn--sm btn--brand">Abrir Doc</a>
+                          </template>
+                          <span style="font-size:12px; color:var(--text-secondary);">Responsavel: <strong x-text="doc.responsavel_atual || '-'"></strong></span>
+                          <span class="ds-aging" :class="dsAgingClass(Math.floor((Date.now() - new Date(doc.estagio_desde).getTime()) / 86400000))" x-text="Math.floor((Date.now() - new Date(doc.estagio_desde).getTime()) / 86400000) + 'd no estagio'"></span>
+                        </div>
+
+                        <!-- Actions -->
+                        <div style="display:flex; gap:8px; margin-bottom:12px;">
+                          <button class="btn btn--sm btn--success" @click="advanceDocStage(doc.id)" :disabled="!dsCanAdvance(doc)" x-show="doc.estagio_atual !== 'finalizado'">▶ Avancar</button>
+                          <button class="btn btn--sm" @click="regressDocStage(doc.id)" x-show="dsEstagioNum(doc.estagio_atual) > 1">◀ Voltar</button>
+                        </div>
+
+                        <!-- Ajustes for this doc -->
+                        <div class="ds-ajustes-section" x-show="data.dsAjustes.filter(a => a.documento_id === doc.id).length > 0">
+                          <strong style="font-size:12px;">Ajustes deste documento:</strong>
+                          <template x-for="aj in data.dsAjustes.filter(a => a.documento_id === doc.id)" :key="aj.id">
+                            <div class="ds-ajuste" :class="'ds-ajuste--' + aj.status" @click="toggleAjusteStatus(aj.id)">
+                              <span class="ds-ajuste__check" x-text="aj.status === 'concluido' ? '✅' : aj.status === 'em_andamento' ? '🔄' : '☐'"></span>
+                              <span class="ds-ajuste__desc" x-text="aj.descricao"></span>
+                              <span class="ds-ajuste__resp" x-text="aj.responsavel || ''"></span>
+                              <span class="ds-ajuste__deadline" x-text="aj.deadline ? dsFormatDate(aj.deadline) : ''"></span>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
                     </div>
                   </template>
                 </div>
-                <div class="ds-card__footer" x-show="d.ultima_versao">
-                  <span class="ds-card__version">v<span x-text="d.ultima_versao"></span></span>
+
+                <!-- Ajustes gerais -->
+                <div class="ds-section">
+                  <h3 style="margin-bottom:12px; font-size:15px; font-weight:700;">Ajustes</h3>
+                  <template x-for="aj in data.dsAjustes" :key="aj.id">
+                    <div class="ds-ajuste" :class="'ds-ajuste--' + aj.status" @click="toggleAjusteStatus(aj.id)">
+                      <span class="ds-ajuste__check" x-text="aj.status === 'concluido' ? '✅' : aj.status === 'em_andamento' ? '🔄' : '☐'"></span>
+                      <span class="ds-ajuste__desc" x-text="aj.descricao"></span>
+                      <span class="ds-ajuste__resp" x-text="aj.responsavel || ''"></span>
+                      <span class="ds-ajuste__deadline" x-text="aj.deadline ? dsFormatDate(aj.deadline) : ''"></span>
+                    </div>
+                  </template>
+                  <!-- Add ajuste form -->
+                  <div class="ds-ajuste-form" style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                    <input type="text" class="ds-marcos__input" style="flex:2; min-width:200px;" placeholder="Descricao do ajuste..." x-model="dsAjusteForm.descricao">
+                    <input type="text" class="ds-marcos__input" style="width:120px;" placeholder="Responsavel" x-model="dsAjusteForm.responsavel">
+                    <input type="date" class="ds-marcos__input" style="width:140px;" x-model="dsAjusteForm.deadline">
+                    <button class="btn btn--sm btn--brand" @click="dsSubmitAjuste(ui.dsDetailProducaoId)">+ Ajuste</button>
+                  </div>
+                </div>
+
+                <!-- Notas -->
+                <div class="ds-section">
+                  <h3 style="margin-bottom:8px; font-size:15px; font-weight:700;">Notas</h3>
+                  <textarea class="ds-notas-textarea" rows="3" :value="data.dsMenteeDetail.notas || ''" @blur="saveDsNotas(ui.dsDetailProducaoId, $event.target.value)" placeholder="Notas sobre esta producao..."></textarea>
+                </div>
+
+                <!-- Audit Trail -->
+                <div class="ds-section">
+                  <h3 style="margin-bottom:12px; font-size:15px; font-weight:700;">Historico</h3>
+                  <div class="ds-audit">
+                    <template x-for="ev in data.dsEventos" :key="ev.id">
+                      <div class="ds-audit__event">
+                        <span class="ds-audit__time" x-text="dsFormatDateTime(ev.created_at)"></span>
+                        <span class="ds-audit__user" x-text="ev.responsavel || '-'"></span>
+                        <span class="ds-audit__desc" x-text="ev.descricao || (ev.de_valor ? ev.de_valor + ' → ' + ev.para_valor : ev.para_valor)"></span>
+                      </div>
+                    </template>
+                    <div x-show="!data.dsEventos.length" style="font-size:13px; color:var(--text-secondary);">Nenhum evento registrado.</div>
+                  </div>
                 </div>
               </div>
-            </template>
+            </div>
+          </template>
+
+          <!-- Main page (hidden when detail is open) -->
+          <div x-show="!ui.dsDetailProducaoId">
+            <div class="page-header"><h2>Producao de Dossies</h2></div>
+
+            <!-- Loading -->
+            <div x-show="ui.dsLoading" style="text-align:center; padding:40px; color:var(--text-secondary);">Carregando...</div>
+
+            <!-- KPI Strip -->
+            <div class="ds-page-kpis" x-show="!ui.dsLoading" x-data="{ kpis: dsPageKpis() }">
+              <div class="ds-page-kpis__card">
+                <span class="ds-page-kpis__val" x-text="kpis.total"></span>
+                <span class="ds-page-kpis__label">Total</span>
+              </div>
+              <div class="ds-page-kpis__card">
+                <span class="ds-page-kpis__val" style="color:#8b5cf6" x-text="kpis.producaoIa"></span>
+                <span class="ds-page-kpis__label">Producao</span>
+              </div>
+              <div class="ds-page-kpis__card">
+                <span class="ds-page-kpis__val" style="color:#f59e0b" x-text="kpis.emRevisao"></span>
+                <span class="ds-page-kpis__label">Em Revisao</span>
+              </div>
+              <div class="ds-page-kpis__card">
+                <span class="ds-page-kpis__val" style="color:#10b981" x-text="kpis.aprovados"></span>
+                <span class="ds-page-kpis__label">Aprovados</span>
+              </div>
+              <div class="ds-page-kpis__card">
+                <span class="ds-page-kpis__val" style="color:#06b6d4" x-text="kpis.enviados"></span>
+                <span class="ds-page-kpis__label">Enviados</span>
+              </div>
+              <div class="ds-page-kpis__card">
+                <span class="ds-page-kpis__val" style="color:#059669" x-text="kpis.finalizados"></span>
+                <span class="ds-page-kpis__label">Finalizados</span>
+              </div>
+              <div class="ds-page-kpis__card">
+                <span class="ds-page-kpis__val" x-text="kpis.agingMedio + 'd'"></span>
+                <span class="ds-page-kpis__label">Aging Medio</span>
+              </div>
+            </div>
+
+            <!-- Search + Filter + View Toggle -->
+            <div class="ds-toolbar" x-show="!ui.dsLoading">
+              <input type="text" class="ds-toolbar__search" placeholder="Buscar mentorado..." x-model="ui.dsSearchQuery">
+              <select class="ds-toolbar__select" x-model="ui.dsFilter">
+                <option value="all">Todos</option>
+                <option value="nao_iniciado">Nao Iniciado</option>
+                <option value="producao">Producao</option>
+                <option value="revisao">Em Revisao</option>
+                <option value="aprovado">Aprovado</option>
+                <option value="enviado">Enviado</option>
+                <option value="finalizado">Finalizado</option>
+                <option value="pausado">Pausado/Cancelado</option>
+              </select>
+              <span class="ds-toolbar__count" x-text="filteredDsProducoes.length + ' producoes'"></span>
+              <div class="ds-view-toggle">
+                <button class="ds-view-toggle__btn" :class="{ 'ds-view-toggle__btn--active': ui.dsView === 'painel' }" @click="ui.dsView = 'painel'">Painel</button>
+                <button class="ds-view-toggle__btn" :class="{ 'ds-view-toggle__btn--active': ui.dsView === 'pipeline' }" @click="ui.dsView = 'pipeline'">Pipeline</button>
+                <button class="ds-view-toggle__btn" :class="{ 'ds-view-toggle__btn--active': ui.dsView === 'lista' }" @click="ui.dsView = 'lista'">Lista</button>
+              </div>
+            </div>
+
+            <!-- VIEW: Painel Industrial -->
+            <div x-show="ui.dsView === 'painel' && !ui.dsLoading">
+              <div class="ds-prod-grid">
+                <template x-for="p in filteredDsProducoes" :key="p.producao_id">
+                  <div class="ds-prod-card" @click="openDsDetail(p.producao_id)">
+                    <div class="ds-prod-card__header">
+                      <div class="ds-prod-card__avatar" :style="'background:' + avatarGradient(p.mentorado_nome)" x-text="avatarInitials(p.mentorado_nome)"></div>
+                      <div class="ds-prod-card__info">
+                        <span class="ds-prod-card__name" x-text="p.mentorado_nome"></span>
+                        <span class="ds-prod-card__resp" x-text="'Resp: ' + (p.responsavel_atual || '-')"></span>
+                      </div>
+                      <span class="ds-status-badge" :style="'background:' + dsStatusConfig(p.status).color + '20; color:' + dsStatusConfig(p.status).color" x-text="dsStatusConfig(p.status).label"></span>
+                    </div>
+
+                    <!-- 3 Doc Bars -->
+                    <div class="ds-prod-card__docs">
+                      <template x-for="dt in DS_DOC_TIPOS" :key="dt.id">
+                        <div class="ds-prod-card__doc-row">
+                          <span class="ds-prod-card__doc-icon" x-text="dt.icon"></span>
+                          <div class="ds-doc-bar">
+                            <div class="ds-doc-bar__fill" :style="'width:' + dsProgressPercent(p[dt.id + '_estagio'] || 'pendente') + '%; background:' + dt.color"></div>
+                          </div>
+                          <span class="ds-prod-card__doc-stage" :style="'color:' + dsEstagioConfig(p[dt.id + '_estagio'] || 'pendente').color" x-text="dsEstagioConfig(p[dt.id + '_estagio'] || 'pendente').label"></span>
+                        </div>
+                      </template>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="ds-prod-card__footer">
+                      <span x-show="p.data_call_estrategia" x-text="'📅 ' + dsFormatDate(p.data_call_estrategia)"></span>
+                      <span x-show="p.contrato_assinado === 'sim'">📋 ✅</span>
+                      <span x-show="p.contrato_assinado === 'pendente'" style="color:#f59e0b">📋 ⏳</span>
+                      <span x-text="'🔧 ' + (p.ajustes_pendentes || 0)"></span>
+                      <span class="ds-aging" :class="dsAgingClass(p.dias_no_estagio)" x-show="p.dias_no_estagio != null" x-text="p.dias_no_estagio + 'd'"></span>
+                    </div>
+                  </div>
+                </template>
+              </div>
+              <div x-show="!filteredDsProducoes.length && !ui.dsLoading" style="text-align:center; padding:40px; color:var(--text-secondary);">Nenhuma producao encontrada.</div>
+            </div>
+
+            <!-- VIEW: Pipeline Kanban -->
+            <div x-show="ui.dsView === 'pipeline' && !ui.dsLoading">
+              <div class="ds-pipeline" x-data="{ cols: dsPipelineColumns() }">
+                <template x-for="stage in DS_ESTAGIOS" :key="stage.id">
+                  <div class="ds-pipeline__col">
+                    <div class="ds-pipeline__col-header" :style="'border-bottom: 3px solid ' + stage.color">
+                      <span x-text="stage.icon + ' ' + stage.label"></span>
+                      <span class="ds-pipeline__col-count" x-text="(cols[stage.id] || []).length"></span>
+                    </div>
+                    <div class="ds-pipeline__col-body">
+                      <template x-for="p in (cols[stage.id] || [])" :key="p.producao_id">
+                        <div class="ds-pipeline__card" @click="openDsDetail(p.producao_id)">
+                          <span class="ds-pipeline__card-name" x-text="p.mentorado_nome"></span>
+                          <div class="ds-pipeline__card-dots">
+                            <template x-for="dt in DS_DOC_TIPOS" :key="dt.id">
+                              <span class="ds-pipeline__dot" :style="'background:' + dsEstagioConfig(p[dt.id + '_estagio'] || 'pendente').color" :title="dt.label + ': ' + dsEstagioConfig(p[dt.id + '_estagio'] || 'pendente').label"></span>
+                            </template>
+                          </div>
+                          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+                            <span style="font-size:11px; color:var(--text-secondary);" x-text="p.responsavel_atual || '-'"></span>
+                            <span class="ds-aging ds-aging--sm" :class="dsAgingClass(p.dias_no_estagio)" x-show="p.dias_no_estagio" x-text="p.dias_no_estagio + 'd'"></span>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- VIEW: Lista (Tabela) -->
+            <div x-show="ui.dsView === 'lista' && !ui.dsLoading" style="overflow-x:auto;">
+              <table class="ds-table">
+                <thead>
+                  <tr>
+                    <th>Mentorado</th>
+                    <th>Status</th>
+                    <th>Responsavel</th>
+                    <th>Oferta</th>
+                    <th>Funil</th>
+                    <th>Conteudo</th>
+                    <th>Call</th>
+                    <th>Aging</th>
+                    <th>Ajustes</th>
+                    <th>Contrato</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="p in filteredDsProducoes" :key="p.producao_id">
+                    <tr class="ds-table__row" @click="openDsDetail(p.producao_id)" style="cursor:pointer;">
+                      <td><strong x-text="p.mentorado_nome"></strong></td>
+                      <td><span class="ds-status-badge ds-status-badge--sm" :style="'background:' + dsStatusConfig(p.status).color + '20; color:' + dsStatusConfig(p.status).color" x-text="dsStatusConfig(p.status).label"></span></td>
+                      <td x-text="p.responsavel_atual || '-'"></td>
+                      <td><span class="ds-stage-dot" :style="'background:' + dsEstagioConfig(p.oferta_estagio || 'pendente').color" :title="dsEstagioConfig(p.oferta_estagio || 'pendente').label"></span> <span style="font-size:12px;" x-text="dsEstagioConfig(p.oferta_estagio || 'pendente').label"></span></td>
+                      <td><span class="ds-stage-dot" :style="'background:' + dsEstagioConfig(p.funil_estagio || 'pendente').color"></span> <span style="font-size:12px;" x-text="dsEstagioConfig(p.funil_estagio || 'pendente').label"></span></td>
+                      <td><span class="ds-stage-dot" :style="'background:' + dsEstagioConfig(p.conteudo_estagio || 'pendente').color"></span> <span style="font-size:12px;" x-text="dsEstagioConfig(p.conteudo_estagio || 'pendente').label"></span></td>
+                      <td x-text="p.data_call_estrategia ? dsFormatDate(p.data_call_estrategia) : '-'"></td>
+                      <td><span class="ds-aging ds-aging--sm" :class="dsAgingClass(p.dias_no_estagio)" x-text="(p.dias_no_estagio || 0) + 'd'"></span></td>
+                      <td x-text="p.ajustes_pendentes || 0"></td>
+                      <td x-text="p.contrato_assinado === 'sim' ? '✅' : p.contrato_assinado === 'nao' ? '❌' : '⏳'"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
@@ -2460,9 +2680,9 @@
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js" integrity="sha384-Sm2s7OXxsAMTyJ4iIyRBgVpeGUvMPk2lRQnnZhE78Wej7oggIoolKt+SCt0XJbUB" crossorigin="anonymous"></script>
-  <script src="12-APP-data.js?v=44"></script>
-  <script src="13-APP-photos.js?v=44"></script>
-  <script src="11-APP-app.js?v=44"></script>
+  <script src="12-APP-data.js?v=45"></script>
+  <script src="13-APP-photos.js?v=45"></script>
+  <script src="11-APP-app.js?v=45"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {
