@@ -1230,9 +1230,9 @@ function spalla() {
           const [mentees, cohort, calls, pendencias, paPipeline] = await Promise.all([
             sb.from('vw_god_overview').select('*'),
             sb.from('vw_god_cohort').select('*'),
-            // Query calls_mentoria with mentorado name
+            // Query calls_mentoria (excluding heavy transcript_completo/observacoes_equipe)
             sb.from('calls_mentoria')
-              .select('*,mentorados(id,nome)')
+              .select('id,mentorado_id,data_call,duracao_minutos,tipo,tipo_call,link_gravacao,link_transcricao,zoom_topic,status_call,"senha_Call",link_plano_acao,principais_topicos,decisoes_tomadas,created_at,mentorados(id,nome)')
               .order('data_call', { ascending: false })
               .limit(500),
             sb.from('vw_god_pendencias').select('*').order('created_at', { ascending: true }),
@@ -1359,6 +1359,7 @@ function spalla() {
             // Enrich with real calls from vw_god_calls
             if (callsRes.data?.length) {
               detail.last_calls = callsRes.data.map(c => ({
+                call_id: c.id,
                 data_call: c.data_call, tipo: c.tipo_call || c.tipo || 'acompanhamento',
                 duracao: c.duracao_minutos || 0,
                 resumo: c.resumo || c.zoom_topic || 'Call de acompanhamento',
@@ -2991,15 +2992,38 @@ function spalla() {
 
     /**
      * Abre transcrição: prioriza transcript_completo (texto) sobre link URL.
-     * Se tem texto → abre modal de texto. Se tem link → openMedia().
+     * Se texto já disponível → mostra modal. Senão busca do Supabase por call_id.
      */
-    openTranscricao(urlOrText, transcriptText) {
+    async openTranscricao(urlOrText, transcriptText, callId) {
+      // 1. Texto já disponível (detail view carrega completo)
       if (transcriptText) {
         this.ui.mediaModal = { text: transcriptText, label: 'Transcrição' };
         return;
       }
+      // 2. Tem call_id → buscar transcript_completo sob demanda
+      if (callId && sb) {
+        this.ui.mediaModal = { text: 'Carregando transcrição...', label: 'Transcrição' };
+        try {
+          const { data, error } = await sb
+            .from('calls_mentoria')
+            .select('transcript_completo')
+            .eq('id', callId)
+            .single();
+          if (data?.transcript_completo) {
+            this.ui.mediaModal = { text: data.transcript_completo, label: 'Transcrição' };
+            return;
+          }
+        } catch (e) {
+          console.error('[Spalla] Error fetching transcript:', e);
+        }
+        // Se não tem transcript, fecha modal e tenta URL
+        this.ui.mediaModal = null;
+      }
+      // 3. Fallback: URL (Google Docs etc)
       if (urlOrText) {
         this.openMedia(urlOrText, 'Transcrição');
+      } else {
+        this.toast('Transcrição não disponível para esta call', 'error');
       }
     },
 
@@ -3009,13 +3033,14 @@ function spalla() {
       // If real Supabase calls loaded, use them
       if (this._supabaseCalls?.length) {
         return this._supabaseCalls.map(c => ({
-          mentorado: c.mentorado_nome, mentorado_id: c.mentorado_id, data: (c.data_call || '').substring(0, 10),
+          call_id: c.call_id, mentorado: c.mentorado_nome, mentorado_id: c.mentorado_id, data: (c.data_call || '').substring(0, 10),
           tipo: c.tipo_call || 'acompanhamento', duracao: c.duracao_minutos || 0,
           horario: c.horario_call || null, status_call: c.status_call || null,
           topic: c.zoom_topic || '', resumo: c.resumo || null,
           gravacao: c.link_gravacao || null,
           transcricao: this.isRealTranscricao(c.link_transcricao) ? c.link_transcricao : null,
           transcript_completo: c.transcript_completo || null,
+          has_transcript: !!(c.link_gravacao), // Zoom calls with recordings likely have transcripts
           senha_call: c.senha_call || null, plano_acao: c.link_plano_acao || null,
           decisoes: c.decisoes_tomadas || [], gargalos: c.gargalos || [],
           proximos_passos: c.proximos_passos || [], sentimento: null,
