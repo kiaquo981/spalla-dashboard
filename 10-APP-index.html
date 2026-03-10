@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="13-APP-styles.css?v=53">
+  <link rel="stylesheet" href="13-APP-styles.css?v=54">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a,#1e293b,#0f172a);font-family:'Inter',sans-serif;color:#10b981;font-size:24px;font-weight:800; }
@@ -782,7 +782,7 @@
                         <button x-show="c.gravacao" @click.stop="openMedia(c.gravacao, 'Gravação')" class="badge badge--sm badge--danger" style="border:none;cursor:pointer;display:inline-flex;align-items:center;gap:3px">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Gravacao
                         </button>
-                        <button x-show="c.transcricao" @click.stop="openTranscricao(c.transcricao)" class="badge badge--sm badge--purple" style="border:none;cursor:pointer;display:inline-flex;align-items:center;gap:3px">
+                        <button x-show="c.transcript_completo || c.transcricao" @click.stop="openTranscricao(c.transcricao, c.transcript_completo)" class="badge badge--sm badge--purple" style="border:none;cursor:pointer;display:inline-flex;align-items:center;gap:3px">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Transcricao
                         </button>
                       </div>
@@ -1709,7 +1709,7 @@
                         <button x-show="c.gravacao" @click.stop="openMedia(c.gravacao, 'Gravação')" class="ag-call-card__link ag-call-card__link--video" title="Ver Gravação">
                           <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                         </button>
-                        <button x-show="c.transcricao" @click.stop="openTranscricao(c.transcricao)" class="ag-call-card__link ag-call-card__link--doc" title="Ver Transcrição">
+                        <button x-show="c.transcript_completo || c.transcricao" @click.stop="openTranscricao(c.transcricao, c.transcript_completo)" class="ag-call-card__link ag-call-card__link--doc" title="Ver Transcrição">
                           <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                         </button>
                         <button x-show="c.senha_call && (c.gravacao || c.transcricao)" class="ag-call-card__link ag-call-card__link--key" @click.stop="navigator.clipboard.writeText(c.senha_call); $el.title='Copiado!'; setTimeout(()=>$el.title='Copiar senha',1500)" :title="'Copiar senha'">
@@ -2005,16 +2005,25 @@
             </div>
           </template>
 
-          <!-- Media preview modal (iframe for Drive files) -->
+          <!-- Media preview modal (iframe for Drive files OR text for transcriptions) -->
           <template x-if="ui.mediaModal">
             <div class="transcricao-modal" @click.self="closeMedia()" @keydown.escape.window="closeMedia()">
               <div class="transcricao-modal__box" role="dialog" :aria-label="ui.mediaModal.label">
                 <div class="transcricao-modal__header">
                   <span class="transcricao-modal__title" x-text="ui.mediaModal.label"></span>
-                  <a :href="ui.mediaModal.originalUrl" target="_blank" rel="noopener" class="btn btn--sm" title="Abrir em nova aba">Abrir no Drive</a>
+                  <template x-if="ui.mediaModal.originalUrl">
+                    <a :href="ui.mediaModal.originalUrl" target="_blank" rel="noopener" class="btn btn--sm" title="Abrir em nova aba">Abrir no Drive</a>
+                  </template>
                   <button class="transcricao-modal__close" @click="closeMedia()" aria-label="Fechar">&times;</button>
                 </div>
-                <iframe :src="ui.mediaModal.url" class="transcricao-modal__iframe" allow="autoplay" allowfullscreen></iframe>
+                <!-- Text transcript -->
+                <template x-if="ui.mediaModal.text">
+                  <div class="transcricao-modal__text" x-text="ui.mediaModal.text"></div>
+                </template>
+                <!-- Iframe (video/doc) -->
+                <template x-if="ui.mediaModal.url">
+                  <iframe :src="ui.mediaModal.url" class="transcricao-modal__iframe" allow="autoplay" allowfullscreen></iframe>
+                </template>
               </div>
             </div>
           </template>
@@ -2751,9 +2760,9 @@
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js" integrity="sha384-Sm2s7OXxsAMTyJ4iIyRBgVpeGUvMPk2lRQnnZhE78Wej7oggIoolKt+SCt0XJbUB" crossorigin="anonymous"></script>
-  <script src="12-APP-data.js?v=53"></script>
-  <script src="13-APP-photos.js?v=53"></script>
-  <script src="11-APP-app.js?v=53"></script>
+  <script src="12-APP-data.js?v=54"></script>
+  <script src="13-APP-photos.js?v=54"></script>
+  <script src="11-APP-app.js?v=54"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {

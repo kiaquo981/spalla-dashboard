@@ -1279,6 +1279,8 @@ function spalla() {
               status_call: c.status_call || (c.link_gravacao ? 'realizada' : null),
               horario_call: c.data_call && c.data_call.includes('T') ? c.data_call.substring(11, 16) : null,
               link_plano_acao: c.link_plano_acao || null,
+              transcript_completo: c.transcript_completo || null,
+              observacoes_equipe: c.observacoes_equipe || null,
               created_at: c.created_at,
             }));
             console.log('[Spalla] Calls loaded from Supabase:', this._supabaseCalls.length);
@@ -1350,18 +1352,19 @@ function spalla() {
           // Load deep detail + real calls in parallel
           const [detailRes, callsRes] = await Promise.all([
             sb.rpc('fn_god_mentorado_deep', { p_id: id }),
-            sb.from('vw_god_calls').select('*').eq('mentorado_id', id).order('data_call', { ascending: false }),
+            sb.from('calls_mentoria').select('*,mentorados(id,nome)').eq('mentorado_id', id).order('data_call', { ascending: false }),
           ]);
           if (detailRes.data) {
             const detail = typeof detailRes.data === 'string' ? JSON.parse(detailRes.data) : detailRes.data;
             // Enrich with real calls from vw_god_calls
             if (callsRes.data?.length) {
               detail.last_calls = callsRes.data.map(c => ({
-                data_call: c.data_call, tipo: c.tipo_call || 'acompanhamento',
+                data_call: c.data_call, tipo: c.tipo_call || c.tipo || 'acompanhamento',
                 duracao: c.duracao_minutos || 0,
                 resumo: c.resumo || c.zoom_topic || 'Call de acompanhamento',
                 gravacao: c.link_gravacao || null,
-                transcricao: c.link_transcricao || null,
+                transcricao: this.isRealTranscricao(c.link_transcricao) ? c.link_transcricao : null,
+                transcript_completo: c.transcript_completo || null,
                 decisoes_tomadas: c.decisoes_tomadas || [],
                 feedbacks_queila: c.feedbacks_consultora || c.proximos_passos || [],
               }));
@@ -2986,10 +2989,21 @@ function spalla() {
       window.open(url, '_blank', 'noopener');
     },
 
-    // Compat aliases
-    openTranscricao(url) { this.openMedia(url, 'Transcrição'); },
+    /**
+     * Abre transcrição: prioriza transcript_completo (texto) sobre link URL.
+     * Se tem texto → abre modal de texto. Se tem link → openMedia().
+     */
+    openTranscricao(urlOrText, transcriptText) {
+      if (transcriptText) {
+        this.ui.mediaModal = { text: transcriptText, label: 'Transcrição' };
+        return;
+      }
+      if (urlOrText) {
+        this.openMedia(urlOrText, 'Transcrição');
+      }
+    },
+
     closeMedia() { this.ui.mediaModal = null; },
-    closeTranscricao() { this.closeMedia(); },
 
     get allCallsGlobal() {
       // If real Supabase calls loaded, use them
@@ -3001,6 +3015,7 @@ function spalla() {
           topic: c.zoom_topic || '', resumo: c.resumo || null,
           gravacao: c.link_gravacao || null,
           transcricao: this.isRealTranscricao(c.link_transcricao) ? c.link_transcricao : null,
+          transcript_completo: c.transcript_completo || null,
           senha_call: c.senha_call || null, plano_acao: c.link_plano_acao || null,
           decisoes: c.decisoes_tomadas || [], gargalos: c.gargalos || [],
           proximos_passos: c.proximos_passos || [], sentimento: null,
