@@ -188,6 +188,9 @@ SELECT
   cm.link_gravacao,
   cm.link_transcricao,
   cm.zoom_topic,
+  cm.status_call,
+  cm."senha_Call" AS senha_call,
+  cm.link_plano_acao,
   -- Analise IA
   ac.resumo,
   cm.principais_topicos,

@@ -1230,7 +1230,7 @@ function spalla() {
           const [mentees, cohort, calls, pendencias, paPipeline] = await Promise.all([
             sb.from('vw_god_overview').select('*'),
             sb.from('vw_god_cohort').select('*'),
-            // Query directly from calls_mentoria table to get latest data
+            // Query calls_mentoria with mentorado name
             sb.from('calls_mentoria')
               .select('*,mentorados(id,nome)')
               .order('data_call', { ascending: false })
@@ -2945,14 +2945,28 @@ function spalla() {
     // ===================== AGENDA (calls globais) =====================
 
     /**
+     * Detecta se um link de "transcrição" é na verdade um download de vídeo do Zoom.
+     * Zoom armazena: share/ = player web, download/ = download direto .mp4
+     * Muitas calls têm link_transcricao preenchido com download/ por engano.
+     */
+    isRealTranscricao(url) {
+      if (!url) return false;
+      // Zoom download links are NOT transcriptions — they download the .mp4
+      if (/zoom\.us\/rec\/download/i.test(url)) return false;
+      return true;
+    },
+
+    /**
      * Abre mídia (gravação ou transcrição):
      * - Google Drive files → modal com iframe /preview (evita download)
-     * - YouTube → abre em nova aba (já funciona)
-     * - Google Docs → abre em nova aba (já funciona)
-     * - Qualquer outro link → nova aba
+     * - Zoom share links → abre em nova aba (player do Zoom)
+     * - YouTube → abre em nova aba
+     * - Google Docs → abre em nova aba
+     * - Zoom download → converte para share link (player em vez de download)
      */
     openMedia(url, label) {
       if (!url) return;
+      // Google Drive file → modal preview
       const driveMatch = url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
       if (driveMatch) {
         this.ui.mediaModal = {
@@ -2960,19 +2974,21 @@ function spalla() {
           originalUrl: url,
           label: label || 'Arquivo',
         };
-      } else {
-        window.open(url, '_blank', 'noopener');
+        return;
       }
+      // Zoom download link → convert to share link (opens player instead of downloading)
+      if (/zoom\.us\/rec\/download/i.test(url)) {
+        const shareUrl = url.replace('/rec/download/', '/rec/share/');
+        window.open(shareUrl, '_blank', 'noopener');
+        return;
+      }
+      // Everything else → open in new tab
+      window.open(url, '_blank', 'noopener');
     },
 
-    // Compat alias
+    // Compat aliases
     openTranscricao(url) { this.openMedia(url, 'Transcrição'); },
-
-    closeMedia() {
-      this.ui.mediaModal = null;
-    },
-
-    // Compat alias
+    closeMedia() { this.ui.mediaModal = null; },
     closeTranscricao() { this.closeMedia(); },
 
     get allCallsGlobal() {
@@ -2983,7 +2999,8 @@ function spalla() {
           tipo: c.tipo_call || 'acompanhamento', duracao: c.duracao_minutos || 0,
           horario: c.horario_call || null, status_call: c.status_call || null,
           topic: c.zoom_topic || '', resumo: c.resumo || null,
-          gravacao: c.link_gravacao || null, transcricao: c.link_transcricao || null,
+          gravacao: c.link_gravacao || null,
+          transcricao: this.isRealTranscricao(c.link_transcricao) ? c.link_transcricao : null,
           senha_call: c.senha_call || null, plano_acao: c.link_plano_acao || null,
           decisoes: c.decisoes_tomadas || [], gargalos: c.gargalos || [],
           proximos_passos: c.proximos_passos || [], sentimento: null,
