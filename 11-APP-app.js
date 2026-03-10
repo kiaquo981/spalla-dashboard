@@ -167,6 +167,18 @@ function spalla() {
       paExpandedFases: {},      // { faseId: true } for accordion
       paLoading: false,         // loading state for PA detail
       paSearchQuery: '',        // busca por nome do mentorado
+      // Onboarding CS
+      obView: 'painel',         // painel | pipeline | lista
+      obFilter: 'all',          // all | em_andamento | concluido | atrasado
+      obSearchQuery: '',
+      obExpandedTrilha: null,
+      obLoading: false,
+      obTemplateMode: false,     // toggle editor de template
+      obExpandedEtapas: {},      // { etapaId: true } for accordion in detail
+      obDetailTrilhaId: null,
+      obNewTrilhaModal: false,
+      obNewTrilhaResp: '',
+      obNewTrilhaMentorado: '',
       // Docs
       docSearch: '',
       // Agenda Calendar
@@ -194,6 +206,10 @@ function spalla() {
       paMenteePa: null,   // full PA for current mentee detail
       paAllFases: [],     // lightweight fases for sentinel calcs
       paAllAcoes: [],     // lightweight acoes for sentinel calcs
+      // Onboarding CS
+      obTrilhas: [],             // vw_ob_pipeline
+      obTrilhaDetail: null,      // trilha + etapas + tarefas (detail view)
+      obTemplateEtapas: [],      // template etapas + tarefas (for editor)
       // Dossiê Production System
       dsProducoes: [],          // vw_ds_pipeline
       dsAllDocs: [],            // ds_documentos (lightweight)
@@ -1254,6 +1270,8 @@ function spalla() {
           if (paAcoesRes.data) this.data.paAllAcoes = paAcoesRes.data;
           // Load DS pipeline data
           this.loadDsData();
+          // Load OB onboarding data
+          this.loadObData();
 
           if (mentees.data?.length) {
             this.data.mentees = mentees.data;
@@ -3927,6 +3945,320 @@ function spalla() {
       const { error } = await sb.from('ds_documentos').update({ link_doc: link }).eq('id', docId);
       if (error) this.toast('Erro ao salvar link: ' + error.message, 'error');
       else this.toast('Link salvo', 'success');
+    },
+
+    // ===================== ONBOARDING CS =====================
+
+    // --- OB Constants ---
+    OB_STATUS: [
+      { id: 'em_andamento', label: 'Em Andamento', color: '#3b82f6', icon: '🔄' },
+      { id: 'concluido', label: 'Concluído', color: '#10b981', icon: '✅' },
+      { id: 'pausado', label: 'Pausado', color: '#6b7280', icon: '⏸️' },
+    ],
+
+    obStatusLabel(s) {
+      const m = { em_andamento: 'Em Andamento', concluido: 'Concluído', pausado: 'Pausado' };
+      return m[s] || s;
+    },
+    obStatusColor(s) {
+      const m = { em_andamento: '#3b82f6', concluido: '#10b981', pausado: '#6b7280' };
+      return m[s] || '#6b7280';
+    },
+
+    // --- OB Data Loading ---
+    async loadObData() {
+      if (!sb) return;
+      try {
+        const { data, error } = await sb.from('vw_ob_pipeline').select('*');
+        if (error) { console.error('[OB] loadObData error:', error.message); return; }
+        this.data.obTrilhas = data || [];
+      } catch (e) {
+        console.error('[OB] loadObData error:', e);
+      }
+    },
+
+    async loadObDetail(trilhaId) {
+      if (!sb || !trilhaId) return;
+      this.ui.obLoading = true;
+      this.ui.obDetailTrilhaId = trilhaId;
+      try {
+        const [trilhaRes, etapasRes, tarefasRes] = await Promise.all([
+          sb.from('ob_trilhas').select('*').eq('id', trilhaId).single(),
+          sb.from('ob_etapas').select('*').eq('trilha_id', trilhaId).order('ordem'),
+          sb.from('ob_tarefas').select('*').eq('trilha_id', trilhaId).order('ordem'),
+        ]);
+        if (trilhaRes.error) { console.error('[OB] trilha error:', trilhaRes.error); return; }
+        const etapas = (etapasRes.data || []).map(e => ({
+          ...e,
+          tarefas: (tarefasRes.data || []).filter(t => t.etapa_id === e.id),
+        }));
+        this.data.obTrilhaDetail = { ...trilhaRes.data, etapas };
+        // Auto-expand first non-completed etapa
+        if (etapas.length && !Object.values(this.ui.obExpandedEtapas).some(v => v)) {
+          const first = etapas.find(e => e.status !== 'concluido') || etapas[0];
+          if (first) this.ui.obExpandedEtapas[first.id] = true;
+        }
+      } catch (e) {
+        console.error('[OB] loadObDetail error:', e);
+      } finally {
+        this.ui.obLoading = false;
+      }
+    },
+
+    async loadObTemplate() {
+      if (!sb) return;
+      try {
+        const [etapasRes, tarefasRes] = await Promise.all([
+          sb.from('ob_template_etapas').select('*').order('ordem'),
+          sb.from('ob_template_tarefas').select('*').order('ordem'),
+        ]);
+        this.data.obTemplateEtapas = (etapasRes.data || []).map(e => ({
+          ...e,
+          tarefas: (tarefasRes.data || []).filter(t => t.etapa_id === e.id),
+        }));
+      } catch (e) {
+        console.error('[OB] loadObTemplate error:', e);
+      }
+    },
+
+    // --- OB Trail CRUD ---
+    async criarTrilha(mentoradoId, responsavel) {
+      if (!sb || !mentoradoId) return;
+      try {
+        const { data, error } = await sb.rpc('ob_criar_trilha', {
+          p_mentorado_id: mentoradoId,
+          p_responsavel: responsavel || null,
+        });
+        if (error) { this.toast('Erro ao criar trilha: ' + error.message, 'error'); return; }
+        this.toast('Trilha de onboarding criada!', 'success');
+        await this.loadObData();
+        this.ui.obNewTrilhaModal = false;
+        return data;
+      } catch (e) {
+        this.toast('Erro: ' + e.message, 'error');
+      }
+    },
+
+    async toggleObTarefa(tarefaId, novoStatus) {
+      if (!sb || !tarefaId) return;
+      const now = novoStatus === 'concluido' ? new Date().toISOString() : null;
+      const { error } = await sb.from('ob_tarefas').update({
+        status: novoStatus,
+        data_concluida: now,
+        updated_at: new Date().toISOString(),
+      }).eq('id', tarefaId);
+      if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      // Refresh detail
+      if (this.ui.obDetailTrilhaId) {
+        await this.loadObDetail(this.ui.obDetailTrilhaId);
+        // Recalc etapa statuses
+        for (const etapa of (this.data.obTrilhaDetail?.etapas || [])) {
+          await this._recalcObEtapaStatus(etapa.id);
+        }
+        await this.loadObDetail(this.ui.obDetailTrilhaId);
+      }
+      await this.loadObData();
+    },
+
+    async _recalcObEtapaStatus(etapaId) {
+      if (!sb) return;
+      const detail = this.data.obTrilhaDetail;
+      if (!detail) return;
+      const etapa = detail.etapas.find(e => e.id === etapaId);
+      if (!etapa || !etapa.tarefas?.length) return;
+      const allDone = etapa.tarefas.every(t => t.status === 'concluido');
+      const anyDone = etapa.tarefas.some(t => t.status === 'concluido');
+      const newStatus = allDone ? 'concluido' : anyDone ? 'em_andamento' : 'pendente';
+      if (newStatus !== etapa.status) {
+        await sb.from('ob_etapas').update({ status: newStatus }).eq('id', etapaId);
+      }
+    },
+
+    async updateObTarefaResponsavel(tarefaId, resp) {
+      if (!sb) return;
+      const { error } = await sb.from('ob_tarefas').update({ responsavel: resp }).eq('id', tarefaId);
+      if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      if (this.ui.obDetailTrilhaId) await this.loadObDetail(this.ui.obDetailTrilhaId);
+    },
+
+    async updateObTrilhaStatus(trilhaId, status) {
+      if (!sb) return;
+      const { error } = await sb.from('ob_trilhas').update({ status, updated_at: new Date().toISOString() }).eq('id', trilhaId);
+      if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      await this.loadObData();
+      if (this.ui.obDetailTrilhaId === trilhaId) await this.loadObDetail(trilhaId);
+      this.toast('Status atualizado', 'success');
+    },
+
+    async deleteObTrilha(trilhaId) {
+      if (!sb || !confirm('Tem certeza que deseja excluir esta trilha?')) return;
+      const { error } = await sb.from('ob_trilhas').delete().eq('id', trilhaId);
+      if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      this.data.obTrilhaDetail = null;
+      this.ui.obDetailTrilhaId = null;
+      this.ui.obExpandedTrilha = null;
+      await this.loadObData();
+      this.toast('Trilha excluída', 'success');
+    },
+
+    // --- OB Template Editor CRUD ---
+    async saveTemplateEtapa(etapa) {
+      if (!sb) return;
+      if (etapa.id) {
+        const { error } = await sb.from('ob_template_etapas').update({
+          nome: etapa.nome, tipo: etapa.tipo, ordem: etapa.ordem, cor: etapa.cor, icone: etapa.icone, updated_at: new Date().toISOString(),
+        }).eq('id', etapa.id);
+        if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      } else {
+        const maxOrdem = this.data.obTemplateEtapas.reduce((max, e) => Math.max(max, e.ordem), 0);
+        const { error } = await sb.from('ob_template_etapas').insert({
+          nome: etapa.nome || 'Nova Etapa', tipo: etapa.tipo || 'sequencial', ordem: maxOrdem + 1, cor: etapa.cor || '#6b7280', icone: etapa.icone || '📋',
+        });
+        if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      }
+      await this.loadObTemplate();
+      this.toast('Etapa salva', 'success');
+    },
+
+    async deleteTemplateEtapa(etapaId) {
+      if (!sb || !confirm('Excluir etapa e todas as tarefas?')) return;
+      const { error } = await sb.from('ob_template_etapas').delete().eq('id', etapaId);
+      if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      await this.loadObTemplate();
+      this.toast('Etapa excluída', 'success');
+    },
+
+    async saveTemplateTarefa(tarefa) {
+      if (!sb) return;
+      if (tarefa.id) {
+        const { error } = await sb.from('ob_template_tarefas').update({
+          descricao: tarefa.descricao, responsavel_padrao: tarefa.responsavel_padrao,
+          prazo_dias: tarefa.prazo_dias, ordem: tarefa.ordem, updated_at: new Date().toISOString(),
+        }).eq('id', tarefa.id);
+        if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      } else {
+        const etapaTarefas = this.data.obTemplateEtapas.find(e => e.id === tarefa.etapa_id)?.tarefas || [];
+        const maxOrdem = etapaTarefas.reduce((max, t) => Math.max(max, t.ordem), 0);
+        const { error } = await sb.from('ob_template_tarefas').insert({
+          etapa_id: tarefa.etapa_id, descricao: tarefa.descricao || 'Nova tarefa',
+          responsavel_padrao: tarefa.responsavel_padrao || 'CS', prazo_dias: tarefa.prazo_dias || 0, ordem: maxOrdem + 1,
+        });
+        if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      }
+      await this.loadObTemplate();
+      this.toast('Tarefa salva', 'success');
+    },
+
+    async deleteTemplateTarefa(tarefaId) {
+      if (!sb || !confirm('Excluir tarefa do template?')) return;
+      const { error } = await sb.from('ob_template_tarefas').delete().eq('id', tarefaId);
+      if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      await this.loadObTemplate();
+      this.toast('Tarefa excluída', 'success');
+    },
+
+    // --- OB KPIs ---
+    obPageKpis() {
+      const trilhas = this.data.obTrilhas;
+      const total = trilhas.length;
+      const emAndamento = trilhas.filter(t => t.status === 'em_andamento').length;
+      const concluidas = trilhas.filter(t => t.status === 'concluido').length;
+      const atrasadas = trilhas.filter(t => (t.tarefas_atrasadas || 0) > 0).length;
+      const totalTarefas = trilhas.reduce((s, t) => s + (t.total_tarefas || 0), 0);
+      const tarefasConcluidas = trilhas.reduce((s, t) => s + (t.tarefas_concluidas || 0), 0);
+      const progressoMedio = totalTarefas > 0 ? Math.round((tarefasConcluidas / totalTarefas) * 100) : 0;
+      return { total, emAndamento, concluidas, atrasadas, progressoMedio };
+    },
+
+    // --- OB Filters ---
+    get filteredObTrilhas() {
+      let list = [...this.data.obTrilhas];
+      if (this.ui.obFilter && this.ui.obFilter !== 'all') {
+        if (this.ui.obFilter === 'atrasado') {
+          list = list.filter(t => (t.tarefas_atrasadas || 0) > 0);
+        } else {
+          list = list.filter(t => t.status === this.ui.obFilter);
+        }
+      }
+      if (this.ui.obSearchQuery) {
+        const q = this.ui.obSearchQuery.toLowerCase();
+        list = list.filter(t => (t.mentorado_nome || '').toLowerCase().includes(q) || (t.responsavel || '').toLowerCase().includes(q));
+      }
+      return list;
+    },
+
+    obPipelineColumns() {
+      const statuses = ['em_andamento', 'concluido', 'pausado'];
+      const list = this.ui.obSearchQuery ? this.filteredObTrilhas : this.data.obTrilhas;
+      return statuses.map(s => ({
+        status: s,
+        label: this.obStatusLabel(s),
+        color: this.obStatusColor(s),
+        items: list.filter(t => t.status === s),
+      }));
+    },
+
+    // --- OB Helpers ---
+    obProgressColor(pct) {
+      if (pct >= 80) return '#10b981';
+      if (pct >= 50) return '#f59e0b';
+      return '#ef4444';
+    },
+
+    obDiasAtraso(dataPrevista) {
+      if (!dataPrevista) return 0;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const prev = new Date(dataPrevista + 'T00:00:00');
+      const diff = Math.floor((today - prev) / 86400000);
+      return diff > 0 ? diff : 0;
+    },
+
+    obEtapaProgress(etapa) {
+      if (!etapa?.tarefas?.length) return 0;
+      const done = etapa.tarefas.filter(t => t.status === 'concluido').length;
+      return Math.round((done / etapa.tarefas.length) * 100);
+    },
+
+    obEtapaStatusIcon(status) {
+      const m = { pendente: '⏳', em_andamento: '🔄', concluido: '✅' };
+      return m[status] || '⏳';
+    },
+
+    toggleObEtapa(etapaId) {
+      this.ui.obExpandedEtapas[etapaId] = !this.ui.obExpandedEtapas[etapaId];
+    },
+    isObEtapaExpanded(etapaId) {
+      return !!this.ui.obExpandedEtapas[etapaId];
+    },
+    expandAllObEtapas() {
+      const detail = this.data.obTrilhaDetail;
+      if (!detail?.etapas) return;
+      detail.etapas.forEach(e => { this.ui.obExpandedEtapas[e.id] = true; });
+    },
+    collapseAllObEtapas() {
+      this.ui.obExpandedEtapas = {};
+    },
+
+    obCloseDetail() {
+      this.data.obTrilhaDetail = null;
+      this.ui.obDetailTrilhaId = null;
+      this.ui.obExpandedEtapas = {};
+    },
+
+    // Get etapa-level summary for pipeline cards
+    obTrilhaEtapaSummary(trilhaId) {
+      // We use obTrilhaDetail only when detail is open, so for card view we use the pipeline data
+      return null; // Cards show aggregate data from vw_ob_pipeline
+    },
+
+    // --- OB Template helpers ---
+    async openObTemplateEditor() {
+      this.ui.obTemplateMode = true;
+      await this.loadObTemplate();
+    },
+    closeObTemplateEditor() {
+      this.ui.obTemplateMode = false;
     },
 
     // ===================== TOASTS =====================

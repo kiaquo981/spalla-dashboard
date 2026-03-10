@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="13-APP-styles.css?v=56">
+  <link rel="stylesheet" href="13-APP-styles.css?v=57">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a,#1e293b,#0f172a);font-family:'Inter',sans-serif;color:#10b981;font-size:24px;font-weight:800; }
@@ -126,6 +126,10 @@
           <a class="sidebar__item" :class="{ active: ui.page === 'planos_acao' }" @click="navigate('planos_acao')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
             <span x-show="ui.sidebarOpen">Sentinela PA</span>
+          </a>
+          <a class="sidebar__item" :class="{ active: ui.page === 'onboarding' }" @click="navigate('onboarding'); loadObData()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+            <span x-show="ui.sidebarOpen">Onboarding</span>
           </a>
           <a class="sidebar__item" :class="{ active: ui.page === 'docs' }" @click="navigate('docs')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
@@ -2587,6 +2591,280 @@
           </div>
         </div>
 
+        <!-- ===== PAGE: ONBOARDING CS ===== -->
+        <div class="page-content" x-show="ui.page === 'onboarding'" x-transition>
+          <div class="page-header">
+            <h2>Onboarding CS</h2>
+          </div>
+
+          <!-- KPI Strip -->
+          <div class="ob-page-kpis" x-data="{ ok: null }" x-effect="ok = obPageKpis()">
+            <div class="ob-page-kpis__card">
+              <span class="ob-page-kpis__val" x-text="ok?.total || 0"></span>
+              <span class="ob-page-kpis__label">Total Trilhas</span>
+            </div>
+            <div class="ob-page-kpis__card">
+              <span class="ob-page-kpis__val ob-page-kpis__val--info" x-text="ok?.emAndamento || 0"></span>
+              <span class="ob-page-kpis__label">Em Andamento</span>
+            </div>
+            <div class="ob-page-kpis__card">
+              <span class="ob-page-kpis__val ob-page-kpis__val--success" x-text="ok?.concluidas || 0"></span>
+              <span class="ob-page-kpis__label">Concluídas</span>
+            </div>
+            <div class="ob-page-kpis__card">
+              <span class="ob-page-kpis__val" :class="(ok?.atrasadas || 0) > 0 ? 'ob-page-kpis__val--danger' : ''" x-text="ok?.atrasadas || 0"></span>
+              <span class="ob-page-kpis__label">Com Atraso</span>
+            </div>
+            <div class="ob-page-kpis__card">
+              <span class="ob-page-kpis__val ob-page-kpis__val--success" x-text="(ok?.progressoMedio || 0) + '%'"></span>
+              <span class="ob-page-kpis__label">Progresso Médio</span>
+            </div>
+          </div>
+
+          <!-- Search + Filter + View Toggle + Template btn -->
+          <div class="ob-toolbar">
+            <input type="text" class="ob-search__input" placeholder="Buscar mentorado ou CS..." x-model="ui.obSearchQuery">
+            <select class="ln-select" x-model="ui.obFilter">
+              <option value="all">Todos os status</option>
+              <option value="em_andamento">Em Andamento</option>
+              <option value="concluido">Concluído</option>
+              <option value="pausado">Pausado</option>
+              <option value="atrasado">Com Atraso</option>
+            </select>
+            <div class="ob-view-toggle">
+              <button class="ob-view-toggle__btn" :class="{ 'ob-view-toggle__btn--active': ui.obView === 'painel' }" @click="ui.obView = 'painel'">Painel</button>
+              <button class="ob-view-toggle__btn" :class="{ 'ob-view-toggle__btn--active': ui.obView === 'pipeline' }" @click="ui.obView = 'pipeline'">Pipeline</button>
+              <button class="ob-view-toggle__btn" :class="{ 'ob-view-toggle__btn--active': ui.obView === 'lista' }" @click="ui.obView = 'lista'">Lista</button>
+            </div>
+            <button class="btn btn--sm btn--outline" @click="openObTemplateEditor()">Template</button>
+            <button class="btn btn--sm btn--primary" @click="ui.obNewTrilhaModal = true">+ Nova Trilha</button>
+          </div>
+
+          <!-- ===== DETAIL VIEW (when a trilha is open) ===== -->
+          <template x-if="data.obTrilhaDetail && !ui.obTemplateMode">
+            <div class="ob-detail">
+              <div class="ob-detail__header">
+                <button class="btn btn--sm btn--ghost" @click="obCloseDetail()">&larr; Voltar</button>
+                <h3 x-text="data.obTrilhaDetail.mentorado_id ? (data.mentees.find(m => m.id === data.obTrilhaDetail.mentorado_id)?.nome || 'Mentorado') : 'Trilha'"></h3>
+                <div class="ob-detail__meta">
+                  <span>CS: <strong x-text="data.obTrilhaDetail.responsavel || '-'"></strong></span>
+                  <span>Início: <strong x-text="data.obTrilhaDetail.data_inicio || '-'"></strong></span>
+                  <select class="ln-select ln-select--sm" :value="data.obTrilhaDetail.status" @change="updateObTrilhaStatus(data.obTrilhaDetail.id, $event.target.value)">
+                    <option value="em_andamento">Em Andamento</option>
+                    <option value="concluido">Concluído</option>
+                    <option value="pausado">Pausado</option>
+                  </select>
+                  <button class="btn btn--sm btn--ghost btn--danger" @click="deleteObTrilha(data.obTrilhaDetail.id)">Excluir</button>
+                </div>
+              </div>
+              <div class="ob-detail__actions">
+                <button class="btn btn--xs btn--ghost" @click="expandAllObEtapas()">Expandir Tudo</button>
+                <button class="btn btn--xs btn--ghost" @click="collapseAllObEtapas()">Recolher Tudo</button>
+              </div>
+              <!-- Etapas accordion -->
+              <div class="ob-etapas">
+                <template x-for="etapa in data.obTrilhaDetail.etapas" :key="etapa.id">
+                  <div class="ob-etapa">
+                    <div class="ob-etapa__header" @click="toggleObEtapa(etapa.id)">
+                      <span class="ob-etapa__icon" x-text="etapa.icone || '📋'"></span>
+                      <span class="ob-etapa__name" x-text="etapa.nome"></span>
+                      <span class="ob-etapa__badge" :style="'background:' + (etapa.cor || '#6b7280') + '20; color:' + (etapa.cor || '#6b7280')" x-text="etapa.tipo === 'paralelo' ? 'Paralelo' : 'Sequencial'"></span>
+                      <div class="ob-etapa__progress-mini">
+                        <div class="ob-progress ob-progress--sm">
+                          <div class="ob-progress__fill" :style="'width:' + obEtapaProgress(etapa) + '%;background:' + obProgressColor(obEtapaProgress(etapa))"></div>
+                        </div>
+                        <span class="ob-etapa__progress-label" x-text="etapa.tarefas.filter(t => t.status === 'concluido').length + '/' + etapa.tarefas.length"></span>
+                      </div>
+                      <span x-text="obEtapaStatusIcon(etapa.status)"></span>
+                      <svg class="ob-etapa__chevron" :class="{ 'ob-etapa__chevron--open': isObEtapaExpanded(etapa.id) }" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                    <div class="ob-checklist" x-show="isObEtapaExpanded(etapa.id)" x-transition>
+                      <template x-for="tarefa in etapa.tarefas" :key="tarefa.id">
+                        <div class="ob-checklist__item" :class="{ 'ob-checklist__item--concluido': tarefa.status === 'concluido', 'ob-checklist__item--atrasado': tarefa.status === 'pendente' && tarefa.data_prevista && obDiasAtraso(tarefa.data_prevista) > 0 }">
+                          <input type="checkbox" :checked="tarefa.status === 'concluido'" @change="toggleObTarefa(tarefa.id, tarefa.status === 'concluido' ? 'pendente' : 'concluido')">
+                          <span class="ob-checklist__desc" x-text="tarefa.descricao"></span>
+                          <span class="ob-checklist__resp badge badge--xs badge--neutral" x-text="tarefa.responsavel || '-'"></span>
+                          <span class="ob-checklist__prazo" x-text="'D+' + (tarefa.prazo_dias || 0)"></span>
+                          <span class="ob-checklist__data" x-show="tarefa.data_prevista" x-text="tarefa.data_prevista || ''"></span>
+                          <span class="ob-checklist__atraso" x-show="tarefa.status === 'pendente' && tarefa.data_prevista && obDiasAtraso(tarefa.data_prevista) > 0" x-text="obDiasAtraso(tarefa.data_prevista) + 'd atraso'"></span>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+
+          <!-- ===== TEMPLATE EDITOR ===== -->
+          <template x-if="ui.obTemplateMode">
+            <div class="ob-template">
+              <div class="ob-template__banner">Alterações no template só afetam <strong>novas trilhas</strong>. Trilhas existentes permanecem intactas.</div>
+              <div class="ob-template__header">
+                <h3>Editor de Template</h3>
+                <div>
+                  <button class="btn btn--sm btn--primary" @click="saveTemplateEtapa({})">+ Etapa</button>
+                  <button class="btn btn--sm btn--ghost" @click="closeObTemplateEditor()">Fechar</button>
+                </div>
+              </div>
+              <template x-for="(etapa, ei) in data.obTemplateEtapas" :key="etapa.id">
+                <div class="ob-template__etapa">
+                  <div class="ob-template__etapa-header">
+                    <span x-text="etapa.icone || '📋'" style="font-size:18px"></span>
+                    <input type="text" class="ob-template__input" :value="etapa.nome" @blur="etapa.nome = $event.target.value; saveTemplateEtapa(etapa)">
+                    <select class="ln-select ln-select--xs" :value="etapa.tipo" @change="etapa.tipo = $event.target.value; saveTemplateEtapa(etapa)">
+                      <option value="sequencial">Sequencial</option>
+                      <option value="paralelo">Paralelo</option>
+                    </select>
+                    <input type="color" :value="etapa.cor || '#6b7280'" @change="etapa.cor = $event.target.value; saveTemplateEtapa(etapa)" style="width:30px;height:24px;border:none;cursor:pointer">
+                    <button class="btn btn--xs btn--ghost btn--danger" @click="deleteTemplateEtapa(etapa.id)">Excluir</button>
+                  </div>
+                  <div class="ob-template__tarefas">
+                    <template x-for="(tarefa, ti) in etapa.tarefas" :key="tarefa.id">
+                      <div class="ob-template__tarefa">
+                        <span class="ob-template__tarefa-ordem" x-text="ti + 1"></span>
+                        <input type="text" class="ob-template__input ob-template__input--wide" :value="tarefa.descricao" @blur="tarefa.descricao = $event.target.value; saveTemplateTarefa(tarefa)">
+                        <input type="text" class="ob-template__input ob-template__input--sm" :value="tarefa.responsavel_padrao" @blur="tarefa.responsavel_padrao = $event.target.value; saveTemplateTarefa(tarefa)" placeholder="Responsável">
+                        <label class="ob-template__tarefa-prazo">D+<input type="number" min="0" :value="tarefa.prazo_dias" @blur="tarefa.prazo_dias = parseInt($event.target.value) || 0; saveTemplateTarefa(tarefa)" style="width:40px"></label>
+                        <button class="btn btn--xs btn--ghost btn--danger" @click="deleteTemplateTarefa(tarefa.id)">x</button>
+                      </div>
+                    </template>
+                    <button class="btn btn--xs btn--ghost" @click="saveTemplateTarefa({ etapa_id: etapa.id })">+ Tarefa</button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <!-- ===== VIEW: PAINEL (cards) ===== -->
+          <div x-show="ui.obView === 'painel' && !data.obTrilhaDetail && !ui.obTemplateMode">
+            <div class="ob-card-grid">
+              <template x-for="t in filteredObTrilhas" :key="t.trilha_id">
+                <div class="ob-card" @click="loadObDetail(t.trilha_id)">
+                  <div class="ob-card__header">
+                    <span class="ob-card__name" x-text="t.mentorado_nome"></span>
+                    <span class="badge badge--sm" :style="'background:' + obStatusColor(t.status) + '20; color:' + obStatusColor(t.status)" x-text="obStatusLabel(t.status)"></span>
+                  </div>
+                  <div class="ob-card__cs">CS: <strong x-text="t.responsavel || '-'"></strong></div>
+                  <div class="ob-card__progress">
+                    <div class="ob-progress">
+                      <div class="ob-progress__fill" :style="'width:' + (t.progresso_pct || 0) + '%;background:' + obProgressColor(t.progresso_pct || 0)"></div>
+                    </div>
+                    <span class="ob-card__progress-label" x-text="(t.progresso_pct || 0) + '%'"></span>
+                  </div>
+                  <div class="ob-card__stats">
+                    <span x-text="(t.tarefas_concluidas || 0) + '/' + (t.total_tarefas || 0) + ' tarefas'"></span>
+                    <span class="ob-card__atrasadas" x-show="(t.tarefas_atrasadas || 0) > 0" x-text="(t.tarefas_atrasadas || 0) + ' atrasada(s)'"></span>
+                  </div>
+                  <div class="ob-card__footer" x-show="t.proxima_tarefa_data">
+                    <span class="ob-card__proxima">Próxima: <span x-text="t.proxima_tarefa_data || ''"></span></span>
+                  </div>
+                </div>
+              </template>
+              <div class="empty-state" x-show="!filteredObTrilhas.length" style="grid-column:1/-1"><p>Nenhuma trilha encontrada.</p></div>
+            </div>
+          </div>
+
+          <!-- ===== VIEW: PIPELINE (kanban) ===== -->
+          <div class="ob-pipeline" x-show="ui.obView === 'pipeline' && !data.obTrilhaDetail && !ui.obTemplateMode">
+            <template x-for="col in obPipelineColumns()" :key="col.status">
+              <div class="ob-pipeline__col">
+                <div class="ob-pipeline__col-header" :style="'border-top:3px solid ' + col.color">
+                  <span x-text="col.label"></span>
+                  <span class="badge badge--sm badge--neutral" x-text="col.items.length"></span>
+                </div>
+                <div class="ob-pipeline__cards">
+                  <template x-for="t in col.items" :key="t.trilha_id">
+                    <div class="ob-pipeline__card" @click="loadObDetail(t.trilha_id)">
+                      <div class="ob-pipeline__card-name" x-text="t.mentorado_nome"></div>
+                      <div class="ob-pipeline__card-cs" x-text="'CS: ' + (t.responsavel || '-')"></div>
+                      <div class="ob-progress ob-progress--sm" style="margin:6px 0">
+                        <div class="ob-progress__fill" :style="'width:' + (t.progresso_pct || 0) + '%;background:' + obProgressColor(t.progresso_pct || 0)"></div>
+                      </div>
+                      <div class="ob-pipeline__card-meta">
+                        <span x-text="(t.tarefas_concluidas || 0) + '/' + (t.total_tarefas || 0)"></span>
+                        <span class="ob-card__atrasadas" x-show="(t.tarefas_atrasadas || 0) > 0" x-text="(t.tarefas_atrasadas || 0) + ' atras.'"></span>
+                      </div>
+                    </div>
+                  </template>
+                  <div class="ob-pipeline__empty" x-show="!col.items.length">Nenhuma trilha</div>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- ===== VIEW: LISTA (table) ===== -->
+          <div class="ob-list" x-show="ui.obView === 'lista' && !data.obTrilhaDetail && !ui.obTemplateMode">
+            <div style="overflow-x:auto">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Mentorado</th>
+                    <th>CS</th>
+                    <th>Status</th>
+                    <th>Progresso</th>
+                    <th>Tarefas</th>
+                    <th>Atrasadas</th>
+                    <th>Próxima</th>
+                    <th>Início</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="t in filteredObTrilhas" :key="t.trilha_id">
+                    <tr style="cursor:pointer" @click="loadObDetail(t.trilha_id)">
+                      <td style="font-weight:600" x-text="t.mentorado_nome"></td>
+                      <td x-text="t.responsavel || '-'"></td>
+                      <td><span class="badge badge--sm" :style="'background:' + obStatusColor(t.status) + '20; color:' + obStatusColor(t.status)" x-text="obStatusLabel(t.status)"></span></td>
+                      <td>
+                        <div style="display:flex;align-items:center;gap:6px">
+                          <div class="ob-progress ob-progress--sm" style="width:50px">
+                            <div class="ob-progress__fill" :style="'width:' + (t.progresso_pct || 0) + '%;background:' + obProgressColor(t.progresso_pct || 0)"></div>
+                          </div>
+                          <span style="font-size:11px;font-weight:600" x-text="(t.progresso_pct || 0) + '%'"></span>
+                        </div>
+                      </td>
+                      <td style="font-size:12px" x-text="(t.tarefas_concluidas || 0) + '/' + (t.total_tarefas || 0)"></td>
+                      <td><span :class="(t.tarefas_atrasadas || 0) > 0 ? 'text--danger' : ''" x-text="t.tarefas_atrasadas || 0"></span></td>
+                      <td style="font-size:11px;white-space:nowrap" x-text="t.proxima_tarefa_data || '-'"></td>
+                      <td style="font-size:11px;white-space:nowrap" x-text="t.data_inicio || '-'"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+            <div class="empty-state" x-show="!filteredObTrilhas.length"><p>Nenhuma trilha encontrada.</p></div>
+          </div>
+
+          <!-- ===== MODAL: Nova Trilha ===== -->
+          <div class="modal-backdrop" x-show="ui.obNewTrilhaModal" x-transition @click.self="ui.obNewTrilhaModal = false">
+            <div class="modal modal--sm">
+              <div class="modal__header">
+                <h3>Nova Trilha de Onboarding</h3>
+                <button class="modal__close" @click="ui.obNewTrilhaModal = false">&times;</button>
+              </div>
+              <div class="modal__body">
+                <label class="form-label">Mentorado</label>
+                <select class="ln-select" x-model="ui.obNewTrilhaMentorado">
+                  <option value="">Selecione...</option>
+                  <template x-for="m in data.mentees.filter(m => !data.obTrilhas.some(t => t.mentorado_id === m.id))" :key="m.id">
+                    <option :value="m.id" x-text="m.nome"></option>
+                  </template>
+                </select>
+                <label class="form-label" style="margin-top:12px">CS Responsável</label>
+                <select class="ln-select" x-model="ui.obNewTrilhaResp">
+                  <option value="">Usar padrão do template</option>
+                  <option value="Lara">Lara</option>
+                  <option value="Heitor">Heitor</option>
+                </select>
+              </div>
+              <div class="modal__footer">
+                <button class="btn btn--ghost" @click="ui.obNewTrilhaModal = false">Cancelar</button>
+                <button class="btn btn--primary" :disabled="!ui.obNewTrilhaMentorado" @click="criarTrilha(parseInt(ui.obNewTrilhaMentorado), ui.obNewTrilhaResp)">Criar Trilha</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- ===== PAGE: DOCS ===== -->
         <div class="page-content" x-show="ui.page === 'docs'" x-transition>
           <div class="page-header"><h2>Documentos Google Drive</h2></div>
@@ -2760,9 +3038,9 @@
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js" integrity="sha384-Sm2s7OXxsAMTyJ4iIyRBgVpeGUvMPk2lRQnnZhE78Wej7oggIoolKt+SCt0XJbUB" crossorigin="anonymous"></script>
-  <script src="12-APP-data.js?v=56"></script>
-  <script src="13-APP-photos.js?v=56"></script>
-  <script src="11-APP-app.js?v=56"></script>
+  <script src="12-APP-data.js?v=57"></script>
+  <script src="13-APP-photos.js?v=57"></script>
+  <script src="11-APP-app.js?v=57"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {
