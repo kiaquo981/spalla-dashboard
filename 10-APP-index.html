@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="13-APP-styles.css?v=47">
+  <link rel="stylesheet" href="13-APP-styles.css?v=48">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a,#1e293b,#0f172a);font-family:'Inter',sans-serif;color:#10b981;font-size:24px;font-weight:800; }
@@ -2083,20 +2083,46 @@
                 <!-- Ajustes gerais -->
                 <div class="ds-section">
                   <h3 style="margin-bottom:12px; font-size:15px; font-weight:700;">Ajustes</h3>
+                  <!-- Ajuste list -->
                   <template x-for="aj in data.dsAjustes" :key="aj.id">
-                    <div class="ds-ajuste" :class="'ds-ajuste--' + aj.status" @click="toggleAjusteStatus(aj.id)">
-                      <span class="ds-ajuste__check" x-text="aj.status === 'concluido' ? '✅' : aj.status === 'em_andamento' ? '🔄' : '☐'"></span>
+                    <div class="ds-ajuste" :class="'ds-ajuste--' + aj.status">
+                      <span class="ds-ajuste__check" @click="toggleAjusteStatus(aj.id)" style="cursor:pointer;" x-text="aj.status === 'concluido' ? '✅' : aj.status === 'em_andamento' ? '🔄' : '☐'"></span>
+                      <span class="ds-ajuste__doc-badge" x-show="aj.documento_id" x-text="dsDocTipoConfig(getDsDocs(ui.dsDetailProducaoId).find(d => d.id === aj.documento_id)?.tipo)?.icon || '📄'"></span>
                       <span class="ds-ajuste__desc" x-text="aj.descricao"></span>
-                      <span class="ds-ajuste__resp" x-text="aj.responsavel || ''"></span>
+                      <span class="ds-ajuste__resp ds-ajuste__resp--tag" x-show="aj.responsavel" x-text="aj.responsavel"></span>
                       <span class="ds-ajuste__deadline" x-text="aj.deadline ? dsFormatDate(aj.deadline) : ''"></span>
                     </div>
                   </template>
+                  <div x-show="!data.dsAjustes.length" style="font-size:13px; color:var(--text-secondary); margin-bottom:12px;">Nenhum ajuste registrado.</div>
                   <!-- Add ajuste form -->
-                  <div class="ds-ajuste-form" style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
-                    <input type="text" class="ds-marcos__input" style="flex:2; min-width:200px;" placeholder="Descricao do ajuste..." x-model="dsAjusteForm.descricao">
-                    <input type="text" class="ds-marcos__input" style="width:120px;" placeholder="Responsavel" x-model="dsAjusteForm.responsavel">
-                    <input type="date" class="ds-marcos__input" style="width:140px;" x-model="dsAjusteForm.deadline">
-                    <button class="btn btn--sm btn--brand" @click="dsSubmitAjuste(ui.dsDetailProducaoId)">+ Ajuste</button>
+                  <div class="ds-ajuste-form-grid">
+                    <div class="ds-ajuste-form-grid__row">
+                      <select class="ds-marcos__input" x-model="dsAjusteForm.docId" style="min-width:160px;">
+                        <option value="">Qual dossie?</option>
+                        <template x-for="doc in getDsDocs(ui.dsDetailProducaoId)" :key="doc.id">
+                          <option :value="doc.id" x-text="dsDocTipoConfig(doc.tipo).icon + ' ' + dsDocTipoConfig(doc.tipo).label"></option>
+                        </template>
+                      </select>
+                      <select class="ds-marcos__input" x-model="dsAjusteForm.etapa" style="min-width:140px;">
+                        <option value="">Qual etapa?</option>
+                        <template x-for="st in DS_ESTAGIOS" :key="st.id">
+                          <option :value="st.id" x-text="st.icon + ' ' + st.label"></option>
+                        </template>
+                      </select>
+                      <select class="ds-marcos__input" x-model="dsAjusteForm.responsavel" style="min-width:140px;">
+                        <option value="">Responsavel?</option>
+                        <option value="Queila">Queila</option>
+                        <option value="Mariza">Mariza</option>
+                        <option value="Kaique">Kaique</option>
+                        <option value="Heitor">Heitor</option>
+                        <option value="Lara">Lara</option>
+                      </select>
+                      <input type="date" class="ds-marcos__input" style="width:140px;" x-model="dsAjusteForm.deadline">
+                    </div>
+                    <div class="ds-ajuste-form-grid__row">
+                      <input type="text" class="ds-marcos__input" style="flex:1;" placeholder="Descreva o ajuste solicitado..." x-model="dsAjusteForm.descricao" @keydown.enter="dsSubmitAjuste(ui.dsDetailProducaoId)">
+                      <button class="btn btn--sm btn--brand" @click="dsSubmitAjuste(ui.dsDetailProducaoId)" :disabled="!dsAjusteForm.descricao">+ Ajuste</button>
+                    </div>
                   </div>
                 </div>
 
@@ -2664,9 +2690,9 @@
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js" integrity="sha384-Sm2s7OXxsAMTyJ4iIyRBgVpeGUvMPk2lRQnnZhE78Wej7oggIoolKt+SCt0XJbUB" crossorigin="anonymous"></script>
-  <script src="12-APP-data.js?v=47"></script>
-  <script src="13-APP-photos.js?v=47"></script>
-  <script src="11-APP-app.js?v=47"></script>
+  <script src="12-APP-data.js?v=48"></script>
+  <script src="13-APP-photos.js?v=48"></script>
+  <script src="11-APP-app.js?v=48"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {

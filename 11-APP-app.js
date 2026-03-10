@@ -3690,15 +3690,23 @@ function spalla() {
     },
 
     // --- DS Ajuste Form ---
-    dsAjusteForm: { descricao: '', responsavel: '', deadline: '', docId: null },
+    dsAjusteForm: { descricao: '', responsavel: '', deadline: '', docId: '', etapa: '' },
 
     dsResetAjusteForm() {
-      this.dsAjusteForm = { descricao: '', responsavel: '', deadline: '', docId: null };
+      this.dsAjusteForm = { descricao: '', responsavel: '', deadline: '', docId: '', etapa: '' };
     },
 
     async dsSubmitAjuste(producaoId) {
       if (!this.dsAjusteForm.descricao) return;
-      await this.createAjuste(producaoId, this.dsAjusteForm.docId, this.dsAjusteForm.descricao, this.dsAjusteForm.responsavel, this.dsAjusteForm.deadline);
+      // Build rich description with context
+      let desc = this.dsAjusteForm.descricao;
+      const docId = this.dsAjusteForm.docId || null;
+      const etapa = this.dsAjusteForm.etapa;
+      if (etapa) {
+        const cfg = this.dsEstagioConfig(etapa);
+        desc = `[${cfg.label}] ${desc}`;
+      }
+      await this.createAjuste(producaoId, docId, desc, this.dsAjusteForm.responsavel, this.dsAjusteForm.deadline);
       this.dsResetAjusteForm();
     },
 

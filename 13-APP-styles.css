@@ -5698,6 +5698,36 @@ img { max-width: 100%; display: block; }
   color: var(--text-secondary);
 }
 
+/* --- Ajuste form grid --- */
+.ds-ajuste-form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+.ds-ajuste-form-grid__row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.ds-ajuste__doc-badge {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.ds-ajuste__resp--tag {
+  background: #ede9fe;
+  color: #7c3aed;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
 /* --- Audit Trail --- */
 .ds-audit {
   max-height: 300px;
