@@ -28,7 +28,7 @@ const TEAM_MEMBERS = [
 ];
 
 // ===== EVOLUTION API GUARD =====
-const EVOLUTION_INSTANCE = typeof EVOLUTION_CONFIG !== 'undefined' ? EVOLUTION_INSTANCE : null;
+const EVOLUTION_INSTANCE = typeof EVOLUTION_CONFIG !== 'undefined' ? EVOLUTION_CONFIG.INSTANCE : null;
 
 // ===== SUPABASE CLIENT =====
 let sb = null;
