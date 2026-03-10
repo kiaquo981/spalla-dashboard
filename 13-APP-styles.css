@@ -5401,19 +5401,30 @@ img { max-width: 100%; display: block; }
 }
 
 /* --- Pipeline Kanban --- */
+.ds-pipeline-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 8px;
+  margin: 0 -4px;
+}
 .ds-pipeline {
   display: flex;
   gap: 6px;
-  overflow-x: auto;
-  padding-bottom: 16px;
-  min-width: 0;
+  padding: 0 4px 8px;
+  min-width: 1400px;
 }
 .ds-pipeline__col {
   min-width: 130px;
-  max-width: 180px;
-  flex: 1 0 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
+  transition: background 0.15s;
+  border-radius: 8px;
+}
+.ds-pipeline__col--dragover {
+  background: #ede9fe;
+  outline: 2px dashed #8b5cf6;
+  outline-offset: -2px;
 }
 .ds-pipeline__col-header {
   display: flex;

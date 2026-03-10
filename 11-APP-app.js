@@ -3710,6 +3710,77 @@ function spalla() {
       this.dsResetAjusteForm();
     },
 
+    // --- DS Pipeline Drag & Drop ---
+    dsDragProducaoId: null,
+    dsDragOverStage: null,
+
+    dsDragStart(event, producaoId) {
+      this.dsDragProducaoId = producaoId;
+      event.dataTransfer.effectAllowed = 'move';
+      event.target.closest('.ds-pipeline__card').style.opacity = '0.4';
+    },
+
+    dsDragEnd(event) {
+      const card = event.target.closest('.ds-pipeline__card');
+      if (card) card.style.opacity = '1';
+      this.dsDragProducaoId = null;
+      this.dsDragOverStage = null;
+    },
+
+    dsDragOver(event, stageId) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      this.dsDragOverStage = stageId;
+    },
+
+    dsDragLeave(event, stageId) {
+      if (this.dsDragOverStage === stageId) this.dsDragOverStage = null;
+    },
+
+    async dsDrop(event, targetStageId) {
+      event.preventDefault();
+      this.dsDragOverStage = null;
+      if (!this.dsDragProducaoId) return;
+
+      const producaoId = this.dsDragProducaoId;
+      this.dsDragProducaoId = null;
+
+      // Get all docs for this production
+      const docs = this.data.dsAllDocs.filter(d => d.producao_id === producaoId);
+      if (!docs.length) return;
+
+      const targetNum = this.dsEstagioNum(targetStageId);
+      const user = this.auth.currentUser?.user_metadata?.full_name || this.auth.currentUser?.email || 'Sistema';
+
+      // Advance/regress each doc to the target stage
+      for (const doc of docs) {
+        const curNum = this.dsEstagioNum(doc.estagio_atual);
+        if (curNum === targetNum) continue; // already there
+
+        const targetStage = DS_ESTAGIOS[targetNum - 1];
+        const now = new Date().toISOString();
+        const update = {
+          estagio_atual: targetStage.id,
+          responsavel_atual: targetStage.responsavel || null,
+          estagio_desde: now,
+        };
+        const tsMap = {
+          producao_ia: 'data_producao_ia', revisao_mariza: 'data_revisao_mariza',
+          revisao_kaique: 'data_revisao_kaique', revisao_queila: 'data_revisao_queila',
+          enviado: 'data_envio', feedback_mentorado: 'data_feedback_mentorado',
+          finalizado: 'data_finalizado',
+        };
+        if (tsMap[targetStage.id]) update[tsMap[targetStage.id]] = now;
+
+        await sb.from('ds_documentos').update(update).eq('id', doc.id);
+        await this._logDsEvento(producaoId, doc.id, 'estagio_change', doc.estagio_atual, targetStage.id, user, `Pipeline: ${doc.tipo} → ${targetStage.label}`);
+      }
+
+      await this._updateDsProducaoStatus(producaoId);
+      await this.loadDsData();
+      this.toast(`Movido para ${DS_ESTAGIOS[targetNum - 1].label}`, 'success');
+    },
+
     async updateDocLink(docId, link) {
       if (!sb) return;
       const { error } = await sb.from('ds_documentos').update({ link_doc: link }).eq('id', docId);

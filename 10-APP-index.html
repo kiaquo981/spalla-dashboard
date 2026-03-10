@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="13-APP-styles.css?v=48">
+  <link rel="stylesheet" href="13-APP-styles.css?v=49">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a,#1e293b,#0f172a);font-family:'Inter',sans-serif;color:#10b981;font-size:24px;font-weight:800; }
@@ -2245,18 +2245,26 @@
               <div x-show="!filteredDsProducoes.length && !ui.dsLoading" style="text-align:center; padding:40px; color:var(--text-secondary);">Nenhuma producao encontrada.</div>
             </div>
 
-            <!-- VIEW: Pipeline Kanban -->
-            <div x-show="ui.dsView === 'pipeline' && !ui.dsLoading">
+            <!-- VIEW: Pipeline Kanban (drag & drop) -->
+            <div x-show="ui.dsView === 'pipeline' && !ui.dsLoading" class="ds-pipeline-wrapper">
               <div class="ds-pipeline">
                 <template x-for="stage in DS_ESTAGIOS" :key="stage.id">
-                  <div class="ds-pipeline__col">
+                  <div class="ds-pipeline__col"
+                    @dragover.prevent="dsDragOver($event, stage.id)"
+                    @dragleave="dsDragLeave($event, stage.id)"
+                    @drop="dsDrop($event, stage.id)"
+                    :class="{ 'ds-pipeline__col--dragover': dsDragOverStage === stage.id }">
                     <div class="ds-pipeline__col-header" :style="'border-bottom: 3px solid ' + stage.color">
                       <span x-text="stage.icon + ' ' + stage.label"></span>
                       <span class="ds-pipeline__col-count" x-text="(dsPipelineColumns()[stage.id] || []).length"></span>
                     </div>
                     <div class="ds-pipeline__col-body">
                       <template x-for="p in (dsPipelineColumns()[stage.id] || [])" :key="p.producao_id">
-                        <div class="ds-pipeline__card" @click="openDsDetail(p.producao_id)">
+                        <div class="ds-pipeline__card"
+                          draggable="true"
+                          @dragstart="dsDragStart($event, p.producao_id)"
+                          @dragend="dsDragEnd($event)"
+                          @click="openDsDetail(p.producao_id)">
                           <span class="ds-pipeline__card-name" x-text="p.mentorado_nome"></span>
                           <div class="ds-pipeline__card-dots">
                             <template x-for="dt in DS_DOC_TIPOS" :key="dt.id">
@@ -2690,9 +2698,9 @@
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js" integrity="sha384-Sm2s7OXxsAMTyJ4iIyRBgVpeGUvMPk2lRQnnZhE78Wej7oggIoolKt+SCt0XJbUB" crossorigin="anonymous"></script>
-  <script src="12-APP-data.js?v=48"></script>
-  <script src="13-APP-photos.js?v=48"></script>
-  <script src="11-APP-app.js?v=48"></script>
+  <script src="12-APP-data.js?v=49"></script>
+  <script src="13-APP-photos.js?v=49"></script>
+  <script src="11-APP-app.js?v=49"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {
