@@ -17,14 +17,18 @@ const CONFIG = {
 };
 
 // ===== TEAM MEMBERS =====
+// Note: Full member data (emails) stored in Supabase. Only identifiers kept here.
 const TEAM_MEMBERS = [
-  { name: 'Kaique', email: 'kaique.azevedoo@outlook.com' },
-  { name: 'Heitor', email: 'heitorms15@gmail.com' },
-  { name: 'Hugo', email: 'hugo.nicchio@gmail.com' },
-  { name: 'Queila', email: 'queilatrizotti@gmail.com' },
-  { name: 'Mariza', email: 'mariza.rg22@gmail.com' },
-  { name: 'Lara', email: 'santoslarafreitas@gmail.com' },
+  { name: 'Kaique', id: 'kaique' },
+  { name: 'Heitor', id: 'heitor' },
+  { name: 'Hugo', id: 'hugo' },
+  { name: 'Queila', id: 'queila' },
+  { name: 'Mariza', id: 'mariza' },
+  { name: 'Lara', id: 'lara' },
 ];
+
+// ===== EVOLUTION API GUARD =====
+const EVOLUTION_INSTANCE = typeof EVOLUTION_CONFIG !== 'undefined' ? EVOLUTION_INSTANCE : null;
 
 // ===== SUPABASE CLIENT =====
 let sb = null;
@@ -52,7 +56,6 @@ async function initSupabase() {
 
   try {
     const client = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
-    console.log('[Spalla] Supabase initialized successfully');
     return client;
   } catch (e) {
     console.error('[Spalla] Failed to init Supabase:', e);
@@ -111,6 +114,15 @@ function spalla() {
     _refreshIntervalMs: 60000, // 60 seconds
     _whatsappPollInterval: null,
     _whatsappPollIntervalMs: 5000, // 5 seconds
+
+    // --- Debounce timers ---
+    _searchTimer: null,
+    _obDebounceTimer: null,
+    _dsDebounceTimer: null,
+    _paDebounceTimer: null,
+
+    // --- Detail cache ---
+    _detailCache: {},
 
     // --- UI State ---
     ui: {
@@ -210,6 +222,7 @@ function spalla() {
       obTrilhas: [],             // vw_ob_pipeline
       obTrilhaDetail: null,      // trilha + etapas + tarefas (detail view)
       obTemplateEtapas: [],      // template etapas + tarefas (for editor)
+      obEventos: [],             // timeline / audit trail for detail view
       // Dossiê Production System
       dsProducoes: [],          // vw_ds_pipeline
       dsAllDocs: [],            // ds_documentos (lightweight)
@@ -521,6 +534,40 @@ function spalla() {
       };
     },
 
+    // ===================== SHARED HELPERS =====================
+
+    get currentUserName() {
+      return this.auth.currentUser?.user_metadata?.full_name || this.auth.currentUser?.email || 'Sistema';
+    },
+
+    todayStr() { return new Date().toISOString().split('T')[0]; },
+
+    _filterTasks(tasks) {
+      let list = tasks;
+      if (this.ui.taskAssignee) {
+        const assignee = this.ui.taskAssignee === '__mine__'
+          ? (this.auth.currentUser?.full_name || '').toLowerCase()
+          : this.ui.taskAssignee.toLowerCase();
+        if (assignee) list = list.filter(t => t.responsavel?.toLowerCase().includes(assignee));
+      }
+      if (this.ui.taskSpaceFilter !== 'all') {
+        list = list.filter(t => t.space_id === this.ui.taskSpaceFilter);
+      }
+      if (this.ui.taskListFilter !== 'all') {
+        list = list.filter(t => t.list_id === this.ui.taskListFilter);
+      }
+      return list;
+    },
+
+    _debounce(timerKey, fn, delay = 500) {
+      clearTimeout(this[timerKey]);
+      this[timerKey] = setTimeout(() => fn(), delay);
+    },
+
+    _debouncedLoadObData() { this._debounce('_obDebounceTimer', () => this.loadObData()); },
+    _debouncedLoadDsData() { this._debounce('_dsDebounceTimer', () => this.loadDsData()); },
+    _debouncedLoadPaPipeline() { this._debounce('_paDebounceTimer', () => this.loadPaPipeline()); },
+
     // ===================== TEAM DASHBOARD =====================
 
     get teamStats() {
@@ -644,18 +691,7 @@ function spalla() {
           list = list.filter(t => t.status === this.ui.taskFilter);
         }
       }
-      if (this.ui.taskAssignee) {
-        const assignee = this.ui.taskAssignee === '__mine__'
-          ? (this.auth.currentUser?.full_name || '').toLowerCase()
-          : this.ui.taskAssignee.toLowerCase();
-        if (assignee) list = list.filter(t => t.responsavel?.toLowerCase().includes(assignee));
-      }
-      if (this.ui.taskSpaceFilter !== 'all') {
-        list = list.filter(t => t.space_id === this.ui.taskSpaceFilter);
-      }
-      if (this.ui.taskListFilter !== 'all') {
-        list = list.filter(t => t.list_id === this.ui.taskListFilter);
-      }
+      list = this._filterTasks(list);
       if (this.ui.search && this.ui.page === 'tasks') {
         const q = this.ui.search.toLowerCase();
         list = list.filter(t => t.titulo?.toLowerCase().includes(q) || t.mentorado_nome?.toLowerCase().includes(q));
@@ -664,7 +700,7 @@ function spalla() {
         const prio = { urgente: 0, alta: 1, normal: 2, baixa: 3 };
         return (prio[a.prioridade] || 2) - (prio[b.prioridade] || 2);
       });
-      return list.slice(0, 100); // Limit for performance
+      return list.slice(0, 100);
     },
 
     // Tasks: grouped by status (ClickUp style board)
@@ -672,24 +708,12 @@ function spalla() {
       const statuses = ['pendente', 'em_andamento', 'concluida'];
       const result = {};
       for (const s of statuses) {
-        let list = [...this.data.tasks].filter(t => t.status === s);
-        if (this.ui.taskAssignee) {
-          const assignee = this.ui.taskAssignee === '__mine__'
-            ? (this.auth.currentUser?.full_name || '').toLowerCase()
-            : this.ui.taskAssignee.toLowerCase();
-          if (assignee) list = list.filter(t => t.responsavel?.toLowerCase().includes(assignee));
-        }
-        if (this.ui.taskSpaceFilter !== 'all') {
-          list = list.filter(t => t.space_id === this.ui.taskSpaceFilter);
-        }
-        if (this.ui.taskListFilter !== 'all') {
-          list = list.filter(t => t.list_id === this.ui.taskListFilter);
-        }
+        let list = this._filterTasks([...this.data.tasks].filter(t => t.status === s));
         list.sort((a, b) => {
           const prio = { urgente: 0, alta: 1, normal: 2, baixa: 3 };
           return (prio[a.prioridade] || 2) - (prio[b.prioridade] || 2);
         });
-        result[s] = list.slice(0, 50); // Limit to 50 per column for performance
+        result[s] = list.slice(0, 50);
       }
       return result;
     },
@@ -854,7 +878,6 @@ function spalla() {
     // ===================== LIFECYCLE =====================
 
     async init() {
-      console.log('[Spalla] init() starting');
       try {
         // Restore JWT session from localStorage + validate with server
         const accessToken = localStorage.getItem('spalla_access_token');
@@ -874,7 +897,6 @@ function spalla() {
               this.auth.accessToken = accessToken;
               this.auth.refreshToken = refreshToken;
               this.ui.taskAssignee = '__mine__';
-              console.log('[Spalla] Auth: session validated for', this.auth.currentUser.email);
             } else if (resp.status === 401 && refreshToken) {
               // Try refresh
               const refreshResp = await fetch(`${CONFIG.API_BASE}/api/auth/refresh`, {
@@ -892,15 +914,12 @@ function spalla() {
                 localStorage.setItem('spalla_refresh_token', data.refresh_token);
                 if (data.user) localStorage.setItem('spalla_user', JSON.stringify(data.user));
                 this.ui.taskAssignee = '__mine__';
-                console.log('[Spalla] Auth: session refreshed for', this.auth.currentUser.email);
               } else {
                 // Refresh failed — clear session
                 this._clearAuthStorage();
-                console.log('[Spalla] Auth: session expired, cleared');
               }
             } else {
               this._clearAuthStorage();
-              console.log('[Spalla] Auth: invalid session, cleared');
             }
           } catch (e) {
             // Network error — trust local session as fallback
@@ -912,26 +931,20 @@ function spalla() {
             console.warn('[Spalla] Auth: offline, using cached session');
           }
         } else {
-          console.log('[Spalla] Auth: no saved session');
         }
 
         // Initialize Supabase (if still needed for other features)
         sb = await initSupabase();
-        console.log('[Spalla] Supabase initialized:', !!sb);
 
         await this.loadTasks();
-        console.log('[Spalla] Tasks loaded:', this.data.tasks.length);
 
         if (this.auth.authenticated) {
           await this.loadReminders(); // Load from Supabase
           await this.loadDashboard();
-          console.log('[Spalla] Dashboard loaded, mentees:', this.data.mentees.length);
           // Pre-fetch WhatsApp profile pics in background
           this._loadWaProfilePics();
           // Fetch schedule-related data from backend API
           this.fetchUpcomingCalls();
-          this.fetchMenteesWithEmail();
-          this.checkIntegrations();
           // Fetch Instagram profiles from Apify (background, non-blocking)
           this.updateInstagramProfiles();
         }
@@ -941,12 +954,12 @@ function spalla() {
         this.ui.loading = false;
         if (!this.data.mentees.length) this.loadDemoData();
       }
-      console.log('[Spalla] init() complete');
     },
 
     async _loadWaProfilePics() {
+      if (!EVOLUTION_INSTANCE) return;
       try {
-        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
+        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findChats/${EVOLUTION_INSTANCE}`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
         });
         if (!res.ok) return;
@@ -970,7 +983,6 @@ function spalla() {
         }
         this.waPhotos = pics;
         this.photoTick++;
-        console.log(`[Spalla] Loaded ${Object.keys(pics).length} WhatsApp profile pics`);
       } catch (e) {
         console.warn('[Spalla] Could not load WA profile pics:', e.message);
       }
@@ -1016,7 +1028,6 @@ function spalla() {
 
         await this.loadReminders();
         await this.loadDashboard();
-        console.log('[Spalla] Login successful:', data.user.email);
       } catch (e) {
         this.auth.error = 'Erro ao fazer login: ' + e.message;
         console.error('[Spalla] Login error:', e);
@@ -1070,7 +1081,6 @@ function spalla() {
 
         await this.loadReminders();
         await this.loadDashboard();
-        console.log('[Spalla] Registration successful:', data.user.email);
       } catch (e) {
         this.auth.error = 'Erro ao criar conta: ' + e.message;
         console.error('[Spalla] Register error:', e);
@@ -1104,7 +1114,6 @@ function spalla() {
         this._clearAuthStorage();
         localStorage.removeItem(CONFIG.TASKS_STORAGE_KEY);
 
-        console.log('[Spalla] Logout successful - session cleared');
 
         // Reload page to reset all state
         setTimeout(() => window.location.reload(), 500);
@@ -1144,7 +1153,6 @@ function spalla() {
           return;
         }
         this.auth.success = 'Email de recuperação enviado! Verifique sua caixa de entrada (e spam).';
-        console.log('[Spalla] Password reset email sent to:', this.auth.email);
       } catch (e) {
         this.auth.error = 'Erro ao enviar email: ' + e.message;
         console.error('[Spalla] Reset password error:', e);
@@ -1154,27 +1162,23 @@ function spalla() {
     startDataRefresh() {
       if (this._refreshInterval) clearInterval(this._refreshInterval);
       this._refreshInterval = setInterval(() => {
-        console.log('[Spalla] Auto-refresh: loading dashboard data');
         this.loadDashboard();
       }, this._refreshIntervalMs);
-      console.log('[Spalla] Data auto-refresh started (every', this._refreshIntervalMs + 'ms)');
     },
 
     stopDataRefresh() {
       if (this._refreshInterval) {
         clearInterval(this._refreshInterval);
         this._refreshInterval = null;
-        console.log('[Spalla] Data auto-refresh stopped');
       }
     },
 
     startWhatsAppPolling() {
       if (this._whatsappPollInterval) clearInterval(this._whatsappPollInterval);
-      if (!this.ui.whatsappSelectedChat) return;
+      if (!this.ui.whatsappSelectedChat || !EVOLUTION_INSTANCE) return;
       this._whatsappPollInterval = setInterval(async () => {
-        console.log('[Spalla] WhatsApp poll: checking for new messages');
         try {
-          const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
+          const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${EVOLUTION_INSTANCE}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ where: { key: { remoteJid: this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id } }, limit: 50 }),
@@ -1205,14 +1209,12 @@ function spalla() {
           console.warn('[Spalla] WhatsApp poll error (non-blocking):', e.message);
         }
       }, this._whatsappPollIntervalMs);
-      console.log('[Spalla] WhatsApp polling started (every', this._whatsappPollIntervalMs + 'ms)');
     },
 
     stopWhatsAppPolling() {
       if (this._whatsappPollInterval) {
         clearInterval(this._whatsappPollInterval);
         this._whatsappPollInterval = null;
-        console.log('[Spalla] WhatsApp polling stopped');
       }
     },
 
@@ -1225,14 +1227,14 @@ function spalla() {
         const resp = await fetch(`${CONFIG.API_BASE}/api/sheets/sync`, { method: 'POST' });
         const data = await resp.json();
         if (data.error) {
-          this.showToast(`Erro no sync: ${data.error}`, 'error');
+          this.toast(`Erro no sync: ${data.error}`, 'error');
         } else {
-          this.showToast(`Sheets sync: ${data.updated} atualizacoes em ${data.elapsed_seconds}s`, 'success');
+          this.toast(`Sheets sync: ${data.updated} atualizacoes em ${data.elapsed_seconds}s`, 'success');
           // Reload dashboard to show updated data
           await this.loadDashboard();
         }
       } catch (e) {
-        this.showToast(`Erro no sync: ${e.message}`, 'error');
+        this.toast(`Erro no sync: ${e.message}`, 'error');
       } finally {
         this.ui.sheetsSyncing = false;
       }
@@ -1243,17 +1245,17 @@ function spalla() {
       sb = await initSupabase();
       if (sb) {
         try {
-          const [mentees, cohort, calls, pendencias, paPipeline] = await Promise.all([
+          const [mentees, cohort, pendencias, paPipeline] = await Promise.all([
             sb.from('vw_god_overview').select('*'),
             sb.from('vw_god_cohort').select('*'),
-            // Query calls_mentoria (excluding heavy transcript_completo/observacoes_equipe)
-            sb.from('calls_mentoria')
-              .select('id,mentorado_id,data_call,duracao_minutos,tipo,tipo_call,link_gravacao,link_transcricao,zoom_topic,status_call,"senha_Call",link_plano_acao,principais_topicos,decisoes_tomadas,created_at,mentorados(id,nome)')
-              .order('data_call', { ascending: false })
-              .limit(500),
             sb.from('vw_god_pendencias').select('*').order('created_at', { ascending: true }),
             sb.from('vw_pa_pipeline').select('*'),
           ]);
+          // Load calls in background (non-blocking)
+          const calls = await sb.from('calls_mentoria')
+            .select('id,mentorado_id,data_call,duracao_minutos,tipo,tipo_call,link_gravacao,link_transcricao,zoom_topic,status_call,"senha_Call",link_plano_acao,principais_topicos,decisoes_tomadas,created_at,mentorados(id,nome)')
+            .order('data_call', { ascending: false })
+            .limit(500);
           // Check individual query errors
           if (mentees.error) console.error('[Spalla] Mentees query error:', mentees.error.message);
           if (cohort.error) console.error('[Spalla] Cohort query error:', cohort.error.message);
@@ -1301,9 +1303,7 @@ function spalla() {
               observacoes_equipe: c.observacoes_equipe || null,
               created_at: c.created_at,
             }));
-            console.log('[Spalla] Calls loaded from Supabase:', this._supabaseCalls.length);
             // Log first 5 calls for debugging
-            console.log('[Spalla] Sample calls:', this._supabaseCalls.slice(0, 5).map(c => ({ nome: c.mentorado_nome, data: c.data_call })));
           }
           // Recalculate dias_desde_call with real call data
           if (this._supabaseCalls?.length) this._enrichMenteesWithCalls();
@@ -1365,6 +1365,14 @@ function spalla() {
       this.ui.page = 'detail';
       this.ui.activeDetailTab = 'resumo';
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      // Check cache (5 min TTL)
+      const cached = this._detailCache[id];
+      if (cached && Date.now() - cached.ts < 300000) {
+        this.data.detail = cached.data;
+        this.ui.detailLoading = false;
+        this._loadDetailWaMessages();
+        return;
+      }
       if (sb) {
         try {
           // Load deep detail + real calls in parallel
@@ -1403,6 +1411,7 @@ function spalla() {
               }
             }
             this.data.detail = detail;
+            this._detailCache[id] = { data: detail, ts: Date.now() };
           }
         } catch (e) {
           console.error('[Spalla] Detail fetch error:', e);
@@ -1417,6 +1426,7 @@ function spalla() {
     },
 
     async _loadDetailWaMessages() {
+      if (!EVOLUTION_INSTANCE) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
       const nome = this.data.detail?.profile?.nome;
       if (!nome) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
       // Enrich detail with overview WA metrics
@@ -1442,7 +1452,7 @@ function spalla() {
           const firstName = nome.split(' ')[0].toLowerCase();
           let chats = this.data.whatsappChats;
           if (!chats.length) {
-            const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
+            const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findChats/${EVOLUTION_INSTANCE}`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
             });
             if (res.ok) chats = await res.json();
@@ -1460,7 +1470,7 @@ function spalla() {
         if (!remoteJid) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
 
         // Fetch last 10 messages using remoteJid
-        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
+        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${EVOLUTION_INSTANCE}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ where: { key: { remoteJid } }, limit: 10 }),
@@ -1579,7 +1589,7 @@ function spalla() {
       if (!sb) return;
       const mid = this.ui.selectedMenteeId;
       if (!mid) return;
-      const user = this.auth.currentUser?.user_metadata?.full_name || this.auth.currentUser?.email || '';
+      const user = this.currentUserName;
       const { data, error } = await sb.from('pa_planos').insert({
         mentorado_id: mid,
         titulo: this.paForm.titulo || 'Plano de Ação',
@@ -1644,10 +1654,10 @@ function spalla() {
       const next = cycle[(idx + 1) % cycle.length];
       // Optimistic update
       acao.status = next;
-      if (next === 'concluido') acao.data_conclusao = new Date().toISOString().split('T')[0];
+      if (next === 'concluido') acao.data_conclusao = this.todayStr();
       const { error } = await sb.from('pa_acoes').update({
         status: next,
-        data_conclusao: next === 'concluido' ? new Date().toISOString().split('T')[0] : null,
+        data_conclusao: next === 'concluido' ? this.todayStr() : null,
       }).eq('id', acao.id);
       if (error) { this.toast('Erro ao atualizar status', 'error'); await this.loadMenteePa(); return; }
       // Auto-update phase status
@@ -1757,7 +1767,8 @@ function spalla() {
       else if (done > 0 || inProgress) newStatus = 'em_andamento';
       if (fase.status !== newStatus) {
         fase.status = newStatus;
-        await sb.from('pa_fases').update({ status: newStatus }).eq('id', faseId);
+        try { await sb.from('pa_fases').update({ status: newStatus }).eq('id', faseId); }
+        catch (e) { console.error('Erro ao atualizar fase:', e); }
       }
     },
 
@@ -1774,7 +1785,8 @@ function spalla() {
       else if (anyActive) newStatus = 'em_andamento';
       if (plano.status_geral !== newStatus) {
         plano.status_geral = newStatus;
-        await sb.from('pa_planos').update({ status_geral: newStatus }).eq('id', plano.id);
+        try { await sb.from('pa_planos').update({ status_geral: newStatus }).eq('id', plano.id); }
+        catch (e) { console.error('Erro ao atualizar plano:', e); }
       }
     },
 
@@ -1861,7 +1873,7 @@ function spalla() {
     paSentinelData(planoId) {
       const fases = this.data.paAllFases.filter(f => f.plano_id === planoId);
       const acoes = this.data.paAllAcoes.filter(a => a.plano_id === planoId);
-      const today = new Date().toISOString().split('T')[0];
+      const today = this.todayStr();
       const byTipo = {};
       for (const f of fases) {
         const tipo = f.tipo || 'fase';
@@ -1887,7 +1899,7 @@ function spalla() {
       const emExecucao = plans.filter(p => p.status_geral === 'em_andamento').length;
       const parados = plans.filter(p => p.status_geral === 'em_andamento' && (p.dias_sem_update || 0) > 14).length;
       const allAcoes = this.data.paAllAcoes;
-      const today = new Date().toISOString().split('T')[0];
+      const today = this.todayStr();
       const bloqueadas = allAcoes.filter(a => a.status === 'bloqueado').length;
       const totalAcoes = allAcoes.length;
       const concluidas = allAcoes.filter(a => a.status === 'concluido' || a.status === 'nao_aplicavel').length;
@@ -1902,7 +1914,7 @@ function spalla() {
     },
 
     paOverdueCount(planoId) {
-      const today = new Date().toISOString().split('T')[0];
+      const today = this.todayStr();
       return this.data.paAllAcoes.filter(a => a.plano_id === planoId && a.data_prevista && a.data_prevista < today && a.status !== 'concluido' && a.status !== 'nao_aplicavel').length;
     },
 
@@ -1950,7 +1962,7 @@ function spalla() {
     paAcaoOverdue(acao) {
       if (!acao.data_prevista) return false;
       if (acao.status === 'concluido' || acao.status === 'nao_aplicavel') return false;
-      return acao.data_prevista < new Date().toISOString().split('T')[0];
+      return acao.data_prevista < this.todayStr();
     },
 
     // Detail summary stats from paMenteePa (loaded detail)
@@ -1959,7 +1971,7 @@ function spalla() {
       if (!pa || !pa.fases) return { total: 0, concluidas: 0, bloqueadas: 0, vencidas: 0, subTotal: 0, subConcluidas: 0 };
       const acoes = pa.fases.flatMap(f => f.acoes || []);
       const subs = acoes.flatMap(a => a.sub_acoes || []);
-      const today = new Date().toISOString().split('T')[0];
+      const today = this.todayStr();
       return {
         total: acoes.length,
         concluidas: acoes.filter(a => a.status === 'concluido').length,
@@ -2028,7 +2040,6 @@ function spalla() {
             }));
             this._autoCategorize();
             this._cacheTasksLocal();
-            console.log('[Spalla] Tasks loaded from Supabase:', data.length);
             return;
           }
         } catch (e) { console.warn('[Spalla] Tasks fetch error, falling back:', e.message); }
@@ -2358,9 +2369,7 @@ function spalla() {
         const commentText = this.taskForm.newComment.trim();
         const commentId = crypto.randomUUID ? crypto.randomUUID() : 'comment_' + Date.now();
         // Get author name from current user
-        const authorName = this.auth.currentUser?.user_metadata?.full_name
-          || this.auth.currentUser?.email
-          || 'Equipe';
+        const authorName = this.currentUserName;
         t.comments.push({ id: commentId, author: authorName, text: commentText, timestamp: new Date().toISOString() });
         this.taskForm.newComment = '';
         this._cacheTasksLocal();
@@ -2386,7 +2395,9 @@ function spalla() {
         if (!t.tags.includes(tag)) t.tags.push(tag);
         this.taskForm.newTag = '';
         this._cacheTasksLocal();
-        if (sb) { const { error } = await sb.from('god_tasks').update({ tags: t.tags }).eq('id', taskId); if (error) this.toast('Erro ao salvar tag', 'error'); }
+        try {
+          if (sb) { const { error } = await sb.from('god_tasks').update({ tags: t.tags }).eq('id', taskId); if (error) this.toast('Erro ao salvar tag', 'error'); }
+        } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
       }
     },
 
@@ -2395,7 +2406,9 @@ function spalla() {
       if (t && t.tags) {
         t.tags = t.tags.filter(tg => tg !== tag);
         this._cacheTasksLocal();
-        if (sb) { const { error } = await sb.from('god_tasks').update({ tags: t.tags }).eq('id', taskId); if (error) this.toast('Erro ao remover tag', 'error'); }
+        try {
+          if (sb) { const { error } = await sb.from('god_tasks').update({ tags: t.tags }).eq('id', taskId); if (error) this.toast('Erro ao remover tag', 'error'); }
+        } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
       }
     },
 
@@ -2404,7 +2417,9 @@ function spalla() {
       if (t) {
         t.parent_task_id = parentId || null;
         this._cacheTasksLocal();
-        if (sb) { const { error } = await sb.from('god_tasks').update({ parent_task_id: parentId || null }).eq('id', taskId); if (error) this.toast('Erro ao vincular tarefa', 'error'); }
+        try {
+          if (sb) { const { error } = await sb.from('god_tasks').update({ parent_task_id: parentId || null }).eq('id', taskId); if (error) this.toast('Erro ao vincular tarefa', 'error'); }
+        } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
       }
     },
 
@@ -2435,16 +2450,7 @@ function spalla() {
 
     // Gantt helpers
     get ganttTasks() {
-      let tasks = [...this.data.tasks].filter(t => t.status !== 'concluida');
-      if (this.ui.taskSpaceFilter !== 'all') {
-        tasks = tasks.filter(t => t.space_id === this.ui.taskSpaceFilter);
-      }
-      if (this.ui.taskListFilter !== 'all') {
-        tasks = tasks.filter(t => t.list_id === this.ui.taskListFilter);
-      }
-      if (this.ui.taskAssignee) {
-        tasks = tasks.filter(t => t.responsavel?.toLowerCase().includes(this.ui.taskAssignee.toLowerCase()));
-      }
+      let tasks = this._filterTasks([...this.data.tasks].filter(t => t.status !== 'concluida'));
       return tasks.filter(t => t.data_inicio || t.data_fim || t.prazo).sort((a, b) => {
         const da = a.data_inicio || a.prazo || a.created_at || '';
         const db = b.data_inicio || b.prazo || b.created_at || '';
@@ -2553,7 +2559,6 @@ function spalla() {
           this.data.reminders = [];
         } else {
           this.data.reminders = data || [];
-          console.log('[Spalla] Reminders loaded:', this.data.reminders.length);
         }
       } catch (e) {
         console.error('[Spalla] Exception loading reminders:', e);
@@ -2661,9 +2666,10 @@ function spalla() {
     // ===================== WHATSAPP (Evolution API) =====================
 
     async fetchWhatsAppChats() {
+      if (!EVOLUTION_INSTANCE) { this.toast('WhatsApp não configurado', 'info'); return; }
       this.ui.whatsappLoading = true;
       try {
-        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findChats/${EVOLUTION_CONFIG.INSTANCE}`, {
+        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findChats/${EVOLUTION_INSTANCE}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({}),
@@ -2693,11 +2699,12 @@ function spalla() {
     },
 
     async selectWhatsAppChat(chat) {
+      if (!EVOLUTION_INSTANCE) return;
       this.ui.whatsappSelectedChat = chat;
       this.ui.whatsappLoading = true;
       this.stopWhatsAppPolling(); // Stop previous polling
       try {
-        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${EVOLUTION_CONFIG.INSTANCE}`, {
+        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${EVOLUTION_INSTANCE}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ where: { key: { remoteJid: chat.remoteJid || chat.id } }, limit: 50 }),
@@ -2726,11 +2733,11 @@ function spalla() {
     },
 
     async sendWhatsAppMessage() {
-      if (!this.ui.whatsappMessage.trim() || !this.ui.whatsappSelectedChat) return;
+      if (!EVOLUTION_INSTANCE || !this.ui.whatsappMessage.trim() || !this.ui.whatsappSelectedChat) return;
       const msg = this.ui.whatsappMessage.trim();
       this.ui.whatsappMessage = '';
       try {
-        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/message/sendText/${EVOLUTION_CONFIG.INSTANCE}`, {
+        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/message/sendText/${EVOLUTION_INSTANCE}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ number: this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id, text: msg }),
@@ -2801,7 +2808,6 @@ function spalla() {
         // Check if Evolution API provided mediaUrl
         if (msg.message?.mediaUrl) {
           this.waMediaUrls[msgId] = msg.message.mediaUrl;
-          console.log(`[Spalla] Eagerly loaded mediaUrl: ${msgId}`);
           updated = true;
         }
       }
@@ -2826,7 +2832,6 @@ function spalla() {
         if (!this.waMediaUrls) this.waMediaUrls = {};
         this.waMediaUrls[msgId] = msg.message.mediaUrl;
         this.waMediaUrls = { ...this.waMediaUrls };
-        console.log(`[Spalla] Using Evolution mediaUrl: ${msgId}`);
         return msg.message.mediaUrl;
       }
 
@@ -2841,7 +2846,7 @@ function spalla() {
       if (!mediaType) return '';
 
       // Get Evolution instance UUID and chat ID
-      const instanceId = EVOLUTION_CONFIG?.INSTANCE_UUID || EVOLUTION_CONFIG?.INSTANCE || 'default';
+      const instanceId = (typeof EVOLUTION_CONFIG !== 'undefined' ? EVOLUTION_CONFIG?.INSTANCE_UUID : null) || EVOLUTION_INSTANCE || 'default';
       const chatId = this.ui.whatsappSelectedChat?.remoteJid || this.ui.whatsappSelectedChat?.id || 'unknown';
 
       // Build filename
@@ -2853,7 +2858,6 @@ function spalla() {
       const s3Key = `evolution-api/${instanceId}/${chatId}/${mediaType}/${filename}`;
       const streamUrl = `${CONFIG.API_BASE}/api/media/stream?key=${encodeURIComponent(s3Key)}`;
 
-      console.log(`[Spalla] Stream fallback: ${s3Key}`);
 
       // Set URL immediately
       if (!this.waMediaUrls) this.waMediaUrls = {};
@@ -3301,7 +3305,6 @@ function spalla() {
     async fetchUpcomingCalls() {
       try {
         if (!sb) {
-          console.log('[Schedule] Supabase not available, using demo data');
           return;
         }
 
@@ -3355,35 +3358,9 @@ function spalla() {
           };
         });
       } catch (e) {
-        console.log('[Schedule] Could not fetch upcoming calls:', e);
       }
     },
 
-    async fetchMenteesWithEmail() {
-      // Mentees already loaded from demo data in init()
-      // If connecting to backend API in future, uncomment below:
-      // try {
-      //   const resp = await fetch(CONFIG.API_BASE + '/api/mentees');
-      //   const mentees = await resp.json();
-      //   if (Array.isArray(mentees)) {
-      //     this._menteesWithEmail = mentees;
-      //   }
-      // } catch (e) {
-      //   console.log('[Mentees] Could not fetch:', e);
-      // }
-    },
-
-    async checkIntegrations() {
-      // Health checks disabled — using Supabase directly
-      // If connecting to backend API in future, uncomment below:
-      // try {
-      //   const resp = await fetch(CONFIG.API_BASE + '/api/health');
-      //   const health = await resp.json();
-      //   this._integrations = health;
-      // } catch (e) {
-      //   console.log('[Health] Could not check:', e);
-      // }
-    },
 
     async updateInstagramProfiles() {
       /**
@@ -3399,11 +3376,9 @@ function spalla() {
           .map(m => m.instagram);
 
         if (!handles.length) {
-          console.log('[Instagram] No mentees with Instagram handles');
           return;
         }
 
-        console.log(`[Instagram] Updating ${handles.length} profiles from Apify...`);
 
         // Call the Apify integration function from data.js
         if (typeof fetchInstagramProfilesFromApify === 'function') {
@@ -3414,7 +3389,6 @@ function spalla() {
 
           // Count successful updates
           const updated = Object.keys(profiles).length;
-          console.log(`[Instagram] ✓ Updated ${updated} profiles`);
 
           // Trigger photo tick update to refresh any displayed follower counts
           this.photoTick++;
@@ -3596,7 +3570,7 @@ function spalla() {
         }
       }
 
-      const user = this.auth.currentUser?.user_metadata?.full_name || this.auth.currentUser?.email || 'Sistema';
+      const user = this.currentUserName;
       const proximoResp = nextEstagio.responsavel || user;
       const now = new Date().toISOString();
 
@@ -3642,7 +3616,7 @@ function spalla() {
       if (curIdx <= 0) return;
 
       const prevEstagio = DS_ESTAGIOS[curIdx - 1];
-      const user = this.auth.currentUser?.user_metadata?.full_name || this.auth.currentUser?.email || 'Sistema';
+      const user = this.currentUserName;
 
       const { error } = await sb.from('ds_documentos').update({
         estagio_atual: prevEstagio.id,
@@ -3680,7 +3654,7 @@ function spalla() {
       if (!sb) return;
       const { error } = await sb.from('ds_producoes').update({ contrato_assinado: valor }).eq('id', producaoId);
       if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
-      const user = this.auth.currentUser?.user_metadata?.full_name || 'Sistema';
+      const user = this.currentUserName;
       await this._logDsEvento(producaoId, null, 'nota', null, valor, user, `Contrato: ${valor}`);
       await this.loadDsData();
       this.toast('Contrato atualizado', 'success');
@@ -3693,7 +3667,7 @@ function spalla() {
       const { error } = await sb.from('ds_producoes').update(update).eq('id', producaoId);
       if (error) this.toast('Erro: ' + error.message, 'error');
       else {
-        const user = this.auth.currentUser?.user_metadata?.full_name || 'Sistema';
+        const user = this.currentUserName;
         await this._logDsEvento(producaoId, null, 'nota', null, data, user, `${campo} definido: ${data}`);
         await this.loadDsData();
         this.toast('Data atualizada', 'success');
@@ -3712,7 +3686,7 @@ function spalla() {
         deadline: deadline || null,
       });
       if (error) { this.toast('Erro ao criar ajuste: ' + error.message, 'error'); return; }
-      const user = this.auth.currentUser?.user_metadata?.full_name || 'Sistema';
+      const user = this.currentUserName;
       await this._logDsEvento(producaoId, docId, 'ajuste_criado', null, descricao, user, `Ajuste: ${descricao}`);
       await this.loadDsMenteeDetail(producaoId);
       this.toast('Ajuste criado', 'success');
@@ -3726,7 +3700,7 @@ function spalla() {
       const { error } = await sb.from('ds_ajustes').update({ status: nextStatus }).eq('id', ajusteId);
       if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
       if (nextStatus === 'concluido') {
-        const user = this.auth.currentUser?.user_metadata?.full_name || 'Sistema';
+        const user = this.currentUserName;
         await this._logDsEvento(aj.producao_id, aj.documento_id, 'ajuste_concluido', aj.status, 'concluido', user, aj.descricao);
       }
       await this.loadDsMenteeDetail(aj.producao_id);
@@ -3753,22 +3727,43 @@ function spalla() {
       const mostBehindDoc = docs.reduce((a, b) => this.dsEstagioNum(a.estagio_atual) <= this.dsEstagioNum(b.estagio_atual) ? a : b);
       const responsavel = mostBehindDoc.responsavel_atual;
 
-      await sb.from('ds_producoes').update({ status: newStatus, responsavel_atual: responsavel }).eq('id', producaoId);
+      try { await sb.from('ds_producoes').update({ status: newStatus, responsavel_atual: responsavel }).eq('id', producaoId); }
+      catch (e) { console.error('Erro ao atualizar producao:', e); }
     },
 
     async _logDsEvento(producaoId, docId, tipo, de, para, responsavel, descricao) {
       if (!sb) return;
       const mentoradoId = this.data.dsMenteeDetail?.mentorado_id || null;
-      await sb.from('ds_eventos').insert({
-        producao_id: producaoId,
-        documento_id: docId || null,
-        mentorado_id: mentoradoId,
-        tipo_evento: tipo,
-        de_valor: de || null,
-        para_valor: para || null,
-        responsavel,
-        descricao,
-      });
+      try {
+        await sb.from('ds_eventos').insert({
+          producao_id: producaoId,
+          documento_id: docId || null,
+          mentorado_id: mentoradoId,
+          tipo_evento: tipo,
+          de_valor: de || null,
+          para_valor: para || null,
+          responsavel,
+          descricao,
+        });
+      } catch (e) { console.error('Erro ao logar evento DS:', e); }
+    },
+
+    // --- OB Event Logging (Timeline) ---
+    async _logObEvento(trilhaId, etapaId, tarefaId, tipo, de, para, descricao) {
+      if (!sb) return;
+      try {
+        const user = this.currentUserName;
+        await sb.from('ob_eventos').insert({
+          trilha_id: trilhaId,
+          etapa_id: etapaId || null,
+          tarefa_id: tarefaId || null,
+          tipo_evento: tipo,
+          de_valor: de || null,
+          para_valor: para || null,
+          responsavel: user,
+          descricao,
+        });
+      } catch (e) { console.warn('[OB] _logObEvento failed:', e); }
     },
 
     dsCanAdvance(doc) {
@@ -3913,7 +3908,7 @@ function spalla() {
         title: `Mover ${prod.mentorado_nome}?`,
         msg: `Todos os 3 documentos serao movidos para "${targetStage.label}". Esta acao sera registrada no historico.`,
         onConfirm: async () => {
-          const user = this.auth.currentUser?.user_metadata?.full_name || this.auth.currentUser?.email || 'Sistema';
+          const user = this.currentUserName;
           for (const doc of docs) {
             const curNum = this.dsEstagioNum(doc.estagio_atual);
             if (curNum === targetNum) continue;
@@ -3993,6 +3988,11 @@ function spalla() {
           tarefas: (tarefasRes.data || []).filter(t => t.etapa_id === e.id),
         }));
         this.data.obTrilhaDetail = { ...trilhaRes.data, etapas };
+        // Load eventos separately (table may not exist yet)
+        try {
+          const eventosRes = await sb.from('ob_eventos').select('*').eq('trilha_id', trilhaId).order('created_at', { ascending: false }).limit(100);
+          this.data.obEventos = eventosRes.data || [];
+        } catch (_) { this.data.obEventos = []; }
         // Auto-expand first non-completed etapa
         if (etapas.length && !Object.values(this.ui.obExpandedEtapas).some(v => v)) {
           const first = etapas.find(e => e.status !== 'concluido') || etapas[0];
@@ -4041,6 +4041,15 @@ function spalla() {
 
     async toggleObTarefa(tarefaId, novoStatus) {
       if (!sb || !tarefaId) return;
+      // Capture tarefa info before update for logging
+      const detail = this.data.obTrilhaDetail;
+      let tarefaInfo = null;
+      if (detail) {
+        for (const et of (detail.etapas || [])) {
+          const t = (et.tarefas || []).find(t => t.id === tarefaId);
+          if (t) { tarefaInfo = { ...t, etapa_id: et.id, trilha_id: detail.id }; break; }
+        }
+      }
       const now = novoStatus === 'concluido' ? new Date().toISOString() : null;
       const { error } = await sb.from('ob_tarefas').update({
         status: novoStatus,
@@ -4048,6 +4057,12 @@ function spalla() {
         updated_at: new Date().toISOString(),
       }).eq('id', tarefaId);
       if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      // Log event
+      if (tarefaInfo) {
+        const tipo = novoStatus === 'concluido' ? 'tarefa_concluida' : 'tarefa_reaberta';
+        const desc = (novoStatus === 'concluido' ? 'Concluiu' : 'Reabriu') + ': ' + (tarefaInfo.descricao || '');
+        await this._logObEvento(tarefaInfo.trilha_id, tarefaInfo.etapa_id, tarefaId, tipo, tarefaInfo.status, novoStatus, desc);
+      }
       // Refresh detail
       if (this.ui.obDetailTrilhaId) {
         await this.loadObDetail(this.ui.obDetailTrilhaId);
@@ -4070,21 +4085,43 @@ function spalla() {
       const anyDone = etapa.tarefas.some(t => t.status === 'concluido');
       const newStatus = allDone ? 'concluido' : anyDone ? 'em_andamento' : 'pendente';
       if (newStatus !== etapa.status) {
-        await sb.from('ob_etapas').update({ status: newStatus }).eq('id', etapaId);
+        try {
+          await sb.from('ob_etapas').update({ status: newStatus }).eq('id', etapaId);
+          const tipo = newStatus === 'concluido' ? 'etapa_concluida' : 'etapa_iniciada';
+          const desc = (newStatus === 'concluido' ? 'Etapa concluída' : 'Etapa iniciada') + ': ' + (etapa.nome || '');
+          await this._logObEvento(detail.id, etapaId, null, tipo, etapa.status, newStatus, desc);
+        } catch (e) { console.error('Erro ao recalcular etapa:', e); }
       }
     },
 
     async updateObTarefaResponsavel(tarefaId, resp) {
       if (!sb) return;
+      // Capture old value for logging
+      const detail = this.data.obTrilhaDetail;
+      let oldResp = null, tarefaDesc = '', etapaId = null;
+      if (detail) {
+        for (const et of (detail.etapas || [])) {
+          const t = (et.tarefas || []).find(t => t.id === tarefaId);
+          if (t) { oldResp = t.responsavel; tarefaDesc = t.descricao; etapaId = et.id; break; }
+        }
+      }
       const { error } = await sb.from('ob_tarefas').update({ responsavel: resp }).eq('id', tarefaId);
       if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      // Log event
+      if (detail) {
+        await this._logObEvento(detail.id, etapaId, tarefaId, 'responsavel_alterado', oldResp, resp, 'Responsável alterado em: ' + tarefaDesc);
+      }
       if (this.ui.obDetailTrilhaId) await this.loadObDetail(this.ui.obDetailTrilhaId);
     },
 
     async updateObTrilhaStatus(trilhaId, status) {
       if (!sb) return;
+      const oldStatus = this.data.obTrilhaDetail?.status || null;
       const { error } = await sb.from('ob_trilhas').update({ status, updated_at: new Date().toISOString() }).eq('id', trilhaId);
       if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      // Log event
+      const statusLabels = { em_andamento: 'Em Andamento', concluido: 'Concluído', pausado: 'Pausado' };
+      await this._logObEvento(trilhaId, null, null, 'trilha_status', oldStatus, status, 'Status: ' + (statusLabels[oldStatus] || oldStatus || '-') + ' → ' + (statusLabels[status] || status));
       await this.loadObData();
       if (this.ui.obDetailTrilhaId === trilhaId) await this.loadObDetail(trilhaId);
       this.toast('Status atualizado', 'success');
@@ -4167,7 +4204,18 @@ function spalla() {
       const totalTarefas = trilhas.reduce((s, t) => s + (t.total_tarefas || 0), 0);
       const tarefasConcluidas = trilhas.reduce((s, t) => s + (t.tarefas_concluidas || 0), 0);
       const progressoMedio = totalTarefas > 0 ? Math.round((tarefasConcluidas / totalTarefas) * 100) : 0;
-      return { total, emAndamento, concluidas, atrasadas, progressoMedio };
+      // Duração média das trilhas concluídas
+      const concluidasList = trilhas.filter(t => t.status === 'concluido' && t.data_inicio);
+      let duracaoMedia = 0;
+      if (concluidasList.length) {
+        const totalDias = concluidasList.reduce((s, t) => {
+          const start = new Date(t.data_inicio + 'T00:00:00');
+          const end = t.updated_at ? new Date(t.updated_at) : new Date();
+          return s + Math.max(0, Math.floor((end - start) / 86400000));
+        }, 0);
+        duracaoMedia = Math.round(totalDias / concluidasList.length);
+      }
+      return { total, emAndamento, concluidas, atrasadas, progressoMedio, duracaoMedia };
     },
 
     // --- OB Filters ---
@@ -4214,6 +4262,36 @@ function spalla() {
       return diff > 0 ? diff : 0;
     },
 
+    obTarefaDuracao(tarefa) {
+      if (!tarefa?.created_at) return 0;
+      const start = new Date(tarefa.created_at);
+      const end = tarefa.data_concluida ? new Date(tarefa.data_concluida) : new Date();
+      return Math.max(0, Math.floor((end - start) / 86400000));
+    },
+
+    obEtapaDuracao(etapa) {
+      if (!etapa?.tarefas?.length) return 0;
+      const dates = etapa.tarefas.map(t => t.created_at ? new Date(t.created_at).getTime() : null).filter(Boolean);
+      if (!dates.length) return 0;
+      const start = Math.min(...dates);
+      const concluidas = etapa.tarefas.filter(t => t.data_concluida).map(t => new Date(t.data_concluida).getTime());
+      const end = etapa.status === 'concluido' && concluidas.length ? Math.max(...concluidas) : Date.now();
+      return Math.max(0, Math.floor((end - start) / 86400000));
+    },
+
+    obTrilhaDuracao(trilha) {
+      if (!trilha?.data_inicio) return 0;
+      const start = new Date(trilha.data_inicio + 'T00:00:00');
+      const end = trilha.status === 'concluido' && trilha.updated_at ? new Date(trilha.updated_at) : new Date();
+      return Math.max(0, Math.floor((end - start) / 86400000));
+    },
+
+    obFormatDateTime(d) {
+      if (!d) return '-';
+      const dt = new Date(d);
+      return dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    },
+
     obEtapaProgress(etapa) {
       if (!etapa?.tarefas?.length) return 0;
       const done = etapa.tarefas.filter(t => t.status === 'concluido').length;
@@ -4242,6 +4320,7 @@ function spalla() {
 
     obCloseDetail() {
       this.data.obTrilhaDetail = null;
+      this.data.obEventos = [];
       this.ui.obDetailTrilhaId = null;
       this.ui.obExpandedEtapas = {};
     },
@@ -4327,20 +4406,7 @@ function spalla() {
       return `R$ ${val.toLocaleString('pt-BR')}`;
     },
 
-    _parseDate(dateStr) {
-      if (!dateStr) return null;
-      // Handle DD/MM/YYYY format
-      if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
-        const [dd, mm, yy] = dateStr.split('/');
-        return new Date(`${yy}-${mm}-${dd}T00:00:00`);
-      }
-      // Handle YYYY-MM-DD (force local timezone, not UTC)
-      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-        return new Date(dateStr + 'T00:00:00');
-      }
-      const d = new Date(dateStr);
-      return isNaN(d.getTime()) ? null : d;
-    },
+    _parseDate(dateStr) { return parseDateStr(dateStr); },
 
     systemDateLabel() {
       return SYSTEM_TODAY().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });

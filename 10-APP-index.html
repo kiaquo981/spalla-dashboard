@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="13-APP-styles.css?v=57">
+  <link rel="stylesheet" href="13-APP-styles.css?v=59">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a,#1e293b,#0f172a);font-family:'Inter',sans-serif;color:#10b981;font-size:24px;font-weight:800; }
@@ -30,8 +30,10 @@
         <!-- Login Mode -->
         <template x-if="auth.mode === 'login'">
           <div>
-            <input type="email" class="auth-card__input" placeholder="Email" x-model="auth.email" @keydown.enter="login()">
-            <input type="password" class="auth-card__input" placeholder="Senha" x-model="auth.password" @keydown.enter="login()">
+            <label for="login-email" class="sr-only">Email</label>
+            <input id="login-email" type="email" class="auth-card__input" placeholder="Email" x-model="auth.email" @keydown.enter="login()" required>
+            <label for="login-password" class="sr-only">Senha</label>
+            <input id="login-password" type="password" class="auth-card__input" placeholder="Senha" x-model="auth.password" @keydown.enter="login()" required>
             <button class="auth-card__btn" @click="login()">Entrar</button>
             <div class="auth-card__toggle">
               <button @click="auth.mode='reset'; auth.error=''; auth.success=''" style="background:none;border:none;color:#94a3b8;cursor:pointer;text-decoration:underline;font-size:13px">Esqueci minha senha</button>
@@ -45,10 +47,14 @@
         <!-- Register Mode -->
         <template x-if="auth.mode === 'register'">
           <div>
-            <input type="text" class="auth-card__input" placeholder="Nome completo" x-model="auth.fullName" @keydown.enter="register()">
-            <input type="email" class="auth-card__input" placeholder="Email" x-model="auth.email" @keydown.enter="register()">
-            <input type="password" class="auth-card__input" placeholder="Senha (min. 6 caracteres)" x-model="auth.password" @keydown.enter="register()">
-            <input type="password" class="auth-card__input" placeholder="Confirmar senha" x-model="auth.confirmPassword" @keydown.enter="register()">
+            <label for="reg-name" class="sr-only">Nome completo</label>
+            <input id="reg-name" type="text" class="auth-card__input" placeholder="Nome completo" x-model="auth.fullName" @keydown.enter="register()" required>
+            <label for="reg-email" class="sr-only">Email</label>
+            <input id="reg-email" type="email" class="auth-card__input" placeholder="Email" x-model="auth.email" @keydown.enter="register()" required>
+            <label for="reg-password" class="sr-only">Senha</label>
+            <input id="reg-password" type="password" class="auth-card__input" placeholder="Senha (min. 6 caracteres)" x-model="auth.password" @keydown.enter="register()" required>
+            <label for="reg-confirm" class="sr-only">Confirmar senha</label>
+            <input id="reg-confirm" type="password" class="auth-card__input" placeholder="Confirmar senha" x-model="auth.confirmPassword" @keydown.enter="register()" required>
             <button class="auth-card__btn" @click="register()">Criar conta</button>
             <div class="auth-card__toggle">
               Já tem conta? <button @click="toggleAuthMode()" style="background:none;border:none;color:#6366f1;cursor:pointer;text-decoration:underline">Entrar</button>
@@ -60,7 +66,8 @@
         <template x-if="auth.mode === 'reset'">
           <div>
             <p style="color:#94a3b8;font-size:14px;margin-bottom:16px;text-align:center">Digite seu email e enviaremos um link para redefinir sua senha.</p>
-            <input type="email" class="auth-card__input" placeholder="Email" x-model="auth.email" @keydown.enter="resetPassword()">
+            <label for="reset-email" class="sr-only">Email</label>
+            <input id="reset-email" type="email" class="auth-card__input" placeholder="Email" x-model="auth.email" @keydown.enter="resetPassword()" required>
             <button class="auth-card__btn" @click="resetPassword()">Enviar link de recuperação</button>
             <div class="auth-card__toggle">
               <button @click="auth.mode='login'; auth.error=''; auth.success=''" style="background:none;border:none;color:#6366f1;cursor:pointer;text-decoration:underline">Voltar ao login</button>
@@ -169,7 +176,7 @@
           </button>
           <div class="topbar__search">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" placeholder="Buscar mentorado, nicho, instagram..." x-model="ui.search">
+            <input type="text" placeholder="Buscar mentorado, nicho, instagram..." x-model.debounce.300ms="ui.search">
           </div>
           <div class="topbar__right">
             <span class="topbar__date" x-text="today()"></span>
@@ -186,8 +193,8 @@
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
             <h2 style="font-size:18px;font-weight:700;color:#1a1a1a;margin:0">Painel Geral</h2>
             <div style="display:flex;align-items:center;gap:12px">
-              <button @click="syncSheets()" :disabled="ui.sheetsSyncing" style="background:rgba(99,102,241,0.1);color:#6366f1;border:1px solid rgba(99,102,241,0.3);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;transition:all 0.2s ease" onmouseover="this.style.background='rgba(99,102,241,0.2)'" onmouseout="this.style.background='rgba(99,102,241,0.1)'"><span x-text="ui.sheetsSyncing ? '⏳ Sincronizando...' : '📊 Sync Sheets'"></span></button>
-              <button @click="loadDashboard()" style="background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.3);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;transition:all 0.2s ease" onmouseover="this.style.background='rgba(16,185,129,0.2)'" onmouseout="this.style.background='rgba(16,185,129,0.1)'">↻ Atualizar</button>
+              <button @click="syncSheets()" :disabled="ui.sheetsSyncing" class="btn-sync btn-sync--indigo"><span x-text="ui.sheetsSyncing ? '⏳ Sincronizando...' : '📊 Sync Sheets'"></span></button>
+              <button @click="loadDashboard()" class="btn-sync btn-sync--green">↻ Atualizar</button>
               <span style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:6px">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                 <span x-text="systemDateLabel()"></span>
@@ -1205,7 +1212,7 @@
                 <select class="filter-bar__select" x-model="ui.taskAssignee" style="min-width:160px">
                   <option value="">Todos</option>
                   <option value="__mine__">Minhas Tarefas</option>
-                  <template x-for="tm in TEAM_MEMBERS.filter(t => t.email !== auth.currentUser?.email)" :key="tm.email"><option :value="tm.name" x-text="tm.name"></option></template>
+                  <template x-for="tm in TEAM_MEMBERS.filter(t => t.name !== auth.currentUser?.full_name)" :key="tm.id"><option :value="tm.name" x-text="tm.name"></option></template>
                   <option value="Mentorado">Mentorado</option>
                 </select>
                 <select class="filter-bar__select" x-model="ui.taskGroupBy" style="width:auto;min-width:120px">
@@ -1750,7 +1757,7 @@
           </div>
 
           <!-- Schedule Call Modal -->
-          <div class="modal-overlay" x-show="ui.scheduleModal" x-transition.opacity @click.self="ui.scheduleModal = false">
+          <div class="modal-overlay" x-show="ui.scheduleModal" x-transition.opacity @click.self="ui.scheduleModal = false" role="dialog" aria-modal="true">
             <div class="modal" style="max-width:520px">
               <div class="modal__header">
                 <h3>Agendar Call</h3>
@@ -1969,7 +1976,7 @@
           </div>
 
           <!-- Reminder Modal -->
-          <div class="modal-overlay" x-show="ui.reminderModal" x-transition.opacity @click.self="closeReminderModal()">
+          <div class="modal-overlay" x-show="ui.reminderModal" x-transition.opacity @click.self="closeReminderModal()" role="dialog" aria-modal="true">
             <div class="modal">
               <div class="modal__header"><h3>Novo Lembrete</h3><button @click="closeReminderModal()">&times;</button></div>
               <div class="modal__body">
@@ -2247,7 +2254,7 @@
 
             <!-- Search + Filter + View Toggle -->
             <div class="ds-toolbar" x-show="!ui.dsLoading">
-              <input type="text" class="ds-toolbar__search" placeholder="Buscar mentorado..." x-model="ui.dsSearchQuery" aria-label="Buscar mentorado">
+              <input type="text" class="ds-toolbar__search" placeholder="Buscar mentorado..." x-model.debounce.300ms="ui.dsSearchQuery" aria-label="Buscar mentorado">
               <select class="ds-toolbar__select" x-model="ui.dsFilter" aria-label="Filtrar por status">
                 <option value="all">Todos</option>
                 <option value="nao_iniciado">Nao Iniciado</option>
@@ -2421,7 +2428,7 @@
 
           <!-- Search + Filters + View Toggle -->
           <div class="pa-search">
-            <input type="text" class="pa-search__input" placeholder="Buscar mentorado..." x-model="ui.paSearchQuery">
+            <input type="text" class="pa-search__input" placeholder="Buscar mentorado..." x-model.debounce.300ms="ui.paSearchQuery">
             <select class="ln-select" x-model="ui.paFilter">
               <option value="all">Todos os status</option>
               <option value="nao_iniciado">Aguardando Início</option>
@@ -2598,7 +2605,7 @@
           </div>
 
           <!-- KPI Strip -->
-          <div class="ob-page-kpis" x-data="{ ok: null }" x-effect="ok = obPageKpis()">
+          <div class="ob-page-kpis" x-show="!data.obTrilhaDetail && !ui.obTemplateMode" x-data="{ ok: null }" x-effect="ok = obPageKpis()">
             <div class="ob-page-kpis__card">
               <span class="ob-page-kpis__val" x-text="ok?.total || 0"></span>
               <span class="ob-page-kpis__label">Total Trilhas</span>
@@ -2619,11 +2626,15 @@
               <span class="ob-page-kpis__val ob-page-kpis__val--success" x-text="(ok?.progressoMedio || 0) + '%'"></span>
               <span class="ob-page-kpis__label">Progresso Médio</span>
             </div>
+            <div class="ob-page-kpis__card">
+              <span class="ob-page-kpis__val" x-text="(ok?.duracaoMedia || 0) + 'd'"></span>
+              <span class="ob-page-kpis__label">Duração Média</span>
+            </div>
           </div>
 
           <!-- Search + Filter + View Toggle + Template btn -->
-          <div class="ob-toolbar">
-            <input type="text" class="ob-search__input" placeholder="Buscar mentorado ou CS..." x-model="ui.obSearchQuery">
+          <div class="ob-toolbar" x-show="!data.obTrilhaDetail && !ui.obTemplateMode">
+            <input type="text" class="ob-search__input" placeholder="Buscar mentorado ou CS..." x-model.debounce.300ms="ui.obSearchQuery">
             <select class="ln-select" x-model="ui.obFilter">
               <option value="all">Todos os status</option>
               <option value="em_andamento">Em Andamento</option>
@@ -2674,6 +2685,7 @@
                           <div class="ob-progress__fill" :style="'width:' + obEtapaProgress(etapa) + '%;background:' + obProgressColor(obEtapaProgress(etapa))"></div>
                         </div>
                         <span class="ob-etapa__progress-label" x-text="etapa.tarefas.filter(t => t.status === 'concluido').length + '/' + etapa.tarefas.length"></span>
+              <span class="ob-duracao ob-duracao--ok" style="margin-left:6px;font-size:11px;" x-text="obEtapaDuracao(etapa) + 'd'"></span>
                       </div>
                       <span x-text="obEtapaStatusIcon(etapa.status)"></span>
                       <svg class="ob-etapa__chevron" :class="{ 'ob-etapa__chevron--open': isObEtapaExpanded(etapa.id) }" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
@@ -2687,11 +2699,35 @@
                           <span class="ob-checklist__prazo" x-text="'D+' + (tarefa.prazo_dias || 0)"></span>
                           <span class="ob-checklist__data" x-show="tarefa.data_prevista" x-text="tarefa.data_prevista || ''"></span>
                           <span class="ob-checklist__atraso" x-show="tarefa.status === 'pendente' && tarefa.data_prevista && obDiasAtraso(tarefa.data_prevista) > 0" x-text="obDiasAtraso(tarefa.data_prevista) + 'd atraso'"></span>
+                          <span class="ob-duracao" :class="tarefa.status === 'pendente' && tarefa.data_prevista && obDiasAtraso(tarefa.data_prevista) > 0 ? 'ob-duracao--atrasado' : 'ob-duracao--ok'" x-text="obTarefaDuracao(tarefa) + 'd'"></span>
                         </div>
                       </template>
                     </div>
                   </div>
                 </template>
+              </div>
+
+              <!-- Timeline / Histórico -->
+              <div class="ob-timeline-section">
+                <h3 class="ob-timeline-section__title">Timeline</h3>
+                <div class="ob-timeline" role="log" aria-label="Histórico de eventos">
+                  <template x-for="ev in data.obEventos" :key="ev.id">
+                    <div class="ob-timeline__item">
+                      <span class="ob-timeline__dot" :class="{
+                        'ob-timeline__dot--concluida': ev.tipo_evento === 'tarefa_concluida' || ev.tipo_evento === 'etapa_concluida',
+                        'ob-timeline__dot--reaberta': ev.tipo_evento === 'tarefa_reaberta',
+                        'ob-timeline__dot--status': ev.tipo_evento === 'trilha_status',
+                        'ob-timeline__dot--resp': ev.tipo_evento === 'responsavel_alterado'
+                      }"></span>
+                      <span class="ob-timeline__time" x-text="obFormatDateTime(ev.created_at)"></span>
+                      <span class="ob-timeline__user" x-text="ev.responsavel || '-'"></span>
+                      <span class="ob-timeline__desc" x-text="ev.descricao || (ev.de_valor ? ev.de_valor + ' → ' + ev.para_valor : ev.para_valor)"></span>
+                    </div>
+                  </template>
+                  <div class="ob-timeline__empty" x-show="!data.obEventos.length" style="padding:16px;text-align:center;color:var(--text-secondary);">
+                    Nenhum evento registrado
+                  </div>
+                </div>
               </div>
             </div>
           </template>
@@ -2836,7 +2872,7 @@
           </div>
 
           <!-- ===== MODAL: Nova Trilha ===== -->
-          <div class="modal-backdrop" x-show="ui.obNewTrilhaModal" x-transition @click.self="ui.obNewTrilhaModal = false">
+          <div class="modal-backdrop" x-show="ui.obNewTrilhaModal" x-transition @click.self="ui.obNewTrilhaModal = false" role="dialog" aria-modal="true">
             <div class="modal modal--sm">
               <div class="modal__header">
                 <h3>Nova Trilha de Onboarding</h3>
@@ -2952,7 +2988,7 @@
       </main>
 
       <!-- Task Modal — Global (outside pages so visible on all pages) -->
-      <div class="modal-overlay" x-show="ui.taskModal" x-transition.opacity @click.self="closeTaskModal()">
+      <div class="modal-overlay" x-show="ui.taskModal" x-transition.opacity @click.self="closeTaskModal()" role="dialog" aria-modal="true">
         <div class="modal modal--lg">
           <div class="modal__header"><h3>Nova Tarefa</h3><button @click="closeTaskModal()">&times;</button></div>
           <div class="modal__body">
@@ -2975,7 +3011,7 @@
                 <select x-model="taskForm.responsavel" class="modal__input">
                   <option value="">-- Selecione --</option>
                   <option value="Mentorado">Mentorado</option>
-                  <template x-for="tm in TEAM_MEMBERS" :key="tm.email"><option :value="tm.name" x-text="tm.name"></option></template>
+                  <template x-for="tm in TEAM_MEMBERS" :key="tm.id"><option :value="tm.name" x-text="tm.name"></option></template>
                 </select>
               </div>
             </div>
@@ -3038,9 +3074,9 @@
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js" integrity="sha384-Sm2s7OXxsAMTyJ4iIyRBgVpeGUvMPk2lRQnnZhE78Wej7oggIoolKt+SCt0XJbUB" crossorigin="anonymous"></script>
-  <script src="12-APP-data.js?v=57"></script>
-  <script src="13-APP-photos.js?v=57"></script>
-  <script src="11-APP-app.js?v=57"></script>
+  <script src="12-APP-data.js?v=59"></script>
+  <script src="13-APP-photos.js?v=59"></script>
+  <script src="11-APP-app.js?v=59"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {
