@@ -588,7 +588,7 @@ function spalla() {
         const carga = Math.min(Math.round((pendentes + emAndamento) / 20 * 100), 100);
         return {
           name: member.name,
-          email: member.email,
+          id: member.id,
           pendentes, emAndamento, atrasadas, concluidas7d, mentorados, carga,
           cargaStatus: carga >= 85 ? 'danger' : carga >= 60 ? 'warning' : 'success',
         };
