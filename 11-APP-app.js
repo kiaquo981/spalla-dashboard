@@ -1364,8 +1364,7 @@ function spalla() {
                 duracao: c.duracao_minutos || 0,
                 resumo: c.resumo || c.zoom_topic || 'Call de acompanhamento',
                 gravacao: c.link_gravacao || null,
-                transcricao: this.isRealTranscricao(c.link_transcricao) ? c.link_transcricao : null,
-                transcript_completo: c.transcript_completo || null,
+                transcricao: c.link_transcricao || null,
                 decisoes_tomadas: c.decisoes_tomadas || [],
                 feedbacks_queila: c.feedbacks_consultora || c.proximos_passos || [],
               }));
@@ -3038,9 +3037,7 @@ function spalla() {
           horario: c.horario_call || null, status_call: c.status_call || null,
           topic: c.zoom_topic || '', resumo: c.resumo || null,
           gravacao: c.link_gravacao || null,
-          transcricao: this.isRealTranscricao(c.link_transcricao) ? c.link_transcricao : null,
-          transcript_completo: c.transcript_completo || null,
-          has_transcript: !!(c.link_gravacao), // Zoom calls with recordings likely have transcripts
+          transcricao: c.link_transcricao || null,
           senha_call: c.senha_call || null, plano_acao: c.link_plano_acao || null,
           decisoes: c.decisoes_tomadas || [], gargalos: c.gargalos || [],
           proximos_passos: c.proximos_passos || [], sentimento: null,
