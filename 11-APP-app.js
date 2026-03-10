@@ -148,6 +148,10 @@ function spalla() {
       dsLoading: false,
       dsModal: false,
       dsDetailProducaoId: null, // for detail view
+      dsConfirm: null,          // { title, msg, onConfirm }
+      dsSortField: 'mentorado_nome',
+      dsSortAsc: true,
+      dsAjusteError: false,
       // WhatsApp
       whatsappSelectedChat: null,
       whatsappMessage: '',
@@ -3551,6 +3555,16 @@ function spalla() {
       this.toast(`Retornou para ${prevEstagio.label}`, 'info');
     },
 
+    dsPromptRegress(docId) {
+      const doc = this.data.dsAllDocs.find(d => d.id === docId);
+      if (!doc) return;
+      const curStage = this.dsEstagioConfig(doc.estagio_atual);
+      const motivo = prompt(`Motivo para retornar de "${curStage.label}":`);
+      if (motivo === null) return; // cancelled
+      if (!motivo.trim()) { this.toast('Informe o motivo para voltar o estagio', 'warning'); return; }
+      this.regressDocStage(docId, motivo.trim());
+    },
+
     async saveDsNotas(producaoId, notas) {
       if (!sb) return;
       const { error } = await sb.from('ds_producoes').update({ notas }).eq('id', producaoId);
@@ -3696,8 +3710,39 @@ function spalla() {
       this.dsAjusteForm = { descricao: '', responsavel: '', deadline: '', docId: '', etapa: '' };
     },
 
+    // --- DS Table Sorting ---
+    dsSortBy(field) {
+      if (this.ui.dsSortField === field) {
+        this.ui.dsSortAsc = !this.ui.dsSortAsc;
+      } else {
+        this.ui.dsSortField = field;
+        this.ui.dsSortAsc = true;
+      }
+    },
+
+    dsSortedList() {
+      const list = [...this.filteredDsProducoes];
+      const f = this.ui.dsSortField;
+      const asc = this.ui.dsSortAsc;
+      list.sort((a, b) => {
+        let va = a[f], vb = b[f];
+        if (va == null) va = '';
+        if (vb == null) vb = '';
+        if (typeof va === 'string') va = va.toLowerCase();
+        if (typeof vb === 'string') vb = vb.toLowerCase();
+        if (va < vb) return asc ? -1 : 1;
+        if (va > vb) return asc ? 1 : -1;
+        return 0;
+      });
+      return list;
+    },
+
     async dsSubmitAjuste(producaoId) {
-      if (!this.dsAjusteForm.descricao) return;
+      if (!this.dsAjusteForm.descricao) {
+        this.ui.dsAjusteError = true;
+        this.toast('Preencha a descricao do ajuste', 'warning');
+        return;
+      }
       // Build rich description with context
       let desc = this.dsAjusteForm.descricao;
       const docId = this.dsAjusteForm.docId || null;
@@ -3717,12 +3762,13 @@ function spalla() {
     dsDragStart(event, producaoId) {
       this.dsDragProducaoId = producaoId;
       event.dataTransfer.effectAllowed = 'move';
-      event.target.closest('.ds-pipeline__card').style.opacity = '0.4';
+      const card = event.target.closest('.ds-pipeline__card');
+      if (card) card.classList.add('ds-pipeline__card--dragging');
     },
 
     dsDragEnd(event) {
       const card = event.target.closest('.ds-pipeline__card');
-      if (card) card.style.opacity = '1';
+      if (card) card.classList.remove('ds-pipeline__card--dragging');
       this.dsDragProducaoId = null;
       this.dsDragOverStage = null;
     },
@@ -3745,40 +3791,49 @@ function spalla() {
       const producaoId = this.dsDragProducaoId;
       this.dsDragProducaoId = null;
 
-      // Get all docs for this production
+      // Get mentee info for confirm
+      const prod = this.data.dsProducoes.find(p => p.producao_id === producaoId);
+      const targetStage = DS_ESTAGIOS.find(e => e.id === targetStageId);
+      if (!prod || !targetStage) return;
+
       const docs = this.data.dsAllDocs.filter(d => d.producao_id === producaoId);
       if (!docs.length) return;
 
+      // Check if already at target
       const targetNum = this.dsEstagioNum(targetStageId);
-      const user = this.auth.currentUser?.user_metadata?.full_name || this.auth.currentUser?.email || 'Sistema';
+      const allSame = docs.every(d => this.dsEstagioNum(d.estagio_atual) === targetNum);
+      if (allSame) return;
 
-      // Advance/regress each doc to the target stage
-      for (const doc of docs) {
-        const curNum = this.dsEstagioNum(doc.estagio_atual);
-        if (curNum === targetNum) continue; // already there
-
-        const targetStage = DS_ESTAGIOS[targetNum - 1];
-        const now = new Date().toISOString();
-        const update = {
-          estagio_atual: targetStage.id,
-          responsavel_atual: targetStage.responsavel || null,
-          estagio_desde: now,
-        };
-        const tsMap = {
-          producao_ia: 'data_producao_ia', revisao_mariza: 'data_revisao_mariza',
-          revisao_kaique: 'data_revisao_kaique', revisao_queila: 'data_revisao_queila',
-          enviado: 'data_envio', feedback_mentorado: 'data_feedback_mentorado',
-          finalizado: 'data_finalizado',
-        };
-        if (tsMap[targetStage.id]) update[tsMap[targetStage.id]] = now;
-
-        await sb.from('ds_documentos').update(update).eq('id', doc.id);
-        await this._logDsEvento(producaoId, doc.id, 'estagio_change', doc.estagio_atual, targetStage.id, user, `Pipeline: ${doc.tipo} → ${targetStage.label}`);
-      }
-
-      await this._updateDsProducaoStatus(producaoId);
-      await this.loadDsData();
-      this.toast(`Movido para ${DS_ESTAGIOS[targetNum - 1].label}`, 'success');
+      // Show confirm dialog
+      this.ui.dsConfirm = {
+        title: `Mover ${prod.mentorado_nome}?`,
+        msg: `Todos os 3 documentos serao movidos para "${targetStage.label}". Esta acao sera registrada no historico.`,
+        onConfirm: async () => {
+          const user = this.auth.currentUser?.user_metadata?.full_name || this.auth.currentUser?.email || 'Sistema';
+          for (const doc of docs) {
+            const curNum = this.dsEstagioNum(doc.estagio_atual);
+            if (curNum === targetNum) continue;
+            const now = new Date().toISOString();
+            const update = {
+              estagio_atual: targetStage.id,
+              responsavel_atual: targetStage.responsavel || null,
+              estagio_desde: now,
+            };
+            const tsMap = {
+              producao_ia: 'data_producao_ia', revisao_mariza: 'data_revisao_mariza',
+              revisao_kaique: 'data_revisao_kaique', revisao_queila: 'data_revisao_queila',
+              enviado: 'data_envio', feedback_mentorado: 'data_feedback_mentorado',
+              finalizado: 'data_finalizado',
+            };
+            if (tsMap[targetStage.id]) update[tsMap[targetStage.id]] = now;
+            await sb.from('ds_documentos').update(update).eq('id', doc.id);
+            await this._logDsEvento(producaoId, doc.id, 'estagio_change', doc.estagio_atual, targetStage.id, user, `Pipeline: ${doc.tipo} → ${targetStage.label}`);
+          }
+          await this._updateDsProducaoStatus(producaoId);
+          await this.loadDsData();
+          this.toast(`Movido para ${targetStage.label}`, 'success');
+        },
+      };
     },
 
     async updateDocLink(docId, link) {

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="13-APP-styles.css?v=49">
+  <link rel="stylesheet" href="13-APP-styles.css?v=50">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a,#1e293b,#0f172a);font-family:'Inter',sans-serif;color:#10b981;font-size:24px;font-weight:800; }
@@ -1991,12 +1991,26 @@
         <!-- ===== PAGE: DOSSIÊS PRODUÇÃO ===== -->
         <div class="page-content" x-show="ui.page === 'dossies'" x-transition>
 
+          <!-- Drag confirm dialog -->
+          <template x-if="ui.dsConfirm">
+            <div class="ds-confirm" @click.self="ui.dsConfirm = null" @keydown.escape.window="ui.dsConfirm = null">
+              <div class="ds-confirm__box" role="alertdialog" aria-labelledby="ds-confirm-title" aria-describedby="ds-confirm-msg">
+                <div class="ds-confirm__title" id="ds-confirm-title" x-text="ui.dsConfirm.title"></div>
+                <div class="ds-confirm__msg" id="ds-confirm-msg" x-text="ui.dsConfirm.msg"></div>
+                <div class="ds-confirm__actions">
+                  <button class="btn btn--sm" @click="ui.dsConfirm = null">Cancelar</button>
+                  <button class="btn btn--sm btn--brand" @click="ui.dsConfirm.onConfirm(); ui.dsConfirm = null">Confirmar</button>
+                </div>
+              </div>
+            </div>
+          </template>
+
           <!-- Detail overlay -->
           <template x-if="ui.dsDetailProducaoId && data.dsMenteeDetail">
-            <div class="ds-detail-overlay">
-              <div class="ds-detail">
+            <div class="ds-detail-overlay" @keydown.escape.window="closeDsDetail()">
+              <div class="ds-detail" role="dialog" aria-label="Detalhe do mentorado">
                 <div class="ds-detail__header">
-                  <button class="btn btn--sm" @click="closeDsDetail()">← Voltar</button>
+                  <button class="btn btn--sm" @click="closeDsDetail()" aria-label="Voltar para lista">← Voltar</button>
                   <h2 class="ds-detail__title" x-text="data.dsProducoes.find(p => p.producao_id === ui.dsDetailProducaoId)?.mentorado_nome || 'Detalhe'"></h2>
                   <span class="ds-status-badge" :style="'background:' + dsStatusConfig(data.dsMenteeDetail.status).color + '20; color:' + dsStatusConfig(data.dsMenteeDetail.status).color" x-text="dsStatusConfig(data.dsMenteeDetail.status).label"></span>
                 </div>
@@ -2005,67 +2019,67 @@
                 <div class="ds-marcos">
                   <div class="ds-marcos__item">
                     <label class="ds-marcos__label">Call Estrategia</label>
-                    <input type="date" class="ds-marcos__input" :value="data.dsMenteeDetail.data_call_estrategia || ''" @change="setCallDate(ui.dsDetailProducaoId, 'data_call_estrategia', $event.target.value)">
+                    <input type="date" class="ds-input" :value="data.dsMenteeDetail.data_call_estrategia || ''" @change="setCallDate(ui.dsDetailProducaoId, 'data_call_estrategia', $event.target.value)">
                   </div>
                   <div class="ds-marcos__item">
                     <label class="ds-marcos__label">Call Apresentacao</label>
-                    <input type="date" class="ds-marcos__input" :value="data.dsMenteeDetail.data_call_apresentacao || ''" @change="setCallDate(ui.dsDetailProducaoId, 'data_call_apresentacao', $event.target.value)">
+                    <input type="date" class="ds-input" :value="data.dsMenteeDetail.data_call_apresentacao || ''" @change="setCallDate(ui.dsDetailProducaoId, 'data_call_apresentacao', $event.target.value)">
                   </div>
                   <div class="ds-marcos__item">
                     <label class="ds-marcos__label">Call Onboarding</label>
-                    <input type="date" class="ds-marcos__input" :value="data.dsMenteeDetail.data_call_onboarding || ''" @change="setCallDate(ui.dsDetailProducaoId, 'data_call_onboarding', $event.target.value)">
+                    <input type="date" class="ds-input" :value="data.dsMenteeDetail.data_call_onboarding || ''" @change="setCallDate(ui.dsDetailProducaoId, 'data_call_onboarding', $event.target.value)">
                   </div>
                 </div>
 
                 <!-- Documentos Accordion -->
                 <div class="ds-docs-section">
-                  <h3 style="margin-bottom:12px; font-size:15px; font-weight:700;">Documentos</h3>
+                  <h3 class="ds-section-title">Documentos</h3>
                   <template x-for="doc in getDsDocs(ui.dsDetailProducaoId)" :key="doc.id">
                     <div class="ds-doc-accordion">
-                      <div class="ds-doc-accordion__header" @click="ui.dsExpandedDocs[doc.id] = !ui.dsExpandedDocs[doc.id]">
+                      <div class="ds-doc-accordion__header" @click="ui.dsExpandedDocs[doc.id] = !ui.dsExpandedDocs[doc.id]" role="button" :aria-expanded="!!ui.dsExpandedDocs[doc.id]">
                         <span class="ds-doc-accordion__icon" x-text="dsDocTipoConfig(doc.tipo).icon"></span>
                         <span class="ds-doc-accordion__title" x-text="dsDocTipoConfig(doc.tipo).label"></span>
                         <span class="ds-doc-accordion__stage" :style="'color:' + dsEstagioConfig(doc.estagio_atual).color" x-text="dsEstagioConfig(doc.estagio_atual).label"></span>
                         <div class="ds-doc-bar" style="flex:1; max-width:200px;">
                           <div class="ds-doc-bar__fill" :style="'width:' + dsProgressPercent(doc.estagio_atual) + '%; background:' + dsDocTipoConfig(doc.tipo).color"></div>
                         </div>
-                        <span style="font-size:12px; color:var(--text-secondary);" x-text="dsProgressPercent(doc.estagio_atual) + '%'"></span>
-                        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :style="ui.dsExpandedDocs[doc.id] ? 'transform:rotate(180deg)' : ''"><polyline points="6 9 12 15 18 9"/></svg>
+                        <span class="ds-doc-accordion__pct" x-text="dsProgressPercent(doc.estagio_atual) + '%'"></span>
+                        <svg class="ds-doc-accordion__chevron" :class="{ 'ds-doc-accordion__chevron--open': ui.dsExpandedDocs[doc.id] }" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
                       </div>
 
                       <div class="ds-doc-accordion__body" x-show="ui.dsExpandedDocs[doc.id]" x-transition>
                         <!-- Timeline visual -->
-                        <div class="ds-timeline">
+                        <div class="ds-timeline" role="list" aria-label="Etapas do documento">
                           <template x-for="(stage, si) in DS_ESTAGIOS" :key="stage.id">
-                            <div class="ds-timeline__step" :class="{
+                            <div class="ds-timeline__step" role="listitem" :class="{
                               'ds-timeline__step--done': dsEstagioNum(doc.estagio_atual) > si + 1,
                               'ds-timeline__step--active': dsEstagioNum(doc.estagio_atual) === si + 1,
                               'ds-timeline__step--pending': dsEstagioNum(doc.estagio_atual) < si + 1
                             }">
-                              <div class="ds-timeline__dot" :style="dsEstagioNum(doc.estagio_atual) >= si + 1 ? 'background:' + stage.color : ''"></div>
+                              <div class="ds-timeline__dot" :style="dsEstagioNum(doc.estagio_atual) >= si + 1 ? 'background:' + stage.color : ''" :aria-label="stage.label"></div>
                               <span class="ds-timeline__label" x-text="stage.icon + ' ' + stage.label"></span>
                             </div>
                           </template>
                         </div>
 
                         <!-- Doc info -->
-                        <div style="display:flex; gap:12px; align-items:center; margin:12px 0; flex-wrap:wrap;">
+                        <div class="ds-doc-info">
                           <template x-if="doc.link_doc">
-                            <a :href="doc.link_doc" target="_blank" class="btn btn--sm btn--brand">Abrir Doc</a>
+                            <a :href="doc.link_doc" target="_blank" class="btn btn--sm btn--brand" rel="noopener">Abrir Doc</a>
                           </template>
-                          <span style="font-size:12px; color:var(--text-secondary);">Responsavel: <strong x-text="doc.responsavel_atual || '-'"></strong></span>
+                          <span>Responsavel: <strong x-text="doc.responsavel_atual || '-'"></strong></span>
                           <span class="ds-aging" :class="dsAgingClass(Math.floor((Date.now() - new Date(doc.estagio_desde).getTime()) / 86400000))" x-text="Math.floor((Date.now() - new Date(doc.estagio_desde).getTime()) / 86400000) + 'd no estagio'"></span>
                         </div>
 
                         <!-- Actions -->
-                        <div style="display:flex; gap:8px; margin-bottom:12px;">
-                          <button class="btn btn--sm btn--success" @click="advanceDocStage(doc.id)" :disabled="!dsCanAdvance(doc)" x-show="doc.estagio_atual !== 'finalizado'">▶ Avancar</button>
-                          <button class="btn btn--sm" @click="regressDocStage(doc.id)" x-show="dsEstagioNum(doc.estagio_atual) > 1">◀ Voltar</button>
+                        <div class="ds-doc-actions">
+                          <button class="btn btn--sm btn--success" @click="advanceDocStage(doc.id)" :disabled="!dsCanAdvance(doc)" x-show="doc.estagio_atual !== 'finalizado'" aria-label="Avancar estagio">Avancar</button>
+                          <button class="btn btn--sm" @click="dsPromptRegress(doc.id)" x-show="dsEstagioNum(doc.estagio_atual) > 1" aria-label="Voltar estagio">Voltar</button>
                         </div>
 
                         <!-- Ajustes for this doc -->
-                        <div class="ds-ajustes-section" x-show="data.dsAjustes.filter(a => a.documento_id === doc.id).length > 0">
-                          <strong style="font-size:12px;">Ajustes deste documento:</strong>
+                        <div x-show="data.dsAjustes.filter(a => a.documento_id === doc.id).length > 0">
+                          <strong class="ds-section-title" style="font-size:12px;">Ajustes deste documento:</strong>
                           <template x-for="aj in data.dsAjustes.filter(a => a.documento_id === doc.id)" :key="aj.id">
                             <div class="ds-ajuste" :class="'ds-ajuste--' + aj.status" @click="toggleAjusteStatus(aj.id)">
                               <span class="ds-ajuste__check" x-text="aj.status === 'concluido' ? '✅' : aj.status === 'em_andamento' ? '🔄' : '☐'"></span>
@@ -2082,34 +2096,37 @@
 
                 <!-- Ajustes gerais -->
                 <div class="ds-section">
-                  <h3 style="margin-bottom:12px; font-size:15px; font-weight:700;">Ajustes</h3>
-                  <!-- Ajuste list -->
+                  <h3 class="ds-section-title">Ajustes</h3>
                   <template x-for="aj in data.dsAjustes" :key="aj.id">
                     <div class="ds-ajuste" :class="'ds-ajuste--' + aj.status">
-                      <span class="ds-ajuste__check" @click="toggleAjusteStatus(aj.id)" style="cursor:pointer;" x-text="aj.status === 'concluido' ? '✅' : aj.status === 'em_andamento' ? '🔄' : '☐'"></span>
+                      <span class="ds-ajuste__check" @click="toggleAjusteStatus(aj.id)" x-text="aj.status === 'concluido' ? '✅' : aj.status === 'em_andamento' ? '🔄' : '☐'"></span>
                       <span class="ds-ajuste__doc-badge" x-show="aj.documento_id" x-text="dsDocTipoConfig(getDsDocs(ui.dsDetailProducaoId).find(d => d.id === aj.documento_id)?.tipo)?.icon || '📄'"></span>
                       <span class="ds-ajuste__desc" x-text="aj.descricao"></span>
                       <span class="ds-ajuste__resp ds-ajuste__resp--tag" x-show="aj.responsavel" x-text="aj.responsavel"></span>
                       <span class="ds-ajuste__deadline" x-text="aj.deadline ? dsFormatDate(aj.deadline) : ''"></span>
                     </div>
                   </template>
-                  <div x-show="!data.dsAjustes.length" style="font-size:13px; color:var(--text-secondary); margin-bottom:12px;">Nenhum ajuste registrado.</div>
+                  <div class="ds-empty" x-show="!data.dsAjustes.length" style="padding:16px;">
+                    <div class="ds-empty__icon">📋</div>
+                    <div class="ds-empty__text">Nenhum ajuste registrado</div>
+                    <div class="ds-empty__hint">Use o formulario abaixo para criar ajustes</div>
+                  </div>
                   <!-- Add ajuste form -->
                   <div class="ds-ajuste-form-grid">
                     <div class="ds-ajuste-form-grid__row">
-                      <select class="ds-marcos__input" x-model="dsAjusteForm.docId" style="min-width:160px;">
+                      <select class="ds-input" x-model="dsAjusteForm.docId" style="min-width:160px;">
                         <option value="">Qual dossie?</option>
                         <template x-for="doc in getDsDocs(ui.dsDetailProducaoId)" :key="doc.id">
                           <option :value="doc.id" x-text="dsDocTipoConfig(doc.tipo).icon + ' ' + dsDocTipoConfig(doc.tipo).label"></option>
                         </template>
                       </select>
-                      <select class="ds-marcos__input" x-model="dsAjusteForm.etapa" style="min-width:140px;">
+                      <select class="ds-input" x-model="dsAjusteForm.etapa" style="min-width:140px;">
                         <option value="">Qual etapa?</option>
                         <template x-for="st in DS_ESTAGIOS" :key="st.id">
                           <option :value="st.id" x-text="st.icon + ' ' + st.label"></option>
                         </template>
                       </select>
-                      <select class="ds-marcos__input" x-model="dsAjusteForm.responsavel" style="min-width:140px;">
+                      <select class="ds-input" x-model="dsAjusteForm.responsavel" style="min-width:140px;">
                         <option value="">Responsavel?</option>
                         <option value="Queila">Queila</option>
                         <option value="Mariza">Mariza</option>
@@ -2117,10 +2134,10 @@
                         <option value="Heitor">Heitor</option>
                         <option value="Lara">Lara</option>
                       </select>
-                      <input type="date" class="ds-marcos__input" style="width:140px;" x-model="dsAjusteForm.deadline">
+                      <input type="date" class="ds-input" style="width:140px;" x-model="dsAjusteForm.deadline">
                     </div>
                     <div class="ds-ajuste-form-grid__row">
-                      <input type="text" class="ds-marcos__input" style="flex:1;" placeholder="Descreva o ajuste solicitado..." x-model="dsAjusteForm.descricao" @keydown.enter="dsSubmitAjuste(ui.dsDetailProducaoId)">
+                      <input type="text" class="ds-input" :class="{ 'ds-input--error': ui.dsAjusteError }" style="flex:1;" placeholder="Descreva o ajuste solicitado..." x-model="dsAjusteForm.descricao" @keydown.enter="dsSubmitAjuste(ui.dsDetailProducaoId)" @input="ui.dsAjusteError = false">
                       <button class="btn btn--sm btn--brand" @click="dsSubmitAjuste(ui.dsDetailProducaoId)" :disabled="!dsAjusteForm.descricao">+ Ajuste</button>
                     </div>
                   </div>
@@ -2128,14 +2145,14 @@
 
                 <!-- Notas -->
                 <div class="ds-section">
-                  <h3 style="margin-bottom:8px; font-size:15px; font-weight:700;">Notas</h3>
+                  <h3 class="ds-section-title">Notas</h3>
                   <textarea class="ds-notas-textarea" rows="3" :value="data.dsMenteeDetail.notas || ''" @blur="saveDsNotas(ui.dsDetailProducaoId, $event.target.value)" placeholder="Notas sobre esta producao..."></textarea>
                 </div>
 
                 <!-- Audit Trail -->
                 <div class="ds-section">
-                  <h3 style="margin-bottom:12px; font-size:15px; font-weight:700;">Historico</h3>
-                  <div class="ds-audit">
+                  <h3 class="ds-section-title">Historico</h3>
+                  <div class="ds-audit" role="log" aria-label="Historico de eventos">
                     <template x-for="ev in data.dsEventos" :key="ev.id">
                       <div class="ds-audit__event">
                         <span class="ds-audit__time" x-text="dsFormatDateTime(ev.created_at)"></span>
@@ -2143,7 +2160,10 @@
                         <span class="ds-audit__desc" x-text="ev.descricao || (ev.de_valor ? ev.de_valor + ' → ' + ev.para_valor : ev.para_valor)"></span>
                       </div>
                     </template>
-                    <div x-show="!data.dsEventos.length" style="font-size:13px; color:var(--text-secondary);">Nenhum evento registrado.</div>
+                    <div class="ds-empty" x-show="!data.dsEventos.length" style="padding:16px;">
+                      <div class="ds-empty__icon">📜</div>
+                      <div class="ds-empty__text">Nenhum evento registrado</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2154,41 +2174,54 @@
           <div x-show="!ui.dsDetailProducaoId">
             <div class="page-header"><h2>Producao de Dossies</h2></div>
 
-            <!-- Loading -->
-            <div x-show="ui.dsLoading" style="text-align:center; padding:40px; color:var(--text-secondary);">Carregando...</div>
+            <!-- Skeleton Loading -->
+            <div x-show="ui.dsLoading">
+              <div class="ds-page-kpis">
+                <template x-for="i in 6"><div class="ds-page-kpis__card"><div class="ds-skeleton__line ds-skeleton__line--short" style="height:24px;margin:0 auto 4px;"></div><div class="ds-skeleton__line ds-skeleton__line--short" style="height:10px;margin:0 auto;width:50%;"></div></div></template>
+              </div>
+              <div class="ds-skeleton">
+                <template x-for="i in 6"><div class="ds-skeleton__card"><div class="ds-skeleton__line ds-skeleton__line--medium"></div><div class="ds-skeleton__line ds-skeleton__line--short"></div><div class="ds-skeleton__line ds-skeleton__line--bar"></div><div class="ds-skeleton__line ds-skeleton__line--bar"></div><div class="ds-skeleton__line ds-skeleton__line--bar"></div></div></template>
+              </div>
+            </div>
 
             <!-- KPI Strip -->
             <div class="ds-page-kpis" x-show="!ui.dsLoading">
               <div class="ds-page-kpis__card">
+                <span class="ds-page-kpis__icon">📊</span>
                 <span class="ds-page-kpis__val" x-text="dsPageKpis().total"></span>
                 <span class="ds-page-kpis__label">Total</span>
               </div>
               <div class="ds-page-kpis__card">
-                <span class="ds-page-kpis__val" style="color:#8b5cf6" x-text="dsPageKpis().producaoIa"></span>
+                <span class="ds-page-kpis__icon">🤖</span>
+                <span class="ds-page-kpis__val ds-page-kpis__val--producao" x-text="dsPageKpis().producaoIa"></span>
                 <span class="ds-page-kpis__label">Producao</span>
               </div>
               <div class="ds-page-kpis__card">
-                <span class="ds-page-kpis__val" style="color:#f59e0b" x-text="dsPageKpis().emRevisao"></span>
+                <span class="ds-page-kpis__icon">✏️</span>
+                <span class="ds-page-kpis__val ds-page-kpis__val--revisao" x-text="dsPageKpis().emRevisao"></span>
                 <span class="ds-page-kpis__label">Em Revisao</span>
               </div>
               <div class="ds-page-kpis__card">
-                <span class="ds-page-kpis__val" style="color:#10b981" x-text="dsPageKpis().aprovados"></span>
+                <span class="ds-page-kpis__icon">✅</span>
+                <span class="ds-page-kpis__val ds-page-kpis__val--aprovado" x-text="dsPageKpis().aprovados"></span>
                 <span class="ds-page-kpis__label">Aprovados</span>
               </div>
               <div class="ds-page-kpis__card">
-                <span class="ds-page-kpis__val" style="color:#06b6d4" x-text="dsPageKpis().enviados"></span>
+                <span class="ds-page-kpis__icon">📤</span>
+                <span class="ds-page-kpis__val ds-page-kpis__val--enviado" x-text="dsPageKpis().enviados"></span>
                 <span class="ds-page-kpis__label">Enviados</span>
               </div>
               <div class="ds-page-kpis__card">
-                <span class="ds-page-kpis__val" style="color:#059669" x-text="dsPageKpis().finalizados"></span>
+                <span class="ds-page-kpis__icon">🏁</span>
+                <span class="ds-page-kpis__val ds-page-kpis__val--finalizado" x-text="dsPageKpis().finalizados"></span>
                 <span class="ds-page-kpis__label">Finalizados</span>
               </div>
             </div>
 
             <!-- Search + Filter + View Toggle -->
             <div class="ds-toolbar" x-show="!ui.dsLoading">
-              <input type="text" class="ds-toolbar__search" placeholder="Buscar mentorado..." x-model="ui.dsSearchQuery">
-              <select class="ds-toolbar__select" x-model="ui.dsFilter">
+              <input type="text" class="ds-toolbar__search" placeholder="Buscar mentorado..." x-model="ui.dsSearchQuery" aria-label="Buscar mentorado">
+              <select class="ds-toolbar__select" x-model="ui.dsFilter" aria-label="Filtrar por status">
                 <option value="all">Todos</option>
                 <option value="nao_iniciado">Nao Iniciado</option>
                 <option value="producao">Producao</option>
@@ -2198,16 +2231,16 @@
                 <option value="finalizado">Finalizado</option>
                 <option value="pausado">Pausado/Cancelado</option>
               </select>
-              <span class="ds-toolbar__count" x-text="filteredDsProducoes.length + ' producoes'"></span>
-              <div class="ds-view-toggle">
-                <button class="ds-view-toggle__btn" :class="{ 'ds-view-toggle__btn--active': ui.dsView === 'painel' }" @click="ui.dsView = 'painel'">Painel</button>
-                <button class="ds-view-toggle__btn" :class="{ 'ds-view-toggle__btn--active': ui.dsView === 'pipeline' }" @click="ui.dsView = 'pipeline'">Pipeline</button>
-                <button class="ds-view-toggle__btn" :class="{ 'ds-view-toggle__btn--active': ui.dsView === 'lista' }" @click="ui.dsView = 'lista'">Lista</button>
+              <span class="ds-toolbar__count" x-text="filteredDsProducoes.length + ' producoes'" aria-live="polite"></span>
+              <div class="ds-view-toggle" role="tablist" aria-label="Modo de visualizacao">
+                <button class="ds-view-toggle__btn" :class="{ 'ds-view-toggle__btn--active': ui.dsView === 'painel' }" @click="ui.dsView = 'painel'" role="tab" :aria-selected="ui.dsView === 'painel'">Painel</button>
+                <button class="ds-view-toggle__btn" :class="{ 'ds-view-toggle__btn--active': ui.dsView === 'pipeline' }" @click="ui.dsView = 'pipeline'" role="tab" :aria-selected="ui.dsView === 'pipeline'">Pipeline</button>
+                <button class="ds-view-toggle__btn" :class="{ 'ds-view-toggle__btn--active': ui.dsView === 'lista' }" @click="ui.dsView = 'lista'" role="tab" :aria-selected="ui.dsView === 'lista'">Lista</button>
               </div>
             </div>
 
             <!-- VIEW: Painel Industrial -->
-            <div x-show="ui.dsView === 'painel' && !ui.dsLoading">
+            <div x-show="ui.dsView === 'painel' && !ui.dsLoading" role="tabpanel">
               <div class="ds-prod-grid">
                 <template x-for="p in filteredDsProducoes" :key="p.producao_id">
                   <div class="ds-prod-card" @click="openDsDetail(p.producao_id)">
@@ -2224,8 +2257,8 @@
                     <div class="ds-prod-card__docs">
                       <template x-for="dt in DS_DOC_TIPOS" :key="dt.id">
                         <div class="ds-prod-card__doc-row">
-                          <span class="ds-prod-card__doc-icon" x-text="dt.icon"></span>
-                          <div class="ds-doc-bar">
+                          <span class="ds-prod-card__doc-icon" x-text="dt.icon" :title="dt.label"></span>
+                          <div class="ds-doc-bar" role="progressbar" :aria-valuenow="dsProgressPercent(p[dt.id + '_estagio'] || 'pendente')" aria-valuemin="0" aria-valuemax="100" :aria-label="dt.label">
                             <div class="ds-doc-bar__fill" :style="'width:' + dsProgressPercent(p[dt.id + '_estagio'] || 'pendente') + '%; background:' + dt.color"></div>
                           </div>
                           <span class="ds-prod-card__doc-stage" :style="'color:' + dsEstagioConfig(p[dt.id + '_estagio'] || 'pendente').color" x-text="dsEstagioConfig(p[dt.id + '_estagio'] || 'pendente').label"></span>
@@ -2242,18 +2275,23 @@
                   </div>
                 </template>
               </div>
-              <div x-show="!filteredDsProducoes.length && !ui.dsLoading" style="text-align:center; padding:40px; color:var(--text-secondary);">Nenhuma producao encontrada.</div>
+              <div class="ds-empty" x-show="!filteredDsProducoes.length && !ui.dsLoading">
+                <div class="ds-empty__icon">🔍</div>
+                <div class="ds-empty__text">Nenhuma producao encontrada</div>
+                <div class="ds-empty__hint">Tente alterar o filtro ou buscar outro nome</div>
+              </div>
             </div>
 
             <!-- VIEW: Pipeline Kanban (drag & drop) -->
-            <div x-show="ui.dsView === 'pipeline' && !ui.dsLoading" class="ds-pipeline-wrapper">
-              <div class="ds-pipeline">
+            <div x-show="ui.dsView === 'pipeline' && !ui.dsLoading" class="ds-pipeline-wrapper" role="tabpanel">
+              <div class="ds-pipeline" role="list" aria-label="Pipeline de producao">
                 <template x-for="stage in DS_ESTAGIOS" :key="stage.id">
-                  <div class="ds-pipeline__col"
+                  <div class="ds-pipeline__col" role="listitem"
                     @dragover.prevent="dsDragOver($event, stage.id)"
                     @dragleave="dsDragLeave($event, stage.id)"
                     @drop="dsDrop($event, stage.id)"
-                    :class="{ 'ds-pipeline__col--dragover': dsDragOverStage === stage.id }">
+                    :class="{ 'ds-pipeline__col--dragover': dsDragOverStage === stage.id }"
+                    :aria-label="stage.label + ' - ' + ((dsPipelineColumns()[stage.id] || []).length) + ' itens'">
                     <div class="ds-pipeline__col-header" :style="'border-bottom: 3px solid ' + stage.color">
                       <span x-text="stage.icon + ' ' + stage.label"></span>
                       <span class="ds-pipeline__col-count" x-text="(dsPipelineColumns()[stage.id] || []).length"></span>
@@ -2264,15 +2302,16 @@
                           draggable="true"
                           @dragstart="dsDragStart($event, p.producao_id)"
                           @dragend="dsDragEnd($event)"
-                          @click="openDsDetail(p.producao_id)">
+                          @click="openDsDetail(p.producao_id)"
+                          :aria-label="p.mentorado_nome">
                           <span class="ds-pipeline__card-name" x-text="p.mentorado_nome"></span>
-                          <div class="ds-pipeline__card-dots">
+                          <div class="ds-pipeline__card-dots" aria-hidden="true">
                             <template x-for="dt in DS_DOC_TIPOS" :key="dt.id">
                               <span class="ds-pipeline__dot" :style="'background:' + dsEstagioConfig(p[dt.id + '_estagio'] || 'pendente').color" :title="dt.label + ': ' + dsEstagioConfig(p[dt.id + '_estagio'] || 'pendente').label"></span>
                             </template>
                           </div>
-                          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
-                            <span style="font-size:11px; color:var(--text-secondary);" x-text="p.responsavel_atual || '-'"></span>
+                          <div class="ds-pipeline__card-meta">
+                            <span x-text="p.responsavel_atual || '-'"></span>
                             <span class="ds-aging ds-aging--sm" :class="dsAgingClass(p.dias_no_estagio)" x-show="p.dias_no_estagio" x-text="p.dias_no_estagio + 'd'"></span>
                           </div>
                         </div>
@@ -2284,30 +2323,30 @@
             </div>
 
             <!-- VIEW: Lista (Tabela) -->
-            <div x-show="ui.dsView === 'lista' && !ui.dsLoading" style="overflow-x:auto;">
-              <table class="ds-table">
+            <div x-show="ui.dsView === 'lista' && !ui.dsLoading" style="overflow-x:auto;" role="tabpanel">
+              <table class="ds-table" aria-label="Lista de producoes">
                 <thead>
                   <tr>
-                    <th>Mentorado</th>
-                    <th>Status</th>
-                    <th>Responsavel</th>
-                    <th>Oferta</th>
-                    <th>Funil</th>
-                    <th>Conteudo</th>
-                    <th>Call</th>
-                    <th>Aging</th>
-                    <th>Ajustes</th>
+                    <th scope="col" @click="dsSortBy('mentorado_nome')" :class="{ 'ds-table__th--sorted': ui.dsSortField === 'mentorado_nome' }">Mentorado <span class="ds-sort-icon" x-text="ui.dsSortField === 'mentorado_nome' ? (ui.dsSortAsc ? '▲' : '▼') : '⇅'"></span></th>
+                    <th scope="col" @click="dsSortBy('status')" :class="{ 'ds-table__th--sorted': ui.dsSortField === 'status' }">Status <span class="ds-sort-icon" x-text="ui.dsSortField === 'status' ? (ui.dsSortAsc ? '▲' : '▼') : '⇅'"></span></th>
+                    <th scope="col">Responsavel</th>
+                    <th scope="col">Oferta</th>
+                    <th scope="col">Funil</th>
+                    <th scope="col">Conteudo</th>
+                    <th scope="col">Call</th>
+                    <th scope="col" @click="dsSortBy('dias_no_estagio')" :class="{ 'ds-table__th--sorted': ui.dsSortField === 'dias_no_estagio' }">Aging <span class="ds-sort-icon" x-text="ui.dsSortField === 'dias_no_estagio' ? (ui.dsSortAsc ? '▲' : '▼') : '⇅'"></span></th>
+                    <th scope="col">Ajustes</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <template x-for="p in filteredDsProducoes" :key="p.producao_id">
-                    <tr class="ds-table__row" @click="openDsDetail(p.producao_id)" style="cursor:pointer;">
+                  <template x-for="p in dsSortedList()" :key="p.producao_id">
+                    <tr class="ds-table__row" @click="openDsDetail(p.producao_id)">
                       <td><strong x-text="p.mentorado_nome"></strong></td>
                       <td><span class="ds-status-badge ds-status-badge--sm" :style="'background:' + dsStatusConfig(p.status).color + '20; color:' + dsStatusConfig(p.status).color" x-text="dsStatusConfig(p.status).label"></span></td>
                       <td x-text="p.responsavel_atual || '-'"></td>
-                      <td><span class="ds-stage-dot" :style="'background:' + dsEstagioConfig(p.oferta_estagio || 'pendente').color" :title="dsEstagioConfig(p.oferta_estagio || 'pendente').label"></span> <span style="font-size:12px;" x-text="dsEstagioConfig(p.oferta_estagio || 'pendente').label"></span></td>
-                      <td><span class="ds-stage-dot" :style="'background:' + dsEstagioConfig(p.funil_estagio || 'pendente').color"></span> <span style="font-size:12px;" x-text="dsEstagioConfig(p.funil_estagio || 'pendente').label"></span></td>
-                      <td><span class="ds-stage-dot" :style="'background:' + dsEstagioConfig(p.conteudo_estagio || 'pendente').color"></span> <span style="font-size:12px;" x-text="dsEstagioConfig(p.conteudo_estagio || 'pendente').label"></span></td>
+                      <td class="ds-table__stage-cell"><span class="ds-stage-dot" :style="'background:' + dsEstagioConfig(p.oferta_estagio || 'pendente').color" :title="dsEstagioConfig(p.oferta_estagio || 'pendente').label"></span> <span x-text="dsEstagioConfig(p.oferta_estagio || 'pendente').label"></span></td>
+                      <td class="ds-table__stage-cell"><span class="ds-stage-dot" :style="'background:' + dsEstagioConfig(p.funil_estagio || 'pendente').color" :title="dsEstagioConfig(p.funil_estagio || 'pendente').label"></span> <span x-text="dsEstagioConfig(p.funil_estagio || 'pendente').label"></span></td>
+                      <td class="ds-table__stage-cell"><span class="ds-stage-dot" :style="'background:' + dsEstagioConfig(p.conteudo_estagio || 'pendente').color" :title="dsEstagioConfig(p.conteudo_estagio || 'pendente').label"></span> <span x-text="dsEstagioConfig(p.conteudo_estagio || 'pendente').label"></span></td>
                       <td x-text="p.data_call_estrategia ? dsFormatDate(p.data_call_estrategia) : '-'"></td>
                       <td><span class="ds-aging ds-aging--sm" :class="dsAgingClass(p.dias_no_estagio)" x-text="(p.dias_no_estagio || 0) + 'd'"></span></td>
                       <td x-text="p.ajustes_pendentes || 0"></td>
@@ -2698,9 +2737,9 @@
 
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js" integrity="sha384-Sm2s7OXxsAMTyJ4iIyRBgVpeGUvMPk2lRQnnZhE78Wej7oggIoolKt+SCt0XJbUB" crossorigin="anonymous"></script>
-  <script src="12-APP-data.js?v=49"></script>
-  <script src="13-APP-photos.js?v=49"></script>
-  <script src="11-APP-app.js?v=49"></script>
+  <script src="12-APP-data.js?v=50"></script>
+  <script src="13-APP-photos.js?v=50"></script>
+  <script src="11-APP-app.js?v=50"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {
