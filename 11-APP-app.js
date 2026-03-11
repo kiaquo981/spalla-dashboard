@@ -4741,9 +4741,9 @@ function spalla() {
           this._perfilCharts.bigfive = new Chart(ctx, {
             type: 'radar',
             data: {
-              labels: ['Abertura', 'Conscienciosidade', 'Extroversao', 'Amabilidade', 'Neuroticismo'],
+              labels: ['Abert.', 'Consc.', 'Extrov.', 'Amabil.', 'Neurot.'],
               datasets: [{
-                label: 'Big Five',
+                label: 'Score',
                 data: [bf.abertura||0, bf.conscienciosidade||0, bf.extroversao||0, bf.amabilidade||0, bf.neuroticismo||0],
                 backgroundColor: 'rgba(245,158,11,0.2)',
                 borderColor: 'rgb(245,158,11)',
@@ -4764,10 +4764,10 @@ function spalla() {
           this._perfilCharts.disc = new Chart(ctx, {
             type: 'radar',
             data: {
-              labels: ['Dominancia', 'Influencia', 'Estabilidade', 'Consciencia'],
+              labels: ['Domin.', 'Influen.', 'Estabil.', 'Conform.'],
               datasets: [{
-                label: 'DISC',
-                data: [d.dominancia||0, d.influencia||0, d.estabilidade||0, d.consciencia||0],
+                label: 'Score',
+                data: [d.dominancia||0, d.influencia||0, d.estabilidade||0, d.conformidade||d.consciencia||0],
                 backgroundColor: 'rgba(99,102,241,0.2)',
                 borderColor: 'rgb(99,102,241)',
                 borderWidth: 2,
@@ -4784,13 +4784,14 @@ function spalla() {
         const ctx = document.getElementById('chart-zonas');
         if (ctx) {
           const z = dim.quatro_zonas;
+          const getVal = (v) => typeof v === 'object' ? (v?.score||0) : (v||0);
           this._perfilCharts.zonas = new Chart(ctx, {
             type: 'radar',
             data: {
-              labels: ['Incompetencia', 'Competencia', 'Excelencia', 'Genialidade'],
+              labels: ['Incomp.', 'Compet.', 'Excelenc.', 'Genialid.'],
               datasets: [{
-                label: 'Quatro Zonas',
-                data: [z.incompetencia?.score||0, z.competencia?.score||0, z.excelencia?.score||0, z.genialidade?.score||0],
+                label: 'Score',
+                data: [getVal(z.incompetencia), getVal(z.competencia), getVal(z.excelencia), getVal(z.genialidade)],
                 backgroundColor: 'rgba(16,185,129,0.2)',
                 borderColor: 'rgb(16,185,129)',
                 borderWidth: 2,
@@ -4807,14 +4808,22 @@ function spalla() {
         const ctx = document.getElementById('chart-modos');
         if (ctx) {
           const modos = dim.modos_esquematicos;
-          const labels = Object.keys(modos);
-          const values = Object.values(modos);
+          const labelMap = {
+            crianca_vulneravel: 'Cr. Vulneravel',
+            crianca_zangada: 'Cr. Zangada',
+            protetor_desligado: 'Prot. Desligado',
+            capitulador: 'Capitulador',
+            adulto_saudavel: 'Ad. Saudavel',
+          };
+          const keys = Object.keys(modos);
+          const labels = keys.map(k => labelMap[k] || k);
+          const values = keys.map(k => modos[k]);
           const colors = values.map(v => v >= 70 ? 'rgba(239,68,68,0.7)' : v >= 40 ? 'rgba(245,158,11,0.7)' : 'rgba(34,197,94,0.7)');
           this._perfilCharts.modos = new Chart(ctx, {
             type: 'bar',
             data: {
               labels,
-              datasets: [{ data: values, backgroundColor: colors, borderWidth: 0 }]
+              datasets: [{ label: 'Score', data: values, backgroundColor: colors, borderWidth: 0 }]
             },
             options: {
               indexAxis: 'y',
@@ -4835,13 +4844,20 @@ function spalla() {
       return {
         responsive: true,
         maintainAspectRatio: true,
-        plugins: { legend: { display: false } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(ctx) { return ctx.raw + '/100'; }
+            }
+          }
+        },
         scales: {
           r: {
             min: 0, max,
             ticks: { stepSize: 25, display: false },
             grid: { color: 'rgba(0,0,0,0.06)' },
-            pointLabels: { font: { size: 10 } },
+            pointLabels: { font: { size: 9 } },
           }
         }
       };

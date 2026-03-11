@@ -699,20 +699,24 @@
                       <!-- Charts 2x2 -->
                       <div class="perfil-charts-row">
                         <div class="card perfil-chart-card" x-show="data.perfilComportamental.dimensoes?.big_five">
-                          <div class="card__header"><h3>Big Five</h3></div>
+                          <div class="card__header"><h3>Big Five (OCEAN)</h3></div>
                           <div class="card__body" style="display:flex;justify-content:center"><canvas id="chart-bigfive"></canvas></div>
+                          <div class="perfil-chart-legend">Abertura a experiencias, Conscienciosidade, Extroversao, Amabilidade e Neuroticismo. Quanto maior, mais presente o traco.</div>
                         </div>
                         <div class="card perfil-chart-card" x-show="data.perfilComportamental.dimensoes?.disc">
                           <div class="card__header"><h3>DISC</h3></div>
                           <div class="card__body" style="display:flex;justify-content:center"><canvas id="chart-disc"></canvas></div>
+                          <div class="perfil-chart-legend">D=Dominancia (decisao), I=Influencia (comunicacao), S=Estabilidade (ritmo), C=Conformidade (regras).</div>
                         </div>
                         <div class="card perfil-chart-card" x-show="data.perfilComportamental.dimensoes?.quatro_zonas">
                           <div class="card__header"><h3>Quatro Zonas</h3></div>
                           <div class="card__body" style="display:flex;justify-content:center"><canvas id="chart-zonas"></canvas></div>
+                          <div class="perfil-chart-legend">Gay Hendricks: Incompetencia (evitar), Competencia (ok), Excelencia (destaque), Genialidade (flow). Ideal: alto em Genialidade.</div>
                         </div>
                         <div class="card perfil-chart-card" x-show="data.perfilComportamental.dimensoes?.modos_esquematicos">
-                          <div class="card__header"><h3>Modos Esquem.</h3></div>
+                          <div class="card__header"><h3>Modos Esquematicos</h3></div>
                           <div class="card__body" style="height:180px"><canvas id="chart-modos"></canvas></div>
+                          <div class="perfil-chart-legend">Terapia do Esquema: verde=saudavel, amarelo=atencao, vermelho=predominante. Ideal: Adulto Saudavel alto.</div>
                         </div>
                       </div>
 
