@@ -150,6 +150,9 @@ function spalla() {
       taskSpaceFilter: 'all', // space_id filter
       taskListFilter: 'all', // list_id filter
       taskGroupBy: 'status', // 'status' | 'assignee' | 'priority' | 'list'
+      taskTagFilter: [],       // tag ids for filtering
+      taskTagsDropdown: false, // tags dropdown open in modal
+      taskTagsFilterOpen: false, // tags filter dropdown in toolbar
       // Dossiers (legacy)
       dossierFilter: 'all',
       // Dossiê Production System
@@ -236,6 +239,9 @@ function spalla() {
       dsMenteeDetail: null,     // full detail for one mentee
       dsEventos: [],            // audit trail for detail view
       dsAjustes: [],            // ajustes for detail view
+      // Tags & Custom Fields
+      taskTags: [],             // god_task_tags — all available tags
+      fieldDefs: [],            // applicable god_task_field_defs for current modal
     },
 
     // --- Perfil Comportamental ---
@@ -294,6 +300,7 @@ function spalla() {
       newTag: '',
       recorrencia: 'nenhuma',
       dia_recorrencia: null,
+      fieldValues: {},         // { fieldId: <value> } for custom fields
     },
 
     // --- Reminder Form ---
@@ -567,6 +574,12 @@ function spalla() {
       if (this.ui.taskListFilter !== 'all') {
         list = list.filter(t => t.list_id === this.ui.taskListFilter);
       }
+      if (this.ui.taskTagFilter.length) {
+        list = list.filter(t => {
+          const taskTagIds = (t.tags || []).map(tg => tg.id).filter(Boolean);
+          return this.ui.taskTagFilter.some(tagId => taskTagIds.includes(tagId));
+        });
+      }
       return list;
     },
 
@@ -792,7 +805,7 @@ function spalla() {
     },
 
     taskStatusIcon(status) {
-      return { pendente: '⏳', em_andamento: '🔄', concluida: '✅' }[status] || '📋';
+      return ''; // visual indicator via CSS dot (.task-status-dot)
     },
 
     async moveTask(taskId, newStatus) {
@@ -948,6 +961,7 @@ function spalla() {
         sb = await initSupabase();
 
         await this.loadTasks();
+        this.loadTaskTags(); // non-blocking
 
         if (this.auth.authenticated) {
           await this.loadReminders(); // Load from Supabase
@@ -2049,7 +2063,9 @@ function spalla() {
               checklist: (t.checklist || []).map(c => ({ text: c.texto || c.text, done: c.done })),
               comments: (t.comments || []).map(c => ({ id: c.id, author: c.author, text: c.texto || c.text, timestamp: c.created_at || c.timestamp })),
               handoffs: (t.handoffs || []).map(h => ({ from: h.from_person || h.from, to: h.to_person || h.to, note: h.note, date: h.created_at || h.date })),
-              tags: t.tags || [], attachments: [],
+              tags: (t.tags_full && t.tags_full.length) ? t.tags_full : (t.tags || []).map(tg => typeof tg === 'string' ? { id: null, name: tg, color: '#94a3b8' } : tg),
+              custom_fields: t.custom_fields_json || [],
+              attachments: [],
             }));
             this._autoCategorize();
             this._cacheTasksLocal();
@@ -2235,13 +2251,17 @@ function spalla() {
           newCheckItem: '',
           newComment: '',
           newTag: '',
+          fieldValues: {},
         };
         this.ui.taskEditId = task.id;
+        this.loadFieldDefs(task.space_id, task.list_id, task.id);
       } else {
-        this.taskForm = { titulo: '', descricao: '', responsavel: '', acompanhante: '', mentorado_nome: '', prioridade: 'normal', prazo: '', data_inicio: '', data_fim: '', doc_link: '', subtasks: [], checklist: [], comments: [], attachments: [], tags: [], parent_task_id: null, space_id: 'space_jornada', list_id: '', recorrencia: 'nenhuma', dia_recorrencia: null, newSubtask: '', newCheckItem: '', newComment: '', newTag: '' };
+        this.taskForm = { titulo: '', descricao: '', responsavel: '', acompanhante: '', mentorado_nome: '', prioridade: 'normal', prazo: '', data_inicio: '', data_fim: '', doc_link: '', subtasks: [], checklist: [], comments: [], attachments: [], tags: [], parent_task_id: null, space_id: 'space_jornada', list_id: '', recorrencia: 'nenhuma', dia_recorrencia: null, newSubtask: '', newCheckItem: '', newComment: '', newTag: '', fieldValues: {} };
         this.ui.taskEditId = null;
+        this.loadFieldDefs('space_jornada', null, null);
       }
       this.ui.taskModal = true;
+      this.ui.taskTagsDropdown = false;
     },
 
     closeTaskModal() {
@@ -2256,19 +2276,25 @@ function spalla() {
       delete formData.newCheckItem;
       delete formData.newComment;
       delete formData.newTag;
+      delete formData.fieldValues;
       if (formData.data_fim) formData.prazo = formData.data_fim;
+      // Normalize tags to TEXT[] for backward compat column
+      const tagsObjects = formData.tags || [];
+      formData.tags = tagsObjects.map(t => t.name || t);
 
       if (this.ui.taskEditId) {
         const idx = this.data.tasks.findIndex(t => t.id === this.ui.taskEditId);
         if (idx !== -1) {
           const backup = { ...this.data.tasks[idx] };
-          const updated = { ...backup, ...formData, updated_at: new Date().toISOString() };
+          const updated = { ...backup, ...formData, tags: tagsObjects, updated_at: new Date().toISOString() };
           this.data.tasks[idx] = updated;
           this._cacheTasksLocal();
-          const r = await this._sbUpsertTask(updated);
+          const r = await this._sbUpsertTask({ ...updated, tags: formData.tags });
           if (!r.ok) { this.data.tasks[idx] = backup; this._cacheTasksLocal(); this.toast('Erro ao salvar tarefa', 'error'); return; }
           await this._sbSyncSubtasks(updated.id, updated.subtasks);
           await this._sbSyncChecklist(updated.id, updated.checklist);
+          await this._sbSyncTagRelations(updated.id, tagsObjects);
+          await this.saveFieldValues(updated.id);
         }
       } else {
         const newId = crypto.randomUUID ? crypto.randomUUID() : 'task_' + Date.now();
@@ -2276,15 +2302,17 @@ function spalla() {
           id: newId, ...formData,
           status: 'pendente', fonte: 'manual',
           comments: [], attachments: [], handoffs: [],
-          tags: formData.tags || [],
+          tags: tagsObjects,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
-        const r = await this._sbUpsertTask(newTask, true);
+        const r = await this._sbUpsertTask({ ...newTask, tags: formData.tags }, true);
         if (!r.ok) { this.toast('Erro ao criar tarefa', 'error'); return; }
         this.data.tasks.push(newTask);
         if (newTask.subtasks?.length) await this._sbSyncSubtasks(newId, newTask.subtasks);
         if (newTask.checklist?.length) await this._sbSyncChecklist(newId, newTask.checklist);
+        if (tagsObjects.length) await this._sbSyncTagRelations(newId, tagsObjects);
+        await this.saveFieldValues(newId);
       }
       this._cacheTasksLocal();
       this.closeTaskModal();
@@ -2423,6 +2451,92 @@ function spalla() {
           if (sb) { const { error } = await sb.from('god_tasks').update({ tags: t.tags }).eq('id', taskId); if (error) this.toast('Erro ao remover tag', 'error'); }
         } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
       }
+    },
+
+    // --- Tags Relational Model ---
+    async loadTaskTags() {
+      if (!sb) return;
+      try {
+        const { data, error } = await sb.from('god_task_tags').select('*').order('name');
+        if (!error && data) this.data.taskTags = data;
+      } catch (e) { console.warn('[Spalla] loadTaskTags error:', e.message); }
+    },
+
+    async createTag(name, color = '#94a3b8') {
+      if (!name?.trim() || !sb) return null;
+      try {
+        const { data, error } = await sb.from('god_task_tags')
+          .insert({ name: name.trim(), color, scope: 'global', is_system: false })
+          .select().single();
+        if (!error && data) { this.data.taskTags.push(data); return data; }
+        if (error) this.toast('Tag já existe ou erro: ' + error.message, 'error');
+      } catch (e) { this.toast('Erro ao criar tag', 'error'); }
+      return null;
+    },
+
+    async deleteTag(tagId) {
+      const tag = this.data.taskTags.find(t => t.id === tagId);
+      if (!tag || tag.is_system) return;
+      this.data.taskTags = this.data.taskTags.filter(t => t.id !== tagId);
+      if (sb) {
+        const { error } = await sb.from('god_task_tags').delete().eq('id', tagId);
+        if (error) { this.loadTaskTags(); this.toast('Erro ao remover tag', 'error'); }
+      }
+    },
+
+    toggleFormTag(tagId) {
+      if (!this.taskForm.tags) this.taskForm.tags = [];
+      const tagDef = this.data.taskTags.find(t => t.id === tagId);
+      if (!tagDef) return;
+      const idx = this.taskForm.tags.findIndex(t => (t.id || t) === tagId);
+      if (idx !== -1) {
+        this.taskForm.tags.splice(idx, 1);
+      } else {
+        this.taskForm.tags.push({ id: tagDef.id, name: tagDef.name, color: tagDef.color });
+      }
+    },
+
+    async _sbSyncTagRelations(taskId, tags) {
+      if (!sb) return;
+      await sb.from('god_task_tag_relations').delete().eq('task_id', taskId);
+      const validTags = (tags || []).filter(t => t.id);
+      if (validTags.length) {
+        await sb.from('god_task_tag_relations').insert(
+          validTags.map(t => ({ task_id: taskId, tag_id: t.id }))
+        );
+      }
+    },
+
+    // --- Custom Fields ---
+    async loadFieldDefs(spaceId = null, listId = null, taskId = null) {
+      if (!sb) return;
+      const p_task_id = taskId || '00000000-0000-0000-0000-000000000000';
+      try {
+        const { data, error } = await sb.rpc('get_task_fields', {
+          p_task_id,
+          p_space_id: spaceId || null,
+          p_list_id: listId || null,
+        });
+        if (!error && data) {
+          this.data.fieldDefs = data;
+          if (taskId) {
+            const vals = {};
+            data.forEach(f => { if (f.value && f.value.v !== undefined) vals[f.field_id] = f.value.v; });
+            this.taskForm.fieldValues = { ...this.taskForm.fieldValues, ...vals };
+          }
+        }
+      } catch (e) { console.warn('[Spalla] loadFieldDefs error:', e.message); }
+    },
+
+    async saveFieldValues(taskId) {
+      if (!sb || !taskId) return;
+      const fieldValues = this.taskForm.fieldValues || {};
+      const upserts = Object.entries(fieldValues)
+        .filter(([, val]) => val !== null && val !== undefined && val !== '')
+        .map(([fieldId, val]) => ({ task_id: taskId, field_id: fieldId, value: { v: val } }));
+      if (!upserts.length) return;
+      const { error } = await sb.from('god_task_field_values').upsert(upserts, { onConflict: 'task_id,field_id' });
+      if (error) console.warn('[Spalla] saveFieldValues error:', error.message);
     },
 
     async setParentTask(taskId, parentId) {

@@ -1270,13 +1270,13 @@
               <template x-for="space in spaces" :key="space.id">
                 <div class="tasks-sidebar__space">
                   <div class="tasks-sidebar__item tasks-sidebar__item--space" :class="{ active: ui.taskSpaceFilter === space.id && ui.taskListFilter === 'all' }" @click="ui.taskSpaceFilter = space.id; ui.taskListFilter = 'all'">
-                    <span class="tasks-sidebar__icon" :style="'color:' + space.color" x-text="space.icon"></span>
+                    <span class="tasks-sidebar__space-dot" :style="'background:' + space.color"></span>
                     <span x-text="space.name"></span>
                     <span class="tasks-sidebar__count" x-text="data.tasks.filter(t => t.space_id === space.id).length"></span>
                   </div>
                   <template x-for="list in space.lists" :key="list.id">
                     <div class="tasks-sidebar__item tasks-sidebar__item--list" :class="{ active: ui.taskListFilter === list.id }" @click="ui.taskSpaceFilter = space.id; ui.taskListFilter = list.id">
-                      <span x-text="list.icon" style="font-size:12px"></span>
+                      <span class="tasks-sidebar__list-dot" :style="'background:' + space.color"></span>
                       <span x-text="list.name"></span>
                       <span class="tasks-sidebar__count" x-text="data.tasks.filter(t => t.list_id === list.id).length"></span>
                     </div>
@@ -1343,7 +1343,26 @@
                   <option value="priority">Agrupar: Prioridade</option>
                   <option value="list">Agrupar: Lista</option>
                 </select>
-                <span class="filter-bar__count" x-text="data.tasks.length + ' tarefas'"></span>
+                <!-- Tag filter -->
+                <div class="task-tag-filter" style="position:relative">
+                  <button class="filter-bar__select" style="cursor:pointer;display:flex;align-items:center;gap:6px;background-image:none;padding-right:12px" @click="ui.taskTagsFilterOpen = !ui.taskTagsFilterOpen" :class="{ 'filter-bar__select--active': ui.taskTagFilter.length }">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="9" r="3"/><path d="M13 13l6 6"/></svg>
+                    Tags
+                    <span x-show="ui.taskTagFilter.length" class="badge badge--xs badge--info" x-text="ui.taskTagFilter.length"></span>
+                  </button>
+                  <div x-show="ui.taskTagsFilterOpen" @click.away="ui.taskTagsFilterOpen = false" class="task-tags-dropdown task-tags-dropdown--filter" style="top:calc(100% + 4px);left:0">
+                    <template x-for="tag in data.taskTags" :key="tag.id">
+                      <div class="task-tags-option" @click="ui.taskTagFilter.includes(tag.id) ? ui.taskTagFilter.splice(ui.taskTagFilter.indexOf(tag.id),1) : ui.taskTagFilter.push(tag.id)">
+                        <input type="checkbox" :checked="ui.taskTagFilter.includes(tag.id)" @click.stop>
+                        <span class="task-tag-dot" :style="'background:' + tag.color"></span>
+                        <span x-text="tag.name" style="font-size:13px"></span>
+                      </div>
+                    </template>
+                    <div x-show="!data.taskTags.length" style="padding:8px 12px;font-size:12px;color:#94a3b8">Nenhuma tag criada</div>
+                    <button x-show="ui.taskTagFilter.length" @click="ui.taskTagFilter=[];ui.taskTagsFilterOpen=false" style="width:100%;padding:6px;font-size:12px;color:#ef4444;background:none;border:none;border-top:1px solid #f1f5f9;cursor:pointer;text-align:left">Limpar filtro de tags</button>
+                  </div>
+                </div>
+                <span class="filter-bar__count" x-text="(ui.taskView === 'list' ? filteredTasks.length : data.tasks.length) + ' tarefas'"></span>
               </div>
 
               <!-- BOARD VIEW -->
@@ -1351,7 +1370,7 @@
                 <template x-for="status in ['pendente', 'em_andamento', 'concluida']" :key="status">
                   <div class="task-board__column">
                     <div class="task-board__column-header" :class="'task-board__column-header--' + status">
-                      <span class="task-board__column-icon" x-text="taskStatusIcon(status)"></span>
+                      <span class="task-status-dot" :class="'task-status-dot--' + status"></span>
                       <span x-text="taskStatusLabel(status)"></span>
                       <span class="task-board__column-count" x-text="tasksByStatus[status]?.length || 0"></span>
                     </div>
@@ -1374,9 +1393,10 @@
                           </div>
                           <!-- Tags -->
                           <div x-show="t.tags?.length" class="task-board__card-tags">
-                            <template x-for="tag in (t.tags || []).slice(0, 3)" :key="tag">
-                              <span class="task-tag" x-text="tag"></span>
+                            <template x-for="tag in (t.tags || []).slice(0, 3)" :key="tag.id || tag.name || tag">
+                              <span class="task-tag" :style="(tag.color) ? 'background:' + tag.color + '22;color:' + tag.color + ';border-color:' + tag.color + '55' : ''" x-text="tag.name || tag"></span>
                             </template>
+                            <span x-show="(t.tags || []).length > 3" class="task-tag task-tag--more" x-text="'+' + ((t.tags||[]).length - 3)"></span>
                           </div>
                           <div class="task-board__card-meta">
                             <span x-show="t.mentorado_nome" class="task-board__card-mentee">
@@ -1455,7 +1475,7 @@
                     <div class="task-list__col task-list__col--check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
                     <div class="task-list__col task-list__col--title">
                       <div class="task-list__title" x-text="t.titulo"></div>
-                      <div class="task-list__tags" x-show="t.tags?.length"><template x-for="tag in (t.tags||[]).slice(0,2)"><span class="task-tag" x-text="tag"></span></template></div>
+                      <div class="task-list__tags" x-show="t.tags?.length"><template x-for="tag in (t.tags||[]).slice(0,2)" :key="tag.id||tag.name||tag"><span class="task-tag" :style="tag.color ? 'background:'+tag.color+'22;color:'+tag.color+';border-color:'+tag.color+'55' : ''" x-text="tag.name||tag"></span></template></div>
                       <div x-show="t.parent_task_id" style="font-size:10px;color:#94a3b8">subtarefa</div>
                     </div>
                     <div class="task-list__col task-list__col--assignee">
@@ -1595,7 +1615,9 @@
                   <div class="task-drawer__section" x-show="activeTaskDetail.tags?.length">
                     <h4>Tags</h4>
                     <div class="task-drawer__tags">
-                      <template x-for="tag in activeTaskDetail.tags || []"><span class="task-tag" x-text="tag"></span></template>
+                      <template x-for="tag in activeTaskDetail.tags || []" :key="tag.id||tag.name||tag">
+                        <span class="task-tag" :style="tag.color ? 'background:'+tag.color+'22;color:'+tag.color+';border-color:'+tag.color+'55' : ''" x-text="tag.name||tag"></span>
+                      </template>
                     </div>
                   </div>
                   <!-- Subtasks -->
@@ -3112,14 +3134,19 @@
       <!-- Task Modal — Global (outside pages so visible on all pages) -->
       <div class="modal-overlay" x-show="ui.taskModal" x-transition.opacity @click.self="closeTaskModal()" role="dialog" aria-modal="true">
         <div class="modal modal--lg">
-          <div class="modal__header"><h3>Nova Tarefa</h3><button @click="closeTaskModal()">&times;</button></div>
+          <div class="modal__header">
+            <h3 x-text="ui.taskEditId ? 'Editar Tarefa' : 'Nova Tarefa'"></h3>
+            <button @click="closeTaskModal()">&times;</button>
+          </div>
           <div class="modal__body">
+
             <label>Titulo *</label>
             <input type="text" x-model="taskForm.titulo" placeholder="O que precisa ser feito?" class="modal__input">
 
             <label>Descricao</label>
             <textarea x-model="taskForm.descricao" placeholder="Detalhes, orientacoes..." class="modal__textarea"></textarea>
 
+            <!-- Mentorado + Responsavel -->
             <div class="modal__row">
               <div><label>Mentorado</label>
                 <select x-model="taskForm.mentorado_nome" class="modal__select">
@@ -3138,18 +3165,138 @@
               </div>
             </div>
 
+            <!-- Acompanhante -->
+            <div class="modal__row">
+              <div><label>Acompanhante</label>
+                <select x-model="taskForm.acompanhante" class="modal__select">
+                  <option value="">-- Nenhum --</option>
+                  <template x-for="tm in TEAM_MEMBERS" :key="tm.id"><option :value="tm.name" x-text="tm.name"></option></template>
+                </select>
+              </div>
+              <div><label>Prioridade</label>
+                <select x-model="taskForm.prioridade" class="modal__select">
+                  <option value="baixa">Baixa</option>
+                  <option value="normal">Normal</option>
+                  <option value="alta">Alta</option>
+                  <option value="urgente">Urgente</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Datas -->
             <div class="modal__row">
               <div><label>Data Inicio</label><input type="date" x-model="taskForm.data_inicio" class="modal__input"></div>
               <div><label>Data Fim</label><input type="date" x-model="taskForm.data_fim" class="modal__input"></div>
             </div>
 
-            <label>Prioridade</label>
-            <select x-model="taskForm.prioridade" class="modal__select">
-              <option value="baixa">Baixa</option>
-              <option value="normal">Normal</option>
-              <option value="alta">Alta</option>
-              <option value="urgente">Urgente</option>
-            </select>
+            <!-- Space + Lista -->
+            <div class="modal__row">
+              <div><label>Space</label>
+                <select class="modal__select" x-model="taskForm.space_id" @change="taskForm.list_id=''; loadFieldDefs(taskForm.space_id, null, ui.taskEditId)">
+                  <template x-for="sp in spaces" :key="sp.id">
+                    <option :value="sp.id" x-text="sp.name"></option>
+                  </template>
+                </select>
+              </div>
+              <div><label>Lista</label>
+                <select class="modal__select" x-model="taskForm.list_id" @change="loadFieldDefs(taskForm.space_id, taskForm.list_id, ui.taskEditId)">
+                  <option value="">-- Sem lista --</option>
+                  <template x-for="list in (spaces.find(s => s.id === taskForm.space_id)?.lists || [])" :key="list.id">
+                    <option :value="list.id" x-text="list.name"></option>
+                  </template>
+                </select>
+              </div>
+            </div>
+
+            <!-- Tags (ClickUp-style dropdown) -->
+            <div style="margin-top:12px;position:relative">
+              <label>Tags</label>
+              <div class="task-tags-field" @click="ui.taskTagsDropdown = !ui.taskTagsDropdown">
+                <template x-for="tag in (taskForm.tags || [])" :key="tag.id || tag.name || tag">
+                  <span class="task-tag" :style="tag.color ? 'background:'+tag.color+'22;color:'+tag.color+';border-color:'+tag.color+'55' : ''">
+                    <span x-text="tag.name || tag"></span>
+                    <button type="button" @click.stop="toggleFormTag(tag.id || tag)" style="background:none;border:none;cursor:pointer;margin-left:2px;color:inherit;opacity:.7;font-size:12px;padding:0;line-height:1">&times;</button>
+                  </span>
+                </template>
+                <span x-show="!(taskForm.tags||[]).length" style="color:#94a3b8;font-size:13px;pointer-events:none">Adicionar tags...</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" style="margin-left:auto;flex-shrink:0"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <!-- Tags dropdown -->
+              <div x-show="ui.taskTagsDropdown" @click.away="ui.taskTagsDropdown = false" class="task-tags-dropdown">
+                <div style="padding:6px 8px;border-bottom:1px solid #f1f5f9">
+                  <input type="text" x-model="taskForm.newTag" placeholder="Buscar ou criar tag..." class="task-tags-search" @click.stop>
+                </div>
+                <div class="task-tags-list">
+                  <template x-for="tag in data.taskTags.filter(t => !taskForm.newTag || t.name.toLowerCase().includes(taskForm.newTag.toLowerCase()))" :key="tag.id">
+                    <div class="task-tags-option" @click.stop="toggleFormTag(tag.id)">
+                      <input type="checkbox" :checked="(taskForm.tags||[]).some(t => (t.id||t) === tag.id)" @click.stop @change.stop="toggleFormTag(tag.id)">
+                      <span class="task-tag-dot" :style="'background:' + tag.color"></span>
+                      <span x-text="tag.name" style="flex:1;font-size:13px"></span>
+                      <span x-show="tag.is_system" style="font-size:10px;color:#94a3b8">sistema</span>
+                      <button x-show="!tag.is_system" type="button" @click.stop="deleteTag(tag.id)" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:14px;padding:0 2px;opacity:.6" title="Remover tag">&times;</button>
+                    </div>
+                  </template>
+                  <div x-show="!data.taskTags.length && !taskForm.newTag" style="padding:8px 12px;font-size:12px;color:#94a3b8">Nenhuma tag disponivel</div>
+                </div>
+                <!-- Create new tag inline -->
+                <div x-show="taskForm.newTag && !data.taskTags.some(t => t.name.toLowerCase() === taskForm.newTag.toLowerCase())" style="padding:6px 8px;border-top:1px solid #f1f5f9">
+                  <button type="button" class="btn btn--sm btn--brand" style="width:100%;font-size:12px"
+                    @click.stop="createTag(taskForm.newTag).then(t => { if(t){ toggleFormTag(t.id); } taskForm.newTag=''; })">
+                    + Criar tag "<span x-text="taskForm.newTag"></span>"
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Custom Fields -->
+            <div x-show="data.fieldDefs && data.fieldDefs.length" style="margin-top:16px">
+              <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Campos</div>
+              <div class="modal__row" style="flex-wrap:wrap;gap:12px">
+                <template x-for="field in data.fieldDefs" :key="field.field_id">
+                  <div style="flex:1;min-width:160px">
+                    <label x-text="field.field_name" style="font-size:12px;margin-bottom:4px;display:block"></label>
+                    <!-- text -->
+                    <input x-show="field.field_type === 'text'" type="text" class="modal__input" :placeholder="field.config?.placeholder || ''" x-model="taskForm.fieldValues[field.field_id]">
+                    <!-- number -->
+                    <div x-show="field.field_type === 'number'" style="display:flex;align-items:center;gap:6px">
+                      <input type="number" class="modal__input" style="flex:1" :min="field.config?.min" :max="field.config?.max" :placeholder="field.config?.placeholder||'0'" x-model="taskForm.fieldValues[field.field_id]">
+                      <span style="font-size:12px;color:#94a3b8;white-space:nowrap" x-text="field.config?.unit || ''"></span>
+                    </div>
+                    <!-- date -->
+                    <input x-show="field.field_type === 'date'" type="date" class="modal__input" x-model="taskForm.fieldValues[field.field_id]">
+                    <!-- checkbox -->
+                    <div x-show="field.field_type === 'checkbox'" style="padding-top:4px">
+                      <input type="checkbox" :checked="taskForm.fieldValues[field.field_id]" @change="taskForm.fieldValues[field.field_id] = $event.target.checked" style="width:16px;height:16px;cursor:pointer">
+                    </div>
+                    <!-- select -->
+                    <select x-show="field.field_type === 'select'" class="modal__select" x-model="taskForm.fieldValues[field.field_id]">
+                      <option value="">-- Selecione --</option>
+                      <template x-for="opt in (field.options || [])" :key="opt.id">
+                        <option :value="opt.id" x-text="opt.label"></option>
+                      </template>
+                    </select>
+                    <!-- url -->
+                    <input x-show="field.field_type === 'url'" type="url" class="modal__input" :placeholder="field.config?.placeholder || 'https://'" x-model="taskForm.fieldValues[field.field_id]">
+                    <!-- progress -->
+                    <div x-show="field.field_type === 'progress'" style="display:flex;align-items:center;gap:8px">
+                      <input type="range" min="0" max="100" style="flex:1;padding:0;margin:0" x-model="taskForm.fieldValues[field.field_id]">
+                      <span style="font-size:12px;min-width:32px;text-align:right;color:#64748b" x-text="(taskForm.fieldValues[field.field_id] || 0) + '%'"></span>
+                    </div>
+                    <!-- rating -->
+                    <div x-show="field.field_type === 'rating'" style="display:flex;gap:2px;padding-top:2px">
+                      <template x-for="star in [1,2,3,4,5]" :key="star">
+                        <button type="button" @click="taskForm.fieldValues[field.field_id] = star" :style="star <= (taskForm.fieldValues[field.field_id]||0) ? 'color:#f59e0b' : 'color:#e2e8f0'" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1">&#9733;</button>
+                      </template>
+                    </div>
+                    <!-- user -->
+                    <select x-show="field.field_type === 'user'" class="modal__select" x-model="taskForm.fieldValues[field.field_id]">
+                      <option value="">-- Selecione --</option>
+                      <template x-for="tm in TEAM_MEMBERS" :key="tm.id"><option :value="tm.name" x-text="tm.name"></option></template>
+                    </select>
+                  </div>
+                </template>
+              </div>
+            </div>
 
             <!-- Recorrencia -->
             <div style="margin-top:12px">
