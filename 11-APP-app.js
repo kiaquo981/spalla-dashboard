@@ -4698,14 +4698,21 @@ function spalla() {
       this.toast('Analisando transcrições com IA... isso pode levar até 30s', 'info');
 
       try {
-        const { data, error } = await sb.functions.invoke('gerar-perfil', {
-          body: { mentorado_id: mid },
+        const fnUrl = CONFIG.SUPABASE_URL + '/functions/v1/gerar-perfil';
+        const resp = await fetch(fnUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + CONFIG.SUPABASE_ANON_KEY,
+            'apikey': CONFIG.SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({ mentorado_id: mid }),
         });
 
-        if (error) throw error;
-        if (data?.error) throw new Error(data.error);
+        const data = await resp.json();
+        if (!resp.ok || data.error) throw new Error(data.error || 'Erro na Edge Function');
 
-        this.toast(`Perfil gerado com sucesso (${data.calls_analisadas} calls analisadas)`, 'success');
+        this.toast('Perfil gerado com sucesso (' + data.calls_analisadas + ' calls analisadas)', 'success');
         await this.loadPerfilComportamental(mid);
       } catch (e) {
         console.error('Erro ao gerar perfil:', e);
