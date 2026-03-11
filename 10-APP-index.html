@@ -528,6 +528,10 @@
                   <span class="detail-tabs__count" x-text="(getPaForMentee(data.detail?.profile?.id)?.pct_concluido || 0) + '%'"></span>
                 </template>
               </button>
+              <button class="detail-tabs__btn" :class="{ active: ui.activeDetailTab === 'perfil' }" @click="ui.activeDetailTab = 'perfil'; loadPerfilComportamental()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/></svg>
+                Perfil
+              </button>
             </div>
 
             <!-- ===== TAB: RESUMO ===== -->
@@ -1079,6 +1083,231 @@
                   </div>
                 </div>
               </template>
+            </div>
+
+            <!-- ===== TAB: PERFIL COMPORTAMENTAL ===== -->
+            <div class="detail-tab-content" x-show="ui.activeDetailTab === 'perfil'">
+
+              <!-- Loading -->
+              <div x-show="ui.perfilLoading" class="skeleton skeleton--card" style="height:200px"></div>
+
+              <!-- Empty state -->
+              <div x-show="!ui.perfilLoading && !data.perfilComportamental && !ui.perfilModal" class="empty-state">
+                <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="margin-bottom:12px;color:var(--text-secondary)"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/></svg>
+                <p>Nenhum perfil comportamental cadastrado.</p>
+                <div style="display:flex;gap:8px;margin-top:12px">
+                  <button class="btn btn--primary" @click="gerarPerfilComIA()" :disabled="ui.perfilGerando">
+                    <span x-show="!ui.perfilGerando">&#x2728; Gerar com IA</span>
+                    <span x-show="ui.perfilGerando">Analisando transcrições...</span>
+                  </button>
+                  <button class="btn btn--ghost" @click="openPerfilEdit()">Criar Manual</button>
+                </div>
+              </div>
+
+              <!-- Perfil Content -->
+              <template x-if="data.perfilComportamental && !ui.perfilModal">
+                <div>
+                  <!-- Header with edit button -->
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                    <h3 style="font-size:16px;font-weight:700">Perfil Comportamental</h3>
+                    <div style="display:flex;gap:8px;align-items:center">
+                      <span class="badge badge--blue" x-text="data.perfilComportamental.fonte || 'manual'" style="font-size:10px"></span>
+                      <button class="btn btn--ghost btn--sm" @click="gerarPerfilComIA()" :disabled="ui.perfilGerando">
+                        <span x-show="!ui.perfilGerando">Regerar IA</span>
+                        <span x-show="ui.perfilGerando">Analisando...</span>
+                      </button>
+                      <button class="btn btn--ghost btn--sm" @click="openPerfilEdit()">Editar</button>
+                    </div>
+                  </div>
+
+                  <!-- Row 1: 3 Radar Charts -->
+                  <div class="perfil-charts-row" x-show="data.perfilComportamental.dimensoes?.big_five || data.perfilComportamental.dimensoes?.disc || data.perfilComportamental.dimensoes?.quatro_zonas">
+                    <!-- Big Five -->
+                    <div class="card perfil-chart-card" x-show="data.perfilComportamental.dimensoes?.big_five">
+                      <div class="card__header"><h3>Big Five</h3></div>
+                      <div class="card__body" style="display:flex;justify-content:center"><canvas id="chart-bigfive"></canvas></div>
+                    </div>
+                    <!-- DISC -->
+                    <div class="card perfil-chart-card" x-show="data.perfilComportamental.dimensoes?.disc">
+                      <div class="card__header"><h3>DISC</h3></div>
+                      <div class="card__body" style="display:flex;justify-content:center"><canvas id="chart-disc"></canvas></div>
+                    </div>
+                    <!-- Quatro Zonas -->
+                    <div class="card perfil-chart-card" x-show="data.perfilComportamental.dimensoes?.quatro_zonas">
+                      <div class="card__header"><h3>Quatro Zonas</h3></div>
+                      <div class="card__body" style="display:flex;justify-content:center"><canvas id="chart-zonas"></canvas></div>
+                    </div>
+                  </div>
+
+                  <!-- Row 2: Modos Esquematicos bar chart -->
+                  <div class="card" style="margin-top:16px" x-show="data.perfilComportamental.dimensoes?.modos_esquematicos">
+                    <div class="card__header"><h3>Modos Esquematicos</h3></div>
+                    <div class="card__body" style="max-height:360px;display:flex;justify-content:center"><canvas id="chart-modos"></canvas></div>
+                  </div>
+
+                  <!-- Row 3: Quatro Zonas exemplos -->
+                  <template x-if="data.perfilComportamental.dimensoes?.quatro_zonas">
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px" class="perfil-zonas-exemplos">
+                      <template x-for="zona in ['incompetencia','competencia','excelencia','genialidade']" :key="zona">
+                        <div class="card" x-show="data.perfilComportamental.dimensoes.quatro_zonas[zona]?.exemplos?.length">
+                          <div class="card__header">
+                            <h3 style="font-size:12px;text-transform:capitalize" x-text="zona.replace('_',' ')"></h3>
+                            <span class="badge" x-text="(data.perfilComportamental.dimensoes.quatro_zonas[zona]?.score || 0) + '%'"></span>
+                          </div>
+                          <div class="card__body" style="padding:8px 12px">
+                            <template x-for="ex in (data.perfilComportamental.dimensoes.quatro_zonas[zona]?.exemplos || [])" :key="ex">
+                              <p style="font-size:12px;color:var(--text-secondary);margin:2px 0" x-text="ex"></p>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+
+                  <!-- Row 4: Text cards grid -->
+                  <div class="perfil-text-grid" style="margin-top:16px">
+
+                    <!-- Estilo de Comunicacao -->
+                    <template x-if="data.perfilComportamental.comunicacao?.estilo_comunicacao">
+                      <div class="card">
+                        <div class="card__header"><h3>Estilo de Comunicacao</h3></div>
+                        <div class="card__body" style="font-size:13px">
+                          <p><strong x-text="data.perfilComportamental.comunicacao.estilo_comunicacao.tipo_principal"></strong></p>
+                          <p style="color:var(--text-secondary);margin-top:4px" x-text="data.perfilComportamental.comunicacao.estilo_comunicacao.descricao"></p>
+                          <template x-if="data.perfilComportamental.comunicacao.estilo_comunicacao.como_lidar?.length">
+                            <div style="margin-top:8px">
+                              <p style="font-weight:600;font-size:11px;color:var(--text-secondary)">Como lidar:</p>
+                              <template x-for="item in data.perfilComportamental.comunicacao.estilo_comunicacao.como_lidar" :key="item">
+                                <p style="font-size:12px;margin:2px 0" x-text="'- ' + item"></p>
+                              </template>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+
+                    <!-- Medos / Desejos / Valores / Dores -->
+                    <div class="card" x-show="data.perfilComportamental.comunicacao?.medos || data.perfilComportamental.comunicacao?.desejos || data.perfilComportamental.comunicacao?.valores || data.perfilComportamental.comunicacao?.dores">
+                      <div class="card__header"><h3>Medos / Desejos / Valores / Dores</h3></div>
+                      <div class="card__body" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px">
+                        <template x-for="cat in ['medos','desejos','valores','dores']" :key="cat">
+                          <div x-show="data.perfilComportamental.comunicacao?.[cat]?.length">
+                            <p style="font-weight:600;text-transform:capitalize;margin-bottom:4px" x-text="cat"></p>
+                            <template x-for="item in (data.perfilComportamental.comunicacao?.[cat] || [])" :key="item">
+                              <p style="color:var(--text-secondary);margin:1px 0" x-text="'- ' + item"></p>
+                            </template>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+
+                    <!-- Arquitetura Cognitiva -->
+                    <template x-if="data.perfilComportamental.comunicacao?.arquitetura_cognitiva">
+                      <div class="card">
+                        <div class="card__header"><h3>Arquitetura Cognitiva</h3></div>
+                        <div class="card__body" style="font-size:13px">
+                          <p><strong>Estilo de decisao:</strong> <span x-text="data.perfilComportamental.comunicacao.arquitetura_cognitiva.estilo_decisao"></span></p>
+                          <template x-if="data.perfilComportamental.comunicacao.arquitetura_cognitiva.gatilhos_acao?.length">
+                            <div style="margin-top:6px">
+                              <p style="font-weight:600;font-size:11px;color:var(--text-secondary)">Gatilhos de acao:</p>
+                              <template x-for="g in data.perfilComportamental.comunicacao.arquitetura_cognitiva.gatilhos_acao" :key="g">
+                                <p style="font-size:12px;margin:1px 0" x-text="'- ' + g"></p>
+                              </template>
+                            </div>
+                          </template>
+                          <template x-if="data.perfilComportamental.comunicacao.arquitetura_cognitiva.resistencias?.length">
+                            <div style="margin-top:6px">
+                              <p style="font-weight:600;font-size:11px;color:var(--text-secondary)">Resistencias:</p>
+                              <template x-for="r in data.perfilComportamental.comunicacao.arquitetura_cognitiva.resistencias" :key="r">
+                                <p style="font-size:12px;margin:1px 0" x-text="'- ' + r"></p>
+                              </template>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+
+                    <!-- Eneagrama -->
+                    <template x-if="data.perfilComportamental.comunicacao?.eneagrama">
+                      <div class="card">
+                        <div class="card__header"><h3>Eneagrama</h3></div>
+                        <div class="card__body" style="font-size:13px">
+                          <p><strong x-text="'Tipo ' + data.perfilComportamental.comunicacao.eneagrama.tipo + ' — ' + data.perfilComportamental.comunicacao.eneagrama.nome"></strong>
+                            <span style="color:var(--text-secondary);font-size:11px" x-text="'(' + (data.perfilComportamental.comunicacao.eneagrama.asa || '') + ')'"></span>
+                          </p>
+                          <p style="color:var(--text-secondary);margin-top:4px" x-text="data.perfilComportamental.comunicacao.eneagrama.descricao"></p>
+                          <div style="margin-top:8px;display:flex;gap:16px;font-size:11px">
+                            <span><strong>Integracao:</strong> <span x-text="data.perfilComportamental.comunicacao.eneagrama.integracao"></span></span>
+                            <span><strong>Desintegracao:</strong> <span x-text="data.perfilComportamental.comunicacao.eneagrama.desintegracao"></span></span>
+                          </div>
+                        </div>
+                      </div>
+                    </template>
+
+                    <!-- Human Design -->
+                    <template x-if="data.perfilComportamental.comunicacao?.human_design">
+                      <div class="card">
+                        <div class="card__header"><h3>Human Design</h3></div>
+                        <div class="card__body" style="font-size:13px">
+                          <p><strong x-text="data.perfilComportamental.comunicacao.human_design.tipo"></strong>
+                            <span style="color:var(--text-secondary);font-size:11px" x-text="'Perfil ' + (data.perfilComportamental.comunicacao.human_design.perfil || '')"></span>
+                          </p>
+                          <p style="margin-top:4px"><strong style="font-size:11px">Estrategia:</strong> <span x-text="data.perfilComportamental.comunicacao.human_design.estrategia"></span></p>
+                          <p><strong style="font-size:11px">Autoridade:</strong> <span x-text="data.perfilComportamental.comunicacao.human_design.autoridade"></span></p>
+                          <p style="color:var(--text-secondary);margin-top:4px" x-text="data.perfilComportamental.comunicacao.human_design.descricao"></p>
+                        </div>
+                      </div>
+                    </template>
+
+                    <!-- Notas -->
+                    <div class="card" style="grid-column:1/-1" x-show="data.perfilComportamental.notas_texto">
+                      <div class="card__header"><h3>Notas</h3></div>
+                      <div class="card__body" style="font-size:13px;white-space:pre-wrap" x-text="data.perfilComportamental.notas_texto"></div>
+                    </div>
+
+                  </div>
+                </div>
+              </template>
+
+              <!-- Modal de input -->
+              <div x-show="ui.perfilModal" class="card" style="margin-bottom:16px">
+                <div class="card__header">
+                  <h3 x-text="data.perfilComportamental ? 'Editar Perfil' : 'Novo Perfil Comportamental'"></h3>
+                  <div style="display:flex;gap:4px">
+                    <button class="btn btn--ghost btn--sm" :class="{ 'btn--primary': ui.perfilInputMode==='json' }" @click="ui.perfilInputMode='json'">JSON</button>
+                    <button class="btn btn--ghost btn--sm" :class="{ 'btn--primary': ui.perfilInputMode==='form' }" @click="ui.perfilInputMode='form'">Form</button>
+                  </div>
+                </div>
+                <div class="card__body" style="display:flex;flex-direction:column;gap:12px">
+                  <!-- JSON mode -->
+                  <div x-show="ui.perfilInputMode === 'json'">
+                    <label class="form-label">Cole o JSON gerado pela IA</label>
+                    <textarea class="form-input" x-model="perfilForm.json_raw" rows="12" style="font-family:monospace;font-size:11px;resize:vertical" placeholder='{"dimensoes":{"big_five":{...},"disc":{...}},"comunicacao":{...}}'></textarea>
+                    <p style="font-size:10px;color:var(--text-secondary);margin-top:4px">O JSON deve conter as chaves "dimensoes" e/ou "comunicacao".</p>
+                  </div>
+                  <!-- Form mode -->
+                  <div x-show="ui.perfilInputMode === 'form'">
+                    <label class="form-label">Fonte</label>
+                    <select class="form-input" x-model="perfilForm.fonte">
+                      <option value="ai_claude">Claude AI</option>
+                      <option value="ai_gpt">GPT</option>
+                      <option value="manual">Manual</option>
+                      <option value="avaliacao">Avaliacao Formal</option>
+                    </select>
+                    <label class="form-label" style="margin-top:8px">Detalhes da fonte</label>
+                    <input type="text" class="form-input" x-model="perfilForm.fonte_detalhes" placeholder="Ex: Transcricao call 10/03 + WhatsApp">
+                  </div>
+                  <!-- Notas (both modes) -->
+                  <label class="form-label">Notas de texto (opcional)</label>
+                  <textarea class="form-input" x-model="perfilForm.notas_texto" rows="3" placeholder="Observacoes livres sobre o perfil..."></textarea>
+                  <!-- Actions -->
+                  <div style="display:flex;gap:8px;justify-content:flex-end">
+                    <button class="btn btn--ghost" @click="ui.perfilModal = false">Cancelar</button>
+                    <button class="btn btn--primary" @click="savePerfilComportamental()">Salvar Perfil</button>
+                  </div>
+                </div>
+              </div>
+
             </div>
 
           </div>
@@ -3073,6 +3302,7 @@
   </div>
 
   <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js" integrity="sha384-Sm2s7OXxsAMTyJ4iIyRBgVpeGUvMPk2lRQnnZhE78Wej7oggIoolKt+SCt0XJbUB" crossorigin="anonymous"></script>
   <script src="12-APP-data.js?v=59"></script>
   <script src="13-APP-photos.js?v=59"></script>

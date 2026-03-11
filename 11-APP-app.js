@@ -179,6 +179,11 @@ function spalla() {
       paExpandedFases: {},      // { faseId: true } for accordion
       paLoading: false,         // loading state for PA detail
       paSearchQuery: '',        // busca por nome do mentorado
+      // Perfil Comportamental
+      perfilLoading: false,
+      perfilModal: false,
+      perfilInputMode: 'json',  // json | form
+      perfilGerando: false,     // estado de loading da geração IA
       // Onboarding CS
       obView: 'painel',         // painel | pipeline | lista
       obFilter: 'all',          // all | em_andamento | concluido | atrasado
@@ -223,6 +228,8 @@ function spalla() {
       obTrilhaDetail: null,      // trilha + etapas + tarefas (detail view)
       obTemplateEtapas: [],      // template etapas + tarefas (for editor)
       obEventos: [],             // timeline / audit trail for detail view
+      // Perfil Comportamental
+      perfilComportamental: null,
       // Dossiê Production System
       dsProducoes: [],          // vw_ds_pipeline
       dsAllDocs: [],            // ds_documentos (lightweight)
@@ -230,6 +237,10 @@ function spalla() {
       dsEventos: [],            // audit trail for detail view
       dsAjustes: [],            // ajustes for detail view
     },
+
+    // --- Perfil Comportamental ---
+    perfilForm: { json_raw: '', notas_texto: '', fonte: 'ai_claude', fonte_detalhes: '' },
+    _perfilCharts: {},
 
     // --- Media Cache ---
     waMediaUrls: {},  // messageId → presigned URL
@@ -1360,6 +1371,8 @@ function spalla() {
     },
 
     async loadMenteeDetail(id) {
+      this.destroyPerfilCharts();
+      this.data.perfilComportamental = null;
       this.ui.detailLoading = true;
       this.ui.selectedMenteeId = id;
       this.ui.page = 'detail';
@@ -4589,6 +4602,241 @@ function spalla() {
         last_interactions: [],
         pending_tasks: menteeTasks,
         directions: ctx.direcionamento ? [{ texto: ctx.direcionamento, fonte: 'planilha', data: '2026-02-15' }] : [],
+      };
+    },
+
+    // ===== PERFIL COMPORTAMENTAL =====
+
+    async loadPerfilComportamental(mentoradoId) {
+      if (!sb) return;
+      const mid = mentoradoId || this.data.detail?.profile?.id;
+      if (!mid) return;
+      this.ui.perfilLoading = true;
+      try {
+        const { data, error } = await sb.from('perfil_comportamental')
+          .select('*').eq('mentorado_id', mid).maybeSingle();
+        if (error) throw error;
+        this.data.perfilComportamental = data;
+        if (data) {
+          this.$nextTick(() => this.renderPerfilCharts());
+        }
+      } catch (e) {
+        console.error('Error loading perfil:', e);
+        this.toast('Erro ao carregar perfil', 'error');
+      } finally {
+        this.ui.perfilLoading = false;
+      }
+    },
+
+    openPerfilEdit() {
+      const p = this.data.perfilComportamental;
+      if (p) {
+        const combined = {};
+        if (p.dimensoes && Object.keys(p.dimensoes).length) combined.dimensoes = p.dimensoes;
+        if (p.comunicacao && Object.keys(p.comunicacao).length) combined.comunicacao = p.comunicacao;
+        this.perfilForm.json_raw = Object.keys(combined).length ? JSON.stringify(combined, null, 2) : '';
+        this.perfilForm.notas_texto = p.notas_texto || '';
+        this.perfilForm.fonte = p.fonte || 'ai_claude';
+        this.perfilForm.fonte_detalhes = p.fonte_detalhes || '';
+      } else {
+        this.perfilForm = { json_raw: '', notas_texto: '', fonte: 'ai_claude', fonte_detalhes: '' };
+      }
+      this.ui.perfilInputMode = 'json';
+      this.ui.perfilModal = true;
+    },
+
+    async savePerfilComportamental() {
+      if (!sb) return;
+      const mid = this.data.detail?.profile?.id;
+      if (!mid) return;
+
+      let dimensoes = {};
+      let comunicacao = {};
+
+      // Parse JSON input
+      const raw = this.perfilForm.json_raw.trim();
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          dimensoes = parsed.dimensoes || {};
+          comunicacao = parsed.comunicacao || {};
+        } catch (e) {
+          this.toast('JSON invalido. Verifique o formato.', 'error');
+          return;
+        }
+      }
+
+      const payload = {
+        mentorado_id: mid,
+        dimensoes,
+        comunicacao,
+        notas_texto: this.perfilForm.notas_texto || null,
+        fonte: this.perfilForm.fonte || 'manual',
+        fonte_detalhes: this.perfilForm.fonte_detalhes || null,
+        created_by: this.currentUserName || null,
+      };
+
+      try {
+        const { error } = await sb.from('perfil_comportamental')
+          .upsert(payload, { onConflict: 'mentorado_id' });
+        if (error) throw error;
+        this.ui.perfilModal = false;
+        this.toast('Perfil salvo com sucesso', 'success');
+        await this.loadPerfilComportamental(mid);
+      } catch (e) {
+        console.error('Error saving perfil:', e);
+        this.toast('Erro ao salvar perfil: ' + e.message, 'error');
+      }
+    },
+
+    async gerarPerfilComIA() {
+      if (!sb) return;
+      const mid = this.data.detail?.profile?.id;
+      if (!mid) { this.toast('Selecione um mentorado primeiro', 'error'); return; }
+
+      this.ui.perfilGerando = true;
+      this.toast('Analisando transcrições com IA... isso pode levar até 30s', 'info');
+
+      try {
+        const { data, error } = await sb.functions.invoke('gerar-perfil', {
+          body: { mentorado_id: mid },
+        });
+
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+
+        this.toast(`Perfil gerado com sucesso (${data.calls_analisadas} calls analisadas)`, 'success');
+        await this.loadPerfilComportamental(mid);
+      } catch (e) {
+        console.error('Erro ao gerar perfil:', e);
+        this.toast('Erro ao gerar perfil: ' + (e.message || 'erro desconhecido'), 'error');
+      } finally {
+        this.ui.perfilGerando = false;
+      }
+    },
+
+    destroyPerfilCharts() {
+      Object.values(this._perfilCharts).forEach(c => { try { c.destroy(); } catch(e) {} });
+      this._perfilCharts = {};
+    },
+
+    renderPerfilCharts() {
+      this.destroyPerfilCharts();
+      const p = this.data.perfilComportamental;
+      if (!p) return;
+      const dim = p.dimensoes || {};
+
+      // Big Five radar
+      if (dim.big_five) {
+        const ctx = document.getElementById('chart-bigfive');
+        if (ctx) {
+          const bf = dim.big_five;
+          this._perfilCharts.bigfive = new Chart(ctx, {
+            type: 'radar',
+            data: {
+              labels: ['Abertura', 'Conscienciosidade', 'Extroversao', 'Amabilidade', 'Neuroticismo'],
+              datasets: [{
+                label: 'Big Five',
+                data: [bf.abertura||0, bf.conscienciosidade||0, bf.extroversao||0, bf.amabilidade||0, bf.neuroticismo||0],
+                backgroundColor: 'rgba(245,158,11,0.2)',
+                borderColor: 'rgb(245,158,11)',
+                borderWidth: 2,
+                pointBackgroundColor: 'rgb(245,158,11)',
+              }]
+            },
+            options: this._radarOpts(100),
+          });
+        }
+      }
+
+      // DISC radar
+      if (dim.disc) {
+        const ctx = document.getElementById('chart-disc');
+        if (ctx) {
+          const d = dim.disc;
+          this._perfilCharts.disc = new Chart(ctx, {
+            type: 'radar',
+            data: {
+              labels: ['Dominancia', 'Influencia', 'Estabilidade', 'Consciencia'],
+              datasets: [{
+                label: 'DISC',
+                data: [d.dominancia||0, d.influencia||0, d.estabilidade||0, d.consciencia||0],
+                backgroundColor: 'rgba(99,102,241,0.2)',
+                borderColor: 'rgb(99,102,241)',
+                borderWidth: 2,
+                pointBackgroundColor: 'rgb(99,102,241)',
+              }]
+            },
+            options: this._radarOpts(100),
+          });
+        }
+      }
+
+      // Quatro Zonas radar
+      if (dim.quatro_zonas) {
+        const ctx = document.getElementById('chart-zonas');
+        if (ctx) {
+          const z = dim.quatro_zonas;
+          this._perfilCharts.zonas = new Chart(ctx, {
+            type: 'radar',
+            data: {
+              labels: ['Incompetencia', 'Competencia', 'Excelencia', 'Genialidade'],
+              datasets: [{
+                label: 'Quatro Zonas',
+                data: [z.incompetencia?.score||0, z.competencia?.score||0, z.excelencia?.score||0, z.genialidade?.score||0],
+                backgroundColor: 'rgba(16,185,129,0.2)',
+                borderColor: 'rgb(16,185,129)',
+                borderWidth: 2,
+                pointBackgroundColor: 'rgb(16,185,129)',
+              }]
+            },
+            options: this._radarOpts(100),
+          });
+        }
+      }
+
+      // Modos Esquematicos horizontal bar
+      if (dim.modos_esquematicos) {
+        const ctx = document.getElementById('chart-modos');
+        if (ctx) {
+          const modos = dim.modos_esquematicos;
+          const labels = Object.keys(modos);
+          const values = Object.values(modos);
+          const colors = values.map(v => v >= 70 ? 'rgba(239,68,68,0.7)' : v >= 40 ? 'rgba(245,158,11,0.7)' : 'rgba(34,197,94,0.7)');
+          this._perfilCharts.modos = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels,
+              datasets: [{ data: values, backgroundColor: colors, borderWidth: 0 }]
+            },
+            options: {
+              indexAxis: 'y',
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { min: 0, max: 100, grid: { color: 'rgba(0,0,0,0.05)' } },
+                y: { ticks: { font: { size: 11 } } }
+              }
+            },
+          });
+        }
+      }
+    },
+
+    _radarOpts(max) {
+      return {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          r: {
+            min: 0, max,
+            ticks: { stepSize: 20, display: false },
+            grid: { color: 'rgba(0,0,0,0.06)' },
+            pointLabels: { font: { size: 11 } },
+          }
+        }
       };
     },
   };
