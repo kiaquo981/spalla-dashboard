@@ -202,6 +202,12 @@ AS $$
 $$;
 
 -- ------------------------------------------------------------
+-- 5b. Grant execute permissions on the function
+-- ------------------------------------------------------------
+GRANT EXECUTE ON FUNCTION get_task_fields(UUID, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_task_fields(UUID, TEXT, TEXT) TO anon;
+
+-- ------------------------------------------------------------
 -- 6. Update vw_god_tasks_full to include custom field values
 -- ------------------------------------------------------------
 DROP VIEW IF EXISTS vw_god_tasks_full;
