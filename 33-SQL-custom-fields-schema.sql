@@ -99,6 +99,15 @@ CREATE INDEX IF NOT EXISTS idx_god_task_field_values_field
 ALTER TABLE god_task_field_defs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE god_task_field_values ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "god_task_field_defs_select" ON god_task_field_defs;
+DROP POLICY IF EXISTS "god_task_field_defs_insert" ON god_task_field_defs;
+DROP POLICY IF EXISTS "god_task_field_defs_update" ON god_task_field_defs;
+DROP POLICY IF EXISTS "god_task_field_defs_delete" ON god_task_field_defs;
+DROP POLICY IF EXISTS "god_task_field_values_select" ON god_task_field_values;
+DROP POLICY IF EXISTS "god_task_field_values_insert" ON god_task_field_values;
+DROP POLICY IF EXISTS "god_task_field_values_update" ON god_task_field_values;
+DROP POLICY IF EXISTS "god_task_field_values_delete" ON god_task_field_values;
+
 -- Field defs: all authenticated can read
 CREATE POLICY "god_task_field_defs_select"
   ON god_task_field_defs FOR SELECT

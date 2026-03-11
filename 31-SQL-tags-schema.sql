@@ -55,6 +55,14 @@ CREATE INDEX IF NOT EXISTS idx_god_task_tag_relations_tag
 ALTER TABLE god_task_tags ENABLE ROW LEVEL SECURITY;
 ALTER TABLE god_task_tag_relations ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "god_task_tags_select" ON god_task_tags;
+DROP POLICY IF EXISTS "god_task_tags_insert" ON god_task_tags;
+DROP POLICY IF EXISTS "god_task_tags_update" ON god_task_tags;
+DROP POLICY IF EXISTS "god_task_tags_delete" ON god_task_tags;
+DROP POLICY IF EXISTS "god_task_tag_relations_select" ON god_task_tag_relations;
+DROP POLICY IF EXISTS "god_task_tag_relations_insert" ON god_task_tag_relations;
+DROP POLICY IF EXISTS "god_task_tag_relations_delete" ON god_task_tag_relations;
+
 -- Tags: anyone authenticated can read
 CREATE POLICY "god_task_tags_select"
   ON god_task_tags FOR SELECT
