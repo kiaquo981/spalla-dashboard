@@ -1120,8 +1120,8 @@
                     </div>
                   </div>
 
-                  <!-- Row 1: 3 Radar Charts -->
-                  <div class="perfil-charts-row" x-show="data.perfilComportamental.dimensoes?.big_five || data.perfilComportamental.dimensoes?.disc || data.perfilComportamental.dimensoes?.quatro_zonas">
+                  <!-- Charts: 4 colunas compactas -->
+                  <div class="perfil-charts-row">
                     <!-- Big Five -->
                     <div class="card perfil-chart-card" x-show="data.perfilComportamental.dimensoes?.big_five">
                       <div class="card__header"><h3>Big Five</h3></div>
@@ -1137,12 +1137,11 @@
                       <div class="card__header"><h3>Quatro Zonas</h3></div>
                       <div class="card__body" style="display:flex;justify-content:center"><canvas id="chart-zonas"></canvas></div>
                     </div>
-                  </div>
-
-                  <!-- Row 2: Modos Esquematicos bar chart -->
-                  <div class="card" style="margin-top:16px" x-show="data.perfilComportamental.dimensoes?.modos_esquematicos">
-                    <div class="card__header"><h3>Modos Esquematicos</h3></div>
-                    <div class="card__body" style="max-height:360px;display:flex;justify-content:center"><canvas id="chart-modos"></canvas></div>
+                    <!-- Modos Esquematicos -->
+                    <div class="card perfil-chart-card" x-show="data.perfilComportamental.dimensoes?.modos_esquematicos">
+                      <div class="card__header"><h3>Modos Esquem.</h3></div>
+                      <div class="card__body" style="height:180px"><canvas id="chart-modos"></canvas></div>
+                    </div>
                   </div>
 
                   <!-- Row 3: Quatro Zonas exemplos -->

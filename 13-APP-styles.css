@@ -6608,3 +6608,48 @@ img { max-width: 100%; display: block; }
   color: var(--text-secondary);
   margin-bottom: 4px;
 }
+
+/* ===== Perfil Comportamental ===== */
+.perfil-charts-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.perfil-chart-card {
+  padding: 0;
+}
+.perfil-chart-card .card__header {
+  padding: 8px 12px 4px;
+}
+.perfil-chart-card .card__header h3 {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+.perfil-chart-card .card__body {
+  padding: 2px 8px 8px;
+}
+.perfil-chart-card canvas {
+  max-width: 200px;
+  max-height: 200px;
+}
+.perfil-text-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.perfil-zonas-exemplos {
+  grid-template-columns: repeat(4, 1fr) !important;
+}
+@media (max-width: 1024px) {
+  .perfil-zonas-exemplos { grid-template-columns: repeat(2, 1fr) !important; }
+}
+@media (max-width: 768px) {
+  .perfil-charts-row,
+  .perfil-text-grid {
+    grid-template-columns: 1fr;
+  }
+  .perfil-zonas-exemplos { grid-template-columns: 1fr !important; }
+}

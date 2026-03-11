@@ -4822,8 +4822,8 @@ function spalla() {
               maintainAspectRatio: false,
               plugins: { legend: { display: false } },
               scales: {
-                x: { min: 0, max: 100, grid: { color: 'rgba(0,0,0,0.05)' } },
-                y: { ticks: { font: { size: 11 } } }
+                x: { min: 0, max: 100, ticks: { font: { size: 9 } }, grid: { color: 'rgba(0,0,0,0.05)' } },
+                y: { ticks: { font: { size: 9 } } }
               }
             },
           });
@@ -4839,9 +4839,9 @@ function spalla() {
         scales: {
           r: {
             min: 0, max,
-            ticks: { stepSize: 20, display: false },
+            ticks: { stepSize: 25, display: false },
             grid: { color: 'rgba(0,0,0,0.06)' },
-            pointLabels: { font: { size: 11 } },
+            pointLabels: { font: { size: 10 } },
           }
         }
       };
