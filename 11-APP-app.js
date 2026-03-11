@@ -4712,6 +4712,21 @@ function spalla() {
         const data = await resp.json();
         if (!resp.ok || data.error) throw new Error(data.error || 'Erro na Edge Function');
 
+        // Salva localmente caso o upsert da Edge Function tenha falhado
+        if (data.perfil) {
+          const { error: saveErr } = await sb.from('perfil_comportamental')
+            .upsert({
+              mentorado_id: mid,
+              dimensoes: data.perfil.dimensoes || {},
+              comunicacao: data.perfil.comunicacao || {},
+              notas_texto: 'Gerado via IA a partir de ' + data.calls_analisadas + ' calls.',
+              fonte: 'ai_claude',
+              fonte_detalhes: 'claude-3-haiku | ' + data.calls_analisadas + ' calls | ' + new Date().toISOString(),
+              created_by: this.currentUserName || 'ai_auto',
+            }, { onConflict: 'mentorado_id' });
+          if (saveErr) console.warn('Upsert local falhou:', saveErr);
+        }
+
         this.toast('Perfil gerado com sucesso (' + data.calls_analisadas + ' calls analisadas)', 'success');
         await this.loadPerfilComportamental(mid);
       } catch (e) {
