@@ -34,7 +34,8 @@ Você deve retornar um JSON com EXATAMENTE esta estrutura:
       "genialidade": 0-100,
       "excelencia": 0-100,
       "competencia": 0-100,
-      "incompetencia": 0-100
+      "incompetencia": 0-100,
+      "confianca": "alta" ou "media" ou "baixa"
     },
     "modos_esquematicos": {
       "crianca_vulneravel": 0-100,
@@ -73,7 +74,8 @@ REGRAS:
 - Scores de 0 a 100 (inteiros)
 - Listas com 3-5 itens cada
 - Infira os valores baseado nas evidências textuais das calls
-- Se não houver evidência suficiente para alguma dimensão, use valores moderados (40-60) e indique na comunicacao
+- O campo "confianca" nas quatro_zonas indica o nivel de certeza da inferencia: "alta" se ha evidencias claras nas calls, "media" se ha algumas pistas, "baixa" se foi inferido com pouca base. Quatro Zonas costuma ter confianca baixa pois exige observacao direta de atividades
+- Se não houver evidência suficiente para alguma dimensão, use valores moderados (40-60)
 - Para Eneagrama e Human Design: infira o tipo mais provável, pode ser null se não houver evidência suficiente
 - Retorne APENAS o JSON, sem texto antes ou depois
 - O JSON deve ser válido e parseável`;

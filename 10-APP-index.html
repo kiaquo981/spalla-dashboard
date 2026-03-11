@@ -712,6 +712,9 @@
                           <div class="card__header"><h3>Quatro Zonas</h3></div>
                           <div class="card__body" style="display:flex;justify-content:center"><canvas id="chart-zonas"></canvas></div>
                           <div class="perfil-chart-legend">Gay Hendricks: Incompetencia (evitar), Competencia (ok), Excelencia (destaque), Genialidade (flow). Ideal: alto em Genialidade.</div>
+                          <div class="perfil-chart-disclaimer" x-show="!data.perfilComportamental.dimensoes?.quatro_zonas?.confianca || data.perfilComportamental.dimensoes?.quatro_zonas?.confianca !== 'alta'">
+                            <span x-text="(data.perfilComportamental.dimensoes?.quatro_zonas?.confianca === 'media' ? 'Confianca media' : 'Confianca baixa') + ' — inferido com poucos dados diretos. Quatro Zonas exige observacao de atividades praticas para maior precisao.'"></span>
+                          </div>
                         </div>
                         <div class="card perfil-chart-card" x-show="data.perfilComportamental.dimensoes?.modos_esquematicos">
                           <div class="card__header"><h3>Modos Esquematicos</h3></div>

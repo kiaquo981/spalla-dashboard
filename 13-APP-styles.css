@@ -6642,6 +6642,14 @@ img { max-width: 100%; display: block; }
   color: var(--text-secondary);
   border-top: 1px solid rgba(0,0,0,0.05);
 }
+.perfil-chart-disclaimer {
+  padding: 4px 10px 6px;
+  font-size: 10px;
+  line-height: 1.3;
+  color: #b45309;
+  background: #fef3c7;
+  border-radius: 0 0 8px 8px;
+}
 .perfil-text-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
