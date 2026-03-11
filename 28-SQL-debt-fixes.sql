@@ -5,7 +5,10 @@
 -- ================================================================
 
 -- ================================================================
--- 1A. Replace USING(true) with authenticated-only policies
+-- 1A. Replace USING(true) with role-restricted policies
+-- NOTE: App uses Supabase anon key (no Supabase Auth signIn), so
+-- auth.role() = 'anon'. Policies must allow both 'authenticated' and 'anon'.
+-- CORRECTED in 29-SQL-fix-rls-anon.sql (original used only 'authenticated').
 -- ================================================================
 
 -- god_tasks
