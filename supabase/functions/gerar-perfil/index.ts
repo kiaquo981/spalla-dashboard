@@ -87,27 +87,19 @@ function buildCallContext(calls) {
     const callParts = [];
     callParts.push("\n--- Call: " + (call.data_call || "sem data") + " ---");
 
-    if (call.transcript_completo && call.transcript_completo.trim()) {
-      callParts.push("Transcrição:\n" + call.transcript_completo);
-    } else {
-      if (call.resumo) callParts.push("Resumo: " + call.resumo);
-      if (call.principais_topicos)
-        callParts.push("Tópicos: " + call.principais_topicos);
-      if (call.citacoes_relevantes && call.citacoes_relevantes.length)
-        callParts.push("Citações: " + call.citacoes_relevantes.join("; "));
-      if (call.decisoes_tomadas && call.decisoes_tomadas.length)
-        callParts.push("Decisões: " + call.decisoes_tomadas.join("; "));
-      if (call.gargalos && call.gargalos.length)
-        callParts.push("Gargalos: " + call.gargalos.join("; "));
-      if (call.feedbacks_consultora && call.feedbacks_consultora.length)
-        callParts.push("Feedbacks: " + call.feedbacks_consultora.join("; "));
-      if (call.proximos_passos && call.proximos_passos.length)
-        callParts.push(
-          "Próximos passos: " + call.proximos_passos.join("; ")
-        );
-    }
-
-    if (call.sentimento) callParts.push("Sentimento: " + call.sentimento);
+    if (call.resumo) callParts.push("Resumo: " + call.resumo);
+    if (call.principais_topicos)
+      callParts.push("Tópicos: " + call.principais_topicos);
+    if (call.decisoes_tomadas && call.decisoes_tomadas.length)
+      callParts.push("Decisões: " + call.decisoes_tomadas.join("; "));
+    if (call.gargalos && call.gargalos.length)
+      callParts.push("Gargalos: " + call.gargalos.join("; "));
+    if (call.feedbacks_consultora && call.feedbacks_consultora.length)
+      callParts.push("Feedbacks: " + call.feedbacks_consultora.join("; "));
+    if (call.proximos_passos && call.proximos_passos.length)
+      callParts.push(
+        "Próximos passos: " + call.proximos_passos.join("; ")
+      );
 
     parts.push(callParts.join("\n"));
 
@@ -143,11 +135,11 @@ Deno.serve(async (req) => {
     // Cliente Supabase admin
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Busca últimas 10 calls do mentorado
+    // Busca últimas 10 calls via view (junta calls_mentoria + analises_call)
     const { data: calls, error: callsError } = await supabase
-      .from("calls_mentoria")
+      .from("vw_god_calls")
       .select(
-        "data_call, resumo, principais_topicos, decisoes_tomadas, transcript_completo, sentimento, gargalos, citacoes_relevantes, feedbacks_consultora, proximos_passos"
+        "data_call, resumo, principais_topicos, decisoes_tomadas, gargalos, feedbacks_consultora, proximos_passos"
       )
       .eq("mentorado_id", mentorado_id)
       .order("data_call", { ascending: false })
