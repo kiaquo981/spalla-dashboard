@@ -370,8 +370,8 @@
                   <div class="mc-card__identity">
                     <span class="mc-card__name" x-text="m.nome"></span>
                     <template x-if="m.instagram">
-                      <a :href="'https://instagram.com/' + m.instagram" target="_blank" rel="noopener noreferrer" class="mc-card__handle" style="text-decoration:none;color:inherit" @click.stop>
-                        @<span x-text="m.instagram"></span>
+                      <a :href="'https://instagram.com/' + (m.instagram || '').replace(/^@/, '')" target="_blank" rel="noopener noreferrer" class="mc-card__handle" style="text-decoration:none;color:inherit" @click.stop>
+                        <span x-text="'@' + (m.instagram || '').replace(/^@/, '')"></span>
                       </a>
                     </template>
                     <template x-if="!m.instagram">
@@ -471,8 +471,8 @@
                   <span class="badge badge--neutral" x-text="data.detail?.phase?.marco_atual"></span>
                 </div>
                 <div class="detail-hero__meta" x-show="data.detail?.profile?.instagram">
-                  <a :href="'https://instagram.com/' + data.detail?.profile?.instagram" target="_blank" rel="noopener noreferrer" style="text-decoration:none;color:inherit" @click.stop>
-                    @<span x-text="data.detail?.profile?.instagram"></span>
+                  <a :href="'https://instagram.com/' + (data.detail?.profile?.instagram || '').replace(/^@/, '')" target="_blank" rel="noopener noreferrer" style="text-decoration:none;color:inherit" @click.stop>
+                    <span x-text="'@' + (data.detail?.profile?.instagram || '').replace(/^@/, '')"></span>
                   </a>
                   <template x-if="igFollowers(data.detail?.profile?.instagram)">
                     <span> · <span x-text="igFollowers(data.detail?.profile?.instagram)"></span> seguidores</span>
@@ -1108,8 +1108,8 @@
                         <div class="kanban-card__info">
                           <div class="kanban-card__name" x-text="m.nome"></div>
                           <div class="kanban-card__ig" x-show="m.instagram">
-                            <a :href="'https://instagram.com/' + m.instagram" target="_blank" rel="noopener noreferrer" style="text-decoration:none;color:inherit" @click.stop>
-                              @<span x-text="m.instagram"></span>
+                            <a :href="'https://instagram.com/' + (m.instagram || '').replace(/^@/, '')" target="_blank" rel="noopener noreferrer" style="text-decoration:none;color:inherit" @click.stop>
+                              <span x-text="'@' + (m.instagram || '').replace(/^@/, '')"></span>
                             </a>
                           </div>
                         </div>
