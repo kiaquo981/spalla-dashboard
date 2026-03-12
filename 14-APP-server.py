@@ -750,7 +750,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if self.path.startswith('/api/evolution/'):
+        if self.path == '/api/auth/me':
+            self._handle_auth_me()
+        elif self.path.startswith('/api/evolution/'):
             self._proxy_evolution('GET')
         elif self.path == '/api/mentees':
             self._handle_get_mentees()
@@ -1174,6 +1176,33 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             log_error('AUTH', f'Registration failed: {e}')
             self._send_json({'error': 'Registration failed'}, 500)
+
+    def _handle_auth_me(self):
+        """Validate token and return current user data"""
+        try:
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Missing or invalid token'}, 401)
+                return
+
+            token = auth_header[7:]
+            payload = verify_jwt_token(token)
+            if not payload or payload.get('type') == 'refresh':
+                self._send_json({'error': 'Invalid or expired token'}, 401)
+                return
+
+            user_id = payload.get('user_id')
+            email = payload.get('email')
+
+            # Fetch fresh user data from DB
+            result = supabase_request('GET', f'auth_users?id=eq.{user_id}&select=id,email,full_name')
+            if isinstance(result, list) and len(result) > 0:
+                self._send_json({'user': result[0]})
+            else:
+                self._send_json({'user': {'id': user_id, 'email': email}})
+        except Exception as e:
+            log_error('AUTH', f'Token validation failed: {e}')
+            self._send_json({'error': 'Token validation failed'}, 401)
 
     def _handle_auth_login(self):
         """Login user and issue JWT (Supabase-backed)"""
