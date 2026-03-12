@@ -201,6 +201,62 @@
 .ln-select--sm { height: 30px; font-size: var(--text-xs); padding: var(--sp-1) var(--sp-2); }
 .ln-select--xs { height: 26px; font-size: 11px; padding: 2px var(--sp-2); }
 
+/* ===== TOOLBAR EXTENSIONS ===== */
+.op-toolbar {
+  flex-wrap: wrap; margin-bottom: var(--sp-4);
+  background: transparent; border: none; padding: 0; gap: var(--sp-2);
+}
+.op-toolbar__select {
+  height: 34px; padding: var(--sp-1_5) var(--sp-3);
+  border: 1px solid var(--neutral-200); border-radius: var(--r-md);
+  background: var(--bg-primary); color: var(--text-primary);
+  font-size: var(--text-sm); cursor: pointer; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7280'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center;
+  padding-right: 28px;
+  transition: border-color var(--t-fast);
+}
+.op-toolbar__select:focus { border-color: var(--brand-500); outline: none; box-shadow: var(--focus-ring); }
+.op-toolbar__select--active { border-color: var(--brand-500); color: var(--brand-700); background-color: var(--brand-50); }
+.op-toolbar__count {
+  margin-left: auto; font-size: var(--text-xs); color: var(--neutral-500);
+  font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums;
+}
+.op-toolbar__clear {
+  padding: var(--sp-1) var(--sp-2_5); font-size: var(--text-xs);
+  color: var(--danger-dark); background: var(--danger-light);
+  border: 1px solid rgba(239,68,68,0.2); border-radius: var(--r-md); cursor: pointer;
+}
+.op-toolbar__clear:hover { background: rgba(239,68,68,0.2); }
+
+/* ===== TABS EXTENSIONS ===== */
+.op-tab__count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 var(--sp-1);
+  border-radius: var(--r-full); background: var(--neutral-200);
+  color: var(--neutral-600); font-size: var(--text-2xs); font-weight: var(--fw-semibold);
+}
+.op-tab.active .op-tab__count { background: var(--brand-100); color: var(--brand-700); }
+
+/* Tab content + header (detail page specific) */
+.op-tab-content { animation: op-fade-in 0.2s ease; }
+.op-tab-header {
+  display: flex; align-items: center; gap: var(--sp-2_5);
+  margin-bottom: var(--sp-4);
+}
+.op-tab-header h3 {
+  font-size: var(--text-md); font-weight: var(--fw-semibold); margin: 0;
+  display: flex; align-items: center; gap: var(--sp-2);
+}
+
+/* ===== DRAWER EXTENSIONS ===== */
+.op-drawer__close {
+  padding: var(--sp-1_5); border-radius: var(--r-md); font-size: var(--text-xl);
+  color: var(--neutral-500); line-height: 1; cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.op-drawer__close:hover { background: var(--neutral-100); color: var(--neutral-800); }
+
 /* ===== STAT ICON VARIANTS (gap in operon molecules) ===== */
 .op-stat__icon--brand   { background: var(--brand-100); color: var(--brand-600); }
 .op-stat__icon--success { background: var(--success-light); color: var(--success-dark); }
