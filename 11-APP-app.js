@@ -172,6 +172,14 @@ function spalla() {
       whatsappSelectedChat: null,
       whatsappMessage: '',
       whatsappLoading: false,
+      // WA Topics Board
+      waTopicsView: 'board',
+      waTopicsSearch: '',
+      waTopicsStatusFilter: '',
+      waTopicsTypeFilter: '',
+      waTopicDetail: null,
+      waTopicMessages: [],
+      waTopicsLoading: false,
       // Reminders
       reminderModal: false,
       reminderFilter: 'ativo', // ativo | concluido | all
@@ -220,6 +228,8 @@ function spalla() {
       reminders: [],
       whatsappChats: [],
       whatsappMessages: [],
+      waTopics: [],
+      waTopicTypes: [],
       scheduledCalls: [],
       pendencias: [],
       paPlanos: [],       // vw_pa_pipeline data
@@ -3004,6 +3014,126 @@ function spalla() {
       return chat?.name || chat?.subject || chat?.pushName || chat?.id?.split('@')[0] || 'Chat';
     },
 
+    // ===================== WA TOPICS BOARD =====================
+
+    async loadWaTopics() {
+      this.ui.waTopicsLoading = true;
+      try {
+        const [topicsRes, typesRes] = await Promise.all([
+          sb.from('vw_wa_topic_board')
+            .select('*')
+            .order('last_message_at', { ascending: false })
+            .limit(500),
+          sb.from('wa_topic_types')
+            .select('*')
+            .order('sort_order'),
+        ]);
+        if (topicsRes.error) throw topicsRes.error;
+        if (typesRes.error) throw typesRes.error;
+        this.data.waTopics = topicsRes.data || [];
+        this.data.waTopicTypes = typesRes.data || [];
+      } catch (e) {
+        console.error('[Spalla] loadWaTopics error:', e);
+        this.toast('Erro ao carregar tópicos: ' + e.message, 'error');
+      }
+      this.ui.waTopicsLoading = false;
+    },
+
+    waTopicsFiltered(status) {
+      return this.data.waTopics.filter(t => {
+        if (t.status !== status) return false;
+        if (this.ui.waTopicsTypeFilter && t.type_slug !== this.ui.waTopicsTypeFilter) return false;
+        if (this.ui.waTopicsSearch) {
+          const q = this.ui.waTopicsSearch.toLowerCase();
+          if (!(t.title?.toLowerCase().includes(q) || t.mentorado_nome?.toLowerCase().includes(q))) return false;
+        }
+        return true;
+      });
+    },
+
+    waTopicsFilteredAll() {
+      return this.data.waTopics.filter(t => {
+        if (this.ui.waTopicsStatusFilter && t.status !== this.ui.waTopicsStatusFilter) return false;
+        if (this.ui.waTopicsTypeFilter && t.type_slug !== this.ui.waTopicsTypeFilter) return false;
+        if (this.ui.waTopicsSearch) {
+          const q = this.ui.waTopicsSearch.toLowerCase();
+          if (!(t.title?.toLowerCase().includes(q) || t.mentorado_nome?.toLowerCase().includes(q))) return false;
+        }
+        return true;
+      });
+    },
+
+    async openWaTopic(topic) {
+      this.ui.waTopicDetail = topic;
+      this.ui.waTopicMessages = [];
+      try {
+        const { data, error } = await sb.from('wa_messages')
+          .select('id,sender_name,is_from_team,content_type,content_text,timestamp')
+          .eq('topic_id', topic.id)
+          .order('timestamp', { ascending: true })
+          .limit(100);
+        if (error) throw error;
+        this.ui.waTopicMessages = data || [];
+      } catch (e) {
+        console.error('[Spalla] loadTopicMessages error:', e);
+      }
+    },
+
+    async updateTopicStatus(topicId, status) {
+      try {
+        const { error } = await sb.from('wa_topics')
+          .update({ status, updated_at: new Date().toISOString(), ...(status === 'resolved' ? { resolved_at: new Date().toISOString() } : {}) })
+          .eq('id', topicId);
+        if (error) throw error;
+        // Update local state
+        const idx = this.data.waTopics.findIndex(t => t.id === topicId);
+        if (idx !== -1) this.data.waTopics[idx] = { ...this.data.waTopics[idx], status };
+        if (this.ui.waTopicDetail?.id === topicId) this.ui.waTopicDetail = { ...this.ui.waTopicDetail, status };
+        // Log event
+        await sb.from('wa_topic_events').insert({ topic_id: topicId, event_type: 'status_changed', payload: { status }, created_by: this.auth?.currentUser?.email || 'user' });
+        this.toast('Status atualizado', 'success');
+      } catch (e) {
+        console.error('[Spalla] updateTopicStatus error:', e);
+        this.toast('Erro ao atualizar status', 'error');
+      }
+    },
+
+    async convertTopicToTask(topic) {
+      try {
+        const taskData = {
+          titulo: topic.title,
+          descricao: topic.summary || `Convertido do tópico WA: ${topic.title}`,
+          status: 'pendente',
+          prioridade: 'media',
+          acompanhante: topic.mentorado_nome || null,
+          created_by: this.auth?.currentUser?.email || null,
+        };
+        const { data: task, error } = await sb.from('god_tasks').insert(taskData).select().single();
+        if (error) throw error;
+        // Link topic → task
+        await sb.from('wa_topics').update({ task_id: task.id, status: 'converted_task' }).eq('id', topic.id);
+        await sb.from('wa_topic_events').insert({ topic_id: topic.id, event_type: 'task_linked', payload: { task_id: task.id }, created_by: this.auth?.currentUser?.email || 'user' });
+        // Refresh local state
+        const idx = this.data.waTopics.findIndex(t => t.id === topic.id);
+        if (idx !== -1) this.data.waTopics[idx] = { ...this.data.waTopics[idx], status: 'converted_task', task_id: task.id, task_titulo: task.titulo };
+        if (this.ui.waTopicDetail?.id === topic.id) this.ui.waTopicDetail = { ...this.ui.waTopicDetail, status: 'converted_task', task_titulo: task.titulo };
+        this.toast('Tarefa criada com sucesso!', 'success');
+      } catch (e) {
+        console.error('[Spalla] convertTopicToTask error:', e);
+        this.toast('Erro ao converter em tarefa: ' + e.message, 'error');
+      }
+    },
+
+    waTopicStatusLabel(status) {
+      const labels = { open: 'Aberto', active: 'Ativo', pending_action: 'Pendente', resolved: 'Resolvido', archived: 'Arquivado', converted_task: 'Tarefa' };
+      return labels[status] || status;
+    },
+
+    waTopicStatusClass(status) {
+      const cls = { open: 'badge--info', active: 'badge--warning', pending_action: 'badge--danger', resolved: 'badge--success', archived: '', converted_task: 'badge--brand' };
+      return cls[status] || '';
+    },
+
     // ===================== INSTAGRAM HELPERS =====================
 
     // Photo library: Instagram handle OR nome → local photo filename
@@ -4552,6 +4682,8 @@ function spalla() {
       if (!d) return dateStr; // fallback: show raw string
       return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
     },
+
+    relativeTime(dateStr) { return this.timeAgo(dateStr); },
 
     timeAgo(dateStr) {
       if (!dateStr) return '-';
