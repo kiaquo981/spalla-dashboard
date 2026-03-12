@@ -3189,10 +3189,16 @@ function operon() {
         return `photos/${filename}`;
       }
 
-      // Fallback: try to generate from handle/name
-      if (typeof PHOTO_DATA_URLS !== 'undefined' && PHOTO_DATA_URLS[clean]) {
-        return PHOTO_DATA_URLS[clean];
+      // Third: try INSTAGRAM_PROFILES foto field (from Apify scraper)
+      if (typeof INSTAGRAM_PROFILES !== 'undefined') {
+        const profile = INSTAGRAM_PROFILES[clean];
+        if (profile?.foto) return profile.foto;
       }
+
+      // Fourth: try unavatar.io proxy (permanent, doesn't expire)
+      if (isHandle) return `https://unavatar.io/instagram/${clean}`;
+
+      // Fallback: local photos directory
       const fileKey = isHandle ? clean : clean.replace(/\s+/g, '_');
       return `photos/${fileKey}.jpg`;
     },
