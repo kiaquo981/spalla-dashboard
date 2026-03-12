@@ -2124,15 +2124,20 @@
           <!-- KPI strip -->
           <div class="topics-kpis">
             <template x-for="s in [
-              { key: 'open',           label: 'Abertos',    color: '#3b82f6' },
-              { key: 'active',         label: 'Ativos',     color: '#f97316' },
-              { key: 'pending_action', label: 'Pendentes',  color: '#ef4444' },
-              { key: 'resolved',       label: 'Resolvidos', color: '#10b981' },
-              { key: 'converted_task', label: 'Tarefas',    color: '#8b5cf6' }
+              { key: 'open',           label: 'Abertos',    color: '#3b82f6', icon: 'inbox' },
+              { key: 'active',         label: 'Ativos',     color: '#f97316', icon: 'comments' },
+              { key: 'pending_action', label: 'Pendentes',  color: '#eab308', icon: 'clock' },
+              { key: 'resolved',       label: 'Resolvidos', color: '#10b981', icon: 'check-circle' },
+              { key: 'converted_task', label: 'Tarefas',    color: '#8b5cf6', icon: 'tasks' }
             ]" :key="s.key">
               <div class="topics-kpi" @click="ui.waTopicsStatusFilter = (ui.waTopicsStatusFilter === s.key ? '' : s.key)" :class="{ 'topics-kpi--active': ui.waTopicsStatusFilter === s.key }" :style="ui.waTopicsStatusFilter === s.key ? 'border-color:' + s.color : ''">
-                <span class="topics-kpi__count" :style="'color:' + s.color" x-text="data.waTopics.filter(t => t.status === s.key).length"></span>
-                <span class="topics-kpi__label" x-text="s.label"></span>
+                <div class="topics-kpi__icon" :style="'background:' + s.color + '18; color:' + s.color">
+                  <i :class="'fas fa-' + s.icon"></i>
+                </div>
+                <div class="topics-kpi__body">
+                  <span class="topics-kpi__count" x-text="data.waTopics.filter(t => t.status === s.key).length"></span>
+                  <span class="topics-kpi__label" x-text="s.label"></span>
+                </div>
               </div>
             </template>
           </div>
@@ -2154,7 +2159,7 @@
             <template x-for="col in [
               { key: 'open',           label: 'Abertos',    color: '#3b82f6' },
               { key: 'active',         label: 'Ativos',     color: '#f97316' },
-              { key: 'pending_action', label: 'Aguardando', color: '#ef4444' },
+              { key: 'pending_action', label: 'Aguardando', color: '#eab308' },
               { key: 'resolved',       label: 'Resolvidos', color: '#10b981' },
               { key: 'converted_task', label: 'Convertidos',color: '#8b5cf6' }
             ]" :key="col.key">
