@@ -3006,16 +3006,17 @@ function operon() {
       if (this._waStatusInterval) clearInterval(this._waStatusInterval);
       this.ui.waQrPolling = true;
       let attempts = 0;
-      const maxAttempts = 60; // 3s * 60 = 3 min timeout
+      const maxAttempts = 60; // 5s * 60 = 5 min timeout
 
       this._waStatusInterval = setInterval(async () => {
         attempts++;
         if (attempts > maxAttempts) {
           this.waStopStatusPolling();
-          this.toast('QR Code expirou. Clique para gerar novo.', 'warning');
+          this.toast('Tempo esgotado. Clique "Novo QR" para tentar novamente.', 'warning');
           return;
         }
         try {
+          // Check connection state first
           const res = await fetch(`${CONFIG.API_BASE}/api/evolution/instance/connectionState/${instanceName}`);
           if (res.ok) {
             const body = await res.json();
@@ -3038,14 +3039,17 @@ function operon() {
                 }
               }
               this.toast('WhatsApp conectado!', 'success');
-              // Auto-load chats after connection
               this.fetchWhatsAppChats();
+              return;
             }
           }
+          // QR not scanned yet — refresh QR every poll cycle
+          // Evolution QR expires in ~20s, calling connect/ returns a fresh one
+          await this.waFetchQrCode(instanceName);
         } catch (e) {
           console.warn('[WA Session] Polling error:', e.message);
         }
-      }, 3000);
+      }, 5000);
     },
 
     waStopStatusPolling() {
