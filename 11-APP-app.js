@@ -2877,27 +2877,23 @@ function operon() {
       }
     },
 
+    // All Evolution API calls go through Railway proxy (CONFIG.API_BASE/api/evolution/...)
+    // The proxy handles CORS and adds the apikey header automatically.
+
     async waVerifyConnection(instanceName) {
       if (!instanceName) return;
       try {
-        const evoBase = typeof EVOLUTION_CONFIG !== 'undefined' ? EVOLUTION_CONFIG.BASE_URL : null;
-        const evoKey = typeof EVOLUTION_CONFIG !== 'undefined' ? EVOLUTION_CONFIG.API_KEY : null;
-        if (!evoBase || !evoKey) return;
-        const res = await fetch(`${evoBase}/instance/connectionState/${instanceName}`, {
-          headers: { 'apikey': evoKey }
-        });
+        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/instance/connectionState/${instanceName}`);
         if (res.ok) {
           const body = await res.json();
           const state = body.instance?.state || body.state;
           if (state === 'open') {
-            // Connection healthy — update health check
             if (sb && this.data.waSession?.id) {
               await sb.from('wa_sessions')
                 .update({ last_health_check: new Date().toISOString() })
                 .eq('id', this.data.waSession.id);
             }
           } else {
-            // Connection lost — try restart
             console.warn('[WA Session] Connection state:', state, '— attempting restart');
             await this.waAttemptRestart(instanceName);
           }
@@ -2909,16 +2905,13 @@ function operon() {
 
     async waAttemptRestart(instanceName) {
       try {
-        const evoBase = EVOLUTION_CONFIG.BASE_URL;
-        const evoKey = EVOLUTION_CONFIG.API_KEY;
-        const res = await fetch(`${evoBase}/instance/restart/${instanceName}`, {
+        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/instance/restart/${instanceName}`, {
           method: 'PUT',
-          headers: { 'apikey': evoKey }
+          headers: { 'Content-Type': 'application/json' }
         });
         if (res.ok) {
           console.log('[WA Session] Restart successful');
         } else {
-          // Restart failed — mark as disconnected
           if (sb && this.data.waSession?.id) {
             await sb.from('wa_sessions')
               .update({ status: 'disconnected', qr_code_base64: null })
@@ -2935,16 +2928,14 @@ function operon() {
       if (!sb || !this.auth.currentUser) return;
       this.ui.waSessionLoading = true;
       try {
-        const evoBase = EVOLUTION_CONFIG.BASE_URL;
-        const evoKey = EVOLUTION_CONFIG.API_KEY;
         const userId = parseInt(this.auth.currentUser.id, 10);
         if (!userId || isNaN(userId)) throw new Error('Usuario invalido');
         const instanceName = `spalla_u${userId}`;
 
-        // Create instance in Evolution API
-        const createRes = await fetch(`${evoBase}/instance/create`, {
+        // Create instance via Railway proxy
+        const createRes = await fetch(`${CONFIG.API_BASE}/api/evolution/instance/create`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'apikey': evoKey },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             instanceName,
             integration: 'WHATSAPP-BAILEYS',
@@ -2955,11 +2946,10 @@ function operon() {
 
         if (!createRes.ok) {
           const errBody = await createRes.json().catch(() => ({}));
-          // Instance might already exist — try to connect anyway
-          if (createRes.status === 403 || errBody.error?.includes('already')) {
+          if (createRes.status === 403 || createRes.status === 409 || errBody.error?.includes('already') || errBody.message?.includes('already')) {
             console.log('[WA Session] Instance exists, reconnecting...');
           } else {
-            throw new Error(errBody.message || `HTTP ${createRes.status}`);
+            throw new Error(errBody.message || errBody.error || `HTTP ${createRes.status}`);
           }
         }
 
@@ -2994,17 +2984,12 @@ function operon() {
 
     async waFetchQrCode(instanceName) {
       try {
-        const evoBase = EVOLUTION_CONFIG.BASE_URL;
-        const evoKey = EVOLUTION_CONFIG.API_KEY;
-        const res = await fetch(`${evoBase}/instance/connect/${instanceName}`, {
-          headers: { 'apikey': evoKey }
-        });
+        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/instance/connect/${instanceName}`);
         if (res.ok) {
           const body = await res.json();
           const qr = body.base64 || body.qrcode?.base64 || null;
           if (qr && this.data.waSession) {
             this.data.waSession.qr_code_base64 = qr;
-            // Persist QR in Supabase (so we can restore on reload)
             if (sb) {
               await sb.from('wa_sessions')
                 .update({ qr_code_base64: qr })
@@ -3031,22 +3016,16 @@ function operon() {
           return;
         }
         try {
-          const evoBase = EVOLUTION_CONFIG.BASE_URL;
-          const evoKey = EVOLUTION_CONFIG.API_KEY;
-          const res = await fetch(`${evoBase}/instance/connectionState/${instanceName}`, {
-            headers: { 'apikey': evoKey }
-          });
+          const res = await fetch(`${CONFIG.API_BASE}/api/evolution/instance/connectionState/${instanceName}`);
           if (res.ok) {
             const body = await res.json();
             const state = body.instance?.state || body.state;
             if (state === 'open') {
-              // Connected!
               this.waStopStatusPolling();
               if (this.data.waSession) {
                 this.data.waSession.status = 'connected';
                 this.data.waSession.connected_at = new Date().toISOString();
                 this.data.waSession.qr_code_base64 = null;
-                // Update Supabase
                 if (sb) {
                   await sb.from('wa_sessions')
                     .update({
@@ -3059,6 +3038,8 @@ function operon() {
                 }
               }
               this.toast('WhatsApp conectado!', 'success');
+              // Auto-load chats after connection
+              this.fetchWhatsAppChats();
             }
           }
         } catch (e) {
@@ -3079,23 +3060,22 @@ function operon() {
       if (!this.data.waSession) return;
       const session = this.data.waSession;
       try {
-        // Logout from Evolution API
-        const evoBase = EVOLUTION_CONFIG.BASE_URL;
-        const evoKey = EVOLUTION_CONFIG.API_KEY;
-        await fetch(`${evoBase}/instance/logout/${session.instance_name}`, {
+        await fetch(`${CONFIG.API_BASE}/api/evolution/instance/logout/${session.instance_name}`, {
           method: 'DELETE',
-          headers: { 'apikey': evoKey }
+          headers: { 'Content-Type': 'application/json' }
         });
       } catch (e) {
         console.warn('[WA Session] Logout API error:', e.message);
       }
-      // Update Supabase
       if (sb && session.id) {
         await sb.from('wa_sessions')
           .update({ status: 'disconnected', phone_number: null, qr_code_base64: null })
           .eq('id', session.id);
       }
       this.data.waSession = null;
+      this.data.whatsappChats = [];
+      this.data.whatsappMessages = [];
+      this.ui.whatsappSelectedChat = null;
       this.waStopStatusPolling();
       this.toast('WhatsApp desconectado', 'info');
     },
