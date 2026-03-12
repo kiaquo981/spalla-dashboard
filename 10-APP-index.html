@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="16-APP-operon-molecules.css?v=1">
   <link rel="stylesheet" href="17-APP-operon-utilities.css?v=1">
   <link rel="stylesheet" href="18-APP-operon-bridge.css?v=1">
-  <link rel="stylesheet" href="13-APP-styles.css?v=65">
+  <link rel="stylesheet" href="13-APP-styles.css?v=66">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1c1910,#35301d,#1c1910);font-family:'Open Sauce Sans',system-ui,sans-serif;color:var(--brand-500,#8a7d52);font-size:24px;font-weight:700;letter-spacing:0.05em; }
@@ -1221,14 +1221,22 @@
           <div class="page-header"><h2>Kanban — Mentorados por Fase</h2></div>
           <div class="kanban-board">
             <template x-for="fase in ['onboarding','concepcao','validacao','otimizacao','escala']" :key="fase">
-              <div class="kanban-column">
+              <div class="kanban-column"
+                   @dragover.prevent="$el.classList.add('kanban-column--dragover')"
+                   @dragleave="$el.classList.remove('kanban-column--dragover')"
+                   @drop.prevent="$el.classList.remove('kanban-column--dragover'); dropMenteeToPhase($event, fase)">
                 <div class="kanban-column__header" :class="phaseClass(fase)">
                   <span x-text="phaseLabel(fase)"></span>
                   <span class="badge badge--sm badge--neutral" x-text="menteesByPhase(fase).length"></span>
                 </div>
                 <div class="kanban-column__cards">
                   <template x-for="m in menteesByPhase(fase)" :key="m.id">
-                    <div class="kanban-card" @click="loadMenteeDetail(m.id)" :class="'kanban-card--' + riskClass(m.risco_churn)">
+                    <div class="kanban-card"
+                         draggable="true"
+                         @dragstart="dragMentee($event, m.id, fase)"
+                         @dragend="$el.classList.remove('kanban-card--dragging')"
+                         @click="loadMenteeDetail(m.id)"
+                         :class="'kanban-card--' + riskClass(m.risco_churn)">
                       <div class="kanban-card__top">
                         <div class="kanban-card__avatar-wrap">
                           <div class="avatar avatar--sm" :style="'background:' + avatarGradient(m.nome)" x-text="avatarInitials(m.nome)"></div>
@@ -3598,9 +3606,9 @@
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js" integrity="sha384-Sm2s7OXxsAMTyJ4iIyRBgVpeGUvMPk2lRQnnZhE78Wej7oggIoolKt+SCt0XJbUB" crossorigin="anonymous"></script>
-  <script src="12-APP-data.js?v=65"></script>
-  <script src="13-APP-photos.js?v=65"></script>
-  <script src="11-APP-app.js?v=65"></script>
+  <script src="12-APP-data.js?v=66"></script>
+  <script src="13-APP-photos.js?v=66"></script>
+  <script src="11-APP-app.js?v=66"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {

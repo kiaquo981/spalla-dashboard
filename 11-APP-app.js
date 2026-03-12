@@ -715,6 +715,43 @@ function operon() {
       return this.data.mentees.filter(m => m.fase_jornada === fase);
     },
 
+    // Kanban drag-and-drop: move mentorado between phases
+    dragMentee(e, menteeId, fromFase) {
+      e.dataTransfer.setData('text/plain', JSON.stringify({ menteeId, fromFase }));
+      e.dataTransfer.effectAllowed = 'move';
+      e.target.classList.add('kanban-card--dragging');
+    },
+
+    async dropMenteeToPhase(e, targetFase) {
+      const raw = e.dataTransfer.getData('text/plain');
+      if (!raw) return;
+      let payload;
+      try { payload = JSON.parse(raw); } catch { return; }
+      const { menteeId, fromFase } = payload;
+      if (fromFase === targetFase) return;
+
+      const mentee = this.data.mentees.find(m => m.id === menteeId);
+      if (!mentee) return;
+
+      // Optimistic update
+      const oldFase = mentee.fase_jornada;
+      mentee.fase_jornada = targetFase;
+
+      try {
+        const { error } = await this.sb.from('mentorados')
+          .update({ fase_jornada: targetFase })
+          .eq('id', menteeId);
+
+        if (error) throw error;
+
+        this.toast(`${mentee.nome}: ${this.phaseLabel(oldFase)} → ${this.phaseLabel(targetFase)}`, 'success');
+      } catch (err) {
+        // Rollback
+        mentee.fase_jornada = oldFase;
+        this.toast(`Erro ao mover ${mentee.nome}: ${err.message}`, 'error');
+      }
+    },
+
     // Tasks: filtered
     get filteredTasks() {
       let list = [...this.data.tasks];
