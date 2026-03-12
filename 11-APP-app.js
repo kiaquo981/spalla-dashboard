@@ -2853,10 +2853,12 @@ function operon() {
 
     async loadWaSession() {
       if (!sb || !this.auth.currentUser) return;
+      const userId = parseInt(this.auth.currentUser.id, 10);
+      if (!userId || isNaN(userId)) return;
       try {
         const { data, error } = await sb.from('wa_sessions')
           .select('*')
-          .eq('user_id', this.auth.currentUser.id)
+          .eq('user_id', userId)
           .neq('status', 'disconnected')
           .order('created_at', { ascending: false })
           .limit(1)
@@ -2864,10 +2866,8 @@ function operon() {
         if (error) { console.warn('[WA Session] Load error:', error.message); return; }
         this.data.waSession = data || null;
         if (data?.status === 'connected') {
-          // Validate connection health with Evolution API
           this.waVerifyConnection(data.instance_name);
         } else if (data?.status === 'qr_pending') {
-          // Reload: re-fetch QR and resume polling
           this.waFetchQrCode(data.instance_name);
           this.waStartStatusPolling(data.instance_name);
         }
@@ -2936,8 +2936,9 @@ function operon() {
       try {
         const evoBase = EVOLUTION_CONFIG.BASE_URL;
         const evoKey = EVOLUTION_CONFIG.API_KEY;
-        const userId = this.auth.currentUser.id;
-        const instanceName = `spalla_${userId.substring(0, 8)}`;
+        const userId = parseInt(this.auth.currentUser.id, 10);
+        if (!userId || isNaN(userId)) throw new Error('Usuario invalido');
+        const instanceName = `spalla_u${userId}`;
 
         // Create instance in Evolution API
         const createRes = await fetch(`${evoBase}/instance/create`, {
@@ -2972,7 +2973,7 @@ function operon() {
         } else {
           const { data: newSession, error } = await sb.from('wa_sessions')
             .insert({ user_id: userId, instance_name: instanceName, status: 'qr_pending' })
-            .select()
+            .select('*')
             .single();
           if (error) throw error;
           this.data.waSession = newSession;
