@@ -122,6 +122,7 @@
           <a class="op-nav-item" :class="{ active: ui.page === 'whatsapp' }" @click="navigate('whatsapp'); fetchWhatsAppChats()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
             <span x-show="ui.sidebarOpen">WhatsApp</span>
+            <span class="wa-status-dot" :class="{ 'wa-status-dot--connected': waSessionStatus() === 'connected', 'wa-status-dot--pending': waSessionStatus() === 'qr_pending' }" x-show="ui.sidebarOpen && waSessionStatus() !== 'disconnected'" :title="waSessionStatus() === 'connected' ? 'Conectado: ' + (waSessionPhone() || '') : 'Pendente'"></span>
           </a>
           <a class="op-nav-item" :class="{ active: ui.page === 'wa_topics' }" @click="navigate('wa_topics'); loadWaTopics()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -148,6 +149,12 @@
           <a class="op-nav-item" :class="{ active: ui.page === 'docs' }" @click="navigate('docs')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
             <span x-show="ui.sidebarOpen">Google Docs</span>
+          </a>
+
+          <div class="op-sidebar__section" x-show="ui.sidebarOpen">Sistema</div>
+          <a class="op-nav-item" :class="{ active: ui.page === 'settings' }" @click="navigate('settings')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span x-show="ui.sidebarOpen">Configuracoes</span>
           </a>
 
           <div class="op-sidebar__section" x-show="ui.sidebarOpen">Fases</div>
@@ -3388,6 +3395,117 @@
                 </div>
               </div>
             </template>
+          </div>
+        </div>
+
+        <!-- ===== PAGE: SETTINGS ===== -->
+        <div class="page-content" x-show="ui.page === 'settings'" x-transition>
+          <div class="page-header">
+            <h2>Configuracoes</h2>
+            <p class="page-header__sub">Gerencie sua conta e conexoes</p>
+          </div>
+
+          <!-- WhatsApp Connection Section -->
+          <div class="settings-section">
+            <div class="settings-section__header">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+              <div>
+                <h3>Conexao WhatsApp</h3>
+                <p class="settings-section__desc">Conecte seu WhatsApp pessoal para enviar mensagens direto do Operon</p>
+              </div>
+            </div>
+
+            <!-- State: Disconnected -->
+            <div class="settings-wa" x-show="waSessionStatus() === 'disconnected'">
+              <div class="settings-wa__status">
+                <span class="wa-status-indicator wa-status-indicator--disconnected"></span>
+                <span>Desconectado</span>
+              </div>
+              <p class="settings-wa__info">Ao conectar, voce podera enviar mensagens e arquivos direto pelo Operon usando seu numero pessoal.</p>
+              <button class="btn btn--primary" @click="waStartConnection()" :disabled="ui.waSessionLoading">
+                <template x-if="!ui.waSessionLoading">
+                  <span>Conectar meu WhatsApp</span>
+                </template>
+                <template x-if="ui.waSessionLoading">
+                  <span>Conectando...</span>
+                </template>
+              </button>
+            </div>
+
+            <!-- State: QR Pending -->
+            <div class="settings-wa" x-show="waSessionStatus() === 'qr_pending'">
+              <div class="settings-wa__status">
+                <span class="wa-status-indicator wa-status-indicator--pending"></span>
+                <span>Aguardando leitura do QR Code</span>
+              </div>
+              <div class="settings-wa__qr">
+                <template x-if="data.waSession?.qr_code_base64">
+                  <div class="settings-wa__qr-container">
+                    <img :src="data.waSession.qr_code_base64.startsWith('data:') ? data.waSession.qr_code_base64 : 'data:image/png;base64,' + data.waSession.qr_code_base64" alt="QR Code WhatsApp" class="settings-wa__qr-img">
+                    <p class="settings-wa__qr-hint">Abra o WhatsApp no celular &rarr; Aparelhos conectados &rarr; Conectar aparelho &rarr; Escaneie este QR Code</p>
+                    <div class="settings-wa__qr-polling" x-show="ui.waQrPolling">
+                      <span class="settings-wa__spinner"></span> Aguardando conexao...
+                    </div>
+                  </div>
+                </template>
+                <template x-if="!data.waSession?.qr_code_base64">
+                  <div class="settings-wa__qr-loading">
+                    <span class="settings-wa__spinner"></span> Gerando QR Code...
+                  </div>
+                </template>
+              </div>
+              <button class="btn btn--sm btn--ghost" @click="waFetchQrCode(data.waSession?.instance_name)">Gerar novo QR</button>
+              <button class="btn btn--sm btn--ghost" @click="waDisconnect()" style="margin-left:8px">Cancelar</button>
+            </div>
+
+            <!-- State: Connected -->
+            <div class="settings-wa" x-show="waSessionStatus() === 'connected'">
+              <div class="settings-wa__status">
+                <span class="wa-status-indicator wa-status-indicator--connected"></span>
+                <span>Conectado</span>
+              </div>
+              <div class="settings-wa__connected-info">
+                <div class="settings-wa__phone" x-show="waSessionPhone()">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                  <span x-text="waSessionPhone()"></span>
+                </div>
+                <div class="settings-wa__since" x-show="data.waSession?.connected_at">
+                  Conectado desde <span x-text="data.waSession?.connected_at ? new Date(data.waSession.connected_at).toLocaleDateString('pt-BR') : ''"></span>
+                </div>
+              </div>
+              <button class="btn btn--sm btn--danger" @click="if(confirm('Desconectar seu WhatsApp?')) waDisconnect()">Desconectar</button>
+            </div>
+
+            <!-- State: Banned -->
+            <div class="settings-wa" x-show="waSessionStatus() === 'banned'">
+              <div class="settings-wa__status">
+                <span class="wa-status-indicator wa-status-indicator--banned"></span>
+                <span>Sessao banida pelo WhatsApp</span>
+              </div>
+              <p class="settings-wa__info">Sua sessao foi bloqueada. Desconecte e tente novamente com outro numero.</p>
+              <button class="btn btn--sm btn--ghost" @click="waDisconnect()">Desconectar</button>
+            </div>
+          </div>
+
+          <!-- User Info Section -->
+          <div class="settings-section" style="margin-top:24px">
+            <div class="settings-section__header">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <div>
+                <h3>Minha Conta</h3>
+                <p class="settings-section__desc">Informacoes do seu perfil</p>
+              </div>
+            </div>
+            <div class="settings-user-info">
+              <div class="settings-user-info__row">
+                <span class="settings-user-info__label">Nome</span>
+                <span x-text="auth.currentUser?.user_metadata?.full_name || 'Nao informado'"></span>
+              </div>
+              <div class="settings-user-info__row">
+                <span class="settings-user-info__label">Email</span>
+                <span x-text="auth.currentUser?.email || 'Nao informado'"></span>
+              </div>
+            </div>
           </div>
         </div>
 

@@ -1067,6 +1067,139 @@ img { max-width: 100%; display: block; }
 .kanban-column--dragover { background: rgba(99, 102, 241, 0.06); border-radius: var(--r-lg); outline: 2px dashed var(--primary, #6366f1); outline-offset: -2px; }
 .kanban-column--dragover .kanban-column__cards { min-height: 120px; }
 .kanban-card--danger { border-left-color: var(--danger); }
+
+/* ================================================================
+   SETTINGS PAGE
+   ================================================================ */
+.settings-section {
+  background: var(--surface-1, #1e1e2e);
+  border: 1px solid var(--border, #2e2e3e);
+  border-radius: var(--r-lg, 12px);
+  padding: 24px;
+  max-width: 640px;
+}
+.settings-section__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.settings-section__header svg { color: var(--text-2, #94a3b8); flex-shrink: 0; margin-top: 2px; }
+.settings-section__header h3 { margin: 0; font-size: 16px; font-weight: 600; color: var(--text-1, #e2e8f0); }
+.settings-section__desc { margin: 2px 0 0; font-size: 13px; color: var(--text-3, #64748b); }
+
+/* WhatsApp Connection */
+.settings-wa { padding: 0; }
+.settings-wa__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-1, #e2e8f0);
+  margin-bottom: 12px;
+}
+.settings-wa__info { font-size: 13px; color: var(--text-3, #64748b); margin-bottom: 16px; line-height: 1.5; }
+
+/* Status indicators */
+.wa-status-indicator {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.wa-status-indicator--disconnected { background: var(--text-3, #64748b); }
+.wa-status-indicator--pending { background: #f59e0b; animation: pulse-dot 1.5s infinite; }
+.wa-status-indicator--connected { background: #22c55e; }
+.wa-status-indicator--banned { background: #ef4444; }
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+/* Sidebar status dot */
+.wa-status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-left: auto;
+  background: var(--text-3, #64748b);
+}
+.wa-status-dot--connected { background: #22c55e; }
+.wa-status-dot--pending { background: #f59e0b; animation: pulse-dot 1.5s infinite; }
+
+/* QR Code display */
+.settings-wa__qr { margin-bottom: 16px; }
+.settings-wa__qr-container { text-align: center; }
+.settings-wa__qr-img {
+  width: 280px; height: 280px;
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px;
+  image-rendering: pixelated;
+}
+.settings-wa__qr-hint {
+  font-size: 13px;
+  color: var(--text-3, #64748b);
+  margin-top: 12px;
+  line-height: 1.5;
+}
+.settings-wa__qr-polling {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--primary, #6366f1);
+}
+.settings-wa__qr-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px;
+  font-size: 14px;
+  color: var(--text-2, #94a3b8);
+}
+.settings-wa__spinner {
+  width: 16px; height: 16px;
+  border: 2px solid var(--border, #2e2e3e);
+  border-top-color: var(--primary, #6366f1);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  display: inline-block;
+}
+
+/* Connected info */
+.settings-wa__connected-info { margin-bottom: 16px; }
+.settings-wa__phone {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-1, #e2e8f0);
+  margin-bottom: 4px;
+}
+.settings-wa__phone svg { color: #22c55e; }
+.settings-wa__since { font-size: 12px; color: var(--text-3, #64748b); }
+
+/* User info */
+.settings-user-info { display: flex; flex-direction: column; gap: 12px; }
+.settings-user-info__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--text-1, #e2e8f0);
+}
+.settings-user-info__label {
+  font-size: 13px;
+  color: var(--text-3, #64748b);
+  min-width: 60px;
+}
 .kanban-card--warning { border-left-color: var(--warning); }
 .kanban-card--info { border-left-color: var(--info); }
 .kanban-card--success { border-left-color: var(--success); }

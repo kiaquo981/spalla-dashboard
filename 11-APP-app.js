@@ -172,6 +172,9 @@ function operon() {
       whatsappSelectedChat: null,
       whatsappMessage: '',
       whatsappLoading: false,
+      // WhatsApp Per-User Session
+      waSessionLoading: false,
+      waQrPolling: false,
       // WA Topics Board
       waTopicsView: 'board',
       waTopicsSearch: '',
@@ -228,6 +231,7 @@ function operon() {
       reminders: [],
       whatsappChats: [],
       whatsappMessages: [],
+      waSession: null,  // { id, instance_name, status, phone_number, connected_at, ... }
       waTopics: [],
       waTopicTypes: [],
       scheduledCalls: [],
@@ -1019,6 +1023,8 @@ function operon() {
           this.fetchUpcomingCalls();
           // Fetch Instagram profiles from Apify (background, non-blocking)
           this.updateInstagramProfiles();
+          // Load WhatsApp per-user session
+          this.loadWaSession();
         }
       } catch (e) {
         console.error('[Spalla] INIT ERROR:', e);
@@ -2839,6 +2845,259 @@ function operon() {
         console.error('[Spalla] Exception deleting reminder:', e);
         this.toast('Erro ao remover lembrete', 'error');
       }
+    },
+
+    // ===================== WHATSAPP PER-USER SESSION =====================
+
+    async loadWaSession() {
+      if (!sb || !this.auth.currentUser) return;
+      try {
+        const { data, error } = await sb.from('wa_sessions')
+          .select('*')
+          .eq('user_id', this.auth.currentUser.id)
+          .neq('status', 'disconnected')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (error) { console.warn('[WA Session] Load error:', error.message); return; }
+        this.data.waSession = data || null;
+        // If connected, validate with Evolution API
+        if (data?.status === 'connected') {
+          this.waVerifyConnection(data.instance_name);
+        }
+      } catch (e) {
+        console.error('[WA Session] Exception:', e);
+      }
+    },
+
+    async waVerifyConnection(instanceName) {
+      if (!instanceName) return;
+      try {
+        const evoBase = typeof EVOLUTION_CONFIG !== 'undefined' ? EVOLUTION_CONFIG.BASE_URL : null;
+        const evoKey = typeof EVOLUTION_CONFIG !== 'undefined' ? EVOLUTION_CONFIG.API_KEY : null;
+        if (!evoBase || !evoKey) return;
+        const res = await fetch(`${evoBase}/instance/connectionState/${instanceName}`, {
+          headers: { 'apikey': evoKey }
+        });
+        if (res.ok) {
+          const body = await res.json();
+          const state = body.instance?.state || body.state;
+          if (state === 'open') {
+            // Connection healthy — update health check
+            if (sb && this.data.waSession?.id) {
+              await sb.from('wa_sessions')
+                .update({ last_health_check: new Date().toISOString() })
+                .eq('id', this.data.waSession.id);
+            }
+          } else {
+            // Connection lost — try restart
+            console.warn('[WA Session] Connection state:', state, '— attempting restart');
+            await this.waAttemptRestart(instanceName);
+          }
+        }
+      } catch (e) {
+        console.warn('[WA Session] Health check failed:', e.message);
+      }
+    },
+
+    async waAttemptRestart(instanceName) {
+      try {
+        const evoBase = EVOLUTION_CONFIG.BASE_URL;
+        const evoKey = EVOLUTION_CONFIG.API_KEY;
+        const res = await fetch(`${evoBase}/instance/restart/${instanceName}`, {
+          method: 'PUT',
+          headers: { 'apikey': evoKey }
+        });
+        if (res.ok) {
+          console.log('[WA Session] Restart successful');
+        } else {
+          // Restart failed — mark as disconnected
+          if (sb && this.data.waSession?.id) {
+            await sb.from('wa_sessions')
+              .update({ status: 'disconnected', qr_code_base64: null })
+              .eq('id', this.data.waSession.id);
+            this.data.waSession.status = 'disconnected';
+          }
+        }
+      } catch (e) {
+        console.warn('[WA Session] Restart failed:', e.message);
+      }
+    },
+
+    async waStartConnection() {
+      if (!sb || !this.auth.currentUser) return;
+      this.ui.waSessionLoading = true;
+      try {
+        const evoBase = EVOLUTION_CONFIG.BASE_URL;
+        const evoKey = EVOLUTION_CONFIG.API_KEY;
+        const userId = this.auth.currentUser.id;
+        const instanceName = `spalla_${userId.substring(0, 8)}`;
+
+        // Create instance in Evolution API
+        const createRes = await fetch(`${evoBase}/instance/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'apikey': evoKey },
+          body: JSON.stringify({
+            instanceName,
+            integration: 'WHATSAPP-BAILEYS',
+            qrcode: true,
+            rejectCall: false,
+          })
+        });
+
+        if (!createRes.ok) {
+          const errBody = await createRes.json().catch(() => ({}));
+          // Instance might already exist — try to connect anyway
+          if (createRes.status === 403 || errBody.error?.includes('already')) {
+            console.log('[WA Session] Instance exists, reconnecting...');
+          } else {
+            throw new Error(errBody.message || `HTTP ${createRes.status}`);
+          }
+        }
+
+        // Upsert session in Supabase
+        const existing = this.data.waSession;
+        if (existing) {
+          await sb.from('wa_sessions')
+            .update({ status: 'qr_pending', instance_name: instanceName, qr_code_base64: null })
+            .eq('id', existing.id);
+          existing.status = 'qr_pending';
+          existing.instance_name = instanceName;
+        } else {
+          const { data: newSession, error } = await sb.from('wa_sessions')
+            .insert({ user_id: userId, instance_name: instanceName, status: 'qr_pending' })
+            .select()
+            .single();
+          if (error) throw error;
+          this.data.waSession = newSession;
+        }
+
+        // Fetch QR code
+        await this.waFetchQrCode(instanceName);
+        // Start polling for connection status
+        this.waStartStatusPolling(instanceName);
+
+      } catch (e) {
+        console.error('[WA Session] Start connection error:', e);
+        this.toast('Erro ao conectar WhatsApp: ' + e.message, 'error');
+      }
+      this.ui.waSessionLoading = false;
+    },
+
+    async waFetchQrCode(instanceName) {
+      try {
+        const evoBase = EVOLUTION_CONFIG.BASE_URL;
+        const evoKey = EVOLUTION_CONFIG.API_KEY;
+        const res = await fetch(`${evoBase}/instance/connect/${instanceName}`, {
+          headers: { 'apikey': evoKey }
+        });
+        if (res.ok) {
+          const body = await res.json();
+          const qr = body.base64 || body.qrcode?.base64 || null;
+          if (qr && this.data.waSession) {
+            this.data.waSession.qr_code_base64 = qr;
+            // Persist QR in Supabase (so we can restore on reload)
+            if (sb) {
+              await sb.from('wa_sessions')
+                .update({ qr_code_base64: qr })
+                .eq('id', this.data.waSession.id);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[WA Session] QR fetch error:', e.message);
+      }
+    },
+
+    waStartStatusPolling(instanceName) {
+      if (this._waStatusInterval) clearInterval(this._waStatusInterval);
+      this.ui.waQrPolling = true;
+      let attempts = 0;
+      const maxAttempts = 60; // 3s * 60 = 3 min timeout
+
+      this._waStatusInterval = setInterval(async () => {
+        attempts++;
+        if (attempts > maxAttempts) {
+          this.waStopStatusPolling();
+          this.toast('QR Code expirou. Clique para gerar novo.', 'warning');
+          return;
+        }
+        try {
+          const evoBase = EVOLUTION_CONFIG.BASE_URL;
+          const evoKey = EVOLUTION_CONFIG.API_KEY;
+          const res = await fetch(`${evoBase}/instance/connectionState/${instanceName}`, {
+            headers: { 'apikey': evoKey }
+          });
+          if (res.ok) {
+            const body = await res.json();
+            const state = body.instance?.state || body.state;
+            if (state === 'open') {
+              // Connected!
+              this.waStopStatusPolling();
+              if (this.data.waSession) {
+                this.data.waSession.status = 'connected';
+                this.data.waSession.connected_at = new Date().toISOString();
+                this.data.waSession.qr_code_base64 = null;
+                // Update Supabase
+                if (sb) {
+                  await sb.from('wa_sessions')
+                    .update({
+                      status: 'connected',
+                      connected_at: new Date().toISOString(),
+                      qr_code_base64: null,
+                      last_health_check: new Date().toISOString()
+                    })
+                    .eq('id', this.data.waSession.id);
+                }
+              }
+              this.toast('WhatsApp conectado!', 'success');
+            }
+          }
+        } catch (e) {
+          console.warn('[WA Session] Polling error:', e.message);
+        }
+      }, 3000);
+    },
+
+    waStopStatusPolling() {
+      if (this._waStatusInterval) {
+        clearInterval(this._waStatusInterval);
+        this._waStatusInterval = null;
+      }
+      this.ui.waQrPolling = false;
+    },
+
+    async waDisconnect() {
+      if (!this.data.waSession) return;
+      const session = this.data.waSession;
+      try {
+        // Logout from Evolution API
+        const evoBase = EVOLUTION_CONFIG.BASE_URL;
+        const evoKey = EVOLUTION_CONFIG.API_KEY;
+        await fetch(`${evoBase}/instance/logout/${session.instance_name}`, {
+          method: 'DELETE',
+          headers: { 'apikey': evoKey }
+        });
+      } catch (e) {
+        console.warn('[WA Session] Logout API error:', e.message);
+      }
+      // Update Supabase
+      if (sb && session.id) {
+        await sb.from('wa_sessions')
+          .update({ status: 'disconnected', phone_number: null, qr_code_base64: null })
+          .eq('id', session.id);
+      }
+      this.data.waSession = null;
+      this.waStopStatusPolling();
+      this.toast('WhatsApp desconectado', 'info');
+    },
+
+    waSessionStatus() {
+      return this.data.waSession?.status || 'disconnected';
+    },
+
+    waSessionPhone() {
+      return this.data.waSession?.phone_number || null;
     },
 
     // ===================== WHATSAPP (Evolution API) =====================
