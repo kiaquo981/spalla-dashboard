@@ -3195,10 +3195,7 @@ function operon() {
         if (profile?.foto) return profile.foto;
       }
 
-      // Fourth: initials fallback (no external URLs — they expire or return placeholders)
-      if (isHandle) return null;
-
-      // Fallback: local photos directory
+      // Fourth: try local photos directory
       const fileKey = isHandle ? clean : clean.replace(/\s+/g, '_');
       return `photos/${fileKey}.jpg`;
     },
