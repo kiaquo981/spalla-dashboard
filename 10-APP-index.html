@@ -217,95 +217,95 @@
           </div>
 
           <!-- KPI Cards -->
-          <div class="sp-kpi-grid" x-show="!ui.loading">
-            <div class="sp-kpi-card">
-              <div class="sp-kpi-card__icon sp-kpi-card__icon--primary">
+          <div class="op-kpi-strip" x-show="!ui.loading">
+            <div class="op-stat">
+              <div class="op-stat__icon op-stat__icon--brand">
                 <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               </div>
-              <div class="sp-kpi-card__body">
-                <span class="sp-kpi-card__val" x-text="kpis.totalMentorados || 0"></span>
-                <span class="sp-kpi-card__label">Mentorados</span>
+              <div class="op-stat__body">
+                <span class="op-stat__value" x-text="kpis.totalMentorados || 0"></span>
+                <span class="op-stat__label">Mentorados</span>
               </div>
             </div>
-            <div class="sp-kpi-card" @click="ui.filters.status = ui.filters.status === 'em_dia' ? '' : 'em_dia'" style="cursor:pointer">
-              <div class="sp-kpi-card__icon sp-kpi-card__icon--success">
+            <div class="op-stat" @click="ui.filters.status = ui.filters.status === 'em_dia' ? '' : 'em_dia'" style="cursor:pointer">
+              <div class="op-stat__icon op-stat__icon--success">
                 <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
               </div>
-              <div class="sp-kpi-card__body">
-                <span class="sp-kpi-card__val sp-kpi-card__val--success" x-text="kpis.emDia || 0"></span>
-                <span class="sp-kpi-card__label">Em dia</span>
+              <div class="op-stat__body">
+                <span class="op-stat__value op-stat__value--success" x-text="kpis.emDia || 0"></span>
+                <span class="op-stat__label">Em dia</span>
               </div>
             </div>
-            <div class="sp-kpi-card" @click="ui.filters.status = ui.filters.status === 'risco_critico' ? '' : 'risco_critico'" style="cursor:pointer">
-              <div class="sp-kpi-card__icon sp-kpi-card__icon--danger">
+            <div class="op-stat" @click="ui.filters.status = ui.filters.status === 'risco_critico' ? '' : 'risco_critico'" style="cursor:pointer">
+              <div class="op-stat__icon op-stat__icon--danger">
                 <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
               </div>
-              <div class="sp-kpi-card__body">
-                <span class="sp-kpi-card__val sp-kpi-card__val--danger" x-text="kpis.riscoCritico || 0"></span>
-                <span class="sp-kpi-card__label">Risco critico</span>
+              <div class="op-stat__body">
+                <span class="op-stat__value op-stat__value--danger" x-text="kpis.riscoCritico || 0"></span>
+                <span class="op-stat__label">Risco critico</span>
               </div>
             </div>
-            <div class="sp-kpi-card" @click="ui.filters.status = ui.filters.status === 'sem_call' ? '' : 'sem_call'" style="cursor:pointer">
-              <div class="sp-kpi-card__icon sp-kpi-card__icon--info">
+            <div class="op-stat" @click="ui.filters.status = ui.filters.status === 'sem_call' ? '' : 'sem_call'" style="cursor:pointer">
+              <div class="op-stat__icon op-stat__icon--info">
                 <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M15.05 5A5 5 0 0 1 19 8.95M15.05 1A9 9 0 0 1 23 8.94M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
               </div>
-              <div class="sp-kpi-card__body">
-                <span class="sp-kpi-card__val sp-kpi-card__val--info" x-text="kpis.calls30d || 0"></span>
-                <span class="sp-kpi-card__label">Calls 30d</span>
+              <div class="op-stat__body">
+                <span class="op-stat__value op-stat__value--info" x-text="kpis.calls30d || 0"></span>
+                <span class="op-stat__label">Calls 30d</span>
               </div>
             </div>
-            <div class="sp-kpi-card" @click="ui.page = 'tasks'" style="cursor:pointer">
-              <div class="sp-kpi-card__icon sp-kpi-card__icon--warning">
+            <div class="op-stat" @click="ui.page = 'tasks'" style="cursor:pointer">
+              <div class="op-stat__icon op-stat__icon--warning">
                 <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
               </div>
-              <div class="sp-kpi-card__body">
-                <span class="sp-kpi-card__val sp-kpi-card__val--warning" x-text="kpis.tarefasPendentes || 0"></span>
-                <span class="sp-kpi-card__label">Tarefas pend.</span>
+              <div class="op-stat__body">
+                <span class="op-stat__value op-stat__value--warning" x-text="kpis.tarefasPendentes || 0"></span>
+                <span class="op-stat__label">Tarefas pend.</span>
               </div>
             </div>
-            <div class="sp-kpi-card" @click="ui.filters.status = ui.filters.status === 'com_pendencia' ? '' : 'com_pendencia'" style="cursor:pointer">
-              <div class="sp-kpi-card__icon" :class="kpis.msgsPendentes > 0 ? 'sp-kpi-card__icon--danger' : 'sp-kpi-card__icon--success'">
+            <div class="op-stat" @click="ui.filters.status = ui.filters.status === 'com_pendencia' ? '' : 'com_pendencia'" style="cursor:pointer">
+              <div class="op-stat__icon" :class="kpis.msgsPendentes > 0 ? 'op-stat__icon--danger' : 'op-stat__icon--success'">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/></svg>
               </div>
-              <div class="sp-kpi-card__body">
-                <span class="sp-kpi-card__val" :class="kpis.msgsPendentes > 0 ? 'sp-kpi-card__val--danger' : ''" x-text="kpis.msgsPendentes || 0"></span>
-                <span class="sp-kpi-card__label">Msgs s/ resposta</span>
+              <div class="op-stat__body">
+                <span class="op-stat__value" :class="kpis.msgsPendentes > 0 ? 'op-stat__value--danger' : ''" x-text="kpis.msgsPendentes || 0"></span>
+                <span class="op-stat__label">Msgs s/ resposta</span>
               </div>
             </div>
-            <div class="sp-kpi-card" @click="ui.filters.financeiro = ui.filters.financeiro === 'sem_contrato' ? '' : 'sem_contrato'" style="cursor:pointer">
-              <div class="sp-kpi-card__icon" :class="kpis.semContrato > 0 ? 'sp-kpi-card__icon--danger' : 'sp-kpi-card__icon--success'">
+            <div class="op-stat" @click="ui.filters.financeiro = ui.filters.financeiro === 'sem_contrato' ? '' : 'sem_contrato'" style="cursor:pointer">
+              <div class="op-stat__icon" :class="kpis.semContrato > 0 ? 'op-stat__icon--danger' : 'op-stat__icon--success'">
                 <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
               </div>
-              <div class="sp-kpi-card__body">
-                <span class="sp-kpi-card__val" :class="kpis.semContrato > 0 ? 'sp-kpi-card__val--danger' : ''" x-text="kpis.semContrato || 0"></span>
-                <span class="sp-kpi-card__label">Sem contrato</span>
+              <div class="op-stat__body">
+                <span class="op-stat__value" :class="kpis.semContrato > 0 ? 'op-stat__value--danger' : ''" x-text="kpis.semContrato || 0"></span>
+                <span class="op-stat__label">Sem contrato</span>
               </div>
             </div>
-            <div class="sp-kpi-card" @click="ui.filters.financeiro = ui.filters.financeiro === 'atrasado' ? '' : 'atrasado'" style="cursor:pointer">
-              <div class="sp-kpi-card__icon" :class="kpis.pgtoAtrasado > 0 ? 'sp-kpi-card__icon--danger' : 'sp-kpi-card__icon--success'">
+            <div class="op-stat" @click="ui.filters.financeiro = ui.filters.financeiro === 'atrasado' ? '' : 'atrasado'" style="cursor:pointer">
+              <div class="op-stat__icon" :class="kpis.pgtoAtrasado > 0 ? 'op-stat__icon--danger' : 'op-stat__icon--success'">
                 <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
               </div>
-              <div class="sp-kpi-card__body">
-                <span class="sp-kpi-card__val" :class="kpis.pgtoAtrasado > 0 ? 'sp-kpi-card__val--danger' : ''" x-text="kpis.pgtoAtrasado || 0"></span>
-                <span class="sp-kpi-card__label">Pgto atrasado</span>
+              <div class="op-stat__body">
+                <span class="op-stat__value" :class="kpis.pgtoAtrasado > 0 ? 'op-stat__value--danger' : ''" x-text="kpis.pgtoAtrasado || 0"></span>
+                <span class="op-stat__label">Pgto atrasado</span>
               </div>
             </div>
-            <div class="sp-kpi-card" @click="navigate('planos_acao')" style="cursor:pointer">
-              <div class="sp-kpi-card__icon sp-kpi-card__icon--info">
+            <div class="op-stat" @click="navigate('planos_acao')" style="cursor:pointer">
+              <div class="op-stat__icon op-stat__icon--info">
                 <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
               </div>
-              <div class="sp-kpi-card__body">
-                <span class="sp-kpi-card__val sp-kpi-card__val--info" x-text="kpis.paEmExecucao || 0"></span>
-                <span class="sp-kpi-card__label">PA em execução</span>
+              <div class="op-stat__body">
+                <span class="op-stat__value op-stat__value--info" x-text="kpis.paEmExecucao || 0"></span>
+                <span class="op-stat__label">PA em execução</span>
               </div>
             </div>
-            <div class="sp-kpi-card" @click="navigate('planos_acao'); ui.paFilter = 'em_andamento'" style="cursor:pointer">
-              <div class="sp-kpi-card__icon" :class="kpis.paParados > 0 ? 'sp-kpi-card__icon--warning' : 'sp-kpi-card__icon--success'">
+            <div class="op-stat" @click="navigate('planos_acao'); ui.paFilter = 'em_andamento'" style="cursor:pointer">
+              <div class="op-stat__icon" :class="kpis.paParados > 0 ? 'op-stat__icon--warning' : 'op-stat__icon--success'">
                 <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
               </div>
-              <div class="sp-kpi-card__body">
-                <span class="sp-kpi-card__val" :class="kpis.paParados > 0 ? 'sp-kpi-card__val--warning' : ''" x-text="kpis.paParados || 0"></span>
-                <span class="sp-kpi-card__label">PA parados 14d+</span>
+              <div class="op-stat__body">
+                <span class="op-stat__value" :class="kpis.paParados > 0 ? 'op-stat__value--warning' : ''" x-text="kpis.paParados || 0"></span>
+                <span class="op-stat__label">PA parados 14d+</span>
               </div>
             </div>
           </div>

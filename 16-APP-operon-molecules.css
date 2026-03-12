@@ -36,6 +36,12 @@
 .op-stat__trend--up { color: var(--success); }
 .op-stat__trend--down { color: var(--danger); }
 
+/* Value color variants */
+.op-stat__value--success { color: var(--success-dark); }
+.op-stat__value--danger  { color: var(--danger-dark); }
+.op-stat__value--warning { color: var(--warning-dark); }
+.op-stat__value--info    { color: var(--info-dark); }
+
 /* Compact variant */
 .op-stat--compact { padding: var(--sp-3) var(--sp-4); }
 .op-stat--compact .op-stat__icon { width: 36px; height: 36px; font-size: var(--text-base); }

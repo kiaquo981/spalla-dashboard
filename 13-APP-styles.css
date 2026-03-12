@@ -231,64 +231,7 @@ img { max-width: 100%; display: block; }
 /* ===== CONTENT AREA — now uses .op-app__content from Operon ===== */
 /* ===== PAGE HEADER — now in 18-APP-operon-bridge.css ===== */
 
-/* ===== KPI CARDS ===== */
-.kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--sp-4);
-  margin-bottom: var(--sp-8);
-}
-
-/* Old .kpi-card removed — use .sp-kpi-card instead */
-
-.kpi-card__icon {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--r-xl);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-}
-
-.kpi-card__icon svg { width: 24px; height: 24px; }
-
-.kpi-card__icon--brand { background: var(--brand-100); color: var(--brand-600); }
-.kpi-card__icon--success { background: var(--success-light); color: var(--success-dark); }
-.kpi-card__icon--warning { background: var(--warning-light); color: var(--warning-dark); }
-.kpi-card__icon--danger { background: var(--danger-light); color: var(--danger-dark); }
-.kpi-card__icon--info { background: var(--info-light); color: var(--info-dark); }
-.kpi-card__icon--purple { background: var(--purple-light); color: var(--purple-dark); }
-
-.kpi-card__label {
-  font-size: 11px;
-  color: var(--neutral-400);
-  font-weight: 500;
-  margin-bottom: 2px;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-}
-
-.kpi-card__value {
-  font-size: 28px;
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: -0.8px;
-  color: var(--neutral-900);
-}
-
-.kpi-card__trend {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font-size: var(--text-xs);
-  font-weight: 600;
-  margin-top: var(--sp-1);
-}
-
-.kpi-card__trend--up { color: var(--success); }
-.kpi-card__trend--down { color: var(--danger); }
+/* ===== KPI CARDS — now uses .op-kpi-strip + .op-stat from Operon molecules ===== */
 
 /* ===== CARD — variants now in 18-APP-operon-bridge.css ===== */
 
@@ -942,7 +885,6 @@ img { max-width: 100%; display: block; }
 }
 
 @media (max-width: 1024px) {
-  .kpi-grid { grid-template-columns: repeat(3, 1fr); }
   .mentee-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
 }
 
@@ -974,7 +916,7 @@ img { max-width: 100%; display: block; }
 
   .content, .op-app__content { padding: var(--sp-4); }
 
-  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .op-kpi-strip { grid-template-columns: repeat(3, 1fr); }
   .mentee-grid { grid-template-columns: 1fr; }
   .mentee-card__stats { grid-template-columns: 1fr 1fr; }
 
@@ -991,7 +933,7 @@ img { max-width: 100%; display: block; }
 }
 
 @media (max-width: 480px) {
-  .kpi-grid { grid-template-columns: 1fr; }
+  .op-kpi-strip { grid-template-columns: repeat(2, 1fr); }
   .page-title { font-size: var(--text-xl); }
   .detail-hero__left { flex-direction: column; text-align: center; align-items: center; }
 }
@@ -1692,15 +1634,7 @@ img { max-width: 100%; display: block; }
   .dossier-kpis { flex-direction: column; }
 }
 
-/* ================================================================
-   KPI ICON COLORS (inherit from card variant)
-   ================================================================ */
-.kpi-card--brand .kpi-card__icon { background: var(--brand-100); color: var(--brand-600); }
-.kpi-card--success .kpi-card__icon { background: var(--success-light); color: var(--success-dark); }
-.kpi-card--warning .kpi-card__icon { background: var(--warning-light); color: var(--warning-dark); }
-.kpi-card--danger .kpi-card__icon { background: var(--danger-light); color: var(--danger-dark); }
-.kpi-card--info .kpi-card__icon { background: var(--info-light); color: var(--info-dark); }
-.kpi-card--purple .kpi-card__icon { background: var(--purple-light); color: var(--purple-dark); }
+/* KPI icon colors — now in op-stat__icon--* (Operon molecules) */
 
 /* ================================================================
    TASK BOARD — ClickUp Style
@@ -2152,77 +2086,13 @@ img { max-width: 100%; display: block; }
   .page-header__actions { width: 100%; justify-content: space-between; }
 }
 
-/* ===== SPALLA KPI CARDS ===== */
-.sp-kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 16px;
-  margin-bottom: 24px;
-}
-.sp-kpi-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 18px 20px;
-  background: #fff;
-  border: 1px solid var(--neutral-200);
-  border-radius: 12px;
-  transition: box-shadow 0.2s ease, transform 0.15s ease;
-}
-.sp-kpi-card:hover {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-  transform: translateY(-1px);
-}
-.sp-kpi-card__icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.sp-kpi-card__icon--primary { background: rgba(99,102,241,0.1); color: #6366f1; }
-.sp-kpi-card__icon--success { background: rgba(16,185,129,0.1); color: #059669; }
-.sp-kpi-card__icon--danger { background: rgba(239,68,68,0.1); color: #dc2626; }
-.sp-kpi-card__icon--info { background: rgba(59,130,246,0.1); color: #2563eb; }
-.sp-kpi-card__icon--warning { background: rgba(245,158,11,0.1); color: #d97706; }
-.sp-kpi-card__body { display: flex; flex-direction: column; min-width: 0; }
-.sp-kpi-card__val { font-size: 26px; font-weight: 800; color: var(--neutral-900); line-height: 1.1; letter-spacing: -0.5px; }
-.sp-kpi-card__val--success { color: #059669; }
-.sp-kpi-card__val--danger { color: #dc2626; }
-.sp-kpi-card__val--info { color: #2563eb; }
-.sp-kpi-card__val--warning { color: #d97706; }
-.sp-kpi-card__label { font-size: 12px; font-weight: 500; color: var(--neutral-500); margin-top: 2px; }
-
-@media (max-width: 1200px) {
-  .sp-kpi-grid { grid-template-columns: repeat(3, 1fr); }
-}
-@media (max-width: 768px) {
-  .sp-kpi-grid { grid-template-columns: repeat(2, 1fr); }
-}
+/* sp-kpi-* removed — now uses op-kpi-strip + op-stat from Operon */
 
 /* ================================================================
-   LINEAR/NOTION LIGHT THEME — Dashboard Components
+   DASHBOARD FILTER BAR COMPONENTS
    ================================================================ */
 
-/* --- KPI Strip --- */
-.ln-kpi-strip {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--neutral-200);
-  margin-bottom: 12px;
-}
-.ln-kpi { display: flex; flex-direction: column; align-items: center; padding: 0 24px; }
-.ln-kpi__val { font-size: 28px; font-weight: 700; color: var(--neutral-900); letter-spacing: -0.5px; line-height: 1; }
-.ln-kpi__val--success { color: #10b981; }
-.ln-kpi__val--danger { color: #ef4444; }
-.ln-kpi__val--warning { color: #f59e0b; }
-.ln-kpi__val--info { color: #3b82f6; }
-.ln-kpi__label { font-size: 11px; color: var(--neutral-500); font-weight: 500; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
-.ln-kpi__sep { width: 1px; height: 32px; background: var(--neutral-200); flex-shrink: 0; }
+/* ln-kpi-strip removed — dead code (no HTML usage) */
 
 /* --- Phase Pills Row --- */
 .ln-phase-row {
@@ -2282,180 +2152,7 @@ img { max-width: 100%; display: block; }
   font-variant-numeric: tabular-nums;
 }
 
-/* --- Mentee Table --- */
-.ln-table {
-  border: 1px solid var(--neutral-200);
-  border-radius: 8px;
-  overflow: hidden;
-  margin-top: 0;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
-}
-.ln-table__head {
-  display: grid;
-  grid-template-columns: 2.5fr 1.2fr 0.8fr 0.8fr 0.6fr 0.8fr 0.8fr;
-  gap: 0;
-  padding: 10px 16px;
-  background: var(--neutral-50);
-  border-bottom: 1px solid var(--neutral-200);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--neutral-500);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.ln-table__head span { cursor: pointer; user-select: none; }
-.ln-table__head span:hover { color: var(--neutral-700); }
-
-.ln-table__row {
-  display: grid;
-  grid-template-columns: 2.5fr 1.2fr 0.8fr 0.8fr 0.6fr 0.8fr 0.8fr;
-  gap: 0;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--neutral-100);
-  border-left: 3px solid transparent;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  align-items: center;
-}
-.ln-table__row:last-child { border-bottom: none; }
-.ln-table__row:hover { background: var(--neutral-50); }
-.ln-table__row[data-risk="critico"] { border-left-color: #ef4444; }
-.ln-table__row[data-risk="alto"] { border-left-color: #f59e0b; }
-.ln-table__row[data-risk="medio"] { border-left-color: #3b82f6; }
-.ln-table__row[data-risk="baixo"] { border-left-color: #10b981; }
-
-.ln-table__col { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.ln-table__col--name { gap: 10px; }
-.ln-table__col--phase { gap: 6px; flex-wrap: wrap; }
-.ln-table__col--metric { justify-content: flex-end; padding-right: 8px; }
-.ln-table__col--seg { justify-content: flex-end; }
-
-/* --- Risk Dot --- */
-.ln-risk-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  background: #6b7280;
-}
-.ln-risk-dot--critico { background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,0.4); }
-.ln-risk-dot--alto { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.3); }
-.ln-risk-dot--medio { background: #3b82f6; }
-.ln-risk-dot--baixo { background: #10b981; }
-
-/* --- Avatar --- */
-.ln-avatar-wrap { position: relative; width: 36px; height: 36px; flex-shrink: 0; }
-.ln-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-  color: #fff;
-  background: var(--neutral-300);
-}
-.ln-avatar--success { background: #065f46; }
-.ln-avatar--info { background: #1e40af; }
-.ln-avatar--warning { background: #92400e; }
-.ln-avatar--danger { background: #991b1b; }
-.ln-avatar__photo {
-  position: absolute;
-  inset: 0;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  object-fit: cover;
-  z-index: 1;
-}
-
-/* --- Name Block --- */
-.ln-name-block { min-width: 0; display: flex; flex-direction: column; }
-.ln-name { font-size: 13px; font-weight: 600; color: var(--neutral-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ln-sub { font-size: 11px; color: var(--neutral-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-/* --- Phase Tag --- */
-.ln-phase-tag {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--neutral-600);
-  background: var(--neutral-100);
-}
-.ln-phase-tag.phase--onboarding { color: #7c3aed; background: rgba(168,85,247,0.1); }
-.ln-phase-tag.phase--concepcao { color: #2563eb; background: rgba(59,130,246,0.1); }
-.ln-phase-tag.phase--validacao { color: #d97706; background: rgba(245,158,11,0.1); }
-.ln-phase-tag.phase--otimizacao { color: #059669; background: rgba(16,185,129,0.1); }
-.ln-phase-tag.phase--escala { color: #dc2626; background: rgba(239,68,68,0.1); }
-
-.ln-meta-tag {
-  font-size: 11px;
-  color: var(--neutral-400);
-  font-weight: 500;
-}
-
-/* --- Values --- */
-.ln-val { font-size: 13px; font-weight: 600; color: var(--neutral-700); font-variant-numeric: tabular-nums; }
-.ln-val--success { color: #059669; }
-.ln-val--danger { color: #dc2626; }
-.ln-val--warning { color: #d97706; }
-.ln-val--ok { color: var(--neutral-500); }
-.ln-val--muted { color: var(--neutral-400); }
-
-/* --- Call Indicator --- */
-.ln-call-indicator {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-.ln-call-indicator--ok { background: rgba(16,185,129,0.08); color: #059669; }
-.ln-call-indicator--warning { background: rgba(245,158,11,0.08); color: #d97706; }
-.ln-call-indicator--danger { background: rgba(239,68,68,0.08); color: #dc2626; }
-
-/* --- WA Badge --- */
-.ln-wa-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  background: rgba(37,211,102,0.08);
-  color: #059669;
-}
-.ln-wa-badge svg { opacity: 0.7; }
-
-/* --- Task Badge --- */
-.ln-task-badge {
-  display: inline-flex;
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-}
-.ln-task-badge--danger { background: rgba(239,68,68,0.08); color: #dc2626; }
-
-/* --- Cohort Badge --- */
-.ln-cohort-badge {
-  display: inline-flex;
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 700;
-  background: var(--neutral-100);
-  color: var(--neutral-500);
-  letter-spacing: 0.3px;
-}
+/* ln-table, ln-risk-dot, ln-avatar, ln-val, ln-badge variants removed — dead code (no HTML usage) */
 
 /* ===== MENTEE CARD GRID ===== */
 .mc-grid {
@@ -3093,24 +2790,7 @@ img { max-width: 100%; display: block; }
 @keyframes ln-pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
 
 /* --- Responsive --- */
-@media (max-width: 1200px) {
-  .ln-table__head, .ln-table__row {
-    grid-template-columns: 2fr 1fr 0.7fr 0.7fr 0.5fr 0.7fr;
-  }
-  .ln-table__col--seg { display: none; }
-}
-@media (max-width: 768px) {
-  .ln-table__head { display: none; }
-  .ln-table__row {
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 6px;
-    padding: 12px;
-  }
-  .ln-table__col--name { grid-column: 1 / -1; }
-  .ln-table__col--phase { grid-column: 1 / -1; }
-  .ln-table__col--seg { display: none; }
-  .ln-kpi-strip { flex-wrap: wrap; }
-}
+/* ln-table responsive removed — dead code */
 
 /* ===== DRAG AND DROP (Task Board) ===== */
 .task-board__column-body--dragover {
