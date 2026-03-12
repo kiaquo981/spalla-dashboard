@@ -26,48 +26,72 @@ try:
 except ImportError:
     jwt = None  # Will handle gracefully if not installed
 
+try:
+    import bcrypt as _bcrypt
+except ImportError:
+    _bcrypt = None  # Falls back to SHA-256 if not installed
+
 PORT = int(os.environ.get('PORT', 8888))
 
 # ===== CONFIG =====
-EVOLUTION_BASE = 'https://evolution.manager01.feynmanproject.com'
-EVOLUTION_API_KEY = '25c11dccd9f2a84eb7488a939d62406dbe37dd9b1286fb3be793bfd3207da10c'
+EVOLUTION_BASE = os.environ.get('EVOLUTION_BASE', 'https://evolution.manager01.feynmanproject.com')
+EVOLUTION_API_KEY = os.environ.get('EVOLUTION_API_KEY', '')
 
 # Zoom Server-to-Server OAuth
-ZOOM_ACCOUNT_ID = os.environ.get('ZOOM_ACCOUNT_ID', 'DXq-KNA5QuSpcjG6UeUs0Q')
-ZOOM_CLIENT_ID = os.environ.get('ZOOM_CLIENT_ID', 'fvNVWKX_SumngWI1kQNhg')
-ZOOM_CLIENT_SECRET = os.environ.get('ZOOM_CLIENT_SECRET', 'zsgo0Xjtih8Yn2B0SLPVTK5J0Jh3WO9g')
+ZOOM_ACCOUNT_ID = os.environ.get('ZOOM_ACCOUNT_ID', '')
+ZOOM_CLIENT_ID = os.environ.get('ZOOM_CLIENT_ID', '')
+ZOOM_CLIENT_SECRET = os.environ.get('ZOOM_CLIENT_SECRET', '')
 
 # Google Service Account
 GOOGLE_SA_PATH = os.path.expanduser('~/.config/google/credentials.json')
 
-# Supabase (Spalla Dashboard — knusqfbvhsqworzyhvip)
-SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://knusqfbvhsqworzyhvip.supabase.co')
-SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtudXNxZmJ2aHNxd29yenlodmlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4NTg3MjcsImV4cCI6MjA3MDQzNDcyN30.f-m7TlmCoccBpUxLZhA4P5kr2lWBGtRIv6inzInAKCo')
-SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtudXNxZmJ2aHNxd29yenlodmlwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDg1ODcyNywiZXhwIjoyMDcwNDM0NzI3fQ.0n5eh94NQ1flgXzQQoKtnNkTxJAYztqKxwNKnHyq6dM')
+# Supabase
+SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
+SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', '')
+SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
 
-# Calendar ID (user's primary calendar or a specific one)
+# Calendar ID
 GOOGLE_CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID', 'primary')
 
 # ===== HETZNER S3 CONFIG =====
-S3_ACCESS_KEY = os.environ.get('S3_ACCESS_KEY', 'DEVL6RUFEVNXKU8DKSH9')
-S3_SECRET_KEY = os.environ.get('S3_SECRET_KEY', 'ttypx09B2eZZ4bpSDhjGjBvyLMkedvZ0rNvOgsxd')
+S3_ACCESS_KEY = os.environ.get('S3_ACCESS_KEY', '')
+S3_SECRET_KEY = os.environ.get('S3_SECRET_KEY', '')
 S3_BUCKET     = os.environ.get('S3_BUCKET', 'case-evolution-media')
 S3_ENDPOINT   = os.environ.get('S3_ENDPOINT', 'hel1.your-objectstorage.com')
 S3_REGION     = os.environ.get('S3_REGION', 'eu-central')
 
 # ===== JWT AUTH CONFIG =====
-JWT_SECRET = os.environ.get('JWT_SECRET', 'your-secret-key-change-in-production')
+JWT_SECRET = os.environ.get('JWT_SECRET')
+if not JWT_SECRET:
+    import secrets as _s
+    JWT_SECRET = _s.token_hex(32)
+    print(f'[WARNING] JWT_SECRET not set — generated ephemeral key (tokens will not survive restarts)')
 JWT_ALGORITHM = 'HS256'
 ACCESS_TOKEN_EXPIRY_MINUTES = 60
 REFRESH_TOKEN_EXPIRY_DAYS = 7
 # ===== AUTH FUNCTIONS (Supabase-backed) =====
 def hash_password(password):
-    """Hash password using SHA256"""
+    """Hash password using bcrypt (falls back to SHA-256 if bcrypt unavailable)"""
+    if _bcrypt:
+        return _bcrypt.hashpw(password.encode(), _bcrypt.gensalt()).decode()
     return hashlib.sha256(password.encode()).hexdigest()
 
-def verify_password(password, hash_):
-    """Verify password against hash"""
-    return hash_password(password) == hash_
+def _is_legacy_sha256(stored_hash):
+    """Check if hash is a legacy SHA-256 (64 hex chars)"""
+    return len(stored_hash) == 64 and all(c in '0123456789abcdef' for c in stored_hash)
+
+def verify_password(password, stored_hash):
+    """Verify password — supports both bcrypt and legacy SHA-256"""
+    if _is_legacy_sha256(stored_hash):
+        if hashlib.sha256(password.encode()).hexdigest() == stored_hash:
+            return 'migrate'  # Signal to upgrade hash
+        return False
+    if _bcrypt:
+        try:
+            return _bcrypt.checkpw(password.encode(), stored_hash.encode())
+        except Exception:
+            return False
+    return hashlib.sha256(password.encode()).hexdigest() == stored_hash
 
 def create_jwt_token(email, user_id, expiry_minutes=ACCESS_TOKEN_EXPIRY_MINUTES):
     """Create JWT access token"""
@@ -794,6 +818,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_auth_login()
         elif self.path == '/api/auth/refresh':
             self._handle_auth_refresh()
+        elif self.path == '/api/auth/reset-password':
+            self._handle_auth_reset_password()
         elif self.path.startswith('/api/evolution/'):
             self._proxy_evolution('POST')
         elif self.path == '/api/schedule-call':
@@ -1226,12 +1252,19 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 return
 
             row = result[0]
-            if not verify_password(password, row['password_hash']):
+            pw_result = verify_password(password, row['password_hash'])
+            if not pw_result:
                 self._send_json({'error': 'Invalid email or password'}, 401)
                 return
 
             user_id = row['id']
             db_email = row['email']
+
+            # Lazy migration: upgrade legacy SHA-256 hash to bcrypt
+            if pw_result == 'migrate' and _bcrypt:
+                new_hash = hash_password(password)
+                supabase_request('PATCH', f'auth_users?id=eq.{user_id}', {'password_hash': new_hash})
+                print(f'[AUTH] Migrated password hash for user {user_id} to bcrypt')
             full_name = row.get('full_name', '')
 
             access_token = create_jwt_token(db_email, user_id)
@@ -1269,8 +1302,13 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             new_access_token = create_jwt_token(email, user_id)
             new_refresh_token = create_refresh_token(email, user_id)
 
+            # Fetch fresh user data
+            user_data = supabase_request('GET', f'auth_users?id=eq.{user_id}&select=id,email,full_name')
+            user = user_data[0] if isinstance(user_data, list) and len(user_data) > 0 else {'id': user_id, 'email': email}
+
             self._send_json({
                 'success': True,
+                'user': user,
                 'access_token': new_access_token,
                 'refresh_token': new_refresh_token,
                 'expires_in': ACCESS_TOKEN_EXPIRY_MINUTES * 60
@@ -1278,6 +1316,33 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             log_error('AUTH', f'Token refresh failed: {e}')
             self._send_json({'error': 'Token refresh failed'}, 500)
+
+    def _handle_auth_reset_password(self):
+        """Handle password reset request — returns generic message to prevent email enumeration"""
+        try:
+            body = json.loads(self._read_body())
+            email = body.get('email', '').strip().lower()
+
+            if not email:
+                self._send_json({'error': 'Email obrigatorio'}, 400)
+                return
+
+            # Check if user exists (but always return same message)
+            users = supabase_request('GET', f'auth_users?email=eq.{email}&select=id,email')
+            if isinstance(users, list) and len(users) > 0:
+                # TODO: Send actual reset email when email service is configured
+                log_error('AUTH', f'Password reset requested for: {email} (user found, email not sent — no email service configured)')
+            else:
+                log_error('AUTH', f'Password reset requested for: {email} (user not found)')
+
+            # Always return success to prevent email enumeration
+            self._send_json({
+                'success': True,
+                'message': 'Se o email existir no sistema, as instrucoes de recuperacao serao enviadas.'
+            }, 200)
+        except Exception as e:
+            log_error('AUTH', f'Reset password error: {e}')
+            self._send_json({'error': 'Erro ao processar solicitacao'}, 500)
 
     def log_message(self, format, *args):
         path = str(args[0]) if args else ''
@@ -1293,7 +1358,10 @@ if __name__ == '__main__':
     print(f'[Spalla] Zoom:     {"✓ configured" if ZOOM_ACCOUNT_ID else "✗ set ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET"}')
     print(f'[Spalla] GCal:     {"✓ service account found" if os.path.exists(GOOGLE_SA_PATH) else "✗ no service account"}')
     print(f'[Spalla] Supabase: {"✓ configured" if SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY else "✗ set SUPABASE_SERVICE_KEY"}')
-    print(f'[Spalla] Evolution: ✓ proxy at /api/evolution/*')
+    print(f'[Spalla] Evolution: {"✓ configured" if EVOLUTION_API_KEY else "✗ set EVOLUTION_API_KEY"}')
+    print(f'[Spalla] JWT:      {"✓ secret from env" if os.environ.get("JWT_SECRET") else "⚠ ephemeral key (set JWT_SECRET)"}')
+    print(f'[Spalla] Bcrypt:   {"✓ installed" if _bcrypt else "⚠ not installed (using SHA-256)"}')
+    print(f'[Spalla] Proxy:    /api/evolution/*')
     print(f'[Spalla] Sheets:   {"✓ service account found" if os.path.exists(GOOGLE_SA_PATH) else "✗ no service account"}')
     print(f'[Spalla] Endpoints:')
     print(f'  POST /api/schedule-call    — Full scheduling (Zoom + Calendar + DB)')

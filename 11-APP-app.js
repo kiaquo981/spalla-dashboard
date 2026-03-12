@@ -176,6 +176,7 @@ function operon() {
       waSessionLoading: false,
       waQrPolling: false,
       waSendingMedia: false,
+      waMobileSidebarHidden: false,
       // WA Topics Board
       waTopicsView: 'board',
       waTopicsSearch: '',
@@ -998,13 +999,24 @@ function operon() {
               this._clearAuthStorage();
             }
           } catch (e) {
-            // Network error — trust local session as fallback
-            this.auth.authenticated = true;
-            this.auth.currentUser = JSON.parse(userStr);
-            this.auth.accessToken = accessToken;
-            this.auth.refreshToken = refreshToken;
-            this.ui.taskAssignee = '__mine__';
-            console.warn('[Spalla] Auth: offline, using cached session');
+            // Network error — validate token expiry locally before trusting cache
+            try {
+              const payload = JSON.parse(atob(accessToken.split('.')[1]));
+              const now = Math.floor(Date.now() / 1000);
+              if (payload.exp && payload.exp > now) {
+                this.auth.authenticated = true;
+                this.auth.currentUser = JSON.parse(userStr);
+                this.auth.accessToken = accessToken;
+                this.auth.refreshToken = refreshToken;
+                this.ui.taskAssignee = '__mine__';
+                console.warn('[Spalla] Auth: offline, using cached session (token not expired)');
+              } else {
+                console.warn('[Spalla] Auth: offline, cached token expired');
+                this._clearAuthStorage();
+              }
+            } catch (parseErr) {
+              this._clearAuthStorage();
+            }
           }
         }
 
@@ -1229,21 +1241,19 @@ function operon() {
         return;
       }
       try {
-        const client = await initSupabase();
-        if (!client) {
-          this.auth.error = 'Erro de conexão. Tente novamente.';
-          return;
-        }
-        const { error } = await client.auth.resetPasswordForEmail(this.auth.email, {
-          redirectTo: window.location.origin
+        const resp = await fetch(`${CONFIG.API_BASE}/api/auth/reset-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: this.auth.email.trim().toLowerCase() })
         });
-        if (error) {
-          this.auth.error = error.message || 'Erro ao enviar email de recuperação';
+        const data = await resp.json();
+        if (!resp.ok) {
+          this.auth.error = data.error || 'Erro ao solicitar recuperacao';
           return;
         }
-        this.auth.success = 'Email de recuperação enviado! Verifique sua caixa de entrada (e spam).';
+        this.auth.success = data.message || 'Se o email existir, as instrucoes de recuperacao serao enviadas.';
       } catch (e) {
-        this.auth.error = 'Erro ao enviar email: ' + e.message;
+        this.auth.error = 'Erro de conexao. Tente novamente.';
         console.error('[Spalla] Reset password error:', e);
       }
     },
@@ -2921,7 +2931,7 @@ function operon() {
     async waAttemptRestart(instanceName) {
       try {
         const res = await fetch(`${CONFIG.API_BASE}/api/evolution/instance/restart/${instanceName}`, {
-          method: 'PUT',
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' }
         });
         if (res.ok) {
@@ -3095,12 +3105,17 @@ function operon() {
       if (!this.data.waSession) return;
       const session = this.data.waSession;
       try {
-        await fetch(`${CONFIG.API_BASE}/api/evolution/instance/logout/${session.instance_name}`, {
+        const logoutRes = await fetch(`${CONFIG.API_BASE}/api/evolution/instance/logout/${session.instance_name}`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' }
         });
+        if (!logoutRes.ok && logoutRes.status !== 400) {
+          console.warn('[WA Session] Logout API status:', logoutRes.status);
+          this.toast('Aviso: logout da instancia pode ter falhado', 'warning');
+        }
       } catch (e) {
         console.warn('[WA Session] Logout API error:', e.message);
+        this.toast('Aviso: nao foi possivel desconectar a instancia', 'warning');
       }
       if (sb && session.id) {
         await sb.from('wa_sessions')

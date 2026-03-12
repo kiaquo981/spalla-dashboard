@@ -2059,9 +2059,9 @@
                   </button>
                 </div>
               </div>
-              <div class="wa-sidebar__list">
+              <div class="wa-sidebar__list" x-show="!ui.waMobileSidebarHidden">
                 <template x-for="chat in data.whatsappChats" :key="chat.id">
-                  <div class="wa-sidebar__item" :class="{ active: ui.whatsappSelectedChat?.id === chat.id }" @click="selectWhatsAppChat(chat)">
+                  <div class="wa-sidebar__item" :class="{ active: ui.whatsappSelectedChat?.id === chat.id }" @click="selectWhatsAppChat(chat); if(window.innerWidth <= 768) ui.waMobileSidebarHidden = true">
                     <img x-show="chat.profilePicUrl" :src="chat.profilePicUrl" class="avatar avatar--sm" style="width:32px;height:32px;border-radius:50%;object-fit:cover" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex'">
                     <div class="avatar avatar--sm avatar--success" :style="chat.profilePicUrl && 'display:none'" x-text="avatarInitials(getWaChatName(chat))"></div>
                     <div class="wa-sidebar__item-info"><div class="wa-sidebar__item-name" x-text="getWaChatName(chat)"></div></div>
@@ -2082,6 +2082,9 @@
             <!-- Chat Messages -->
             <div class="wa-chat">
               <div class="wa-chat__header" x-show="ui.whatsappSelectedChat">
+                <button class="wa-chat__back-btn" @click="ui.waMobileSidebarHidden = false; ui.whatsappSelectedChat = null; stopWhatsAppPolling()">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
                 <div class="avatar avatar--sm avatar--success" x-text="avatarInitials(getWaChatName(ui.whatsappSelectedChat))"></div>
                 <h3 x-text="getWaChatName(ui.whatsappSelectedChat)"></h3>
               </div>

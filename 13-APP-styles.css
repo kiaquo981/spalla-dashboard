@@ -1260,6 +1260,7 @@ img { max-width: 100%; display: block; }
 .wa-chat { flex: 1; display: flex; flex-direction: column; background: var(--neutral-50); min-width: 0; overflow: hidden; }
 .wa-chat__header { padding: var(--sp-3) var(--sp-4); background: #fff; border-bottom: 1px solid var(--neutral-200); display: flex; align-items: center; gap: var(--sp-3); }
 .wa-chat__header h3 { font-size: var(--text-md); font-weight: 600; margin: 0; }
+.wa-chat__back-btn { display: none; background: none; border: none; cursor: pointer; padding: 4px; color: var(--neutral-600); }
 .wa-chat__messages { flex: 1; overflow-y: auto; padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-2); }
 .wa-chat__input { padding: var(--sp-3) var(--sp-4); background: #fff; border-top: 1px solid var(--neutral-200); display: flex; gap: var(--sp-2); }
 .wa-chat__input input { flex: 1; padding: var(--sp-2) var(--sp-3); border: 1px solid var(--neutral-200); border-radius: var(--r-full); font-size: var(--text-sm); }
@@ -1449,7 +1450,8 @@ img { max-width: 100%; display: block; }
   .kanban-board { flex-direction: column; }
   .kanban-column { max-width: 100%; min-width: 100%; }
   .wa-layout { flex-direction: column; }
-  .wa-sidebar { width: 100%; max-height: 200px; }
+  .wa-sidebar { width: 100%; max-height: none; }
+  .wa-chat__back-btn { display: flex; }
   .dossier-kpis { flex-wrap: wrap; }
   .dossier-kpi { flex: 1 1 45%; }
   .docs-grid { grid-template-columns: 1fr 1fr; }
