@@ -1,0 +1,111 @@
+{
+  "_doc": "Patches para o v34 — NÃO é um workflow novo, são os nodes que precisam ser atualizados DENTRO do v34 existente",
+  "_instructions": [
+    "1. Abra o v34 no N8N",
+    "2. Encontre cada node pelo nome",
+    "3. Substitua APENAS os parâmetros indicados",
+    "4. O 'Conectar Auto-Check' é um node NOVO — adicione após 'Detectar Ação Concluída'"
+  ],
+
+  "patch_nodes": [
+    {
+      "_action": "UPDATE — Mudar destino de tarefas_acordadas → bridge_create_task",
+      "node_name": "Salvar Compromissos",
+      "change": "URL e body",
+      "old_url": "={{ $env.SUPABASE_URL }}/rest/v1/tarefas_acordadas",
+      "new_parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/bridge_create_task",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawBody": "={{ JSON.stringify({ p_mentorado_id: $json.mentorado_id, p_titulo: $json.compromisso, p_descricao: $json.contexto, p_responsavel: $json.sender_name || 'mentorado', p_prioridade: 'normal', p_data_fim: $json.prazo_inferido || null, p_fonte: 'whatsapp_compromisso', p_interacao_id: $json.interacao_id || null, p_confianca: $json.confianca || 0.7 }) }}"
+      }
+    },
+    {
+      "_action": "UPDATE — Mudar destino de tarefas_acordadas → bridge_create_task",
+      "node_name": "Criar Tarefa Material",
+      "change": "URL e body",
+      "old_url": "={{ $env.SUPABASE_URL }}/rest/v1/tarefas_acordadas",
+      "new_parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/bridge_create_task",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawBody": "={{ JSON.stringify({ p_mentorado_id: $json.mentorado_id, p_titulo: 'Enviar material solicitado', p_descricao: $json.resumo || LEFT($json.conteudo, 300), p_responsavel: $json.responsavel_detectado || 'Equipe', p_prioridade: 'alta', p_data_fim: $now.plus({days: 2}).toFormat('yyyy-MM-dd'), p_fonte: 'whatsapp_material', p_interacao_id: $json.interacao_id || null, p_confianca: 0.9, p_tags: ['material-solicitado'] }) }}"
+      }
+    },
+    {
+      "_action": "ADD NEW NODE — Conectar após 'Detectar Ação Concluída'",
+      "node_name": "Auto-Check Tarefas",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position_after": "Detectar Ação Concluída",
+      "notes": "Chama bridge_auto_check_task para dar check automático em god_tasks e pa_acoes do mentorado",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/bridge_auto_check_task",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawBody": "={{ JSON.stringify({ p_mentorado_id: $('Processar Classificação').item.json.mentorado_id, p_acao_concluida: $json.choices ? JSON.parse($json.choices[0].message.content).acao_concluida : ($json.acao_concluida || ''), p_evidencia: $json.choices ? JSON.parse($json.choices[0].message.content).evidencia : ($json.evidencia || null), p_interacao_id: $('Salvar Interação').item.json.id || null }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "continueOnFail": true,
+      "connection": {
+        "_note": "Conectar SAÍDA de 'Detectar Ação Concluída' → ENTRADA deste node",
+        "_condition": "Só executar quando acao_concluida não é null",
+        "add_if_node_before": {
+          "name": "Tem Ação Concluída?",
+          "type": "n8n-nodes-base.if",
+          "conditions": {
+            "conditions": [
+              {
+                "leftValue": "={{ $json.choices ? JSON.parse($json.choices[0].message.content).acao_concluida : $json.acao_concluida }}",
+                "rightValue": "",
+                "operator": { "type": "string", "operation": "isNotEmpty" }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+
+  "summary": {
+    "nodes_modified": 2,
+    "nodes_added": 2,
+    "nodes_removed": 0,
+    "total_v34_nodes": 77,
+    "changes_pct": "2.6%",
+    "description": "Muda destino de 2 nodes (tarefas_acordadas → god_tasks via RPC). Adiciona 1 IF + 1 HTTP após 'Detectar Ação Concluída' para auto-check. Resto do v34 intocado."
+  }
+}
