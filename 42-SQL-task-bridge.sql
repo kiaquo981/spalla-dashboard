@@ -290,9 +290,9 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_call_to_tasks ON "case".analises_call;
+DROP TRIGGER IF EXISTS trg_call_to_tasks ON public.analises_call;
 CREATE TRIGGER trg_call_to_tasks
-  AFTER INSERT ON "case".analises_call
+  AFTER INSERT ON public.analises_call
   FOR EACH ROW
   EXECUTE FUNCTION bridge_call_to_tasks();
 
