@@ -805,6 +805,18 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         else:
             self.send_error(404)
 
+    def do_PUT(self):
+        if self.path.startswith('/api/evolution/'):
+            self._proxy_evolution('PUT')
+        else:
+            self.send_error(404)
+
+    def do_DELETE(self):
+        if self.path.startswith('/api/evolution/'):
+            self._proxy_evolution('DELETE')
+        else:
+            self.send_error(404)
+
     # ===== SCHEDULE CALL (main orchestrator) =====
     def _handle_schedule_call(self):
         """
@@ -1064,7 +1076,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def _proxy_evolution(self, method):
         target_path = self.path[len('/api/evolution'):]
         url = f'{EVOLUTION_BASE}{target_path}'
-        body = self._read_body() if method == 'POST' else None
+        body = self._read_body() if method in ('POST', 'PUT') else None
 
         req = urllib.request.Request(url, data=body, method=method)
         req.add_header('Content-Type', 'application/json')
