@@ -570,7 +570,7 @@ function operon() {
     // ===================== SHARED HELPERS =====================
 
     get currentUserName() {
-      return this.auth.currentUser?.user_metadata?.full_name || this.auth.currentUser?.email || 'Sistema';
+      return this.auth.currentUser?.full_name || this.auth.currentUser?.email || 'Sistema';
     },
 
     todayStr() { return new Date().toISOString().split('T')[0]; },
@@ -1006,7 +1006,6 @@ function operon() {
             this.ui.taskAssignee = '__mine__';
             console.warn('[Spalla] Auth: offline, using cached session');
           }
-        } else {
         }
 
         // Initialize Supabase (if still needed for other features)
@@ -1037,9 +1036,10 @@ function operon() {
     },
 
     async _loadWaProfilePics() {
-      if (!EVOLUTION_INSTANCE) return;
+      const { instance } = this._waActiveInstance();
+      if (!instance) return;
       try {
-        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findChats/${EVOLUTION_INSTANCE}`, {
+        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findChats/${instance}`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
         });
         if (!res.ok) return;
@@ -1108,6 +1108,8 @@ function operon() {
 
         await this.loadReminders();
         await this.loadDashboard();
+        this.loadWaSession();
+        this.waStartHealthCheck();
       } catch (e) {
         this.auth.error = 'Erro ao fazer login: ' + e.message;
         console.error('[Spalla] Login error:', e);
@@ -1161,6 +1163,8 @@ function operon() {
 
         await this.loadReminders();
         await this.loadDashboard();
+        this.loadWaSession();
+        this.waStartHealthCheck();
       } catch (e) {
         this.auth.error = 'Erro ao criar conta: ' + e.message;
         console.error('[Spalla] Register error:', e);
@@ -1189,6 +1193,11 @@ function operon() {
 
         // Stop data refresh
         this.stopDataRefresh();
+
+        // Stop WhatsApp polling and health checks
+        this.waStopHealthCheck();
+        this.waStopStatusPolling();
+        this.stopWhatsAppPolling();
 
         // Clear tokens and cached data from localStorage
         this._clearAuthStorage();
@@ -1511,7 +1520,8 @@ function operon() {
     },
 
     async _loadDetailWaMessages() {
-      if (!EVOLUTION_INSTANCE) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
+      const { instance: _waInst } = this._waActiveInstance();
+      if (!_waInst) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
       const nome = this.data.detail?.profile?.nome;
       if (!nome) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
       // Enrich detail with overview WA metrics
@@ -1537,7 +1547,7 @@ function operon() {
           const firstName = nome.split(' ')[0].toLowerCase();
           let chats = this.data.whatsappChats;
           if (!chats.length) {
-            const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findChats/${EVOLUTION_INSTANCE}`, {
+            const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findChats/${_waInst}`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
             });
             if (res.ok) chats = await res.json();
@@ -1555,7 +1565,7 @@ function operon() {
         if (!remoteJid) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
 
         // Fetch last 10 messages using remoteJid
-        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${EVOLUTION_INSTANCE}`, {
+        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${_waInst}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ where: { key: { remoteJid } }, limit: 10 }),
@@ -2856,12 +2866,12 @@ function operon() {
 
     async loadWaSession() {
       if (!sb || !this.auth.currentUser) return;
-      const userId = parseInt(this.auth.currentUser.id, 10);
-      if (!userId || isNaN(userId)) return;
+      const userId = String(this.auth.currentUser.id);
+      if (!userId) return;
       try {
         const { data, error } = await sb.from('wa_sessions')
           .select('*')
-          .eq('user_id', String(userId))
+          .eq('user_id', userId)
           .neq('status', 'disconnected')
           .order('created_at', { ascending: false })
           .limit(1)
@@ -2930,11 +2940,14 @@ function operon() {
     },
 
     async waStartConnection() {
-      if (!sb || !this.auth.currentUser) return;
+      if (!sb || !this.auth.currentUser) {
+        this.toast('Erro: servico indisponivel', 'error');
+        return;
+      }
       this.ui.waSessionLoading = true;
       try {
-        const userId = parseInt(this.auth.currentUser.id, 10);
-        if (!userId || isNaN(userId)) throw new Error('Usuario invalido');
+        const userId = String(this.auth.currentUser.id);
+        if (!userId) throw new Error('Usuario invalido');
         const instanceName = `spalla_u${userId}`;
 
         // Create instance via Railway proxy
@@ -2974,13 +2987,13 @@ function operon() {
             .maybeSingle();
           if (found) {
             await sb.from('wa_sessions')
-              .update({ status: 'qr_pending', user_id: String(userId), qr_code_base64: null })
+              .update({ status: 'qr_pending', user_id: userId, qr_code_base64: null })
               .eq('id', found.id);
             found.status = 'qr_pending';
             this.data.waSession = found;
           } else {
             const { data: newSession, error } = await sb.from('wa_sessions')
-              .insert({ user_id: String(userId), instance_name: instanceName, status: 'qr_pending' })
+              .insert({ user_id: userId, instance_name: instanceName, status: 'qr_pending' })
               .select('*')
               .single();
             if (error) throw error;
@@ -3226,7 +3239,7 @@ function operon() {
             key: { fromMe: true },
             message: { conversation: msg },
             messageTimestamp: Math.floor(Date.now() / 1000),
-            pushName: isPersonal ? (this.auth.currentUser?.user_metadata?.full_name || 'Voce') : 'Equipe CASE',
+            pushName: isPersonal ? (this.auth.currentUser?.full_name || 'Voce') : 'Equipe CASE',
           });
           this.$nextTick(() => {
             const el = document.getElementById('wa-messages-end');
@@ -3406,7 +3419,7 @@ function operon() {
       if (!mediaType) return '';
 
       // Get Evolution instance UUID and chat ID
-      const instanceId = (typeof EVOLUTION_CONFIG !== 'undefined' ? EVOLUTION_CONFIG?.INSTANCE_UUID : null) || EVOLUTION_INSTANCE || 'default';
+      const instanceId = (typeof EVOLUTION_CONFIG !== 'undefined' ? EVOLUTION_CONFIG?.INSTANCE_UUID : null) || this._waActiveInstance().instance || 'default';
       const chatId = this.ui.whatsappSelectedChat?.remoteJid || this.ui.whatsappSelectedChat?.id || 'unknown';
 
       // Build filename

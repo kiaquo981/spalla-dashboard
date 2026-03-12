@@ -76,8 +76,8 @@ def create_jwt_token(email, user_id, expiry_minutes=ACCESS_TOKEN_EXPIRY_MINUTES)
     payload = {
         'email': email,
         'user_id': user_id,
-        'exp': datetime.utcnow() + timedelta(minutes=expiry_minutes),
-        'iat': datetime.utcnow()
+        'exp': datetime.now(timezone.utc) + timedelta(minutes=expiry_minutes),
+        'iat': datetime.now(timezone.utc)
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
@@ -89,8 +89,8 @@ def create_refresh_token(email, user_id):
         'email': email,
         'user_id': user_id,
         'type': 'refresh',
-        'exp': datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRY_DAYS),
-        'iat': datetime.utcnow()
+        'exp': datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRY_DAYS),
+        'iat': datetime.now(timezone.utc)
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
@@ -349,7 +349,7 @@ def list_calendar_events(time_min=None, time_max=None, max_results=50):
         return {'error': 'Google Calendar not configured'}
 
     if not time_min:
-        time_min = datetime.utcnow().isoformat() + 'Z'
+        time_min = datetime.now(timezone.utc).isoformat() + 'Z'
 
     try:
         result = service.events().list(
@@ -805,19 +805,19 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         elif self.path == '/api/sheets/sync':
             self._handle_sheets_sync()
         else:
-            self.send_error(404)
+            self._send_json({'error': 'Not found'}, 404)
 
     def do_PUT(self):
         if self.path.startswith('/api/evolution/'):
             self._proxy_evolution('PUT')
         else:
-            self.send_error(404)
+            self._send_json({'error': 'Not found'}, 404)
 
     def do_DELETE(self):
         if self.path.startswith('/api/evolution/'):
             self._proxy_evolution('DELETE')
         else:
-            self.send_error(404)
+            self._send_json({'error': 'Not found'}, 404)
 
     # ===== SCHEDULE CALL (main orchestrator) =====
     def _handle_schedule_call(self):
@@ -1077,6 +1077,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     # ===== EVOLUTION PROXY =====
     def _proxy_evolution(self, method):
         target_path = self.path[len('/api/evolution'):]
+        if '..' in target_path:
+            self._send_json({'error': 'Invalid path'}, 400)
+            return
         url = f'{EVOLUTION_BASE}{target_path}'
         body = self._read_body() if method in ('POST', 'PUT') else None
 
@@ -1098,6 +1101,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self.send_response(e.code)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Content-Length', len(error_body))
             self.end_headers()
             self.wfile.write(error_body)
         except Exception as e:
@@ -1105,6 +1109,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self.send_response(502)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Content-Length', len(error_msg))
             self.end_headers()
             self.wfile.write(error_msg)
 
