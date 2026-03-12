@@ -2808,12 +2808,19 @@ function operon() {
         return;
       }
       try {
+        // Resolve mentorado_id from nome if available
+        let mentoradoId = null;
+        if (this.reminderForm.mentorado_nome) {
+          const match = this.data.mentees.find(m => m.nome === this.reminderForm.mentorado_nome);
+          if (match) mentoradoId = match.id;
+        }
         const reminder = {
           id: crypto.randomUUID ? crypto.randomUUID() : 'rem_' + Date.now(),
           titulo: this.reminderForm.texto,
           data_lembrete: this.reminderForm.data || null,
           prioridade: this.reminderForm.prioridade,
           mentorado_nome: this.reminderForm.mentorado_nome,
+          mentorado_id: mentoradoId,
           status: 'ativo',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),

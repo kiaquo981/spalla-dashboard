@@ -131,21 +131,19 @@ img { max-width: 100%; display: block; }
   text-align: center;
 }
 
-/* ===== APP LAYOUT — now uses .op-app / .op-sidebar / .op-topbar from Operon ===== */
-/* Legacy .sidebar__toggle kept for the hamburger icon styling */
-.sidebar__toggle {
+/* ===== APP LAYOUT — Operon Shell Internals ===== */
+.op-sidebar__toggle {
   color: var(--neutral-500);
   padding: var(--sp-2);
   border-radius: var(--r-md);
   transition: color var(--t-fast) ease, background var(--t-fast) ease;
 }
-.sidebar__toggle:hover {
+.op-sidebar__toggle:hover {
   color: var(--neutral-300);
   background: rgba(230,227,218,0.08);
 }
 
-/* Legacy sidebar__user/footer internals (kept until Fase 2 avatar migration) */
-.sidebar__user {
+.op-sidebar__user {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
@@ -155,25 +153,24 @@ img { max-width: 100%; display: block; }
   transition: background var(--t-fast) ease;
   overflow: hidden;
 }
-.sidebar__user:hover { background: rgba(230,227,218,0.06); }
-.sidebar__user-info { white-space: nowrap; overflow: hidden; }
-.sidebar__user-name { font-size: var(--text-sm); font-weight: 600; color: var(--neutral-200); }
-.sidebar__user-role { font-size: var(--text-xs); color: var(--neutral-500); }
+.op-sidebar__user:hover { background: rgba(230,227,218,0.06); }
+.op-sidebar__user-info { white-space: nowrap; overflow: hidden; }
+.op-sidebar__user-name { font-size: var(--text-sm); font-weight: 600; color: var(--neutral-200); }
+.op-sidebar__user-role { font-size: var(--text-xs); color: var(--neutral-500); }
 
-/* Legacy topbar internals (search, date, btn — kept until Fase 2) */
-.topbar__hamburger {
+.op-topbar__hamburger {
   display: none;
   padding: var(--sp-2);
   color: var(--neutral-600);
   border-radius: var(--r-md);
 }
 
-.topbar__search {
+.op-topbar__search {
   position: relative;
   width: 320px;
 }
 
-.topbar__search svg {
+.op-topbar__search svg {
   position: absolute;
   left: var(--sp-3);
   top: 50%;
@@ -184,7 +181,7 @@ img { max-width: 100%; display: block; }
   pointer-events: none;
 }
 
-.topbar__search-input, .topbar__search input {
+.op-topbar__search input {
   width: 100%;
   padding: var(--sp-2) var(--sp-4) var(--sp-2) var(--sp-10);
   background: var(--neutral-100);
@@ -196,26 +193,20 @@ img { max-width: 100%; display: block; }
   transition: all var(--t-base) ease;
 }
 
-.topbar__search-input::placeholder, .topbar__search input::placeholder { color: var(--neutral-400); }
-.topbar__search-input:focus, .topbar__search input:focus {
+.op-topbar__search input::placeholder { color: var(--neutral-400); }
+.op-topbar__search input:focus {
   background: #fff;
   border-color: var(--brand-400);
   box-shadow: 0 0 0 2px rgba(16,185,129,0.1);
 }
 
-.topbar__right {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-4);
-}
-
-.topbar__date {
+.op-topbar__date {
   font-size: var(--text-sm);
   color: var(--neutral-500);
   font-weight: 500;
 }
 
-.topbar__btn {
+.op-topbar__btn {
   position: relative;
   padding: var(--sp-2);
   color: var(--neutral-500);
@@ -223,10 +214,10 @@ img { max-width: 100%; display: block; }
   transition: all var(--t-fast) ease;
 }
 
-.topbar__btn:hover { color: var(--neutral-800); background: var(--neutral-100); }
-.topbar__btn svg { width: 20px; height: 20px; }
+.op-topbar__btn:hover { color: var(--neutral-800); background: var(--neutral-100); }
+.op-topbar__btn svg { width: 20px; height: 20px; }
 
-.topbar__btn-dot {
+.op-topbar__btn-dot {
   position: absolute;
   top: 6px;
   right: 6px;
@@ -299,35 +290,7 @@ img { max-width: 100%; display: block; }
 .kpi-card__trend--up { color: var(--success); }
 .kpi-card__trend--down { color: var(--danger); }
 
-/* ===== CARD — base now in 18-APP-operon-bridge.css ===== */
-
-.card--accent-brand { border-left: 3px solid var(--brand-500); }
-.card--accent-warning { border-left: 3px solid var(--warning); }
-.card--accent-danger { border-left: 3px solid var(--danger); }
-.card--accent-info { border-left: 3px solid var(--info); }
-.card--accent-purple { border-left: 3px solid var(--purple); }
-
-.card--glass {
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  border-color: var(--glass-border);
-}
-
-/* V2 badge on cards */
-.card--v2 { position: relative; }
-.card--v2::after {
-  content: 'V2';
-  position: absolute;
-  top: var(--sp-4);
-  right: var(--sp-4);
-  background: linear-gradient(135deg, var(--purple), #a78bfa);
-  color: #fff;
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: var(--r-full);
-  letter-spacing: 0.5px;
-}
+/* ===== CARD — variants now in 18-APP-operon-bridge.css ===== */
 
 .phase--onboarding { background: linear-gradient(135deg, #1e3a5f, #2d4a6f); }
 .phase--concepcao { background: linear-gradient(135deg, #4a6741, #5a7751); }
@@ -1006,8 +969,8 @@ img { max-width: 100%; display: block; }
   .op-sidebar--mobile-open ~ .sidebar-backdrop { display: block; }
 
   .op-app__main, .main-content { margin-left: 0 !important; }
-  .topbar__hamburger { display: flex; }
-  .topbar__search { width: 100%; }
+  .op-topbar__hamburger { display: flex; }
+  .op-topbar__search { width: 100%; }
 
   .content, .op-app__content { padding: var(--sp-4); }
 
@@ -1473,20 +1436,20 @@ img { max-width: 100%; display: block; }
 
 /* ===== SIDEBAR ITEMS — now uses .op-nav-item from Operon molecules ===== */
 
-.sidebar__dot {
+.op-sidebar__dot {
   width: 8px;
   height: 8px;
   border-radius: var(--r-full);
   flex-shrink: 0;
 }
 
-.sidebar__dot.phase--onboarding { background: #2d4a6f; }
-.sidebar__dot.phase--concepcao { background: #5a7751; }
-.sidebar__dot.phase--validacao { background: #7b9050; }
-.sidebar__dot.phase--otimizacao { background: #9ba070; }
-.sidebar__dot.phase--escala { background: #d9b237; }
+.op-sidebar__dot.phase--onboarding { background: #2d4a6f; }
+.op-sidebar__dot.phase--concepcao { background: #5a7751; }
+.op-sidebar__dot.phase--validacao { background: #7b9050; }
+.op-sidebar__dot.phase--otimizacao { background: #9ba070; }
+.op-sidebar__dot.phase--escala { background: #d9b237; }
 
-.sidebar__logout {
+.op-sidebar__logout {
   padding: var(--sp-2);
   color: var(--neutral-500);
   border-radius: var(--r-md);
@@ -1494,7 +1457,7 @@ img { max-width: 100%; display: block; }
   margin-left: auto;
 }
 
-.sidebar__logout:hover {
+.op-sidebar__logout:hover {
   color: var(--danger);
   background: rgba(239,68,68,0.1);
 }
@@ -1714,25 +1677,7 @@ img { max-width: 100%; display: block; }
 
 /* Z-index variables consolidated into main :root block */
 
-/* ===== TOPBAR SEARCH INPUT FIX (HTML uses bare input, not .topbar__search-input) ===== */
-.topbar__search input {
-  width: 100%;
-  padding: var(--sp-2) var(--sp-4) var(--sp-2) var(--sp-10);
-  background: var(--neutral-100);
-  border: 1px solid transparent;
-  border-radius: var(--r-lg);
-  font-size: var(--text-sm);
-  color: var(--neutral-900);
-  outline: none;
-  transition: all var(--t-base) ease;
-}
-
-.topbar__search input::placeholder { color: var(--neutral-400); }
-.topbar__search input:focus {
-  background: #fff;
-  border-color: var(--brand-300);
-  box-shadow: 0 0 0 3px rgba(16,185,129,0.08);
-}
+/* Duplicate topbar search removed — now in .op-topbar__search above */
 
 /* ===== RESPONSIVE FIXES FOR NEW CLASSES ===== */
 @media (max-width: 768px) {
@@ -2319,19 +2264,7 @@ img { max-width: 100%; display: block; }
 .ln-phase-pill.phase--escala { border-color: rgba(239,68,68,0.3); }
 .ln-phase-pill.phase--escala.ln-phase-pill--active { background: rgba(239,68,68,0.1); color: #dc2626; }
 
-/* --- Selects/filters --- */
-.ln-select {
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  color: var(--neutral-600);
-  background: #fff;
-  border: 1px solid var(--neutral-200);
-  outline: none;
-  cursor: pointer;
-}
-.ln-select:focus { border-color: var(--brand-400); }
-.ln-select option { background: #fff; color: var(--neutral-900); }
+/* --- Selects/filters — .ln-select now in 18-APP-operon-bridge.css --- */
 .ln-clear {
   padding: 4px 10px;
   font-size: 11px;

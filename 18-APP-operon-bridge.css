@@ -168,6 +168,39 @@
   font-size: var(--text-sm); color: var(--neutral-500);
 }
 
+/* ===== CARD VARIANTS ===== */
+.card--accent-brand { border-left: 3px solid var(--brand-500); }
+.card--accent-warning { border-left: 3px solid var(--warning); }
+.card--accent-danger { border-left: 3px solid var(--danger); }
+.card--accent-info { border-left: 3px solid var(--info); }
+.card--accent-purple { border-left: 3px solid var(--purple); }
+
+.card--glass {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  border-color: var(--glass-border);
+}
+
+.card--v2 { position: relative; }
+.card--v2::after {
+  content: 'V2'; position: absolute; top: var(--sp-4); right: var(--sp-4);
+  background: linear-gradient(135deg, var(--purple), #a78bfa);
+  color: #fff; font-size: var(--text-2xs); font-weight: 700;
+  padding: 2px 8px; border-radius: var(--r-full);
+}
+
+/* ===== SELECT BRIDGE ===== */
+.ln-select {
+  height: 34px; padding: var(--sp-1_5) var(--sp-3);
+  border: 1px solid var(--neutral-200); border-radius: var(--r-md);
+  background: var(--bg-primary); color: var(--text-primary);
+  font-size: var(--text-sm); cursor: pointer;
+  transition: border-color var(--t-fast);
+}
+.ln-select:focus { border-color: var(--brand-500); outline: none; box-shadow: var(--focus-ring); }
+.ln-select--sm { height: 30px; font-size: var(--text-xs); padding: var(--sp-1) var(--sp-2); }
+.ln-select--xs { height: 26px; font-size: 11px; padding: 2px var(--sp-2); }
+
 /* ===== STAT ICON VARIANTS (gap in operon molecules) ===== */
 .op-stat__icon--brand   { background: var(--brand-100); color: var(--brand-600); }
 .op-stat__icon--success { background: var(--success-light); color: var(--success-dark); }
