@@ -2859,7 +2859,7 @@ function operon() {
       try {
         const { data, error } = await sb.from('wa_sessions')
           .select('*')
-          .eq('user_id', userId)
+          .eq('user_id', String(userId))
           .neq('status', 'disconnected')
           .order('created_at', { ascending: false })
           .limit(1)
@@ -2962,12 +2962,25 @@ function operon() {
           existing.status = 'qr_pending';
           existing.instance_name = instanceName;
         } else {
-          const { data: newSession, error } = await sb.from('wa_sessions')
-            .insert({ user_id: userId, instance_name: instanceName, status: 'qr_pending' })
+          // Try to find existing record first (may exist from previous session)
+          const { data: found } = await sb.from('wa_sessions')
             .select('*')
-            .single();
-          if (error) throw error;
-          this.data.waSession = newSession;
+            .eq('instance_name', instanceName)
+            .maybeSingle();
+          if (found) {
+            await sb.from('wa_sessions')
+              .update({ status: 'qr_pending', user_id: String(userId), qr_code_base64: null })
+              .eq('id', found.id);
+            found.status = 'qr_pending';
+            this.data.waSession = found;
+          } else {
+            const { data: newSession, error } = await sb.from('wa_sessions')
+              .insert({ user_id: String(userId), instance_name: instanceName, status: 'qr_pending' })
+              .select('*')
+              .single();
+            if (error) throw error;
+            this.data.waSession = newSession;
+          }
         }
 
         // Fetch QR code
