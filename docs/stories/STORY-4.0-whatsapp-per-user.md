@@ -66,11 +66,11 @@ Cada usuario do Spalla conecta seu proprio WhatsApp via QR Code para enviar mens
 **para que** eu tenha minha propria conexao independente.
 
 **Acceptance Criteria:**
-- [ ] `waCreateInstance()` chama `POST /instance/create` com `instanceName: spalla_{user_id_short}`
-- [ ] Parametros: `integration: WHATSAPP-BAILEYS`, `qrcode: true`
-- [ ] Salva `instance_name` em `wa_sessions` com `status: qr_pending`
-- [ ] Tratamento de erro: instancia ja existe -> tenta reconectar
-- [ ] Tratamento de erro: API offline -> toast de erro
+- [x] `waCreateInstance()` chama `POST /instance/create` com `instanceName: spalla_{user_id_short}`
+- [x] Parametros: `integration: WHATSAPP-BAILEYS`, `qrcode: true`
+- [x] Salva `instance_name` em `wa_sessions` com `status: qr_pending`
+- [x] Tratamento de erro: instancia ja existe -> tenta reconectar
+- [x] Tratamento de erro: API offline -> toast de erro
 
 **File List:**
 - `11-APP-app.js` (waCreateInstance)
@@ -83,12 +83,12 @@ Cada usuario do Spalla conecta seu proprio WhatsApp via QR Code para enviar mens
 **para que** eu nao precise clicar nada apos escanear o codigo.
 
 **Acceptance Criteria:**
-- [ ] `waFetchQrCode()` chama `GET /instance/connect/{instance}` -> retorna base64
-- [ ] Exibe QR em modal/card nas Settings
-- [ ] Polling a cada 3s: `GET /instance/connectionState/{instance}`
-- [ ] Quando `state === 'open'`: atualiza `wa_sessions.status = 'connected'`, salva `phone_number`
-- [ ] QR expira em 45s -> exibe botao "Gerar novo QR"
-- [ ] Toast de sucesso: "WhatsApp conectado!"
+- [x] `waFetchQrCode()` chama `GET /instance/connect/{instance}` -> retorna base64
+- [x] Exibe QR em modal/card nas Settings
+- [x] Polling a cada 3s: `GET /instance/connectionState/{instance}`
+- [x] Quando `state === 'open'`: atualiza `wa_sessions.status = 'connected'`, salva `phone_number`
+- [x] QR expira em 45s -> exibe botao "Gerar novo QR"
+- [x] Toast de sucesso: "WhatsApp conectado!"
 
 **File List:**
 - `11-APP-app.js` (waFetchQrCode, waPollingStatus)
@@ -103,11 +103,11 @@ Cada usuario do Spalla conecta seu proprio WhatsApp via QR Code para enviar mens
 **para que** eu nao precise escanear o QR toda vez que abrir o sistema.
 
 **Acceptance Criteria:**
-- [ ] No `init()`: se `wa_sessions.status === 'connected'`, verifica com Evolution API
-- [ ] Se Evolution confirma `open`: mantem connected, exibe numero
-- [ ] Se Evolution retorna `close`: tenta `PUT /instance/restart/{instance}`
-- [ ] Se restart falha: atualiza status para `disconnected`, pede novo QR
-- [ ] Indicador visual no sidebar/topbar: dot verde quando conectado
+- [x] No `init()`: se `wa_sessions.status === 'connected'`, verifica com Evolution API
+- [x] Se Evolution confirma `open`: mantem connected, exibe numero
+- [x] Se Evolution retorna `close`: tenta `PUT /instance/restart/{instance}`
+- [x] Se restart falha: atualiza status para `disconnected`, pede novo QR
+- [x] Indicador visual no sidebar/topbar: dot verde quando conectado
 
 **File List:**
 - `11-APP-app.js` (init, waCheckHealth)
@@ -120,10 +120,10 @@ Cada usuario do Spalla conecta seu proprio WhatsApp via QR Code para enviar mens
 **para que** eu possa trocar de numero ou revogar acesso.
 
 **Acceptance Criteria:**
-- [ ] Botao "Desconectar" com confirmacao
-- [ ] `waDisconnect()` chama `DELETE /instance/logout/{instance}`
-- [ ] Atualiza `wa_sessions.status = 'disconnected'`, limpa `phone_number`
-- [ ] UI volta para estado "Conectar meu WhatsApp"
+- [x] Botao "Desconectar" com confirmacao
+- [x] `waDisconnect()` chama `DELETE /instance/logout/{instance}`
+- [x] Atualiza `wa_sessions.status = 'disconnected'`, limpa `phone_number`
+- [x] UI volta para estado "Conectar meu WhatsApp"
 
 **File List:**
 - `11-APP-app.js` (waDisconnect)

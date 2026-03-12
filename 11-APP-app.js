@@ -2861,9 +2861,13 @@ function operon() {
           .maybeSingle();
         if (error) { console.warn('[WA Session] Load error:', error.message); return; }
         this.data.waSession = data || null;
-        // If connected, validate with Evolution API
         if (data?.status === 'connected') {
+          // Validate connection health with Evolution API
           this.waVerifyConnection(data.instance_name);
+        } else if (data?.status === 'qr_pending') {
+          // Reload: re-fetch QR and resume polling
+          this.waFetchQrCode(data.instance_name);
+          this.waStartStatusPolling(data.instance_name);
         }
       } catch (e) {
         console.error('[WA Session] Exception:', e);
