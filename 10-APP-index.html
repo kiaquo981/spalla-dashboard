@@ -2126,23 +2126,51 @@
 
           <!-- KPI strip -->
           <div class="topics-kpis">
-            <template x-for="s in [
-              { key: 'open',           label: 'Abertos',    color: '#3b82f6', icon: 'inbox' },
-              { key: 'active',         label: 'Ativos',     color: '#f97316', icon: 'comments' },
-              { key: 'pending_action', label: 'Pendentes',  color: '#eab308', icon: 'clock' },
-              { key: 'resolved',       label: 'Resolvidos', color: '#10b981', icon: 'check-circle' },
-              { key: 'converted_task', label: 'Tarefas',    color: '#8b5cf6', icon: 'tasks' }
-            ]" :key="s.key">
-              <div class="topics-kpi" @click="ui.waTopicsStatusFilter = (ui.waTopicsStatusFilter === s.key ? '' : s.key)" :class="{ 'topics-kpi--active': ui.waTopicsStatusFilter === s.key }" :style="ui.waTopicsStatusFilter === s.key ? 'border-color:' + s.color : ''">
-                <div class="topics-kpi__icon" :style="'background:' + s.color + '18; color:' + s.color">
-                  <i :class="'fas fa-' + s.icon"></i>
-                </div>
-                <div class="topics-kpi__body">
-                  <span class="topics-kpi__count" x-text="data.waTopics.filter(t => t.status === s.key).length"></span>
-                  <span class="topics-kpi__label" x-text="s.label"></span>
-                </div>
+            <div class="topics-kpi" @click="ui.waTopicsStatusFilter = (ui.waTopicsStatusFilter === 'open' ? '' : 'open')" :class="{ 'topics-kpi--active': ui.waTopicsStatusFilter === 'open' }" :style="ui.waTopicsStatusFilter === 'open' ? 'border-color:#3b82f6' : ''">
+              <div class="topics-kpi__icon" style="background:#3b82f618;color:#3b82f6">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
               </div>
-            </template>
+              <div class="topics-kpi__body">
+                <span class="topics-kpi__count" x-text="data.waTopics.filter(t => t.status === 'open').length"></span>
+                <span class="topics-kpi__label">Abertos</span>
+              </div>
+            </div>
+            <div class="topics-kpi" @click="ui.waTopicsStatusFilter = (ui.waTopicsStatusFilter === 'active' ? '' : 'active')" :class="{ 'topics-kpi--active': ui.waTopicsStatusFilter === 'active' }" :style="ui.waTopicsStatusFilter === 'active' ? 'border-color:#f97316' : ''">
+              <div class="topics-kpi__icon" style="background:#f9731618;color:#f97316">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              </div>
+              <div class="topics-kpi__body">
+                <span class="topics-kpi__count" x-text="data.waTopics.filter(t => t.status === 'active').length"></span>
+                <span class="topics-kpi__label">Ativos</span>
+              </div>
+            </div>
+            <div class="topics-kpi" @click="ui.waTopicsStatusFilter = (ui.waTopicsStatusFilter === 'pending_action' ? '' : 'pending_action')" :class="{ 'topics-kpi--active': ui.waTopicsStatusFilter === 'pending_action' }" :style="ui.waTopicsStatusFilter === 'pending_action' ? 'border-color:#eab308' : ''">
+              <div class="topics-kpi__icon" style="background:#eab30818;color:#eab308">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+              <div class="topics-kpi__body">
+                <span class="topics-kpi__count" x-text="data.waTopics.filter(t => t.status === 'pending_action').length"></span>
+                <span class="topics-kpi__label">Pendentes</span>
+              </div>
+            </div>
+            <div class="topics-kpi" @click="ui.waTopicsStatusFilter = (ui.waTopicsStatusFilter === 'resolved' ? '' : 'resolved')" :class="{ 'topics-kpi--active': ui.waTopicsStatusFilter === 'resolved' }" :style="ui.waTopicsStatusFilter === 'resolved' ? 'border-color:#10b981' : ''">
+              <div class="topics-kpi__icon" style="background:#10b98118;color:#10b981">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              </div>
+              <div class="topics-kpi__body">
+                <span class="topics-kpi__count" x-text="data.waTopics.filter(t => t.status === 'resolved').length"></span>
+                <span class="topics-kpi__label">Resolvidos</span>
+              </div>
+            </div>
+            <div class="topics-kpi" @click="ui.waTopicsStatusFilter = (ui.waTopicsStatusFilter === 'converted_task' ? '' : 'converted_task')" :class="{ 'topics-kpi--active': ui.waTopicsStatusFilter === 'converted_task' }" :style="ui.waTopicsStatusFilter === 'converted_task' ? 'border-color:#8b5cf6' : ''">
+              <div class="topics-kpi__icon" style="background:#8b5cf618;color:#8b5cf6">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              </div>
+              <div class="topics-kpi__body">
+                <span class="topics-kpi__count" x-text="data.waTopics.filter(t => t.status === 'converted_task').length"></span>
+                <span class="topics-kpi__label">Tarefas</span>
+              </div>
+            </div>
           </div>
 
           <!-- Filter bar -->

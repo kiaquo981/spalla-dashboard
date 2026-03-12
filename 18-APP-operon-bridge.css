@@ -134,6 +134,27 @@
 .toast--error   { background: var(--danger-dark); }
 .toast svg { width: 18px; height: 18px; flex-shrink: 0; }
 
+/* ===== INPUT / SELECT BRIDGE ===== */
+.input, .topics-filters input, .topics-filters select {
+  display: inline-flex; align-items: center;
+  height: 38px; padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--neutral-200); border-radius: var(--r-md);
+  background: var(--bg-primary); color: var(--text-primary);
+  font-family: var(--font); font-size: var(--text-sm);
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
+}
+.input::placeholder, .topics-filters input::placeholder { color: var(--neutral-400); }
+.input:hover, .topics-filters input:hover, .topics-filters select:hover { border-color: var(--neutral-300); }
+.input:focus, .topics-filters input:focus, .topics-filters select:focus {
+  outline: none; border-color: var(--brand-500); box-shadow: var(--focus-ring);
+}
+
+/* ===== BTN EXTRA VARIANTS ===== */
+.btn--ghost { background: transparent; border-color: transparent; color: var(--neutral-500); }
+.btn--ghost:hover { background: var(--neutral-100); color: var(--neutral-700); }
+.btn--xs { padding: 2px var(--sp-2); font-size: 11px; }
+.btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+
 /* ===== PAGE HEADER BRIDGE ===== */
 .page-header { margin-bottom: var(--sp-8); }
 .page-header__top {
