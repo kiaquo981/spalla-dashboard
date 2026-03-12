@@ -392,7 +392,13 @@ SELECT
   ta.tarefa,
   ta.observacoes,
   COALESCE(ta.status, 'pendente'),
-  COALESCE(ta.prioridade, 'normal'),
+  CASE COALESCE(ta.prioridade, 'normal')
+    WHEN 'media'  THEN 'normal'
+    WHEN 'baixa'  THEN 'baixa'
+    WHEN 'alta'   THEN 'alta'
+    WHEN 'urgente' THEN 'urgente'
+    ELSE 'normal'
+  END,
   ta.responsavel,
   ta.mentorado_id,
   m.nome,
@@ -419,7 +425,13 @@ SELECT
   te.tarefa,
   NULL,
   COALESCE(te.status, 'pendente'),
-  COALESCE(te.prioridade, 'normal'),
+  CASE COALESCE(te.prioridade, 'normal')
+    WHEN 'media'  THEN 'normal'
+    WHEN 'baixa'  THEN 'baixa'
+    WHEN 'alta'   THEN 'alta'
+    WHEN 'urgente' THEN 'urgente'
+    ELSE 'normal'
+  END,
   te.responsavel_nome,
   te.mentorado_id,
   te.mentorado_nome,
