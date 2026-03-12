@@ -1,0 +1,160 @@
+{
+  "name": "WA 01 — Buffer Seguro",
+  "nodes": [
+    {
+      "id": "buf-webhook",
+      "name": "Webhook Evolution",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wa-ingest",
+        "responseMode": "onReceived",
+        "responseData": "",
+        "options": {}
+      },
+      "webhookId": "wa-ingest"
+    },
+    {
+      "id": "buf-prepare",
+      "name": "Preparar Dados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "parameters": {
+        "jsCode": "/*\n  Buffer Seguro — Preparação mínima\n  Extrai APENAS o necessário para roteamento.\n  Zero IA, zero lookup, zero risco.\n*/\nconst raw = $input.first().json;\nconst body = raw.body || raw;\nconst event = body.event || '';\n\n// Aceita qualquer evento de mensagem\nconst isMessageEvent = ['messages.upsert', 'messages.update', 'message'].includes(event);\n\n// Extrair dados da primeira mensagem\nconst msgs = body.data?.messages || [];\nconst firstMsg = msgs[0];\nconst remoteJid = firstMsg?.key?.remoteJid || '';\nconst messageId = firstMsg?.key?.id || null;\nconst fromMe = firstMsg?.key?.fromMe || false;\nconst isGroup = remoteJid.endsWith('@g.us');\n\n// Timestamp da mensagem\nconst timestamp = firstMsg?.messageTimestamp\n  ? new Date(Number(firstMsg.messageTimestamp) * 1000).toISOString()\n  : new Date().toISOString();\n\n// Decisão: deve entrar na fila?\n// SIM se: é evento de mensagem + é grupo + não é do bot + tem ID\nconst shouldQueue = isMessageEvent && isGroup && !fromMe && !!messageId;\n\nreturn [{\n  json: {\n    // Roteamento\n    should_queue: shouldQueue,\n    is_message:   isMessageEvent,\n\n    // Dados para wa_message_queue\n    message_id:   messageId || `evt_${Date.now()}`,\n    group_jid:    remoteJid,\n    timestamp,\n\n    // Payload completo (raw Evolution) para fila\n    queue_record: shouldQueue ? {\n      message_id: messageId,\n      group_jid:  remoteJid,\n      status:     'pending',\n      payload:    body\n    } : null,\n\n    // Body original para forward ao v34\n    original_body: body\n  }\n}];"
+      }
+    },
+    {
+      "id": "buf-forward-v34",
+      "name": "Encaminhar para v34",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 200],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.V34_WEBHOOK_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawBody": "={{ JSON.stringify({ body: $json.original_body }) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "continueOnFail": true,
+      "notes": "Forward para v34. Se falhar, não importa — mensagem está na fila."
+    },
+    {
+      "id": "buf-if-group",
+      "name": "É Grupo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [720, 420],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-group",
+              "leftValue": "={{ $json.should_queue }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "buf-insert-queue",
+      "name": "Salvar na Fila",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 360],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/wa_message_queue",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=minimal,resolution=ignore-duplicates" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawBody": "={{ JSON.stringify($json.queue_record) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "continueOnFail": true,
+      "notes": "INSERT na fila com dedup (UNIQUE message_id). Se Supabase offline, v34 já recebeu."
+    },
+    {
+      "id": "buf-noop-skip",
+      "name": "Skip (Não é Grupo)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [960, 500],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Webhook Evolution": {
+      "main": [
+        [{ "node": "Preparar Dados", "type": "main", "index": 0 }]
+      ]
+    },
+    "Preparar Dados": {
+      "main": [
+        [
+          { "node": "Encaminhar para v34", "type": "main", "index": 0 },
+          { "node": "É Grupo?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "É Grupo?": {
+      "main": [
+        [{ "node": "Salvar na Fila", "type": "main", "index": 0 }],
+        [{ "node": "Skip (Não é Grupo)", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "maxExecutionTimeout": 10
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "description": "Buffer Queue-First: salva mensagem na fila ANTES de processar. Forward paralelo ao v34. Garantia zero perda."
+  },
+  "notes": "## Configuração\n\n### 1. Variáveis de Ambiente N8N\n```\nSUPABASE_URL=https://knusqfbvhsqworzyhvip.supabase.co\nSUPABASE_SERVICE_KEY=<service_role_key>\nV34_WEBHOOK_URL=https://<seu-n8n>/webhook/wa-v34-process\n```\n\n### 2. Alterar v34\n- No v34, mudar o path do webhook de `wa-ingest` para `wa-v34-process`\n- Assim: Evolution → Buffer (este WF) → v34\n\n### 3. Evolution API\n- Apontar webhook para: https://<seu-n8n>/webhook/wa-ingest\n- Este workflow responde 200 instantaneamente\n\n### Fluxo\n```\nEvolution → Buffer (200ms)\n  ├→ Forward v34 (paralelo, fire-and-forget)\n  └→ IF grupo → INSERT wa_message_queue (safety net)\n```\n\nSe v34 falhar: mensagem está na fila → Classifier processa.\nSe fila falhar: v34 já recebeu → processa normalmente.\nAmbos falham: Recovery workflow (WF 5) reprocessa em 5min."
+}

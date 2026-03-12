@@ -1,0 +1,154 @@
+{
+  "name": "WA 05 — Recovery & Dead Letter",
+  "nodes": [
+    {
+      "id": "rec-schedule",
+      "name": "A cada 5 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "rec-recover",
+      "name": "Executar Recovery",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/recover_stuck_queue",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawBody": "={\"p_stuck_minutes\": 5, \"p_max_retries\": 3}",
+        "options": {}
+      }
+    },
+    {
+      "id": "rec-check",
+      "name": "Verificar Resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "parameters": {
+        "jsCode": "/*\n  Analisa resultado do recovery e decide se precisa alertar.\n  Se houver dead letters novos → alerta via WhatsApp.\n*/\nconst result = $input.first().json;\n\n// Parse response (Supabase RPC retorna o JSON diretamente)\nconst data = typeof result === 'string' ? JSON.parse(result) : result;\n\nconst resetCount     = data.reset_to_pending     || 0;\nconst deadLetterCount = data.moved_to_dead_letter || 0;\nconst deadIds         = data.dead_letter_ids      || [];\n\nconsole.log(`[Recovery] Reset: ${resetCount} | Dead Letter: ${deadLetterCount}`);\n\n// Decisão: precisa alertar?\nconst shouldAlert = deadLetterCount > 0;\n\n// Buscar status geral da fila\nlet queueStatus = null;\ntry {\n  const statusRes = await $helpers.httpRequest({\n    method: 'GET',\n    url:    `${$env.SUPABASE_URL}/rest/v1/vw_wa_queue_status`,\n    headers: {\n      'apikey':        $env.SUPABASE_SERVICE_KEY,\n      'Authorization': `Bearer ${$env.SUPABASE_SERVICE_KEY}`,\n    },\n  });\n  queueStatus = JSON.parse(statusRes.body);\n} catch(e) {\n  console.log('Queue status fetch failed:', e.message);\n}\n\nreturn [{\n  json: {\n    reset_to_pending:     resetCount,\n    moved_to_dead_letter: deadLetterCount,\n    dead_letter_ids:      deadIds,\n    should_alert:         shouldAlert,\n    queue_status:         queueStatus,\n    ran_at:               new Date().toISOString(),\n  }\n}];"
+      }
+    },
+    {
+      "id": "rec-if-alert",
+      "name": "Precisa Alertar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [900, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-alert",
+              "leftValue": "={{ $json.should_alert }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "rec-alert",
+      "name": "Alertar via WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 240],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/producao002",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",       "value": "={{ $env.EVOLUTION_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawBody": "={{ JSON.stringify({ number: $env.ALERT_PHONE || '5511964682447', text: '⚠️ [Spalla Recovery]\\n\\n' + $json.moved_to_dead_letter + ' mensagem(ns) movida(s) para dead letter após 3 tentativas.\\n\\n' + ($json.queue_status ? 'Fila atual:\\n' + $json.queue_status.map(s => s.status + ': ' + s.total).join('\\n') : '') + '\\n\\nVerifique no Supabase: wa_message_queue WHERE status = dead_letter' }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "continueOnFail": true,
+      "notes": "Envia alerta para o telefone configurado quando há dead letters"
+    },
+    {
+      "id": "rec-noop",
+      "name": "Tudo OK",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1140, 400],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "A cada 5 minutos": {
+      "main": [
+        [{ "node": "Executar Recovery", "type": "main", "index": 0 }]
+      ]
+    },
+    "Executar Recovery": {
+      "main": [
+        [{ "node": "Verificar Resultado", "type": "main", "index": 0 }]
+      ]
+    },
+    "Verificar Resultado": {
+      "main": [
+        [{ "node": "Precisa Alertar?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Precisa Alertar?": {
+      "main": [
+        [{ "node": "Alertar via WhatsApp", "type": "main", "index": 0 }],
+        [{ "node": "Tudo OK", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "maxExecutionTimeout": 30
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "description": "Roda a cada 5min. Reseta itens stuck (processing >5min) e move erros crônicos (3+ retries) para dead_letter. Alerta via WhatsApp quando há dead letters. Requer env: SUPABASE_URL, SUPABASE_SERVICE_KEY, EVOLUTION_API_URL, EVOLUTION_API_KEY, ALERT_PHONE"
+  }
+}
