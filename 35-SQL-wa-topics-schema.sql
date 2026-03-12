@@ -57,7 +57,7 @@ CREATE INDEX IF NOT EXISTS idx_wa_queue_group  ON wa_message_queue (group_jid, c
 CREATE TABLE IF NOT EXISTS wa_topics (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   group_jid        TEXT NOT NULL,
-  mentorado_id     BIGINT REFERENCES mentorados(id) ON DELETE SET NULL,
+  mentorado_id     BIGINT REFERENCES "case".mentorados(id) ON DELETE SET NULL,
   type_id          UUID REFERENCES wa_topic_types(id) ON DELETE SET NULL,
   title            TEXT NOT NULL,
   summary          TEXT,
@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS wa_messages (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   message_id        TEXT NOT NULL UNIQUE,
   group_jid         TEXT NOT NULL,
-  mentorado_id      BIGINT REFERENCES mentorados(id) ON DELETE SET NULL,
+  mentorado_id      BIGINT REFERENCES "case".mentorados(id) ON DELETE SET NULL,
   topic_id          UUID REFERENCES wa_topics(id) ON DELETE SET NULL,
   topic_confidence  NUMERIC(3,2),
   sender_jid        TEXT,
@@ -216,7 +216,7 @@ SELECT
   gt.status  AS task_status
 
 FROM wa_topics t
-LEFT JOIN mentorados    m  ON m.id  = t.mentorado_id
+LEFT JOIN "case".mentorados m  ON m.id  = t.mentorado_id
 LEFT JOIN wa_topic_types tt ON tt.id = t.type_id
 LEFT JOIN god_tasks     gt ON gt.id = t.task_id;
 
