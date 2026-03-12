@@ -92,6 +92,7 @@ img { max-width: 100%; display: block; }
   transition: border-color var(--t-base) ease, box-shadow var(--t-base) ease;
 }
 
+.auth-card__input { margin-top: var(--sp-3); }
 .auth-card__input::placeholder { color: var(--neutral-500); }
 .auth-card__input:focus {
   border-color: var(--brand-500);
