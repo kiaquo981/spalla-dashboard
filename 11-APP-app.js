@@ -3174,7 +3174,7 @@ function operon() {
       const isHandle = !handleOrName.includes(' ');
       const clean = handleOrName.replace('@','').toLowerCase();
 
-      // First: try embedded data URLs (PHOTO_DATA_URLS)
+      // First: try embedded data URLs (PHOTO_DATA_URLS — base64, never expire)
       if (typeof PHOTO_DATA_URLS !== 'undefined' && PHOTO_DATA_URLS[clean]) {
         return PHOTO_DATA_URLS[clean];
       }
@@ -3189,14 +3189,14 @@ function operon() {
         return `photos/${filename}`;
       }
 
-      // Third: try INSTAGRAM_PROFILES foto field (from Apify scraper)
+      // Third: try INSTAGRAM_PROFILES foto field
       if (typeof INSTAGRAM_PROFILES !== 'undefined') {
         const profile = INSTAGRAM_PROFILES[clean];
         if (profile?.foto) return profile.foto;
       }
 
-      // Fourth: try unavatar.io proxy (permanent, doesn't expire)
-      if (isHandle) return `https://unavatar.io/instagram/${clean}`;
+      // Fourth: initials fallback (no external URLs — they expire or return placeholders)
+      if (isHandle) return null;
 
       // Fallback: local photos directory
       const fileKey = isHandle ? clean : clean.replace(/\s+/g, '_');
