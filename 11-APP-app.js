@@ -2890,9 +2890,12 @@ function operon() {
           if (state === 'open') {
             if (sb && this.data.waSession?.id) {
               await sb.from('wa_sessions')
-                .update({ last_health_check: new Date().toISOString() })
+                .update({ status: 'connected', last_health_check: new Date().toISOString() })
                 .eq('id', this.data.waSession.id);
             }
+            if (this.data.waSession) this.data.waSession.status = 'connected';
+            // Load chats after verifying connection
+            this.fetchWhatsAppChats();
           } else {
             console.warn('[WA Session] Connection state:', state, '— attempting restart');
             await this.waAttemptRestart(instanceName);
