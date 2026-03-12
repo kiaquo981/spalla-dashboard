@@ -3107,8 +3107,24 @@ function operon() {
         if (res.ok) {
           const chats = await res.json();
           // Show all chats sorted by most recent
+          // Use remoteJid as primary identifier (id can be null in Evolution v2)
           this.data.whatsappChats = (chats || [])
-            .filter(c => c.id)
+            .filter(c => c && (c.remoteJid || c.id))
+            .filter(c => c.remoteJid !== 'status@broadcast') // Exclude status updates
+            .map(c => {
+              // Normalize: ensure id is set, derive display name
+              if (!c.id) c.id = c.remoteJid;
+              if (!c.name && !c.pushName) {
+                // Try to get alt number from lastMessage
+                const alt = c.lastMessage?.key?.remoteJidAlt;
+                if (alt) {
+                  c.pushName = alt.replace('@s.whatsapp.net', '');
+                } else if (c.remoteJid) {
+                  c.pushName = c.remoteJid.replace('@s.whatsapp.net', '').replace('@lid', '').replace('@g.us', ' (grupo)');
+                }
+              }
+              return c;
+            })
             .sort((a, b) => {
               const ta = new Date(a.updatedAt || 0).getTime();
               const tb = new Date(b.updatedAt || 0).getTime();
