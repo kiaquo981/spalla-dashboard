@@ -1255,10 +1255,11 @@ function operon() {
 
     startWhatsAppPolling() {
       if (this._whatsappPollInterval) clearInterval(this._whatsappPollInterval);
-      if (!this.ui.whatsappSelectedChat || !EVOLUTION_INSTANCE) return;
+      const { instance } = this._waActiveInstance();
+      if (!this.ui.whatsappSelectedChat || !instance) return;
       this._whatsappPollInterval = setInterval(async () => {
         try {
-          const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${EVOLUTION_INSTANCE}`, {
+          const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${instance}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ where: { key: { remoteJid: this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id } }, limit: 50 }),
@@ -3110,10 +3111,11 @@ function operon() {
     // ===================== WHATSAPP (Evolution API) =====================
 
     async fetchWhatsAppChats() {
-      if (!EVOLUTION_INSTANCE) { this.toast('WhatsApp não configurado', 'info'); return; }
+      const { instance } = this._waActiveInstance();
+      if (!instance) { this.toast('WhatsApp nao configurado', 'info'); return; }
       this.ui.whatsappLoading = true;
       try {
-        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findChats/${EVOLUTION_INSTANCE}`, {
+        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findChats/${instance}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({}),
@@ -3143,12 +3145,13 @@ function operon() {
     },
 
     async selectWhatsAppChat(chat) {
-      if (!EVOLUTION_INSTANCE) return;
+      const { instance } = this._waActiveInstance();
+      if (!instance) return;
       this.ui.whatsappSelectedChat = chat;
       this.ui.whatsappLoading = true;
       this.stopWhatsAppPolling(); // Stop previous polling
       try {
-        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${EVOLUTION_INSTANCE}`, {
+        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${instance}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ where: { key: { remoteJid: chat.remoteJid || chat.id } }, limit: 50 }),

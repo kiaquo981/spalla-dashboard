@@ -119,7 +119,7 @@
           </a>
 
           <div class="op-sidebar__section" x-show="ui.sidebarOpen">Comunicacao</div>
-          <a class="op-nav-item" :class="{ active: ui.page === 'whatsapp' }" @click="navigate('whatsapp'); fetchWhatsAppChats()">
+          <a class="op-nav-item" :class="{ active: ui.page === 'whatsapp' }" @click="navigate('whatsapp'); if(waSessionStatus() === 'connected') fetchWhatsAppChats()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
             <span x-show="ui.sidebarOpen">WhatsApp</span>
             <span class="wa-status-dot" :class="{ 'wa-status-dot--connected': waSessionStatus() === 'connected', 'wa-status-dot--pending': waSessionStatus() === 'qr_pending' }" x-show="ui.sidebarOpen && waSessionStatus() !== 'disconnected'" :title="waSessionStatus() === 'connected' ? 'Conectado: ' + (waSessionPhone() || '') : 'Pendente'"></span>
@@ -2001,14 +2001,63 @@
 
         <!-- ===== PAGE: WHATSAPP ===== -->
         <div class="page-content page-content--full" x-show="ui.page === 'whatsapp'" x-transition>
-          <div class="wa-layout">
+
+          <!-- STATE: Not connected — show QR onboarding -->
+          <div class="wa-onboarding" x-show="waSessionStatus() !== 'connected'">
+            <div class="wa-onboarding__card">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--primary,#6366f1)"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+              <h2>Conecte seu WhatsApp</h2>
+              <p class="wa-onboarding__desc">Escaneie o QR Code abaixo com seu celular para conectar seu WhatsApp pessoal ao Operon. Suas conversas serao carregadas automaticamente.</p>
+
+              <!-- State: Disconnected — show connect button -->
+              <div x-show="waSessionStatus() === 'disconnected'">
+                <button class="btn btn--primary btn--lg" @click="waStartConnection()" :disabled="ui.waSessionLoading">
+                  <template x-if="!ui.waSessionLoading"><span>Gerar QR Code</span></template>
+                  <template x-if="ui.waSessionLoading"><span>Conectando...</span></template>
+                </button>
+              </div>
+
+              <!-- State: QR Pending — show QR code -->
+              <div x-show="waSessionStatus() === 'qr_pending'" class="wa-onboarding__qr">
+                <template x-if="data.waSession?.qr_code_base64">
+                  <div>
+                    <img :src="data.waSession.qr_code_base64.startsWith('data:') ? data.waSession.qr_code_base64 : 'data:image/png;base64,' + data.waSession.qr_code_base64" alt="QR Code WhatsApp" class="wa-onboarding__qr-img">
+                    <p class="wa-onboarding__qr-hint">Abra o WhatsApp no celular &rarr; <strong>Aparelhos conectados</strong> &rarr; <strong>Conectar aparelho</strong> &rarr; Escaneie este codigo</p>
+                    <div class="wa-onboarding__polling" x-show="ui.waQrPolling">
+                      <span class="settings-wa__spinner"></span> Aguardando leitura do QR Code...
+                    </div>
+                  </div>
+                </template>
+                <template x-if="!data.waSession?.qr_code_base64">
+                  <div class="wa-onboarding__polling">
+                    <span class="settings-wa__spinner"></span> Gerando QR Code...
+                  </div>
+                </template>
+                <div style="margin-top:16px;display:flex;gap:8px;justify-content:center">
+                  <button class="btn btn--sm btn--ghost" @click="waFetchQrCode(data.waSession?.instance_name)">Novo QR</button>
+                  <button class="btn btn--sm btn--ghost" @click="waDisconnect()">Cancelar</button>
+                </div>
+              </div>
+
+              <!-- State: Connecting -->
+              <div x-show="waSessionStatus() === 'connecting'" class="wa-onboarding__polling">
+                <span class="settings-wa__spinner"></span> Conectando...
+              </div>
+            </div>
+          </div>
+
+          <!-- STATE: Connected — show chat layout -->
+          <div class="wa-layout" x-show="waSessionStatus() === 'connected'">
             <!-- Chat List -->
             <div class="wa-sidebar">
               <div class="wa-sidebar__header">
                 <h3>Conversas WhatsApp</h3>
-                <button class="btn btn--sm" @click="fetchWhatsAppChats()">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                </button>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <span class="wa-status-indicator wa-status-indicator--connected" title="Conectado"></span>
+                  <button class="btn btn--sm" @click="fetchWhatsAppChats()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                  </button>
+                </div>
               </div>
               <div class="wa-sidebar__list">
                 <template x-for="chat in data.whatsappChats" :key="chat.id">
@@ -2019,7 +2068,14 @@
                   </div>
                 </template>
                 <div class="wa-sidebar__loading" x-show="ui.whatsappLoading && !data.whatsappChats.length">Carregando conversas...</div>
-                <div class="wa-sidebar__empty" x-show="!ui.whatsappLoading && !data.whatsappChats.length">Nenhuma conversa. Clique em recarregar.</div>
+                <div class="wa-sidebar__empty" x-show="!ui.whatsappLoading && !data.whatsappChats.length">Nenhuma conversa ainda.</div>
+              </div>
+              <!-- Disconnect link at bottom of sidebar -->
+              <div class="wa-sidebar__footer">
+                <button class="btn btn--sm btn--ghost" @click="if(confirm('Desconectar seu WhatsApp?')) waDisconnect()" style="font-size:12px;color:var(--text-3,#64748b)">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                  Desconectar
+                </button>
               </div>
             </div>
 
@@ -2033,77 +2089,47 @@
                 <template x-for="(msg, mi) in data.whatsappMessages" :key="msg.key?.id || mi">
                   <div class="wa-bubble" :class="{ 'wa-bubble--me': msg.key?.fromMe }">
                     <div class="wa-bubble__sender" x-show="!msg.key?.fromMe" x-text="msg.pushName || 'Desconhecido'"></div>
-
-                    <!-- Texto normal -->
                     <template x-if="getWaMessageType(msg) === 'text'">
                       <div class="wa-bubble__text" x-text="getWaMessageText(msg)"></div>
                     </template>
-
-                    <!-- Áudio -->
                     <template x-if="getWaMessageType(msg) === 'audio'">
                       <div class="wa-bubble__media">
                         <template x-if="waMediaUrls[msg.key?.id]">
-                          <audio controls :src="waMediaUrls[msg.key?.id]"
-                                 style="max-width:280px; border-radius:8px;"></audio>
+                          <audio controls :src="waMediaUrls[msg.key?.id]" style="max-width:280px; border-radius:8px;"></audio>
                         </template>
                         <template x-if="!waMediaUrls[msg.key?.id]">
-                          <div class="wa-media-loading" @click="loadWaMedia(msg)" style="padding:12px;background:#f0f0f0;border-radius:8px;cursor:pointer;text-align:center;font-size:14px;color:#666;">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg> Carregando áudio...
-                          </div>
+                          <div class="wa-media-loading" @click="loadWaMedia(msg)" style="padding:12px;background:#f0f0f0;border-radius:8px;cursor:pointer;text-align:center;font-size:14px;color:#666;">Carregando audio...</div>
                         </template>
                       </div>
                     </template>
-
-                    <!-- Imagem -->
                     <template x-if="getWaMessageType(msg) === 'image'">
                       <div class="wa-bubble__media">
                         <template x-if="waMediaUrls[msg.key?.id]">
-                          <img :src="waMediaUrls[msg.key?.id]"
-                               style="max-width:280px; border-radius:8px; cursor:pointer; object-fit:cover;"
-                               :alt="msg.message?.imageMessage?.caption || 'Imagem'">
+                          <img :src="waMediaUrls[msg.key?.id]" style="max-width:280px; border-radius:8px; cursor:pointer; object-fit:cover;" :alt="msg.message?.imageMessage?.caption || 'Imagem'">
                         </template>
                         <template x-if="!waMediaUrls[msg.key?.id]">
-                          <div class="wa-media-loading" @click="loadWaMedia(msg)" style="width:280px;height:280px;background:#f0f0f0;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#666;">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> Carregando imagem...
-                          </div>
+                          <div class="wa-media-loading" @click="loadWaMedia(msg)" style="width:280px;height:200px;background:#f0f0f0;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#666;">Carregando imagem...</div>
                         </template>
-                        <div x-show="msg.message?.imageMessage?.caption"
-                             class="wa-bubble__text"
-                             x-text="msg.message?.imageMessage?.caption"></div>
+                        <div x-show="msg.message?.imageMessage?.caption" class="wa-bubble__text" x-text="msg.message?.imageMessage?.caption"></div>
                       </div>
                     </template>
-
-                    <!-- Vídeo -->
                     <template x-if="getWaMessageType(msg) === 'video'">
                       <div class="wa-bubble__media">
                         <template x-if="waMediaUrls[msg.key?.id]">
-                          <video controls :src="waMediaUrls[msg.key?.id]"
-                                 style="max-width:280px; border-radius:8px;"></video>
+                          <video controls :src="waMediaUrls[msg.key?.id]" style="max-width:280px; border-radius:8px;"></video>
                         </template>
                         <template x-if="!waMediaUrls[msg.key?.id]">
-                          <div class="wa-media-loading" @click="loadWaMedia(msg)" style="width:280px;height:280px;background:#f0f0f0;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#666;">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><rect x="2" y="2" width="20" height="20" rx="2.18"/><path d="M10 8l6 4-6 4V8z"/></svg> Carregando vídeo...
-                          </div>
+                          <div class="wa-media-loading" @click="loadWaMedia(msg)" style="width:280px;height:200px;background:#f0f0f0;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#666;">Carregando video...</div>
                         </template>
-                        <div x-show="msg.message?.videoMessage?.caption"
-                             class="wa-bubble__text"
-                             x-text="msg.message?.videoMessage?.caption"></div>
                       </div>
                     </template>
-
                     <div class="wa-bubble__time" x-text="getWaMessageTime(msg)"></div>
                   </div>
                 </template>
                 <div id="wa-messages-end"></div>
                 <div class="wa-chat__loading" x-show="ui.whatsappLoading">Carregando mensagens...</div>
               </div>
-              <!-- Story 3.4: Connection indicator + Story 3.2: attachment -->
-              <div class="wa-chat__disconnected-banner" x-show="ui.whatsappSelectedChat && waSessionStatus() === 'disconnected'">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                Enviando pelo numero central. <a @click.prevent="navigate('settings')" href="#" style="color:var(--primary,#6366f1);text-decoration:underline;cursor:pointer">Conecte seu WhatsApp</a> para usar seu numero.
-              </div>
               <div class="wa-chat__input" x-show="ui.whatsappSelectedChat">
-                <!-- Attach file -->
                 <label class="wa-attach-btn" title="Enviar arquivo" :class="{ 'wa-attach-btn--loading': ui.waSendingMedia }">
                   <template x-if="!ui.waSendingMedia">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
