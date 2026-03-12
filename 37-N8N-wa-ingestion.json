@@ -1,0 +1,96 @@
+{
+  "name": "WA 01 — Message Ingestion",
+  "nodes": [
+    {
+      "id": "node-webhook-001",
+      "name": "Webhook Evolution",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wa-ingest",
+        "responseMode": "onReceived",
+        "responseData": "",
+        "options": {}
+      },
+      "webhookId": "wa-ingest"
+    },
+    {
+      "id": "node-code-filter-001",
+      "name": "Filtrar e Normalizar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "parameters": {
+        "jsCode": "// Filtra mensagens de grupos e normaliza o payload Evolution\nconst body = $input.first().json.body || $input.first().json;\n\n// Aceita events: messages.upsert ou messages.update\nconst event = body.event || '';\nif (!['messages.upsert', 'messages.update', 'message'].includes(event)) {\n  return [];\n}\n\nconst rawMessages = body.data?.messages || (Array.isArray(body.data) ? body.data : []);\n\n// Team member JIDs — adicione os JIDs da equipe CASE aqui\n// Formato: 55DDDNNNNNNNNN@s.whatsapp.net\nconst TEAM_JIDS = ($env.TEAM_MEMBER_JIDS || '').split(',').map(s => s.trim()).filter(Boolean);\n\nconst results = [];\n\nfor (const msg of rawMessages) {\n  const remoteJid = msg.key?.remoteJid || '';\n\n  // Apenas grupos\n  if (!remoteJid.endsWith('@g.us')) continue;\n\n  // Ignora mensagens próprias do bot\n  if (msg.key?.fromMe) continue;\n\n  // Precisa de message_id\n  const messageId = msg.key?.id;\n  if (!messageId) continue;\n\n  // Tipo e conteúdo da mensagem\n  let contentType = 'other';\n  let contentText = null;\n\n  if (msg.message?.conversation) {\n    contentType = 'text';\n    contentText = msg.message.conversation;\n  } else if (msg.message?.extendedTextMessage?.text) {\n    contentType = 'text';\n    contentText = msg.message.extendedTextMessage.text;\n  } else if (msg.message?.audioMessage) {\n    contentType = 'audio';\n  } else if (msg.message?.imageMessage) {\n    contentType = 'image';\n    contentText = msg.message.imageMessage.caption || null;\n  } else if (msg.message?.videoMessage) {\n    contentType = 'video';\n    contentText = msg.message.videoMessage.caption || null;\n  } else if (msg.message?.documentMessage) {\n    contentType = 'document';\n    contentText = msg.message.documentMessage.fileName || null;\n  } else if (msg.message?.reactionMessage) {\n    contentType = 'reaction';\n    contentText = msg.message.reactionMessage.text || null;\n  } else if (msg.message?.stickerMessage) {\n    contentType = 'sticker';\n  }\n\n  const senderJid = msg.participant || msg.key?.participant || '';\n  const isFromTeam = TEAM_JIDS.length > 0 && TEAM_JIDS.includes(senderJid);\n\n  const timestamp = msg.messageTimestamp\n    ? new Date(Number(msg.messageTimestamp) * 1000).toISOString()\n    : new Date().toISOString();\n\n  results.push({\n    json: {\n      // Campos para wa_message_queue\n      message_id: messageId,\n      group_jid:  remoteJid,\n      status:     'pending',\n      payload: {\n        sender_jid:   senderJid,\n        sender_name:  msg.pushName || null,\n        is_from_team: isFromTeam,\n        content_type: contentType,\n        content_text: contentText,\n        timestamp,\n        raw:          msg\n      }\n    }\n  });\n}\n\nreturn results;"
+      }
+    },
+    {
+      "id": "node-http-insert-001",
+      "name": "Inserir na Fila",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/wa_message_queue",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "node-noOp-end-001",
+      "name": "Fim",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [900, 300],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Webhook Evolution": {
+      "main": [
+        [{ "node": "Filtrar e Normalizar", "type": "main", "index": 0 }]
+      ]
+    },
+    "Filtrar e Normalizar": {
+      "main": [
+        [{ "node": "Inserir na Fila", "type": "main", "index": 0 }]
+      ]
+    },
+    "Inserir na Fila": {
+      "main": [
+        [{ "node": "Fim", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "maxExecutionTimeout": 10
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "description": "Recebe webhook da Evolution API, filtra mensagens de grupos CASE e insere na fila wa_message_queue. Requer env: SUPABASE_URL, SUPABASE_SERVICE_KEY, TEAM_MEMBER_JIDS (comma-separated JIDs da equipe)"
+  },
+  "notes": "## Configuração\n\n### Variáveis de Ambiente N8N\n```\nSUPABASE_URL=https://knusqfbvhsqworzyhvip.supabase.co\nSUPABASE_SERVICE_KEY=<service_role_key_do_supabase>\nTEAM_MEMBER_JIDS=5511999999999@s.whatsapp.net,5511888888888@s.whatsapp.net\n```\n\n### Evolution API — Configurar Webhook\n- URL: https://<seu-n8n>.app.n8n.cloud/webhook/wa-ingest\n- Events: messages.upsert\n- Instance: producao002\n\n### Como testar\nSend POST to webhook URL com payload Evolution simulado"
+}

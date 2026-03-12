@@ -1,0 +1,138 @@
+{
+  "name": "WA 02 — AI Topic Classifier",
+  "nodes": [
+    {
+      "id": "node-schedule-002",
+      "name": "A cada 30 segundos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 30
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "node-http-fetch-002",
+      "name": "Buscar Batch Pendente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/fetch_and_lock_batch",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawBody": "={\"p_limit\": 10}",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-code-split-002",
+      "name": "Dividir em Itens",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "parameters": {
+        "jsCode": "// Divide o array retornado pelo RPC em items individuais\nconst body = $input.first().json;\nconst items = Array.isArray(body) ? body : [];\n\nif (items.length === 0) return [];\n\nreturn items.map(item => ({\n  json: {\n    queue_id:     item.id,\n    message_id:   item.message_id,\n    group_jid:    item.group_jid,\n    sender_jid:   item.payload?.sender_jid || null,\n    sender_name:  item.payload?.sender_name || null,\n    is_from_team: item.payload?.is_from_team || false,\n    content_type: item.payload?.content_type || 'text',\n    content_text: item.payload?.content_text || null,\n    timestamp:    item.payload?.timestamp || item.created_at,\n    created_at:   item.created_at\n  }\n}));"
+      }
+    },
+    {
+      "id": "node-code-classify-002",
+      "name": "Classificar Topico (IA)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300],
+      "parameters": {
+        "jsCode": "/*\n  Classificação de tópico em 6 etapas:\n  1. Lookup mentorado por group_jid\n  2. Fetch tópicos abertos do grupo\n  3. Fetch últimas 30 mensagens do grupo\n  4. Montar prompt + chamar Claude Haiku\n  5. Parsear resposta: assign ou create new topic\n  6. Inserir wa_message na tabela processada\n*/\n\nconst item = $input.first().json;\nconst SUPABASE_URL  = $env.SUPABASE_URL;\nconst SUPABASE_KEY  = $env.SUPABASE_SERVICE_KEY;\nconst CLAUDE_KEY    = $env.CLAUDE_API_KEY;\n\nconst sbHeaders = {\n  'apikey':        SUPABASE_KEY,\n  'Authorization': `Bearer ${SUPABASE_KEY}`,\n  'Content-Type':  'application/json',\n};\n\n// ── 1. Lookup mentorado ──────────────────────────────────────\nlet mentoradoId = null;\nlet mentoradoNome = null;\ntry {\n  const mRes = await $helpers.httpRequest({\n    method: 'POST',\n    url:    `${SUPABASE_URL}/rest/v1/rpc/get_mentorado_by_group`,\n    headers: sbHeaders,\n    body:    JSON.stringify({ p_group_jid: item.group_jid }),\n  });\n  const m = JSON.parse(mRes.body);\n  if (m?.id) { mentoradoId = m.id; mentoradoNome = m.nome; }\n} catch(e) {\n  console.log('Mentorado lookup failed (non-critical):', e.message);\n}\n\n// ── 2. Fetch tópicos abertos do grupo ────────────────────────\nlet openTopics = [];\ntry {\n  const tRes = await $helpers.httpRequest({\n    method: 'GET',\n    url:    `${SUPABASE_URL}/rest/v1/wa_topics` +\n            `?group_jid=eq.${encodeURIComponent(item.group_jid)}` +\n            `&status=in.(open,active)` +\n            `&order=last_message_at.desc` +\n            `&limit=10` +\n            `&select=id,title,summary,last_message_at,message_count`,\n    headers: sbHeaders,\n  });\n  openTopics = JSON.parse(tRes.body) || [];\n} catch(e) {\n  console.log('Open topics fetch failed:', e.message);\n}\n\n// ── 3. Fetch últimas mensagens do grupo (contexto) ────────────\nlet recentMsgs = [];\ntry {\n  const mRes = await $helpers.httpRequest({\n    method: 'GET',\n    url:    `${SUPABASE_URL}/rest/v1/wa_messages` +\n            `?group_jid=eq.${encodeURIComponent(item.group_jid)}` +\n            `&order=timestamp.desc` +\n            `&limit=30` +\n            `&select=timestamp,sender_name,content_text`,\n    headers: sbHeaders,\n  });\n  recentMsgs = (JSON.parse(mRes.body) || []).reverse();\n} catch(e) {\n  console.log('Recent messages fetch failed:', e.message);\n}\n\n// ── 4. Montar prompt e chamar Claude ─────────────────────────\nconst topicsCtx = openTopics.length > 0\n  ? openTopics.map(t =>\n      `[ID:${t.id}] \"${t.title}\" — Último: ${t.last_message_at}\\n  Resumo: ${t.summary || 'Sem resumo'}`\n    ).join('\\n')\n  : 'Nenhum tópico aberto no momento';\n\nconst msgsCtx = recentMsgs.length > 0\n  ? recentMsgs.map(m =>\n      `[${m.timestamp}] ${m.sender_name || 'Usuário'}: ${m.content_text || '[mídia]'}`\n    ).join('\\n')\n  : 'Sem mensagens anteriores';\n\nconst userPrompt =\n  `TÓPICOS ABERTOS ATUALMENTE:\\n${topicsCtx}\\n\\n` +\n  `ÚLTIMAS 30 MENSAGENS DO GRUPO (contexto geral):\\n${msgsCtx}\\n\\n` +\n  `NOVA MENSAGEM:\\n` +\n  `[${item.timestamp}] ${item.sender_name || item.sender_jid || 'Usuário'}: ${item.content_text || '[mídia]'}\\n\\n` +\n  `INSTRUÇÃO:\\n` +\n  `1. Analise se a nova mensagem pertence a um dos tópicos abertos acima\\n` +\n  `2. Se pertence: retorne o topic_id com confidence\\n` +\n  `3. Se é novo tópico: retorne action:new com título sugerido e tipo\\n` +\n  `4. REGRA CRÍTICA: Não misture tópicos diferentes\\n\\n` +\n  `RESPONDA APENAS com JSON válido (sem markdown):\\n` +\n  `{\"action\":\"assign\"|\"new\",\"topic_id\":\"uuid\"|null,\"topic_type\":\"revisao|demanda|plano|duvida|call|celebracao|dossie|pos_call|feedback|geral\",\"new_topic_title\":\"string se new\",\"confidence\":0.0,\"reasoning\":\"breve\"}`;\n\nlet classification = null;\ntry {\n  const claudeRes = await $helpers.httpRequest({\n    method: 'POST',\n    url:    'https://api.anthropic.com/v1/messages',\n    headers: {\n      'x-api-key':         CLAUDE_KEY,\n      'anthropic-version': '2023-06-01',\n      'Content-Type':      'application/json',\n    },\n    body: JSON.stringify({\n      model:      'claude-haiku-4-5-20251001',\n      max_tokens: 300,\n      system:     'Você é um classificador de tópicos para grupos de WhatsApp de mentoria empresarial. Responda APENAS com JSON válido, sem texto adicional.',\n      messages:   [{ role: 'user', content: userPrompt }],\n    }),\n  });\n  const claudeData = JSON.parse(claudeRes.body);\n  const text = claudeData.content?.[0]?.text || '';\n  const jsonMatch = text.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) classification = JSON.parse(jsonMatch[0]);\n} catch(e) {\n  console.log('Claude API error:', e.message);\n}\n\n// Fallback se Claude falhar\nif (!classification) {\n  classification = {\n    action: 'new',\n    topic_type: 'geral',\n    new_topic_title: (item.content_text || 'Nova Conversa').substring(0, 60),\n    confidence: 0.3,\n    reasoning: 'Fallback — Claude indisponível'\n  };\n}\n\n// ── 5. Criar ou atualizar tópico ─────────────────────────────\nlet topicId = null;\n\nif (classification.action === 'assign' && classification.topic_id && classification.confidence >= 0.75) {\n  // Atribuir a tópico existente\n  topicId = classification.topic_id;\n  try {\n    await $helpers.httpRequest({\n      method:  'POST',\n      url:     `${SUPABASE_URL}/rest/v1/rpc/increment_topic_message_count`,\n      headers: sbHeaders,\n      body:    JSON.stringify({ p_topic_id: topicId, p_timestamp: item.timestamp }),\n    });\n  } catch(e) { console.log('increment_topic_message_count error:', e.message); }\n\n} else {\n  // Criar novo tópico\n  // Buscar type_id a partir do slug\n  let typeId = null;\n  try {\n    const typeRes = await $helpers.httpRequest({\n      method:  'GET',\n      url:     `${SUPABASE_URL}/rest/v1/wa_topic_types?slug=eq.${classification.topic_type}&select=id`,\n      headers: sbHeaders,\n    });\n    const types = JSON.parse(typeRes.body) || [];\n    typeId = types[0]?.id || null;\n  } catch(e) { console.log('type lookup error:', e.message); }\n\n  const newTopic = {\n    group_jid:        item.group_jid,\n    mentorado_id:     mentoradoId,\n    type_id:          typeId,\n    title:            (classification.new_topic_title || (item.content_text || 'Nova Conversa')).substring(0, 120),\n    status:           'open',\n    confidence:       classification.confidence,\n    message_count:    1,\n    first_message_at: item.timestamp,\n    last_message_at:  item.timestamp,\n    ai_keywords:      [],\n    ai_context_hash:  null,\n  };\n\n  try {\n    const createRes = await $helpers.httpRequest({\n      method:  'POST',\n      url:     `${SUPABASE_URL}/rest/v1/wa_topics`,\n      headers: { ...sbHeaders, 'Prefer': 'return=representation' },\n      body:    JSON.stringify(newTopic),\n    });\n    const created = JSON.parse(createRes.body);\n    topicId = (Array.isArray(created) ? created[0] : created)?.id || null;\n\n    // Log evento de criação\n    if (topicId) {\n      await $helpers.httpRequest({\n        method:  'POST',\n        url:     `${SUPABASE_URL}/rest/v1/wa_topic_events`,\n        headers: { ...sbHeaders, 'Prefer': 'return=minimal' },\n        body:    JSON.stringify({\n          topic_id:   topicId,\n          event_type: 'created',\n          payload:    { type: classification.topic_type, confidence: classification.confidence, reasoning: classification.reasoning },\n          created_by: 'ai',\n        }),\n      });\n    }\n  } catch(e) { console.log('create topic error:', e.message); }\n}\n\n// ── 6. Inserir mensagem processada ───────────────────────────\nif (topicId) {\n  try {\n    await $helpers.httpRequest({\n      method:  'POST',\n      url:     `${SUPABASE_URL}/rest/v1/wa_messages`,\n      headers: { ...sbHeaders, 'Prefer': 'return=minimal,resolution=ignore-duplicates' },\n      body:    JSON.stringify({\n        message_id:        item.message_id,\n        group_jid:         item.group_jid,\n        mentorado_id:      mentoradoId,\n        topic_id:          topicId,\n        topic_confidence:  classification.confidence,\n        sender_jid:        item.sender_jid,\n        sender_name:       item.sender_name,\n        is_from_team:      item.is_from_team || false,\n        content_type:      item.content_type || 'text',\n        content_text:      item.content_text,\n        timestamp:         item.timestamp,\n      }),\n    });\n  } catch(e) { console.log('insert wa_message error:', e.message); }\n}\n\nreturn [{\n  json: {\n    queue_id:   item.queue_id,\n    message_id: item.message_id,\n    topic_id:   topicId,\n    action:     classification.action,\n    confidence: classification.confidence,\n    success:    !!topicId,\n  }\n}];"
+      }
+    },
+    {
+      "id": "node-http-done-002",
+      "name": "Marcar como Processado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 300],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/wa_message_queue?id=eq.{{ $json.queue_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawBody": "={\"status\": \"done\", \"processed_at\": \"{{ new Date().toISOString() }}\"}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "node-error-002",
+      "name": "Capturar Erro",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 460],
+      "parameters": {
+        "jsCode": "// Marca item da fila como 'error' em caso de falha\nconst errItem = $input.first().json;\nconst queueId = errItem.queue_id;\n\nif (queueId) {\n  try {\n    await $helpers.httpRequest({\n      method:  'PATCH',\n      url:     `${$env.SUPABASE_URL}/rest/v1/wa_message_queue?id=eq.${queueId}`,\n      headers: {\n        'apikey':        $env.SUPABASE_SERVICE_KEY,\n        'Authorization': `Bearer ${$env.SUPABASE_SERVICE_KEY}`,\n        'Content-Type':  'application/json',\n        'Prefer':        'return=minimal',\n      },\n      body: JSON.stringify({\n        status:    'error',\n        error_msg: errItem.error?.message || 'Erro desconhecido no classificador',\n      }),\n    });\n  } catch(e) { /* silently fail */ }\n}\n\nreturn [{ json: { handled: true, queue_id: queueId } }];"
+      }
+    }
+  ],
+  "connections": {
+    "A cada 30 segundos": {
+      "main": [
+        [{ "node": "Buscar Batch Pendente", "type": "main", "index": 0 }]
+      ]
+    },
+    "Buscar Batch Pendente": {
+      "main": [
+        [{ "node": "Dividir em Itens", "type": "main", "index": 0 }]
+      ]
+    },
+    "Dividir em Itens": {
+      "main": [
+        [{ "node": "Classificar Topico (IA)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Classificar Topico (IA)": {
+      "main": [
+        [{ "node": "Marcar como Processado", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "maxExecutionTimeout": 120,
+    "errorWorkflow": ""
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "description": "Roda a cada 30s. Busca batch da fila, chama Claude Haiku para classificar cada mensagem e atribui a tópico existente ou cria novo. Requer env: SUPABASE_URL, SUPABASE_SERVICE_KEY, CLAUDE_API_KEY"
+  }
+}

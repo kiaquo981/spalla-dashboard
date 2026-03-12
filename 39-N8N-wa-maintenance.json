@@ -1,0 +1,62 @@
+{
+  "name": "WA 03 — Topic Maintenance",
+  "nodes": [
+    {
+      "id": "node-schedule-003",
+      "name": "A cada 6 horas",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "node-code-maintenance-003",
+      "name": "Manutenção de Tópicos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "parameters": {
+        "jsCode": "/*\n  Manutenção periódica de tópicos em 3 etapas:\n  1. Arquivar tópicos dormentes (sem msgs > 7 dias)\n  2. Regenerar summaries de tópicos com muitas mensagens novas\n  3. Log das operações\n*/\n\nconst SUPABASE_URL = $env.SUPABASE_URL;\nconst SUPABASE_KEY = $env.SUPABASE_SERVICE_KEY;\nconst CLAUDE_KEY   = $env.CLAUDE_API_KEY;\n\nconst sbHeaders = {\n  'apikey':        SUPABASE_KEY,\n  'Authorization': `Bearer ${SUPABASE_KEY}`,\n  'Content-Type':  'application/json',\n};\n\nconst now = new Date();\nconst h24Ago = new Date(now - 24 * 60 * 60 * 1000).toISOString();\nconst d7Ago  = new Date(now - 7  * 24 * 60 * 60 * 1000).toISOString();\n\nconst results = { archived: 0, summaries_updated: 0, errors: [] };\n\n// ── ETAPA 1: Arquivar tópicos dormentes ──────────────────────\ntry {\n  // Tópicos resolvidos ou open sem mensagem há 7+ dias → archive\n  const archiveRes = await $helpers.httpRequest({\n    method:  'PATCH',\n    url:     `${SUPABASE_URL}/rest/v1/wa_topics` +\n             `?last_message_at=lt.${d7Ago}` +\n             `&status=in.(open,active,pending_action,resolved)`,\n    headers: { ...sbHeaders, 'Prefer': 'return=representation' },\n    body:    JSON.stringify({\n      status:     'archived',\n      updated_at: now.toISOString(),\n    }),\n  });\n  const archived = JSON.parse(archiveRes.body) || [];\n  results.archived = Array.isArray(archived) ? archived.length : 0;\n\n  // Inserir eventos de arquivamento\n  for (const topic of (Array.isArray(archived) ? archived : [])) {\n    try {\n      await $helpers.httpRequest({\n        method:  'POST',\n        url:     `${SUPABASE_URL}/rest/v1/wa_topic_events`,\n        headers: { ...sbHeaders, 'Prefer': 'return=minimal' },\n        body:    JSON.stringify({\n          topic_id:   topic.id,\n          event_type: 'archived',\n          payload:    { reason: 'dormant_7d', last_message_at: topic.last_message_at },\n          created_by: 'system',\n        }),\n      });\n    } catch(e) { /* non-critical */ }\n  }\n} catch(e) {\n  results.errors.push(`archive: ${e.message}`);\n}\n\n// ── ETAPA 2: Regenerar summaries ─────────────────────────────\n// Tópicos ativos com message_count > 5 que não têm summary ou\n// têm summary antigo (updated_at < last_message_at)\ntry {\n  const staleRes = await $helpers.httpRequest({\n    method:  'GET',\n    url:     `${SUPABASE_URL}/rest/v1/wa_topics` +\n             `?status=in.(open,active,pending_action)` +\n             `&message_count=gt.4` +\n             `&order=last_message_at.desc` +\n             `&limit=20` +\n             `&select=id,title,group_jid,message_count,summary,updated_at,last_message_at`,\n    headers: sbHeaders,\n  });\n  const staleTopics = JSON.parse(staleRes.body) || [];\n\n  // Filtra tópicos onde summary está desatualizado\n  const needsSummary = staleTopics.filter(t => {\n    if (!t.summary) return true;\n    const updatedAt = new Date(t.updated_at);\n    const lastMsg   = new Date(t.last_message_at);\n    return lastMsg > updatedAt;\n  });\n\n  for (const topic of needsSummary.slice(0, 10)) {\n    try {\n      // Busca últimas 20 mensagens do tópico\n      const msgsRes = await $helpers.httpRequest({\n        method:  'GET',\n        url:     `${SUPABASE_URL}/rest/v1/wa_messages` +\n                 `?topic_id=eq.${topic.id}` +\n                 `&order=timestamp.desc` +\n                 `&limit=20` +\n                 `&select=timestamp,sender_name,is_from_team,content_text`,\n        headers: sbHeaders,\n      });\n      const msgs = (JSON.parse(msgsRes.body) || []).reverse();\n\n      if (msgs.length === 0) continue;\n\n      const msgContext = msgs\n        .map(m => `[${m.timestamp}] ${m.is_from_team ? '[EQUIPE]' : '[MENTORADO]'} ${m.sender_name || ''}: ${m.content_text || '[mídia]'}`)\n        .join('\\n');\n\n      // Gera summary com Claude\n      const claudeRes = await $helpers.httpRequest({\n        method: 'POST',\n        url:    'https://api.anthropic.com/v1/messages',\n        headers: {\n          'x-api-key':         CLAUDE_KEY,\n          'anthropic-version': '2023-06-01',\n          'Content-Type':      'application/json',\n        },\n        body: JSON.stringify({\n          model:      'claude-haiku-4-5-20251001',\n          max_tokens: 200,\n          system:     'Você resume conversas de WhatsApp de mentoria empresarial em 1-3 frases objetivas em português. Foque no que foi discutido, decidido ou pendente.',\n          messages: [{\n            role:    'user',\n            content: `Tópico: \"${topic.title}\"\\n\\nMensagens:\\n${msgContext}\\n\\nResuma em 1-3 frases:`,\n          }],\n        }),\n      });\n\n      const claudeData  = JSON.parse(claudeRes.body);\n      const summaryText = claudeData.content?.[0]?.text?.trim();\n\n      if (summaryText) {\n        await $helpers.httpRequest({\n          method:  'PATCH',\n          url:     `${SUPABASE_URL}/rest/v1/wa_topics?id=eq.${topic.id}`,\n          headers: { ...sbHeaders, 'Prefer': 'return=minimal' },\n          body:    JSON.stringify({\n            summary:    summaryText,\n            updated_at: now.toISOString(),\n          }),\n        });\n\n        await $helpers.httpRequest({\n          method:  'POST',\n          url:     `${SUPABASE_URL}/rest/v1/wa_topic_events`,\n          headers: { ...sbHeaders, 'Prefer': 'return=minimal' },\n          body:    JSON.stringify({\n            topic_id:   topic.id,\n            event_type: 'ai_reclassified',\n            payload:    { action: 'summary_regenerated' },\n            created_by: 'ai',\n          }),\n        });\n\n        results.summaries_updated++;\n      }\n    } catch(e) {\n      results.errors.push(`summary_${topic.id}: ${e.message}`);\n    }\n  }\n} catch(e) {\n  results.errors.push(`summaries: ${e.message}`);\n}\n\nconsole.log('[WA Maintenance]', JSON.stringify(results));\nreturn [{ json: { ...results, ran_at: now.toISOString() } }];"
+      }
+    },
+    {
+      "id": "node-noOp-003",
+      "name": "Log Resultado",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "A cada 6 horas": {
+      "main": [
+        [{ "node": "Manutenção de Tópicos", "type": "main", "index": 0 }]
+      ]
+    },
+    "Manutenção de Tópicos": {
+      "main": [
+        [{ "node": "Log Resultado", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "maxExecutionTimeout": 300
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "description": "Roda a cada 6h. Arquiva tópicos dormentes (7d sem msgs), regenera summaries de tópicos ativos via Claude Haiku. Requer env: SUPABASE_URL, SUPABASE_SERVICE_KEY, CLAUDE_API_KEY"
+  }
+}
