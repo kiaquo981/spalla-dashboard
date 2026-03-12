@@ -367,12 +367,18 @@ CREATE TRIGGER trg_sync_task_to_pa
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE EXTENSION IF NOT EXISTS unaccent;
 
+-- Wrapper IMMUTABLE para unaccent (necessário para uso em índices)
+CREATE OR REPLACE FUNCTION immutable_unaccent(TEXT)
+RETURNS TEXT
+LANGUAGE sql IMMUTABLE PARALLEL SAFE STRICT
+AS $$ SELECT public.unaccent('public.unaccent', $1) $$;
+
 -- Índices trigram para match fuzzy
 CREATE INDEX IF NOT EXISTS idx_god_tasks_titulo_trgm
-  ON god_tasks USING gin (lower(unaccent(titulo)) gin_trgm_ops);
+  ON god_tasks USING gin (lower(immutable_unaccent(titulo)) gin_trgm_ops);
 
 CREATE INDEX IF NOT EXISTS idx_pa_acoes_titulo_trgm
-  ON pa_acoes USING gin (lower(unaccent(titulo)) gin_trgm_ops);
+  ON pa_acoes USING gin (lower(immutable_unaccent(titulo)) gin_trgm_ops);
 
 -- ─────────────────────────────────────────────────────────────
 -- 7. MIGRAR tarefas_acordadas existentes → god_tasks
