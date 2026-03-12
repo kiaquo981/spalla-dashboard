@@ -3549,27 +3549,7 @@ img { max-width: 100%; display: block; }
   .health-breakdown__grid { grid-template-columns: 1fr; }
 }
 
-/* ===== TEAM DASHBOARD ===== */
-.team-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-
-.team-card {
-  background: white;
-  border-radius: 12px;
-  border: 1px solid var(--neutral-200);
-  padding: 16px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.team-card:hover {
-  border-color: var(--brand);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-  transform: translateY(-2px);
-}
+/* ===== TEAM DASHBOARD (shell migrated to op-grid + op-card) ===== */
 
 .team-card__header {
   display: flex;
@@ -3666,13 +3646,6 @@ img { max-width: 100%; display: block; }
   color: var(--neutral-600);
 }
 
-@media (max-width: 900px) {
-  .team-grid { grid-template-columns: repeat(2, 1fr); }
-}
-
-@media (max-width: 600px) {
-  .team-grid { grid-template-columns: 1fr; }
-}
 
 /* ===== RECURRING TASK BADGE ===== */
 .task-recurring-badge {
@@ -3710,22 +3683,6 @@ img { max-width: 100%; display: block; }
   --pa-vencida: #fef2f2;
 }
 
-/* --- Progress Bar --- */
-.pa-progress-bar {
-  height: 8px;
-  background: var(--bg-secondary, #e5e7eb);
-  border-radius: 4px;
-  overflow: hidden;
-}
-.pa-progress-bar--sm { height: 5px; }
-.pa-progress-bar--mini { height: 4px; width: 48px; }
-.pa-progress-bar__fill {
-  height: 100%;
-  background: var(--primary, #6366f1);
-  border-radius: 4px;
-  transition: width 0.3s ease;
-  min-width: 0;
-}
 
 /* --- PA Status Badge Colors --- */
 .pa-status--nao_iniciado { background: #6b728020; color: #6b7280; }
@@ -3733,87 +3690,7 @@ img { max-width: 100%; display: block; }
 .pa-status--pausado { background: #f59e0b20; color: #f59e0b; }
 .pa-status--concluido { background: #10b98120; color: #10b981; }
 
-/* --- PA Page KPIs Strip --- */
-.pa-page-kpis {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 12px;
-  margin-bottom: 20px;
-}
-@media (max-width: 900px) { .pa-page-kpis { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 600px) { .pa-page-kpis { grid-template-columns: repeat(2, 1fr); } }
-.pa-page-kpis__card {
-  background: var(--bg-primary, #fff);
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: 10px;
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.pa-page-kpis__val {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--text-primary);
-  line-height: 1.1;
-}
-.pa-page-kpis__val--danger { color: #ef4444; }
-.pa-page-kpis__val--warning { color: #f59e0b; }
-.pa-page-kpis__val--info { color: #3b82f6; }
-.pa-page-kpis__val--success { color: #10b981; }
-.pa-page-kpis__label {
-  font-size: 11px;
-  color: var(--text-secondary);
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
 
-/* --- PA Search Bar --- */
-.pa-search {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-.pa-search__input {
-  flex: 1;
-  min-width: 200px;
-  padding: 8px 12px;
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: 8px;
-  font-size: 13px;
-  background: var(--bg-primary, #fff);
-  color: var(--text-primary);
-  outline: none;
-  transition: border-color 0.15s;
-}
-.pa-search__input:focus { border-color: var(--primary, #6366f1); }
-.pa-search__input::placeholder { color: var(--text-secondary); }
-.pa-view-toggle {
-  display: flex;
-  gap: 2px;
-  background: var(--bg-secondary, #f1f5f9);
-  border-radius: 8px;
-  padding: 3px;
-}
-.pa-view-toggle__btn {
-  padding: 6px 14px;
-  border: none;
-  background: none;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  color: var(--text-secondary);
-  transition: all 0.15s;
-}
-.pa-view-toggle__btn--active {
-  background: var(--bg-primary, #fff);
-  color: var(--text-primary);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-}
 
 /* --- Sentinel Card (Painel View) --- */
 .pa-sentinel-grid {
@@ -4147,40 +4024,7 @@ img { max-width: 100%; display: block; }
   align-items: center;
 }
 
-/* --- Pipeline View --- */
-.pa-pipeline {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  min-height: 400px;
-}
-@media (max-width: 900px) { .pa-pipeline { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 600px) { .pa-pipeline { grid-template-columns: 1fr; } }
-.pa-pipeline__col {
-  background: var(--bg-secondary, #f9fafb);
-  border-radius: 8px;
-  padding: 0;
-  min-height: 200px;
-}
-.pa-pipeline__col-header {
-  padding: 12px 16px;
-  font-weight: 600;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.pa-pipeline__cards { padding: 8px; display: flex; flex-direction: column; gap: 8px; }
-.pa-pipeline__card {
-  background: var(--bg-primary, #fff);
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: 8px;
-  padding: 12px;
-  cursor: pointer;
-  transition: box-shadow 0.15s, transform 0.15s;
-}
-.pa-pipeline__card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); transform: translateY(-1px); }
+/* --- PA Pipeline card internals (shell migrated to op-kanban) --- */
 .pa-pipeline__card-name { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
 .pa-pipeline__card-fase { font-size: 12px; color: var(--text-secondary); }
 .pa-pipeline__card-meta {
@@ -4196,12 +4040,6 @@ img { max-width: 100%; display: block; }
   display: flex;
   gap: 6px;
   margin-top: 6px;
-}
-.pa-pipeline__empty {
-  text-align: center;
-  padding: 24px;
-  color: var(--text-secondary);
-  font-size: 13px;
 }
 
 /* --- Mini PA bar in mentee card --- */
@@ -4396,65 +4234,6 @@ img { max-width: 100%; display: block; }
   margin-top: 2px;
 }
 
-/* --- Toolbar (search + filter + view) --- */
-.ds-toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--ds-space-sm);
-  margin-bottom: var(--ds-space-lg);
-  flex-wrap: wrap;
-}
-.ds-toolbar__search {
-  flex: 1;
-  min-width: 200px;
-  padding: var(--ds-space-sm) var(--ds-space-md);
-  border: 1px solid var(--ds-border);
-  border-radius: var(--ds-radius-md);
-  font-size: var(--ds-text-md);
-  background: var(--ds-bg-surface);
-}
-.ds-toolbar__search:focus {
-  outline: none;
-  border-color: var(--primary, #6366f1);
-  box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
-}
-.ds-toolbar__select {
-  padding: var(--ds-space-sm) var(--ds-space-md);
-  border: 1px solid var(--ds-border);
-  border-radius: var(--ds-radius-md);
-  font-size: var(--ds-text-base);
-  background: var(--ds-bg-surface);
-}
-.ds-toolbar__count {
-  font-size: var(--ds-text-base);
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-
-/* --- View Toggle --- */
-.ds-view-toggle {
-  display: flex;
-  gap: 2px;
-  background: var(--ds-bg-muted);
-  border-radius: var(--ds-radius-md);
-  padding: 3px;
-}
-.ds-view-toggle__btn {
-  padding: 6px 14px;
-  border: none;
-  background: transparent;
-  border-radius: var(--ds-radius-sm);
-  font-size: var(--ds-text-base);
-  font-weight: 600;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all var(--ds-transition);
-}
-.ds-view-toggle__btn--active {
-  background: var(--ds-bg-surface);
-  color: var(--text-primary);
-  box-shadow: var(--ds-shadow-sm);
-}
 
 /* --- Status Badge --- */
 .ds-status-badge {
@@ -4470,24 +4249,7 @@ img { max-width: 100%; display: block; }
   font-size: var(--ds-text-xs);
 }
 
-/* --- Production Card Grid --- */
-.ds-prod-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: var(--ds-space-lg);
-}
-.ds-prod-card {
-  background: var(--ds-bg-surface);
-  border: 1px solid var(--ds-border);
-  border-radius: var(--ds-radius-xl);
-  padding: var(--ds-space-lg);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.ds-prod-card:hover {
-  box-shadow: var(--ds-shadow-md);
-  transform: translateY(-2px);
-}
+/* --- Production Card internals (shell migrated to op-card + op-grid) --- */
 .ds-prod-card--dragging { opacity: 0.4; }
 .ds-prod-card__header {
   display: flex;
@@ -5253,129 +5015,7 @@ img { max-width: 100%; display: block; }
    ONBOARDING CS — Component Styles
    ================================================================ */
 
-/* --- OB Page KPIs Strip --- */
-.ob-page-kpis {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
-  margin-bottom: 20px;
-}
-@media (max-width: 900px) { .ob-page-kpis { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 600px) { .ob-page-kpis { grid-template-columns: repeat(2, 1fr); } }
-.ob-page-kpis__card {
-  background: var(--bg-primary, #fff);
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: 10px;
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.ob-page-kpis__val {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--text-primary);
-  line-height: 1.1;
-}
-.ob-page-kpis__val--danger { color: #ef4444; }
-.ob-page-kpis__val--warning { color: #f59e0b; }
-.ob-page-kpis__val--info { color: #3b82f6; }
-.ob-page-kpis__val--success { color: #10b981; }
-.ob-page-kpis__label {
-  font-size: 11px;
-  color: var(--text-secondary);
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-/* --- OB Toolbar --- */
-.ob-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-.ob-search__input {
-  flex: 1;
-  min-width: 200px;
-  padding: 8px 12px;
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: 8px;
-  font-size: 13px;
-  background: var(--bg-primary, #fff);
-  color: var(--text-primary);
-  outline: none;
-  transition: border-color 0.15s;
-}
-.ob-search__input:focus { border-color: var(--brand-500, #10b981); }
-.ob-search__input::placeholder { color: var(--text-secondary); }
-
-/* --- OB View Toggle --- */
-.ob-view-toggle {
-  display: flex;
-  gap: 2px;
-  background: var(--bg-secondary, #f1f5f9);
-  border-radius: 8px;
-  padding: 3px;
-}
-.ob-view-toggle__btn {
-  padding: 6px 14px;
-  border: none;
-  background: none;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  color: var(--text-secondary);
-  transition: all 0.15s;
-}
-.ob-view-toggle__btn--active {
-  background: var(--bg-primary, #fff);
-  color: var(--text-primary);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-}
-
-/* --- OB Progress Bar --- */
-.ob-progress {
-  height: 8px;
-  background: var(--bg-secondary, #e5e7eb);
-  border-radius: 4px;
-  overflow: hidden;
-  flex: 1;
-}
-.ob-progress--sm { height: 5px; }
-.ob-progress__fill {
-  height: 100%;
-  border-radius: 4px;
-  transition: width 0.3s ease;
-  min-width: 0;
-}
-
-/* --- OB Card Grid (Painel view) --- */
-.ob-card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
-}
-@media (max-width: 600px) { .ob-card-grid { grid-template-columns: 1fr; } }
-
-.ob-card {
-  background: var(--bg-primary, #fff);
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: 12px;
-  padding: 16px;
-  cursor: pointer;
-  transition: box-shadow 0.15s, transform 0.15s;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.ob-card:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
-}
+/* --- OB Card internals (shell migrated to op-card + op-grid) --- */
 .ob-card__header {
   display: flex;
   justify-content: space-between;
@@ -5422,47 +5062,7 @@ img { max-width: 100%; display: block; }
   font-size: 11px;
 }
 
-/* --- OB Pipeline (Kanban) --- */
-.ob-pipeline {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  min-height: 300px;
-}
-@media (max-width: 900px) { .ob-pipeline { grid-template-columns: 1fr; } }
-.ob-pipeline__col {
-  background: var(--bg-secondary, #f8fafc);
-  border-radius: 10px;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.ob-pipeline__col-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 0 8px;
-  font-weight: 700;
-  font-size: 13px;
-}
-.ob-pipeline__cards {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex: 1;
-}
-.ob-pipeline__card {
-  background: var(--bg-primary, #fff);
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: 8px;
-  padding: 12px;
-  cursor: pointer;
-  transition: box-shadow 0.15s;
-}
-.ob-pipeline__card:hover {
-  box-shadow: var(--shadow-sm);
-}
+/* --- OB Pipeline card internals (shell migrated to op-kanban) --- */
 .ob-pipeline__card-name {
   font-weight: 600;
   font-size: 13px;
@@ -5954,58 +5554,7 @@ img { max-width: 100%; display: block; }
   height: 100%;
 }
 
-/* ── KPI strip (usa design system sp-kpi-card) ── */
-.topics-kpis {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
-  margin-bottom: 20px;
-}
-@media (max-width: 900px)  { .topics-kpis { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 600px)  { .topics-kpis { grid-template-columns: repeat(2, 1fr); } }
-
-.topics-kpi {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  background: var(--bg-primary, #fff);
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: 12px;
-  padding: 16px 18px;
-  cursor: pointer;
-  transition: box-shadow 0.2s ease, transform 0.15s ease, border-color 0.15s;
-}
-.topics-kpi:hover {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-  transform: translateY(-1px);
-}
-.topics-kpi--active {
-  border-color: var(--brand-500, #10b981);
-  box-shadow: 0 0 0 3px rgba(16,185,129,0.12), 0 4px 12px rgba(0,0,0,0.06);
-}
-.topics-kpi__icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.topics-kpi__body { display: flex; flex-direction: column; min-width: 0; }
-.topics-kpi__count {
-  font-size: 26px;
-  font-weight: 800;
-  line-height: 1.1;
-  letter-spacing: -0.5px;
-  color: var(--neutral-900, #0f172a);
-}
-.topics-kpi__label {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--neutral-500, #64748b);
-  margin-top: 2px;
-}
+/* ── WA Topics KPI strip (migrated to op-kpi-strip + op-stat) ── */
 
 /* ── Filter bar ── */
 .topics-filters {
@@ -6020,118 +5569,21 @@ img { max-width: 100%; display: block; }
   font-size: 13px;
 }
 
-/* ── View switcher (pill-style) ── */
-.topics-view-switcher {
-  display: flex;
-  background: var(--neutral-100, #f1f5f9);
-  border-radius: 8px;
-  padding: 3px;
-  gap: 2px;
-}
-.topics-view-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  background: transparent;
-  color: var(--neutral-500, #64748b);
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.topics-view-btn:hover { color: var(--neutral-700); }
-.topics-view-btn.active {
-  background: #fff;
-  color: var(--neutral-900, #0f172a);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-}
-
-/* ── Board (kanban) — pa-pipeline style ── */
-.topics-board {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 14px;
-  flex: 1;
-  min-height: 400px;
-  padding-bottom: 16px;
-  overflow-x: auto;
-}
-@media (max-width: 1200px) { .topics-board { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 768px)  { .topics-board { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 500px)  { .topics-board { grid-template-columns: 1fr; } }
-
-.topics-column {
-  background: var(--bg-secondary, #f9fafb);
-  border-radius: 10px;
-  display: flex;
-  flex-direction: column;
-  min-height: 200px;
-  max-height: calc(100vh - 300px);
-}
-.topics-column__header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 14px 10px;
-  border-bottom: 1px solid var(--border, #e5e7eb);
-  flex-shrink: 0;
-}
+/* ── Topics board column scroll (migrated to op-kanban; this keeps scroll behavior) ── */
 .topics-column__dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
 }
-.topics-column__title {
-  flex: 1;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--neutral-700, #334155);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-.topics-column__count {
-  background: var(--neutral-200, #e2e8f0);
-  color: var(--neutral-600, #475569);
-  border-radius: 10px;
-  padding: 2px 9px;
-  font-size: 12px;
-  font-weight: 700;
-}
 .topics-column__cards {
   overflow-y: auto;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex: 1;
-}
-.topics-column__empty {
-  text-align: center;
-  color: var(--neutral-400, #94a3b8);
-  font-size: 13px;
-  padding: 32px 12px;
+  max-height: calc(100vh - 300px);
 }
 
-/* ── Topic Card — pa-pipeline__card style ── */
+/* ── Topic Card internals (shell migrated to op-kanban__card) ── */
 .topic-card {
-  background: var(--bg-primary, #fff);
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: 10px;
-  padding: 14px;
-  cursor: pointer;
-  transition: box-shadow 0.15s, transform 0.15s;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  position: relative;
-}
-.topic-card:hover {
-  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
-  transform: translateY(-1px);
+  display: flex; flex-direction: column; gap: 8px; position: relative;
 }
 .topic-card__type {
   display: inline-flex;

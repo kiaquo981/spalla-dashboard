@@ -438,7 +438,7 @@
                   <template x-if="getPaForMentee(m.id)">
                     <div class="mc-card__pa-mini" :title="'PA: ' + (getPaForMentee(m.id)?.pct_concluido || 0) + '%'">
                       <div class="pa-progress-bar pa-progress-bar--mini">
-                        <div class="pa-progress-bar__fill" :style="'width:' + (getPaForMentee(m.id)?.pct_concluido || 0) + '%'"></div>
+                        <div class="op-progress__bar" :style="'width:' + (getPaForMentee(m.id)?.pct_concluido || 0) + '%'"></div>
                       </div>
                       <span class="mc-card__pa-label" x-text="(getPaForMentee(m.id)?.pct_concluido || 0) + '%'"></span>
                     </div>
@@ -1092,8 +1092,8 @@
 
                   <!-- Overall progress bar -->
                   <div style="margin-bottom:16px">
-                    <div class="pa-progress-bar">
-                      <div class="pa-progress-bar__fill" :style="'width:' + (getPaForMentee(data.paMenteePa.mentorado_id)?.pct_concluido || 0) + '%'"></div>
+                    <div class="op-progress">
+                      <div class="op-progress__bar" :style="'width:' + (getPaForMentee(data.paMenteePa.mentorado_id)?.pct_concluido || 0) + '%'"></div>
                     </div>
                     <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">
                       <span x-text="(getPaForMentee(data.paMenteePa.mentorado_id)?.acoes_concluidas || 0)"></span> de
@@ -1125,8 +1125,8 @@
                         <span class="badge badge--sm" :class="'pa-status--' + fase.status" x-text="paStatusLabel(fase.status)" style="margin-left:4px"></span>
                         <span class="pa-origem pa-origem--sm" :class="paOrigemColor(fase.origem)" x-show="fase.origem" x-text="paOrigemLabel(fase.origem)"></span>
                         <div style="flex:1"></div>
-                        <div class="pa-progress-bar pa-progress-bar--sm" style="width:80px">
-                          <div class="pa-progress-bar__fill" :style="'width:' + paFaseProgress(fase) + '%;background:' + paTipoColor(fase.tipo || 'fase')"></div>
+                        <div class="op-progress op-progress--sm" style="width:80px">
+                          <div class="op-progress__bar" :style="'width:' + paFaseProgress(fase) + '%;background:' + paTipoColor(fase.tipo || 'fase')"></div>
                         </div>
                         <span style="font-size:11px;color:var(--text-secondary);margin-left:6px;min-width:30px" x-text="paFaseProgress(fase) + '%'"></span>
                         <span class="pa-fase__counts" x-text="(fase.acoes?.length || 0) + ' ações' + (fase.acoes?.reduce((s,a) => s + (a.sub_acoes?.length || 0), 0) > 0 ? ' · ' + fase.acoes.reduce((s,a) => s + (a.sub_acoes?.length || 0), 0) + ' sub' : '')"></span>
@@ -2184,50 +2184,50 @@
           </div>
 
           <!-- KPI strip -->
-          <div class="topics-kpis">
-            <div class="topics-kpi" @click="ui.waTopicsStatusFilter = (ui.waTopicsStatusFilter === 'open' ? '' : 'open')" :class="{ 'topics-kpi--active': ui.waTopicsStatusFilter === 'open' }" :style="ui.waTopicsStatusFilter === 'open' ? 'border-color:#3b82f6' : ''">
-              <div class="topics-kpi__icon" style="background:#3b82f618;color:#3b82f6">
+          <div class="op-kpi-strip">
+            <div class="op-stat op-stat--compact" style="cursor:pointer" @click="ui.waTopicsStatusFilter = (ui.waTopicsStatusFilter === 'open' ? '' : 'open')" :style="ui.waTopicsStatusFilter === 'open' ? 'border-color:#3b82f6' : ''">
+              <div class="op-stat__icon" style="background:#3b82f618;color:#3b82f6">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
               </div>
-              <div class="topics-kpi__body">
-                <span class="topics-kpi__count" x-text="data.waTopics.filter(t => t.status === 'open').length"></span>
-                <span class="topics-kpi__label">Abertos</span>
+              <div class="op-stat__body">
+                <span class="op-stat__value" x-text="data.waTopics.filter(t => t.status === 'open').length"></span>
+                <span class="op-stat__label">Abertos</span>
               </div>
             </div>
-            <div class="topics-kpi" @click="ui.waTopicsStatusFilter = (ui.waTopicsStatusFilter === 'active' ? '' : 'active')" :class="{ 'topics-kpi--active': ui.waTopicsStatusFilter === 'active' }" :style="ui.waTopicsStatusFilter === 'active' ? 'border-color:#f97316' : ''">
-              <div class="topics-kpi__icon" style="background:#f9731618;color:#f97316">
+            <div class="op-stat op-stat--compact" style="cursor:pointer" @click="ui.waTopicsStatusFilter = (ui.waTopicsStatusFilter === 'active' ? '' : 'active')" :style="ui.waTopicsStatusFilter === 'active' ? 'border-color:#f97316' : ''">
+              <div class="op-stat__icon" style="background:#f9731618;color:#f97316">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
               </div>
-              <div class="topics-kpi__body">
-                <span class="topics-kpi__count" x-text="data.waTopics.filter(t => t.status === 'active').length"></span>
-                <span class="topics-kpi__label">Ativos</span>
+              <div class="op-stat__body">
+                <span class="op-stat__value" x-text="data.waTopics.filter(t => t.status === 'active').length"></span>
+                <span class="op-stat__label">Ativos</span>
               </div>
             </div>
-            <div class="topics-kpi" @click="ui.waTopicsStatusFilter = (ui.waTopicsStatusFilter === 'pending_action' ? '' : 'pending_action')" :class="{ 'topics-kpi--active': ui.waTopicsStatusFilter === 'pending_action' }" :style="ui.waTopicsStatusFilter === 'pending_action' ? 'border-color:#eab308' : ''">
-              <div class="topics-kpi__icon" style="background:#eab30818;color:#eab308">
+            <div class="op-stat op-stat--compact" style="cursor:pointer" @click="ui.waTopicsStatusFilter = (ui.waTopicsStatusFilter === 'pending_action' ? '' : 'pending_action')" :style="ui.waTopicsStatusFilter === 'pending_action' ? 'border-color:#eab308' : ''">
+              <div class="op-stat__icon" style="background:#eab30818;color:#eab308">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               </div>
-              <div class="topics-kpi__body">
-                <span class="topics-kpi__count" x-text="data.waTopics.filter(t => t.status === 'pending_action').length"></span>
-                <span class="topics-kpi__label">Pendentes</span>
+              <div class="op-stat__body">
+                <span class="op-stat__value" x-text="data.waTopics.filter(t => t.status === 'pending_action').length"></span>
+                <span class="op-stat__label">Pendentes</span>
               </div>
             </div>
-            <div class="topics-kpi" @click="ui.waTopicsStatusFilter = (ui.waTopicsStatusFilter === 'resolved' ? '' : 'resolved')" :class="{ 'topics-kpi--active': ui.waTopicsStatusFilter === 'resolved' }" :style="ui.waTopicsStatusFilter === 'resolved' ? 'border-color:#10b981' : ''">
-              <div class="topics-kpi__icon" style="background:#10b98118;color:#10b981">
+            <div class="op-stat op-stat--compact" style="cursor:pointer" @click="ui.waTopicsStatusFilter = (ui.waTopicsStatusFilter === 'resolved' ? '' : 'resolved')" :style="ui.waTopicsStatusFilter === 'resolved' ? 'border-color:#10b981' : ''">
+              <div class="op-stat__icon" style="background:#10b98118;color:#10b981">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
               </div>
-              <div class="topics-kpi__body">
-                <span class="topics-kpi__count" x-text="data.waTopics.filter(t => t.status === 'resolved').length"></span>
-                <span class="topics-kpi__label">Resolvidos</span>
+              <div class="op-stat__body">
+                <span class="op-stat__value" x-text="data.waTopics.filter(t => t.status === 'resolved').length"></span>
+                <span class="op-stat__label">Resolvidos</span>
               </div>
             </div>
-            <div class="topics-kpi" @click="ui.waTopicsStatusFilter = (ui.waTopicsStatusFilter === 'converted_task' ? '' : 'converted_task')" :class="{ 'topics-kpi--active': ui.waTopicsStatusFilter === 'converted_task' }" :style="ui.waTopicsStatusFilter === 'converted_task' ? 'border-color:#8b5cf6' : ''">
-              <div class="topics-kpi__icon" style="background:#8b5cf618;color:#8b5cf6">
+            <div class="op-stat op-stat--compact" style="cursor:pointer" @click="ui.waTopicsStatusFilter = (ui.waTopicsStatusFilter === 'converted_task' ? '' : 'converted_task')" :style="ui.waTopicsStatusFilter === 'converted_task' ? 'border-color:#8b5cf6' : ''">
+              <div class="op-stat__icon" style="background:#8b5cf618;color:#8b5cf6">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
               </div>
-              <div class="topics-kpi__body">
-                <span class="topics-kpi__count" x-text="data.waTopics.filter(t => t.status === 'converted_task').length"></span>
-                <span class="topics-kpi__label">Tarefas</span>
+              <div class="op-stat__body">
+                <span class="op-stat__value" x-text="data.waTopics.filter(t => t.status === 'converted_task').length"></span>
+                <span class="op-stat__label">Tarefas</span>
               </div>
             </div>
           </div>
@@ -2245,7 +2245,7 @@
           </div>
 
           <!-- ---- BOARD VIEW ---- -->
-          <div class="topics-board" x-show="ui.waTopicsView === 'board'">
+          <div class="op-kanban" x-show="ui.waTopicsView === 'board'">
             <template x-for="col in [
               { key: 'open',           label: 'Abertos',    color: '#3b82f6' },
               { key: 'active',         label: 'Ativos',     color: '#f97316' },
@@ -2253,15 +2253,15 @@
               { key: 'resolved',       label: 'Resolvidos', color: '#10b981' },
               { key: 'converted_task', label: 'Convertidos',color: '#8b5cf6' }
             ]" :key="col.key">
-              <div class="topics-column">
-                <div class="topics-column__header">
+              <div class="op-kanban__column">
+                <div class="op-kanban__column-header" :style="'border-top:3px solid ' + col.color">
                   <span class="topics-column__dot" :style="'background:' + col.color"></span>
-                  <span class="topics-column__title" x-text="col.label"></span>
-                  <span class="topics-column__count" x-text="waTopicsFiltered(col.key).length"></span>
+                  <span x-text="col.label"></span>
+                  <span class="op-kanban__column-count" x-text="waTopicsFiltered(col.key).length"></span>
                 </div>
-                <div class="topics-column__cards">
+                <div class="op-kanban__column-body topics-column__cards">
                   <template x-for="topic in waTopicsFiltered(col.key)" :key="topic.id">
-                    <div class="topic-card" @click="openWaTopic(topic)">
+                    <div class="op-kanban__card topic-card" @click="openWaTopic(topic)">
                       <div class="topic-card__type" :style="'background:' + (topic.type_color || '#94a3b8') + '22; color:' + (topic.type_color || '#94a3b8')">
                         <span x-text="topic.type_name || 'Geral'"></span>
                       </div>
@@ -2284,7 +2284,7 @@
                       </div>
                     </div>
                   </template>
-                  <div class="topics-column__empty" x-show="waTopicsFiltered(col.key).length === 0">Nenhum tópico</div>
+                  <div class="op-kanban__empty" x-show="waTopicsFiltered(col.key).length === 0">Nenhum tópico</div>
                 </div>
               </div>
             </template>
@@ -2710,9 +2710,9 @@
             </div>
 
             <!-- Search + Filter + View Toggle -->
-            <div class="ds-toolbar" x-show="!ui.dsLoading">
-              <input type="text" class="ds-toolbar__search" placeholder="Buscar mentorado..." x-model.debounce.300ms="ui.dsSearchQuery" aria-label="Buscar mentorado">
-              <select class="ds-toolbar__select" x-model="ui.dsFilter" aria-label="Filtrar por status">
+            <div class="op-toolbar" x-show="!ui.dsLoading">
+              <input type="text" class="input" placeholder="Buscar mentorado..." x-model.debounce.300ms="ui.dsSearchQuery" aria-label="Buscar mentorado">
+              <select class="op-toolbar__select" x-model="ui.dsFilter" aria-label="Filtrar por status">
                 <option value="all">Todos</option>
                 <option value="nao_iniciado">Nao Iniciado</option>
                 <option value="producao">Producao</option>
@@ -2722,19 +2722,19 @@
                 <option value="finalizado">Finalizado</option>
                 <option value="pausado">Pausado/Cancelado</option>
               </select>
-              <span class="ds-toolbar__count" x-text="filteredDsProducoes.length + ' producoes'" aria-live="polite"></span>
-              <div class="ds-view-toggle" role="tablist" aria-label="Modo de visualizacao">
-                <button class="ds-view-toggle__btn" :class="{ 'ds-view-toggle__btn--active': ui.dsView === 'painel' }" @click="ui.dsView = 'painel'" role="tab" :aria-selected="ui.dsView === 'painel'">Painel</button>
-                <button class="ds-view-toggle__btn" :class="{ 'ds-view-toggle__btn--active': ui.dsView === 'pipeline' }" @click="ui.dsView = 'pipeline'" role="tab" :aria-selected="ui.dsView === 'pipeline'">Pipeline</button>
-                <button class="ds-view-toggle__btn" :class="{ 'ds-view-toggle__btn--active': ui.dsView === 'lista' }" @click="ui.dsView = 'lista'" role="tab" :aria-selected="ui.dsView === 'lista'">Lista</button>
+              <span class="op-toolbar__count" x-text="filteredDsProducoes.length + ' producoes'" aria-live="polite"></span>
+              <div class="op-tabs op-tabs--pills" style="margin-left:auto" role="tablist" aria-label="Modo de visualizacao">
+                <button class="op-tab" :class="{ 'active': ui.dsView === 'painel' }" @click="ui.dsView = 'painel'" role="tab" :aria-selected="ui.dsView === 'painel'">Painel</button>
+                <button class="op-tab" :class="{ 'active': ui.dsView === 'pipeline' }" @click="ui.dsView = 'pipeline'" role="tab" :aria-selected="ui.dsView === 'pipeline'">Pipeline</button>
+                <button class="op-tab" :class="{ 'active': ui.dsView === 'lista' }" @click="ui.dsView = 'lista'" role="tab" :aria-selected="ui.dsView === 'lista'">Lista</button>
               </div>
             </div>
 
             <!-- VIEW: Painel Industrial -->
             <div x-show="ui.dsView === 'painel' && !ui.dsLoading" role="tabpanel">
-              <div class="ds-prod-grid">
+              <div class="op-grid" style="grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:var(--sp-4)">
                 <template x-for="p in filteredDsProducoes" :key="p.producao_id">
-                  <div class="ds-prod-card" @click="openDsDetail(p.producao_id)">
+                  <div class="op-card ds-prod-card" @click="openDsDetail(p.producao_id)">
                     <div class="ds-prod-card__header">
                       <div class="ds-prod-card__avatar" :style="'background:' + avatarGradient(p.mentorado_nome)" x-text="avatarInitials(p.mentorado_nome)"></div>
                       <div class="ds-prod-card__info">
@@ -2775,21 +2775,21 @@
 
             <!-- VIEW: Pipeline Kanban (drag & drop) -->
             <div x-show="ui.dsView === 'pipeline' && !ui.dsLoading" class="ds-pipeline-wrapper" role="tabpanel">
-              <div class="ds-pipeline" role="list" aria-label="Pipeline de producao">
+              <div class="op-kanban ds-pipeline" role="list" aria-label="Pipeline de producao">
                 <template x-for="stage in DS_ESTAGIOS" :key="stage.id">
-                  <div class="ds-pipeline__col" role="listitem"
+                  <div class="op-kanban__column ds-pipeline__col" role="listitem"
                     @dragover.prevent="dsDragOver($event, stage.id)"
                     @dragleave="dsDragLeave($event, stage.id)"
                     @drop="dsDrop($event, stage.id)"
                     :class="{ 'ds-pipeline__col--dragover': dsDragOverStage === stage.id }"
                     :aria-label="stage.label + ' - ' + ((dsPipelineColumns()[stage.id] || []).length) + ' itens'">
-                    <div class="ds-pipeline__col-header" :style="'border-bottom: 3px solid ' + stage.color">
+                    <div class="op-kanban__column-header ds-pipeline__col-header" :style="'border-bottom: 3px solid ' + stage.color">
                       <span x-text="stage.icon + ' ' + stage.label"></span>
-                      <span class="ds-pipeline__col-count" x-text="(dsPipelineColumns()[stage.id] || []).length"></span>
+                      <span class="op-kanban__column-count" x-text="(dsPipelineColumns()[stage.id] || []).length"></span>
                     </div>
-                    <div class="ds-pipeline__col-body">
+                    <div class="op-kanban__column-body ds-pipeline__col-body">
                       <template x-for="p in (dsPipelineColumns()[stage.id] || [])" :key="p.producao_id">
-                        <div class="ds-pipeline__card"
+                        <div class="op-kanban__card ds-pipeline__card"
                           draggable="true"
                           @dragstart="dsDragStart($event, p.producao_id)"
                           @dragend="dsDragEnd($event)"
@@ -2815,7 +2815,7 @@
 
             <!-- VIEW: Lista (Tabela) -->
             <div x-show="ui.dsView === 'lista' && !ui.dsLoading" style="overflow-x:auto;" role="tabpanel">
-              <table class="ds-table" aria-label="Lista de producoes">
+              <table class="op-table ds-table" aria-label="Lista de producoes">
                 <thead>
                   <tr>
                     <th scope="col" @click="dsSortBy('mentorado_nome')" :class="{ 'ds-table__th--sorted': ui.dsSortField === 'mentorado_nome' }">Mentorado <span class="ds-sort-icon" x-text="ui.dsSortField === 'mentorado_nome' ? (ui.dsSortAsc ? '▲' : '▼') : '⇅'"></span></th>
@@ -2856,47 +2856,47 @@
           </div>
 
           <!-- KPI Strip -->
-          <div class="pa-page-kpis" x-data="{ pk: null }" x-init="$watch('data.paPlanos', () => pk = paPageKpis())" x-effect="pk = paPageKpis()">
-            <div class="pa-page-kpis__card">
-              <span class="pa-page-kpis__val" x-text="pk?.total || 0"></span>
-              <span class="pa-page-kpis__label">Total Planos</span>
+          <div class="op-kpi-strip" x-data="{ pk: null }" x-init="$watch('data.paPlanos', () => pk = paPageKpis())" x-effect="pk = paPageKpis()">
+            <div class="op-stat op-stat--compact">
+              <span class="op-stat__value" x-text="pk?.total || 0"></span>
+              <span class="op-stat__label">Total Planos</span>
             </div>
-            <div class="pa-page-kpis__card">
-              <span class="pa-page-kpis__val pa-page-kpis__val--info" x-text="pk?.emExecucao || 0"></span>
-              <span class="pa-page-kpis__label">Em Execução</span>
+            <div class="op-stat op-stat--compact">
+              <span class="op-stat__value op-stat__value--info" x-text="pk?.emExecucao || 0"></span>
+              <span class="op-stat__label">Em Execução</span>
             </div>
-            <div class="pa-page-kpis__card">
-              <span class="pa-page-kpis__val" :class="(pk?.parados || 0) > 0 ? 'pa-page-kpis__val--warning' : ''" x-text="pk?.parados || 0"></span>
-              <span class="pa-page-kpis__label">Parados &gt;14d</span>
+            <div class="op-stat op-stat--compact">
+              <span class="op-stat__value" :class="(pk?.parados || 0) > 0 ? 'op-stat__value--warning' : ''" x-text="pk?.parados || 0"></span>
+              <span class="op-stat__label">Parados &gt;14d</span>
             </div>
-            <div class="pa-page-kpis__card">
-              <span class="pa-page-kpis__val" :class="(pk?.bloqueadas || 0) > 0 ? 'pa-page-kpis__val--danger' : ''" x-text="pk?.bloqueadas || 0"></span>
-              <span class="pa-page-kpis__label">Ações Bloqueadas</span>
+            <div class="op-stat op-stat--compact">
+              <span class="op-stat__value" :class="(pk?.bloqueadas || 0) > 0 ? 'op-stat__value--danger' : ''" x-text="pk?.bloqueadas || 0"></span>
+              <span class="op-stat__label">Ações Bloqueadas</span>
             </div>
-            <div class="pa-page-kpis__card">
-              <span class="pa-page-kpis__val pa-page-kpis__val--success" x-text="(pk?.taxaConclusao || 0) + '%'"></span>
-              <span class="pa-page-kpis__label">Taxa Conclusão</span>
+            <div class="op-stat op-stat--compact">
+              <span class="op-stat__value op-stat__value--success" x-text="(pk?.taxaConclusao || 0) + '%'"></span>
+              <span class="op-stat__label">Taxa Conclusão</span>
             </div>
-            <div class="pa-page-kpis__card">
-              <span class="pa-page-kpis__val" x-text="(pk?.mediaDias || 0) + 'd'"></span>
-              <span class="pa-page-kpis__label">Média s/ Update</span>
+            <div class="op-stat op-stat--compact">
+              <span class="op-stat__value" x-text="(pk?.mediaDias || 0) + 'd'"></span>
+              <span class="op-stat__label">Média s/ Update</span>
             </div>
           </div>
 
           <!-- Search + Filters + View Toggle -->
-          <div class="pa-search">
-            <input type="text" class="pa-search__input" placeholder="Buscar mentorado..." x-model.debounce.300ms="ui.paSearchQuery">
-            <select class="ln-select" x-model="ui.paFilter">
+          <div class="op-toolbar">
+            <input type="text" class="input" placeholder="Buscar mentorado..." x-model.debounce.300ms="ui.paSearchQuery">
+            <select class="op-toolbar__select" x-model="ui.paFilter">
               <option value="all">Todos os status</option>
               <option value="nao_iniciado">Aguardando Início</option>
               <option value="em_andamento">Em Execução</option>
               <option value="pausado">Pausado</option>
               <option value="concluido">Concluído</option>
             </select>
-            <div class="pa-view-toggle">
-              <button class="pa-view-toggle__btn" :class="{ 'pa-view-toggle__btn--active': ui.paView === 'painel' }" @click="ui.paView = 'painel'">Painel</button>
-              <button class="pa-view-toggle__btn" :class="{ 'pa-view-toggle__btn--active': ui.paView === 'pipeline' }" @click="ui.paView = 'pipeline'">Pipeline</button>
-              <button class="pa-view-toggle__btn" :class="{ 'pa-view-toggle__btn--active': ui.paView === 'list' }" @click="ui.paView = 'list'">Lista</button>
+            <div class="op-tabs op-tabs--pills" style="margin-left:auto">
+              <button class="op-tab" :class="{ 'active': ui.paView === 'painel' }" @click="ui.paView = 'painel'">Painel</button>
+              <button class="op-tab" :class="{ 'active': ui.paView === 'pipeline' }" @click="ui.paView = 'pipeline'">Pipeline</button>
+              <button class="op-tab" :class="{ 'active': ui.paView === 'list' }" @click="ui.paView = 'list'">Lista</button>
             </div>
           </div>
 
@@ -2913,8 +2913,8 @@
                 <div class="pa-sentinel-card__fase" x-show="p.fase_atual" x-text="p.fase_atual || ''"></div>
                 <!-- Overall progress bar -->
                 <div class="pa-sentinel-card__progress">
-                  <div class="pa-progress-bar" style="flex:1">
-                    <div class="pa-progress-bar__fill" :style="'width:' + (p.pct_concluido || 0) + '%'"></div>
+                  <div class="op-progress" style="flex:1">
+                    <div class="op-progress__bar" :style="'width:' + (p.pct_concluido || 0) + '%'"></div>
                   </div>
                   <span class="pa-sentinel-card__progress-label" x-text="(p.acoes_concluidas || 0) + '/' + (p.total_acoes || 0) + ' ações'"></span>
                 </div>
@@ -2957,20 +2957,20 @@
           </div>
 
           <!-- ===== VIEW: PIPELINE (Kanban) ===== -->
-          <div class="pa-pipeline" x-show="ui.paView === 'pipeline'">
+          <div class="op-kanban" x-show="ui.paView === 'pipeline'">
             <template x-for="col in paPipelineColumns()" :key="col.status">
-              <div class="pa-pipeline__col">
-                <div class="pa-pipeline__col-header" :style="'border-top:3px solid ' + paStatusColor(col.status)">
+              <div class="op-kanban__column">
+                <div class="op-kanban__column-header" :style="'border-top:3px solid ' + paStatusColor(col.status)">
                   <span x-text="col.label"></span>
                   <span class="badge badge--sm badge--neutral" x-text="col.items.length"></span>
                 </div>
-                <div class="pa-pipeline__cards">
+                <div class="op-kanban__column-body">
                   <template x-for="p in col.items" :key="p.plano_id">
-                    <div class="pa-pipeline__card" @click="loadMenteeDetail(p.mentorado_id); $nextTick(() => { ui.activeDetailTab = 'plano_acao'; loadMenteePa(p.mentorado_id); })">
+                    <div class="op-kanban__card" @click="loadMenteeDetail(p.mentorado_id); $nextTick(() => { ui.activeDetailTab = 'plano_acao'; loadMenteePa(p.mentorado_id); })">
                       <div class="pa-pipeline__card-name" x-text="p.mentorado_nome"></div>
                       <div class="pa-pipeline__card-fase" x-text="p.fase_atual || '-'" x-show="p.fase_atual"></div>
-                      <div class="pa-progress-bar pa-progress-bar--sm" style="margin:6px 0">
-                        <div class="pa-progress-bar__fill" :style="'width:' + (p.pct_concluido || 0) + '%'"></div>
+                      <div class="op-progress op-progress--sm" style="margin:6px 0">
+                        <div class="op-progress__bar" :style="'width:' + (p.pct_concluido || 0) + '%'"></div>
                       </div>
                       <div class="pa-pipeline__card-meta">
                         <span x-text="(p.acoes_concluidas || 0) + '/' + (p.total_acoes || 0)"></span>
@@ -2996,7 +2996,7 @@
                       </div>
                     </div>
                   </template>
-                  <div class="pa-pipeline__empty" x-show="!col.items.length">Nenhum plano</div>
+                  <div class="op-kanban__empty" x-show="!col.items.length">Nenhum plano</div>
                 </div>
               </div>
             </template>
@@ -3028,8 +3028,8 @@
                     <td style="font-size:12px" x-text="p.fase_atual || '-'"></td>
                     <td>
                       <div style="display:flex;align-items:center;gap:6px">
-                        <div class="pa-progress-bar pa-progress-bar--sm" style="width:50px">
-                          <div class="pa-progress-bar__fill" :style="'width:' + (p.pct_concluido || 0) + '%'"></div>
+                        <div class="op-progress op-progress--sm" style="width:50px">
+                          <div class="op-progress__bar" :style="'width:' + (p.pct_concluido || 0) + '%'"></div>
                         </div>
                         <span style="font-size:11px;font-weight:600" x-text="(p.pct_concluido || 0) + '%'"></span>
                       </div>
@@ -3062,47 +3062,47 @@
           </div>
 
           <!-- KPI Strip -->
-          <div class="ob-page-kpis" x-show="!data.obTrilhaDetail && !ui.obTemplateMode" x-data="{ ok: null }" x-effect="ok = obPageKpis()">
-            <div class="ob-page-kpis__card">
-              <span class="ob-page-kpis__val" x-text="ok?.total || 0"></span>
-              <span class="ob-page-kpis__label">Total Trilhas</span>
+          <div class="op-kpi-strip" x-show="!data.obTrilhaDetail && !ui.obTemplateMode" x-data="{ ok: null }" x-effect="ok = obPageKpis()">
+            <div class="op-stat op-stat--compact">
+              <span class="op-stat__value" x-text="ok?.total || 0"></span>
+              <span class="op-stat__label">Total Trilhas</span>
             </div>
-            <div class="ob-page-kpis__card">
-              <span class="ob-page-kpis__val ob-page-kpis__val--info" x-text="ok?.emAndamento || 0"></span>
-              <span class="ob-page-kpis__label">Em Andamento</span>
+            <div class="op-stat op-stat--compact">
+              <span class="op-stat__value op-stat__value--info" x-text="ok?.emAndamento || 0"></span>
+              <span class="op-stat__label">Em Andamento</span>
             </div>
-            <div class="ob-page-kpis__card">
-              <span class="ob-page-kpis__val ob-page-kpis__val--success" x-text="ok?.concluidas || 0"></span>
-              <span class="ob-page-kpis__label">Concluídas</span>
+            <div class="op-stat op-stat--compact">
+              <span class="op-stat__value op-stat__value--success" x-text="ok?.concluidas || 0"></span>
+              <span class="op-stat__label">Concluídas</span>
             </div>
-            <div class="ob-page-kpis__card">
-              <span class="ob-page-kpis__val" :class="(ok?.atrasadas || 0) > 0 ? 'ob-page-kpis__val--danger' : ''" x-text="ok?.atrasadas || 0"></span>
-              <span class="ob-page-kpis__label">Com Atraso</span>
+            <div class="op-stat op-stat--compact">
+              <span class="op-stat__value" :class="(ok?.atrasadas || 0) > 0 ? 'op-stat__value--danger' : ''" x-text="ok?.atrasadas || 0"></span>
+              <span class="op-stat__label">Com Atraso</span>
             </div>
-            <div class="ob-page-kpis__card">
-              <span class="ob-page-kpis__val ob-page-kpis__val--success" x-text="(ok?.progressoMedio || 0) + '%'"></span>
-              <span class="ob-page-kpis__label">Progresso Médio</span>
+            <div class="op-stat op-stat--compact">
+              <span class="op-stat__value op-stat__value--success" x-text="(ok?.progressoMedio || 0) + '%'"></span>
+              <span class="op-stat__label">Progresso Médio</span>
             </div>
-            <div class="ob-page-kpis__card">
-              <span class="ob-page-kpis__val" x-text="(ok?.duracaoMedia || 0) + 'd'"></span>
-              <span class="ob-page-kpis__label">Duração Média</span>
+            <div class="op-stat op-stat--compact">
+              <span class="op-stat__value" x-text="(ok?.duracaoMedia || 0) + 'd'"></span>
+              <span class="op-stat__label">Duração Média</span>
             </div>
           </div>
 
           <!-- Search + Filter + View Toggle + Template btn -->
-          <div class="ob-toolbar" x-show="!data.obTrilhaDetail && !ui.obTemplateMode">
-            <input type="text" class="ob-search__input" placeholder="Buscar mentorado ou CS..." x-model.debounce.300ms="ui.obSearchQuery">
-            <select class="ln-select" x-model="ui.obFilter">
+          <div class="op-toolbar" x-show="!data.obTrilhaDetail && !ui.obTemplateMode">
+            <input type="text" class="input" placeholder="Buscar mentorado ou CS..." x-model.debounce.300ms="ui.obSearchQuery">
+            <select class="op-toolbar__select" x-model="ui.obFilter">
               <option value="all">Todos os status</option>
               <option value="em_andamento">Em Andamento</option>
               <option value="concluido">Concluído</option>
               <option value="pausado">Pausado</option>
               <option value="atrasado">Com Atraso</option>
             </select>
-            <div class="ob-view-toggle">
-              <button class="ob-view-toggle__btn" :class="{ 'ob-view-toggle__btn--active': ui.obView === 'painel' }" @click="ui.obView = 'painel'">Painel</button>
-              <button class="ob-view-toggle__btn" :class="{ 'ob-view-toggle__btn--active': ui.obView === 'pipeline' }" @click="ui.obView = 'pipeline'">Pipeline</button>
-              <button class="ob-view-toggle__btn" :class="{ 'ob-view-toggle__btn--active': ui.obView === 'lista' }" @click="ui.obView = 'lista'">Lista</button>
+            <div class="op-tabs op-tabs--pills" style="margin-left:auto">
+              <button class="op-tab" :class="{ 'active': ui.obView === 'painel' }" @click="ui.obView = 'painel'">Painel</button>
+              <button class="op-tab" :class="{ 'active': ui.obView === 'pipeline' }" @click="ui.obView = 'pipeline'">Pipeline</button>
+              <button class="op-tab" :class="{ 'active': ui.obView === 'lista' }" @click="ui.obView = 'lista'">Lista</button>
             </div>
             <button class="btn btn--sm btn--outline" @click="openObTemplateEditor()">Template</button>
             <button class="btn btn--sm btn--primary" @click="ui.obNewTrilhaModal = true">+ Nova Trilha</button>
@@ -3138,8 +3138,8 @@
                       <span class="ob-etapa__name" x-text="etapa.nome"></span>
                       <span class="ob-etapa__badge" :style="'background:' + (etapa.cor || '#6b7280') + '20; color:' + (etapa.cor || '#6b7280')" x-text="etapa.tipo === 'paralelo' ? 'Paralelo' : 'Sequencial'"></span>
                       <div class="ob-etapa__progress-mini">
-                        <div class="ob-progress ob-progress--sm">
-                          <div class="ob-progress__fill" :style="'width:' + obEtapaProgress(etapa) + '%;background:' + obProgressColor(obEtapaProgress(etapa))"></div>
+                        <div class="op-progress op-progress--sm">
+                          <div class="op-progress__bar" :style="'width:' + obEtapaProgress(etapa) + '%;background:' + obProgressColor(obEtapaProgress(etapa))"></div>
                         </div>
                         <span class="ob-etapa__progress-label" x-text="etapa.tarefas.filter(t => t.status === 'concluido').length + '/' + etapa.tarefas.length"></span>
               <span class="ob-duracao ob-duracao--ok" style="margin-left:6px;font-size:11px;" x-text="obEtapaDuracao(etapa) + 'd'"></span>
@@ -3231,17 +3231,17 @@
 
           <!-- ===== VIEW: PAINEL (cards) ===== -->
           <div x-show="ui.obView === 'painel' && !data.obTrilhaDetail && !ui.obTemplateMode">
-            <div class="ob-card-grid">
+            <div class="op-grid op-grid-auto-fill" style="gap:16px">
               <template x-for="t in filteredObTrilhas" :key="t.trilha_id">
-                <div class="ob-card" @click="loadObDetail(t.trilha_id)">
+                <div class="op-card ob-card" @click="loadObDetail(t.trilha_id)">
                   <div class="ob-card__header">
                     <span class="ob-card__name" x-text="t.mentorado_nome"></span>
                     <span class="badge badge--sm" :style="'background:' + obStatusColor(t.status) + '20; color:' + obStatusColor(t.status)" x-text="obStatusLabel(t.status)"></span>
                   </div>
                   <div class="ob-card__cs">CS: <strong x-text="t.responsavel || '-'"></strong></div>
                   <div class="ob-card__progress">
-                    <div class="ob-progress">
-                      <div class="ob-progress__fill" :style="'width:' + (t.progresso_pct || 0) + '%;background:' + obProgressColor(t.progresso_pct || 0)"></div>
+                    <div class="op-progress">
+                      <div class="op-progress__bar" :style="'width:' + (t.progresso_pct || 0) + '%;background:' + obProgressColor(t.progresso_pct || 0)"></div>
                     </div>
                     <span class="ob-card__progress-label" x-text="(t.progresso_pct || 0) + '%'"></span>
                   </div>
@@ -3259,20 +3259,20 @@
           </div>
 
           <!-- ===== VIEW: PIPELINE (kanban) ===== -->
-          <div class="ob-pipeline" x-show="ui.obView === 'pipeline' && !data.obTrilhaDetail && !ui.obTemplateMode">
+          <div class="op-kanban" x-show="ui.obView === 'pipeline' && !data.obTrilhaDetail && !ui.obTemplateMode">
             <template x-for="col in obPipelineColumns()" :key="col.status">
-              <div class="ob-pipeline__col">
-                <div class="ob-pipeline__col-header" :style="'border-top:3px solid ' + col.color">
+              <div class="op-kanban__column">
+                <div class="op-kanban__column-header" :style="'border-top:3px solid ' + col.color">
                   <span x-text="col.label"></span>
                   <span class="badge badge--sm badge--neutral" x-text="col.items.length"></span>
                 </div>
-                <div class="ob-pipeline__cards">
+                <div class="op-kanban__column-body">
                   <template x-for="t in col.items" :key="t.trilha_id">
-                    <div class="ob-pipeline__card" @click="loadObDetail(t.trilha_id)">
+                    <div class="op-kanban__card" @click="loadObDetail(t.trilha_id)">
                       <div class="ob-pipeline__card-name" x-text="t.mentorado_nome"></div>
                       <div class="ob-pipeline__card-cs" x-text="'CS: ' + (t.responsavel || '-')"></div>
-                      <div class="ob-progress ob-progress--sm" style="margin:6px 0">
-                        <div class="ob-progress__fill" :style="'width:' + (t.progresso_pct || 0) + '%;background:' + obProgressColor(t.progresso_pct || 0)"></div>
+                      <div class="op-progress op-progress--sm" style="margin:6px 0">
+                        <div class="op-progress__bar" :style="'width:' + (t.progresso_pct || 0) + '%;background:' + obProgressColor(t.progresso_pct || 0)"></div>
                       </div>
                       <div class="ob-pipeline__card-meta">
                         <span x-text="(t.tarefas_concluidas || 0) + '/' + (t.total_tarefas || 0)"></span>
@@ -3280,7 +3280,7 @@
                       </div>
                     </div>
                   </template>
-                  <div class="ob-pipeline__empty" x-show="!col.items.length">Nenhuma trilha</div>
+                  <div class="op-kanban__empty" x-show="!col.items.length">Nenhuma trilha</div>
                 </div>
               </div>
             </template>
@@ -3310,8 +3310,8 @@
                       <td><span class="badge badge--sm" :style="'background:' + obStatusColor(t.status) + '20; color:' + obStatusColor(t.status)" x-text="obStatusLabel(t.status)"></span></td>
                       <td>
                         <div style="display:flex;align-items:center;gap:6px">
-                          <div class="ob-progress ob-progress--sm" style="width:50px">
-                            <div class="ob-progress__fill" :style="'width:' + (t.progresso_pct || 0) + '%;background:' + obProgressColor(t.progresso_pct || 0)"></div>
+                          <div class="op-progress op-progress--sm" style="width:50px">
+                            <div class="op-progress__bar" :style="'width:' + (t.progresso_pct || 0) + '%;background:' + obProgressColor(t.progresso_pct || 0)"></div>
                           </div>
                           <span style="font-size:11px;font-weight:600" x-text="(t.progresso_pct || 0) + '%'"></span>
                         </div>
@@ -3396,9 +3396,9 @@
         <!-- ===== PAGE: EQUIPE ===== -->
         <div class="page-content" x-show="ui.page === 'equipe'" x-transition>
           <div class="page-header"><h2>Dashboard da Equipe</h2></div>
-          <div class="team-grid">
+          <div class="op-grid op-grid-cols-3" style="gap:16px">
             <template x-for="member in teamStats" :key="member.name">
-              <div class="team-card" @click="taskAssignee = member.name; navigate('tasks')">
+              <div class="op-card team-card" @click="taskAssignee = member.name; navigate('tasks')">
                 <div class="team-card__header">
                   <div class="avatar avatar--md avatar--brand" :style="'background:' + avatarGradient(member.name)" x-text="avatarInitials(member.name)"></div>
                   <div>
