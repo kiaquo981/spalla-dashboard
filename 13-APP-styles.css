@@ -1266,6 +1266,35 @@ img { max-width: 100%; display: block; }
 .wa-chat__empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--neutral-400); gap: var(--sp-3); }
 .wa-chat__loading { text-align: center; color: var(--neutral-400); padding: var(--sp-4); }
 
+/* Story 3.4: Disconnected banner */
+.wa-chat__disconnected-banner {
+  padding: 8px 16px;
+  background: rgba(245, 158, 11, 0.08);
+  border-top: 1px solid rgba(245, 158, 11, 0.2);
+  font-size: 12px;
+  color: #92400e;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dark .wa-chat__disconnected-banner { color: #fcd34d; }
+
+/* Story 3.2: Attach button */
+.wa-attach-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--neutral-400, #94a3b8);
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.wa-attach-btn:hover { background: var(--neutral-100, #f1f5f9); color: var(--primary, #6366f1); }
+.wa-attach-btn--loading { cursor: wait; color: var(--primary, #6366f1); }
+
 .wa-bubble { max-width: 70%; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); font-size: var(--text-sm); background: #fff; box-shadow: var(--shadow-sm); align-self: flex-start; display: flex; flex-direction: column; }
 .wa-bubble--me { background: #dcf8c6; align-self: flex-end; }
 .wa-bubble__sender { font-weight: 600; font-size: var(--text-xs); color: var(--brand-600); margin-bottom: 2px; }

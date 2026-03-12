@@ -175,6 +175,7 @@ function operon() {
       // WhatsApp Per-User Session
       waSessionLoading: false,
       waQrPolling: false,
+      waSendingMedia: false,
       // WA Topics Board
       waTopicsView: 'board',
       waTopicsSearch: '',
@@ -1023,8 +1024,9 @@ function operon() {
           this.fetchUpcomingCalls();
           // Fetch Instagram profiles from Apify (background, non-blocking)
           this.updateInstagramProfiles();
-          // Load WhatsApp per-user session
+          // Load WhatsApp per-user session + start health check
           this.loadWaSession();
+          this.waStartHealthCheck();
         }
       } catch (e) {
         console.error('[Spalla] INIT ERROR:', e);
@@ -3173,12 +3175,26 @@ function operon() {
       this.startWhatsAppPolling();
     },
 
+    // Story 3.1: Dynamic send routing — uses user's instance if connected, fallback to producao002
+    _waActiveInstance() {
+      const session = this.data.waSession;
+      if (session?.status === 'connected' && session?.instance_name) {
+        return { instance: session.instance_name, isPersonal: true };
+      }
+      return { instance: EVOLUTION_INSTANCE, isPersonal: false };
+    },
+
     async sendWhatsAppMessage() {
-      if (!EVOLUTION_INSTANCE || !this.ui.whatsappMessage.trim() || !this.ui.whatsappSelectedChat) return;
+      if (!this.ui.whatsappMessage.trim() || !this.ui.whatsappSelectedChat) return;
+      const { instance, isPersonal } = this._waActiveInstance();
+      if (!instance) { this.toast('WhatsApp nao configurado', 'info'); return; }
       const msg = this.ui.whatsappMessage.trim();
       this.ui.whatsappMessage = '';
+      if (!isPersonal) {
+        this.toast('Enviando pelo numero central (conecte seu WhatsApp em Configuracoes)', 'warning');
+      }
       try {
-        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/message/sendText/${EVOLUTION_INSTANCE}`, {
+        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/message/sendText/${instance}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ number: this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id, text: msg }),
@@ -3188,9 +3204,8 @@ function operon() {
             key: { fromMe: true },
             message: { conversation: msg },
             messageTimestamp: Math.floor(Date.now() / 1000),
-            pushName: 'Equipe CASE',
+            pushName: isPersonal ? (this.auth.currentUser?.user_metadata?.full_name || 'Voce') : 'Equipe CASE',
           });
-          this.toast('Mensagem enviada', 'success');
           this.$nextTick(() => {
             const el = document.getElementById('wa-messages-end');
             if (el) el.scrollIntoView({ behavior: 'smooth' });
@@ -3201,6 +3216,88 @@ function operon() {
       } catch (e) {
         console.error('[Spalla] WA send error:', e);
         this.toast('Erro ao enviar: ' + e.message, 'error');
+        this.ui.whatsappMessage = msg; // restore on error
+      }
+    },
+
+    // Story 3.2: Send media (image, document, audio)
+    async waSendMedia(file) {
+      if (!file || !this.ui.whatsappSelectedChat) return;
+      const { instance } = this._waActiveInstance();
+      if (!instance) { this.toast('WhatsApp nao configurado', 'info'); return; }
+      const maxBytes = 16 * 1024 * 1024; // 16MB WhatsApp limit
+      if (file.size > maxBytes) {
+        this.toast('Arquivo muito grande (maximo 16MB)', 'error');
+        return;
+      }
+      // Determine media type
+      let mediatype = 'document';
+      if (file.type.startsWith('image/')) mediatype = 'image';
+      else if (file.type.startsWith('video/')) mediatype = 'video';
+      else if (file.type.startsWith('audio/')) mediatype = 'audio';
+      // Convert to base64
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      this.ui.waSendingMedia = true;
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/message/sendMedia/${instance}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            number: this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id,
+            mediatype,
+            media: base64,
+            fileName: file.name,
+            caption: '',
+          }),
+        });
+        if (res.ok) {
+          // Optimistic message in thread
+          const msgObj = { key: { fromMe: true }, messageTimestamp: Math.floor(Date.now() / 1000), pushName: 'Voce' };
+          if (mediatype === 'image') msgObj.message = { imageMessage: { caption: file.name } };
+          else if (mediatype === 'audio') msgObj.message = { audioMessage: {} };
+          else if (mediatype === 'video') msgObj.message = { videoMessage: { caption: file.name } };
+          else msgObj.message = { documentMessage: { fileName: file.name } };
+          this.data.whatsappMessages.push(msgObj);
+          this.toast(`${mediatype === 'image' ? 'Imagem' : mediatype === 'audio' ? 'Audio' : mediatype === 'video' ? 'Video' : 'Documento'} enviado`, 'success');
+          this.$nextTick(() => {
+            const el = document.getElementById('wa-messages-end');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+          });
+        } else {
+          throw new Error(`HTTP ${res.status}`);
+        }
+      } catch (e) {
+        console.error('[Spalla] WA media send error:', e);
+        this.toast('Erro ao enviar arquivo: ' + e.message, 'error');
+      }
+      this.ui.waSendingMedia = false;
+    },
+
+    waHandleFileAttach(e) {
+      const file = e.target?.files?.[0];
+      if (file) this.waSendMedia(file);
+      if (e.target) e.target.value = ''; // reset input
+    },
+
+    // Story 3.3: Health check — 60s periodic polling
+    waStartHealthCheck() {
+      if (this._waHealthInterval) clearInterval(this._waHealthInterval);
+      this._waHealthInterval = setInterval(async () => {
+        const session = this.data.waSession;
+        if (!session || session.status !== 'connected') return;
+        await this.waVerifyConnection(session.instance_name);
+      }, 60000);
+    },
+
+    waStopHealthCheck() {
+      if (this._waHealthInterval) {
+        clearInterval(this._waHealthInterval);
+        this._waHealthInterval = null;
       }
     },
 

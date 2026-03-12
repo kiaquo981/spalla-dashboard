@@ -139,10 +139,10 @@ Cada usuario do Spalla conecta seu proprio WhatsApp via QR Code para enviar mens
 **para que** o mentorado receba a mensagem do meu numero pessoal.
 
 **Acceptance Criteria:**
-- [ ] `sendWhatsAppMessage()` usa `wa_sessions.instance_name` do user logado
-- [ ] Fallback para `producao002` se user nao tem instancia conectada
-- [ ] Toast de aviso se enviando pelo numero central (fallback)
-- [ ] Mensagem enviada aparece no thread otimisticamente
+- [x] `sendWhatsAppMessage()` usa `wa_sessions.instance_name` do user logado
+- [x] Fallback para `producao002` se user nao tem instancia conectada
+- [x] Toast de aviso se enviando pelo numero central (fallback)
+- [x] Mensagem enviada aparece no thread otimisticamente
 
 **File List:**
 - `11-APP-app.js` (sendWhatsAppMessage refactor)
@@ -155,12 +155,12 @@ Cada usuario do Spalla conecta seu proprio WhatsApp via QR Code para enviar mens
 **para que** eu nao precise alternar entre Spalla e WhatsApp.
 
 **Acceptance Criteria:**
-- [ ] Botao de anexo no chat
-- [ ] Upload de imagem: `POST /message/sendMedia/{instance}` com `mediatype: image`
-- [ ] Upload de documento: `POST /message/sendMedia/{instance}` com `mediatype: document`
-- [ ] Preview do arquivo antes de enviar
-- [ ] Progress indicator durante upload
-- [ ] Limite de tamanho: 16MB (limite do WhatsApp)
+- [x] Botao de anexo no chat
+- [x] Upload de imagem: `POST /message/sendMedia/{instance}` com `mediatype: image`
+- [x] Upload de documento: `POST /message/sendMedia/{instance}` com `mediatype: document`
+- [ ] Preview do arquivo antes de enviar (nao implementado — direto ao envio)
+- [x] Progress indicator durante upload (spinner no botao de anexo)
+- [x] Limite de tamanho: 16MB (limite do WhatsApp)
 
 **File List:**
 - `11-APP-app.js` (waSendMedia)
@@ -175,11 +175,11 @@ Cada usuario do Spalla conecta seu proprio WhatsApp via QR Code para enviar mens
 **para que** desconexoes sejam detectadas e tratadas automaticamente.
 
 **Acceptance Criteria:**
-- [ ] Polling a cada 60s: `GET /instance/connectionState/{instance}`
-- [ ] Se `close`: tenta `PUT /instance/restart/{instance}` (1x)
-- [ ] Se restart falha: banner "WhatsApp desconectado — Reconectar"
-- [ ] Atualiza `wa_sessions.last_health_check` a cada check
-- [ ] Nao roda health check se user nao tem sessao
+- [x] Polling a cada 60s: `GET /instance/connectionState/{instance}`
+- [x] Se `close`: tenta `PUT /instance/restart/{instance}` (1x)
+- [x] Se restart falha: atualiza status para disconnected
+- [x] Atualiza `wa_sessions.last_health_check` a cada check
+- [x] Nao roda health check se user nao tem sessao
 
 **File List:**
 - `11-APP-app.js` (waHealthCheck interval)
@@ -192,9 +192,9 @@ Cada usuario do Spalla conecta seu proprio WhatsApp via QR Code para enviar mens
 **para que** eu saiba se posso enviar mensagens antes de ir ao chat.
 
 **Acceptance Criteria:**
-- [ ] Dot no sidebar (item WhatsApp): verde=conectado, cinza=desconectado
-- [ ] Tooltip com numero conectado e tempo de conexao
-- [ ] No chat: se desconectado, campo de envio desabilitado com mensagem "Conecte seu WhatsApp em Configuracoes"
+- [x] Dot no sidebar (item WhatsApp): verde=conectado, amarelo=pendente
+- [x] Tooltip com numero conectado
+- [x] No chat: banner informativo se usando numero central, link para Configuracoes
 
 **File List:**
 - `10-APP-index.html` (sidebar dot, chat disabled state)
