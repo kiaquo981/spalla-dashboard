@@ -183,7 +183,6 @@ CREATE VIEW vw_wa_topic_board AS
 SELECT
   t.*,
   m.nome                           AS mentorado_nome,
-  m.foto                           AS mentorado_foto,
   tt.name                          AS type_name,
   tt.slug                          AS type_slug,
   tt.color                         AS type_color,
