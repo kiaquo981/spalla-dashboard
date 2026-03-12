@@ -263,23 +263,23 @@ function operon() {
 
     // Task organization: 2 Spaces — Jornada (mentee-owned) + Gestão (team-owned)
     spaces: [
-      { id: 'space_jornada', name: 'Jornada Mentorados', icon: '🎯', color: '#6366f1',
+      { id: 'space_jornada', name: 'Jornada Mentorados', icon: '◎', color: '#6366f1',
         lists: [
-          { id: 'list_onboarding', name: 'Onboarding', icon: '🚀' },
-          { id: 'list_concepcao', name: 'Concepção', icon: '💡' },
-          { id: 'list_validacao', name: 'Validação', icon: '✅' },
-          { id: 'list_otimizacao', name: 'Otimização', icon: '⚡' },
-          { id: 'list_escala', name: 'Escala', icon: '📈' },
+          { id: 'list_onboarding', name: 'Onboarding', icon: '▸' },
+          { id: 'list_concepcao', name: 'Concepção', icon: '◇' },
+          { id: 'list_validacao', name: 'Validação', icon: '●' },
+          { id: 'list_otimizacao', name: 'Otimização', icon: '◆' },
+          { id: 'list_escala', name: 'Escala', icon: '▲' },
         ]
       },
-      { id: 'space_gestao', name: 'Gestão CASE', icon: '⚙️', color: '#f59e0b',
+      { id: 'space_gestao', name: 'Gestão CASE', icon: '◈', color: '#f59e0b',
         lists: [
-          { id: 'list_direcionamentos', name: 'Direcionamentos Queila', icon: '👑' },
-          { id: 'list_operacional', name: 'Operacional', icon: '🔧' },
-          { id: 'list_conteudo', name: 'Conteúdo & Marketing', icon: '📱' },
-          { id: 'list_vendas', name: 'Vendas & Comercial', icon: '💰' },
-          { id: 'list_playbooks', name: 'Playbooks & Materiais', icon: '📚' },
-          { id: 'list_dossies', name: 'Dossiês', icon: '📋' },
+          { id: 'list_direcionamentos', name: 'Direcionamentos Queila', icon: '★' },
+          { id: 'list_operacional', name: 'Operacional', icon: '✦' },
+          { id: 'list_conteudo', name: 'Conteúdo & Marketing', icon: '◉' },
+          { id: 'list_vendas', name: 'Vendas & Comercial', icon: '◆' },
+          { id: 'list_playbooks', name: 'Playbooks & Materiais', icon: '■' },
+          { id: 'list_dossies', name: 'Dossiês', icon: '◇' },
         ]
       },
     ],
@@ -1892,8 +1892,12 @@ function operon() {
     },
 
     paTipoIcon(tipo) {
-      const map = { revisao_dossie: '📋', fase: '🧭', passo_executivo: '⚡' };
-      return map[tipo] || '📌';
+      const svgs = {
+        revisao_dossie: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>',
+        fase: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>',
+        passo_executivo: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+      };
+      return svgs[tipo] || '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>';
     },
 
     paOrigemLabel(origem) {
@@ -4203,9 +4207,9 @@ function operon() {
 
     // --- OB Constants ---
     OB_STATUS: [
-      { id: 'em_andamento', label: 'Em Andamento', color: '#3b82f6', icon: '🔄' },
-      { id: 'concluido', label: 'Concluído', color: '#10b981', icon: '✅' },
-      { id: 'pausado', label: 'Pausado', color: '#6b7280', icon: '⏸️' },
+      { id: 'em_andamento', label: 'Em Andamento', color: '#3b82f6', icon: '◌' },
+      { id: 'concluido', label: 'Concluído', color: '#10b981', icon: '●' },
+      { id: 'pausado', label: 'Pausado', color: '#6b7280', icon: '◎' },
     ],
 
     obStatusLabel(s) {
@@ -4406,7 +4410,7 @@ function operon() {
       } else {
         const maxOrdem = this.data.obTemplateEtapas.reduce((max, e) => Math.max(max, e.ordem), 0);
         const { error } = await sb.from('ob_template_etapas').insert({
-          nome: etapa.nome || 'Nova Etapa', tipo: etapa.tipo || 'sequencial', ordem: maxOrdem + 1, cor: etapa.cor || '#6b7280', icone: etapa.icone || '📋',
+          nome: etapa.nome || 'Nova Etapa', tipo: etapa.tipo || 'sequencial', ordem: maxOrdem + 1, cor: etapa.cor || '#6b7280', icone: etapa.icone || '◆',
         });
         if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
       }
@@ -4556,8 +4560,8 @@ function operon() {
     },
 
     obEtapaStatusIcon(status) {
-      const m = { pendente: '⏳', em_andamento: '🔄', concluido: '✅' };
-      return m[status] || '⏳';
+      const m = { pendente: '○', em_andamento: '◌', concluido: '●' };
+      return m[status] || '○';
     },
 
     toggleObEtapa(etapaId) {

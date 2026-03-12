@@ -763,22 +763,22 @@ const DOSSIER_STATUS_CONFIG = {
 
 // ===== DOSSIÊ PRODUCTION SYSTEM CONSTANTS =====
 const DS_ESTAGIOS = [
-  { id: 'pendente', label: 'Pendente', color: '#6b7280', icon: '⏳', responsavel: null },
-  { id: 'producao_ia', label: 'Produção IA', color: '#8b5cf6', icon: '🤖', responsavel: 'Sistema' },
-  { id: 'revisao_mariza', label: 'Rev. Mariza', color: '#f59e0b', icon: '✏️', responsavel: 'Mariza' },
-  { id: 'revisao_kaique', label: 'Rev. Kaique', color: '#3b82f6', icon: '✏️', responsavel: 'Kaique' },
-  { id: 'revisao_queila', label: 'Rev. Queila', color: '#ec4899', icon: '👁️', responsavel: 'Queila' },
-  { id: 'aprovado', label: 'Aprovado', color: '#10b981', icon: '✅', responsavel: null },
-  { id: 'enviado', label: 'Enviado', color: '#06b6d4', icon: '📤', responsavel: null },
-  { id: 'feedback_mentorado', label: 'Feedback', color: '#f97316', icon: '💬', responsavel: 'Mentorado' },
-  { id: 'ajustes', label: 'Ajustes', color: '#ef4444', icon: '🔧', responsavel: null },
-  { id: 'finalizado', label: 'Finalizado', color: '#059669', icon: '🏁', responsavel: null },
+  { id: 'pendente', label: 'Pendente', color: '#6b7280', icon: '○', responsavel: null },
+  { id: 'producao_ia', label: 'Produção IA', color: '#8b5cf6', icon: '◆', responsavel: 'Sistema' },
+  { id: 'revisao_mariza', label: 'Rev. Mariza', color: '#f59e0b', icon: '◇', responsavel: 'Mariza' },
+  { id: 'revisao_kaique', label: 'Rev. Kaique', color: '#3b82f6', icon: '◇', responsavel: 'Kaique' },
+  { id: 'revisao_queila', label: 'Rev. Queila', color: '#ec4899', icon: '◉', responsavel: 'Queila' },
+  { id: 'aprovado', label: 'Aprovado', color: '#10b981', icon: '●', responsavel: null },
+  { id: 'enviado', label: 'Enviado', color: '#06b6d4', icon: '▸', responsavel: null },
+  { id: 'feedback_mentorado', label: 'Feedback', color: '#f97316', icon: '◈', responsavel: 'Mentorado' },
+  { id: 'ajustes', label: 'Ajustes', color: '#ef4444', icon: '✦', responsavel: null },
+  { id: 'finalizado', label: 'Finalizado', color: '#059669', icon: '★', responsavel: null },
 ];
 
 const DS_DOC_TIPOS = [
-  { id: 'oferta', label: 'Oferta e Produto', icon: '📦', color: '#8b5cf6' },
-  { id: 'funil', label: 'Funil de Vendas', icon: '🔄', color: '#3b82f6' },
-  { id: 'conteudo', label: 'Posicionamento e Conteúdo', icon: '📝', color: '#f97316' },
+  { id: 'oferta', label: 'Oferta e Produto', icon: '◆', color: '#8b5cf6' },
+  { id: 'funil', label: 'Funil de Vendas', icon: '▽', color: '#3b82f6' },
+  { id: 'conteudo', label: 'Posicionamento e Conteúdo', icon: '◈', color: '#f97316' },
 ];
 
 const DS_STATUS_PRODUCAO = [
