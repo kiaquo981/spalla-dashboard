@@ -85,7 +85,7 @@ function daysBetween(dateStr) {
 }
 
 // ===== ALPINE APP =====
-function spalla() {
+function operon() {
   return {
     // --- Auth ---
     auth: {
