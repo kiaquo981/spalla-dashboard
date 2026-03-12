@@ -1274,12 +1274,14 @@ function operon() {
             const data = await res.json();
             const msgs = data.messages?.records || data.messages || data || [];
             const newMsgs = (Array.isArray(msgs) ? msgs : []).reverse();
-            // Update messages if there are new ones
-            if (newMsgs.length !== this.data.whatsappMessages.length) {
+            // Compare last message ID to detect changes (length alone is unreliable)
+            const lastLocal = this.data.whatsappMessages[this.data.whatsappMessages.length - 1];
+            const lastRemote = newMsgs[newMsgs.length - 1];
+            const localId = lastLocal?.key?.id || '';
+            const remoteId = lastRemote?.key?.id || '';
+            if (newMsgs.length !== this.data.whatsappMessages.length || localId !== remoteId) {
               this.data.whatsappMessages = newMsgs;
-              // Eagerly load media URLs for all messages
               this.eagerlyLoadWaMediaUrls(this.data.whatsappMessages);
-              // Auto-scroll to latest
               this.$nextTick(() => {
                 const el = document.getElementById('wa-messages-end');
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
