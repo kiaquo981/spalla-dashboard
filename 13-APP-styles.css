@@ -3551,6 +3551,9 @@ img { max-width: 100%; display: block; }
 
 /* ===== TEAM DASHBOARD (shell migrated to op-grid + op-card) ===== */
 
+.team-card {
+  padding: 16px;
+}
 .team-card__header {
   display: flex;
   align-items: center;
@@ -4250,6 +4253,9 @@ img { max-width: 100%; display: block; }
 }
 
 /* --- Production Card internals (shell migrated to op-card + op-grid) --- */
+.ds-prod-card {
+  padding: 12px;
+}
 .ds-prod-card--dragging { opacity: 0.4; }
 .ds-prod-card__header {
   display: flex;
