@@ -101,6 +101,10 @@
 .btn:hover { background: var(--neutral-50); }
 .btn--brand   { background: var(--brand-500); color: #fff; border-color: var(--brand-500); }
 .btn--brand:hover { background: var(--brand-600); }
+.btn--primary { background: var(--brand-500); color: #fff; border-color: var(--brand-500); }
+.btn--primary:hover { background: var(--brand-600); }
+.btn--outline { background: transparent; border: 1px solid var(--neutral-300); color: var(--neutral-700); }
+.btn--outline:hover { background: var(--neutral-50); border-color: var(--neutral-400); }
 .btn--success { background: var(--whatsapp); color: #fff; border-color: var(--whatsapp); }
 .btn--success:hover { background: #20bd5a; }
 .btn--danger  { background: var(--danger); color: #fff; border-color: var(--danger); }

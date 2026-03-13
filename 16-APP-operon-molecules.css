@@ -252,7 +252,7 @@
 }
 .op-drawer__title {
   font-family: var(--font-display); font-size: var(--text-lg);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-medium); margin-bottom: var(--sp-4);
 }
 .op-drawer__body { flex: 1; overflow-y: auto; padding: var(--sp-6); }
 .op-drawer__footer {
