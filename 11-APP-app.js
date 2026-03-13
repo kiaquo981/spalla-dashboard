@@ -744,7 +744,9 @@ function operon() {
       mentee.fase_jornada = targetFase;
 
       try {
-        const { error } = await this.sb.from('mentorados')
+        if (!sb) sb = await initSupabase();
+        if (!sb) throw new Error('Supabase não disponível');
+        const { error } = await sb.from('mentorados')
           .update({ fase_jornada: targetFase })
           .eq('id', menteeId);
 
