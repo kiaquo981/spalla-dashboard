@@ -461,6 +461,18 @@ function operon() {
       return map[prioridade] || prioridade;
     },
 
+    fonteLabel(fonte) {
+      const map = {
+        call_feedback: 'Call',
+        extracao_ia: 'IA',
+        direcionamento: 'Direcionamento',
+        manual: 'Manual',
+        tarefas_acordadas: 'Acordado',
+        whatsapp: 'WhatsApp',
+      };
+      return map[fonte] || (fonte || '').replace(/_/g, ' ');
+    },
+
     async markAsResponded(interacaoId) {
       const sb2 = await initSupabase();
       if (!sb2) return;
@@ -744,9 +756,10 @@ function operon() {
       mentee.fase_jornada = targetFase;
 
       try {
-        if (!sb) sb = await initSupabase();
-        if (!sb) throw new Error('Supabase não disponível');
-        const { error } = await sb.from('mentorados')
+        const client = sb || await initSupabase();
+        if (!client) throw new Error('Supabase não disponível');
+        sb = client;
+        const { error } = await client.from('mentorados')
           .update({ fase_jornada: targetFase })
           .eq('id', menteeId);
 
