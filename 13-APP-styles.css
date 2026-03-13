@@ -5016,6 +5016,13 @@ img { max-width: 100%; display: block; }
    ================================================================ */
 
 /* --- OB Card internals (shell migrated to op-card + op-grid) --- */
+.ob-card {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: pointer;
+}
 .ob-card__header {
   display: flex;
   justify-content: space-between;
