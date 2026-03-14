@@ -1677,7 +1677,6 @@ function operon() {
       'onboarding': 'onboarding',
       'docs': 'docs',
       'settings': 'settings',
-      'jornada-mentorado': 'jornada_mentorado',
     },
 
     _pageToRoute(page) {
