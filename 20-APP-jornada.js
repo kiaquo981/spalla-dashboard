@@ -40,14 +40,14 @@ function jornadaStore() {
           intro: 'Call de Onboarding',
           cardTitle: 'Apresentação Completa',
           cardSub: 'Com o Time CASE',
-          cardText: 'Nesta call, você vai conhecer a **estrutura completa da mentoria**, entender cada etapa do processo e como vamos te acompanhar ao longo dos 12 meses.',
+          cardText: 'Nesta call, você vai conhecer a estrutura completa da mentoria, entender cada etapa do processo e como vamos te acompanhar ao longo dos 12 meses.',
           items: [
             { icon: '👥', text: 'Você conhece o Time CASE e entende quem vai te apoiar' },
             { icon: '🗺️', text: 'Explicamos passo a passo como funciona a jornada' },
             { icon: '📋', text: 'Levantamos informações para personalizar sua experiência' },
             { icon: '📅', text: 'Já deixamos agendada sua primeira call de estratégia' },
           ],
-          highlight: 'Essa call é para você **começar com clareza total**, sem dúvidas sobre o caminho.',
+          highlight: 'Essa call é para você começar com clareza total, sem dúvidas sobre o caminho.',
           voiceParticipants: [
             { name: 'Time CASE', role: 'Equipe', speaking: true },
             { name: 'Você', role: 'Mentorado(a)', speaking: false },
@@ -80,13 +80,13 @@ function jornadaStore() {
           id: 'intro', title: 'Início', subtitle: 'Concepção de Estratégia',
           type: 'intro',
           badge: 'Etapa 1 • Mês 1',
-          text: 'Nessa fase vamos **desenhar seu plano de ação** e entregar seu dossiê.'
+          text: 'Nessa fase vamos desenhar seu plano de ação e entregar seu dossiê.'
         },
         {
           id: 'call-estrategica', title: 'Call de Estratégia', subtitle: 'É o momento que o Consultor vai discutir com você',
           type: 'list',
           badge: 'PRIMEIRO ENCONTRO',
-          intro: 'É o momento que vamos **juntos discutir com você**, entender melhor o seu contexto, entender qual o seu nicho, definir os pilares do seu negócio.',
+          intro: 'É o momento que vamos juntos discutir com você, entender melhor o seu contexto, entender qual o seu nicho, definir os pilares do seu negócio.',
           items: [
             { icon: '🎯', text: 'Discutir sobre qual melhor produto' },
             { icon: '📦', text: 'Qual melhor formato de entrega' },
@@ -116,7 +116,7 @@ function jornadaStore() {
           id: 'apresentacao-dossie', title: 'Apresentação', subtitle: 'Você recebe seu dossiê estratégico personalizado',
           type: 'list',
           badge: 'SEGUNDO ENCONTRO',
-          intro: 'Após o time trabalhar nos pilares estratégicos, você recebe seu **Dossiê Estratégico 100% personalizado**. E marcamos uma segunda call para apresentar cada detalhe.',
+          intro: 'Após o time trabalhar nos pilares estratégicos, você recebe seu Dossiê Estratégico 100% personalizado. E marcamos uma segunda call para apresentar cada detalhe.',
           items: [
             { icon: '📊', text: 'Apresentação completa do seu dossiê estratégico' },
             { icon: '📋', text: 'Explicação de cada pilar definido para você' },
@@ -129,7 +129,7 @@ function jornadaStore() {
           id: 'marco', title: 'Marco', subtitle: 'Estratégia Definida',
           type: 'milestone',
           milestone: 'Estratégia definida e detalhada em um plano de ação prático',
-          text: 'Após essa etapa, você vai ter clareza sobre **o que vender** (produto e oferta), **para quem vender** (posicionamento e público) e **qual plano para vender** (qual funil e qual técnica de venda).',
+          text: 'Após essa etapa, você vai ter clareza sobre o que vender (produto e oferta), para quem vender (posicionamento e público) e qual plano para vender (qual funil e qual técnica de venda).',
           footerMessage: 'Com essa direção, vamos partir para a execução.',
           milestoneColor: '#656A41'
         }
@@ -140,7 +140,7 @@ function jornadaStore() {
           type: 'intro',
           badge: 'Etapa 2 • Mês 2-3',
           text: 'Com seu dossiê em mãos e plano de ação...',
-          objective: 'Seu objetivo é fazer as **primeiras vendas** e os **primeiros cases**'
+          objective: 'Seu objetivo é fazer as primeiras vendas e os primeiros cases'
         },
         {
           id: 'objetivo', title: 'O que executar', subtitle: 'Para validar sua oferta',
@@ -248,7 +248,7 @@ function jornadaStore() {
           id: 'marco', title: 'Marco', subtitle: 'Vendas com Consistência',
           type: 'milestone',
           milestone: 'Vendas com Consistência',
-          text: 'Você está vendendo com **consistência**. Pronto para escalar.',
+          text: 'Você está vendendo com consistência. Pronto para escalar.',
           milestoneColor: '#8B9060',
           button: 'Avançar para Escala'
         }
@@ -258,7 +258,7 @@ function jornadaStore() {
           id: 'intro', title: 'Início', subtitle: 'ESCALA',
           type: 'intro',
           badge: 'Etapa 4 • Mês 8-12',
-          text: '**Crescimento** com previsibilidade.'
+          text: 'Crescimento com previsibilidade.'
         },
         {
           id: 'objetivos', title: 'Objetivos', subtitle: 'O que você vai conquistar',
@@ -307,7 +307,7 @@ function jornadaStore() {
           id: 'marco', title: 'Marco', subtitle: 'Negócio Estruturado',
           type: 'milestone',
           milestone: 'Negócio Estruturado',
-          text: 'Vendas consistentes, **alta margem de lucro**, receita previsível e processos claros.',
+          text: 'Vendas consistentes, alta margem de lucro, receita previsível e processos claros.',
           badgeFinal: 'Jornada Completa!',
           journeyComplete: true
         }
