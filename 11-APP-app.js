@@ -971,6 +971,22 @@ function operon() {
 
     async init() {
       try {
+        // Deep-link: resolve URL pathname to page
+        const pathname = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
+        if (pathname && this._routeMap[pathname]) {
+          this.ui.page = this._routeMap[pathname];
+          localStorage.setItem('spalla_page', this._routeMap[pathname]);
+        }
+        // Handle browser back/forward
+        window.addEventListener('popstate', (e) => {
+          const p = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
+          if (p && this._routeMap[p]) {
+            this.ui.page = this._routeMap[p];
+          } else if (!p || p === '') {
+            this.ui.page = 'dashboard';
+          }
+        });
+
         // Restore JWT session from localStorage + validate with server
         const accessToken = localStorage.getItem('spalla_access_token');
         const refreshToken = localStorage.getItem('spalla_refresh_token');
@@ -1635,6 +1651,31 @@ function operon() {
 
     // ===================== NAVIGATION =====================
 
+    // Deep-link route map (pathname → page name)
+    _routeMap: {
+      'welcome-flow': 'welcome_flow',
+      'dashboard': 'dashboard',
+      'kanban': 'kanban',
+      'tasks': 'tasks',
+      'agenda': 'agenda',
+      'equipe': 'equipe',
+      'whatsapp': 'whatsapp',
+      'wa-topics': 'wa_topics',
+      'reminders': 'reminders',
+      'dossies': 'dossies',
+      'planos-acao': 'planos_acao',
+      'onboarding': 'onboarding',
+      'docs': 'docs',
+      'settings': 'settings',
+    },
+
+    _pageToRoute(page) {
+      for (const [route, p] of Object.entries(this._routeMap)) {
+        if (p === page) return route;
+      }
+      return page.replace(/_/g, '-');
+    },
+
     navigate(page) {
       // Stop WhatsApp polling when leaving WhatsApp page
       if (this.ui.page === 'whatsapp' && page !== 'whatsapp') {
@@ -1643,6 +1684,11 @@ function operon() {
       this.ui.page = page;
       this.ui.mobileMenuOpen = false;
       localStorage.setItem('spalla_page', page);
+      // Update URL without reload
+      const route = this._pageToRoute(page);
+      if (route && window.location.pathname !== '/' + route) {
+        history.pushState({ page }, '', '/' + route);
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
 
