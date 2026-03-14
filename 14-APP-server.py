@@ -93,13 +93,14 @@ def verify_password(password, stored_hash):
             return False
     return hashlib.sha256(password.encode()).hexdigest() == stored_hash
 
-def create_jwt_token(email, user_id, expiry_minutes=ACCESS_TOKEN_EXPIRY_MINUTES):
+def create_jwt_token(email, user_id, role='equipe', expiry_minutes=ACCESS_TOKEN_EXPIRY_MINUTES):
     """Create JWT access token"""
     if not jwt:
         return None
     payload = {
         'email': email,
         'user_id': user_id,
+        'role': role,
         'exp': datetime.now(timezone.utc) + timedelta(minutes=expiry_minutes),
         'iat': datetime.now(timezone.utc)
     }
@@ -830,6 +831,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_create_calendar_event()
         elif self.path == '/api/sheets/sync':
             self._handle_sheets_sync()
+        elif self.path == '/api/welcome-flow/register':
+            self._handle_welcome_flow_register()
         else:
             self._send_json({'error': 'Not found'}, 404)
 
@@ -1180,11 +1183,16 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': 'Email already exists'}, 409)
                 return
 
+            role = body.get('role', 'equipe').strip().lower()
+            if role not in ('equipe', 'mentorado', 'admin'):
+                role = 'equipe'
+
             password_hash = hash_password(password)
             result = supabase_request('POST', 'auth_users', {
                 'email': email,
                 'password_hash': password_hash,
                 'full_name': full_name,
+                'role': role,
             })
 
             if isinstance(result, dict) and result.get('error'):
@@ -1194,12 +1202,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             user = result[0] if isinstance(result, list) else result
             user_id = user.get('id')
 
-            access_token = create_jwt_token(email, user_id)
+            access_token = create_jwt_token(email, user_id, role=role)
             refresh_token = create_refresh_token(email, user_id)
 
             self._send_json({
                 'success': True,
-                'user': {'id': user_id, 'email': email, 'full_name': full_name},
+                'user': {'id': user_id, 'email': email, 'full_name': full_name, 'role': role},
                 'access_token': access_token,
                 'refresh_token': refresh_token,
                 'expires_in': ACCESS_TOKEN_EXPIRY_MINUTES * 60
@@ -1226,7 +1234,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             email = payload.get('email')
 
             # Fetch fresh user data from DB
-            result = supabase_request('GET', f'auth_users?id=eq.{user_id}&select=id,email,full_name')
+            result = supabase_request('GET', f'auth_users?id=eq.{user_id}&select=id,email,full_name,role')
             if isinstance(result, list) and len(result) > 0:
                 self._send_json({'user': result[0]})
             else:
@@ -1246,7 +1254,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': 'Email and password required'}, 400)
                 return
 
-            result = supabase_request('GET', f'auth_users?email=eq.{email}&select=id,email,full_name,password_hash')
+            result = supabase_request('GET', f'auth_users?email=eq.{email}&select=id,email,full_name,password_hash,role')
             if not isinstance(result, list) or len(result) == 0:
                 self._send_json({'error': 'Invalid email or password'}, 401)
                 return
@@ -1266,13 +1274,14 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 supabase_request('PATCH', f'auth_users?id=eq.{user_id}', {'password_hash': new_hash})
                 print(f'[AUTH] Migrated password hash for user {user_id} to bcrypt')
             full_name = row.get('full_name', '')
+            role = row.get('role', 'equipe')
 
-            access_token = create_jwt_token(db_email, user_id)
+            access_token = create_jwt_token(db_email, user_id, role=role)
             refresh_token = create_refresh_token(db_email, user_id)
 
             self._send_json({
                 'success': True,
-                'user': {'id': user_id, 'email': db_email, 'full_name': full_name},
+                'user': {'id': user_id, 'email': db_email, 'full_name': full_name, 'role': role},
                 'access_token': access_token,
                 'refresh_token': refresh_token,
                 'expires_in': ACCESS_TOKEN_EXPIRY_MINUTES * 60
@@ -1299,12 +1308,13 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             email = payload.get('email')
             user_id = payload.get('user_id')
 
-            new_access_token = create_jwt_token(email, user_id)
-            new_refresh_token = create_refresh_token(email, user_id)
-
             # Fetch fresh user data
-            user_data = supabase_request('GET', f'auth_users?id=eq.{user_id}&select=id,email,full_name')
+            user_data = supabase_request('GET', f'auth_users?id=eq.{user_id}&select=id,email,full_name,role')
             user = user_data[0] if isinstance(user_data, list) and len(user_data) > 0 else {'id': user_id, 'email': email}
+            role = user.get('role', 'equipe')
+
+            new_access_token = create_jwt_token(email, user_id, role=role)
+            new_refresh_token = create_refresh_token(email, user_id)
 
             self._send_json({
                 'success': True,
@@ -1343,6 +1353,69 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             log_error('AUTH', f'Reset password error: {e}')
             self._send_json({'error': 'Erro ao processar solicitacao'}, 500)
+
+    def _handle_welcome_flow_register(self):
+        """Register mentorado from welcome-flow wizard (public endpoint, no auth required)"""
+        try:
+            body = json.loads(self._read_body())
+            email = body.get('email', '').strip().lower()
+            nome = body.get('nome', '').strip()
+            whatsapp = body.get('whatsapp', '').strip()
+
+            if not email or not nome:
+                self._send_json({'error': 'Nome and email are required'}, 400)
+                return
+
+            # Generate temp password: first name lowercase + last 4 digits of whatsapp
+            first_name = nome.split()[0].lower()
+            # Remove non-digit chars and get last 4 digits
+            digits = ''.join(filter(str.isdigit, whatsapp))
+            last4 = digits[-4:] if len(digits) >= 4 else digits
+            temp_password = f"{first_name}{last4}"
+
+            if len(temp_password) < 4:
+                self._send_json({'error': 'Could not generate valid password — check nome and whatsapp'}, 400)
+                return
+
+            # Check if auth_users already exists
+            existing = supabase_request('GET', f'auth_users?email=eq.{email}&select=id,email,full_name,role')
+            if isinstance(existing, list) and len(existing) > 0:
+                self._send_json({
+                    'success': True,
+                    'already_exists': True,
+                    'user_id': existing[0].get('id'),
+                    'message': 'User already exists with this email'
+                })
+                return
+
+            # Create auth_users entry with role=mentorado
+            password_hash = hash_password(temp_password)
+            result = supabase_request('POST', 'auth_users', {
+                'email': email,
+                'password_hash': password_hash,
+                'full_name': nome,
+                'role': 'mentorado',
+            })
+
+            if isinstance(result, dict) and result.get('error'):
+                log_error('WELCOME', f'Failed to create auth user: {result}')
+                self._send_json({'error': 'Registration failed'}, 500)
+                return
+
+            user = result[0] if isinstance(result, list) else result
+            user_id = user.get('id')
+
+            self._send_json({
+                'success': True,
+                'user_id': user_id,
+                'credentials': {
+                    'email': email,
+                    'temp_password': temp_password,
+                }
+            }, 201)
+        except Exception as e:
+            log_error('WELCOME', f'Welcome flow registration failed: {e}')
+            self._send_json({'error': 'Registration failed'}, 500)
 
     def log_message(self, format, *args):
         path = str(args[0]) if args else ''
