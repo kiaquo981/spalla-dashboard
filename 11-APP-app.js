@@ -1149,17 +1149,20 @@ function operon() {
         this.auth.password = '';
         this.ui.taskAssignee = '__mine__';
 
-        // Restore deep-link route after login
-        const pendingRoute = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
-        if (pendingRoute && this._routeMap[pendingRoute]) {
-          this.ui.page = this._routeMap[pendingRoute];
-          localStorage.setItem('spalla_page', this._routeMap[pendingRoute]);
-        }
-
         await this.loadReminders();
         await this.loadDashboard();
         this.loadWaSession();
         this.waStartHealthCheck();
+
+        // Restore deep-link route AFTER all loads complete
+        const pendingRoute = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
+        console.log('[Spalla] Login done. pathname:', JSON.stringify(pendingRoute), 'routeMap hit:', this._routeMap[pendingRoute], 'current ui.page:', this.ui.page);
+        if (pendingRoute && this._routeMap[pendingRoute]) {
+          const target = this._routeMap[pendingRoute];
+          this.ui.page = target;
+          localStorage.setItem('spalla_page', target);
+          console.log('[Spalla] Deep-link restored to:', target);
+        }
       } catch (e) {
         this.auth.error = 'Erro ao fazer login: ' + e.message;
         console.error('[Spalla] Login error:', e);
