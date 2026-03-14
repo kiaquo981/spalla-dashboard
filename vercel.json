@@ -15,6 +15,10 @@
       }
     },
     {
+      "src": "/jornada/?$",
+      "dest": "/jornada/index.html"
+    },
+    {
       "src": "/(.*)",
       "dest": "/10-APP-index.html",
       "headers": {
