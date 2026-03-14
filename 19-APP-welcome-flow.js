@@ -85,10 +85,41 @@ function welcomeFlowStore() {
       this.step = 5;
 
       try {
+        var nome = this.sanitize(this.data.nome);
+        var whatsappDigits = this.data.whatsapp.replace(/\D/g, '');
+        // Ensure country code 55 prefix
+        var whatsappId = whatsappDigits.startsWith('55') ? whatsappDigits : '55' + whatsappDigits;
+        var nameParts = nome.trim().split(/\s+/);
+        var primeiroNome = nameParts[0] || nome;
+        var ultimoNome = nameParts.length > 1 ? nameParts[nameParts.length - 1] : primeiroNome;
+        // Default password: first name lowercase + last name lowercase + '123'
+        var senhaDefault = (primeiroNome + ultimoNome).toLowerCase().replace(/[^a-z0-9]/g, '') + '123';
+
+        // Team members for WhatsApp group
+        var participantes = [
+          whatsappId + '@s.whatsapp.net',  // mentorado
+          whatsappId + '@s.whatsapp.net',  // mentorado (duplicate as in template)
+          '5524992514909@s.whatsapp.net',  // Queila
+          '5511934667188@s.whatsapp.net',  // Kaique
+          '5527999473185@s.whatsapp.net',  // Hugo
+          '5527992640273@s.whatsapp.net',  // Team
+          '5527988918032@s.whatsapp.net',  // Team
+        ];
+
+        // Add extra members if any
+        if (this.data.incluir_membros_extras && this.data.membros_extras.length) {
+          this.data.membros_extras.forEach(function(m) {
+            var mDigits = m.whatsapp.replace(/\D/g, '');
+            var mId = mDigits.startsWith('55') ? mDigits : '55' + mDigits;
+            participantes.push(mId + '@s.whatsapp.net');
+          });
+        }
+
         var payload = {
-          nome: this.sanitize(this.data.nome),
+          nome: nome,
           email: this.sanitize(this.data.email),
-          whatsapp: this.data.whatsapp.replace(/\D/g, ''),
+          whatsapp: whatsappDigits,
+          whatsappId: whatsappId,
           instagram: this.data.instagram || null,
           linkedin: this.data.linkedin || null,
           outra_rede: this.data.outra_rede || null,
@@ -108,6 +139,11 @@ function welcomeFlowStore() {
                 };
               })
             : [],
+          primeiroNome: primeiroNome,
+          ultimoNome: ultimoNome,
+          senhaDefault: senhaDefault,
+          participantes: participantes,
+          nomeGrupo: 'CASE | ' + primeiroNome,
         };
 
         // 1. Send to webhook
