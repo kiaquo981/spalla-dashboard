@@ -11,258 +11,304 @@ function jornadaStore() {
 
     // --- Phases ---
     phases: [
-      { id: 'onboarding', name: 'ONBOARDING', subtitle: 'Boas-vindas e acessos', month: 'Start', color: '#35301D', icon: '\u{1F44B}' },
-      { id: 'concepcao', name: 'CONCEPÇÃO', subtitle: 'Decisões estratégicas', month: 'Mês 1', color: '#656A41', icon: '\u{1F4A1}' },
-      { id: 'validacao', name: 'VALIDAÇÃO', subtitle: 'Execução e primeiras vendas', month: 'Mês 2-3', color: '#7A8050', icon: '\u{1F680}' },
-      { id: 'otimizacao', name: 'OTIMIZAÇÃO', subtitle: 'Ajustes com dados reais', month: 'Mês 4-7', color: '#8B9060', icon: '\u{1F4CA}' },
-      { id: 'escala', name: 'ESCALA', subtitle: 'Crescimento sustentável', month: 'Mês 8-12', color: '#C9A227', icon: '\u{2B50}' },
+      { id: 'onboarding', name: 'ONBOARDING', subtitle: 'Boas-vindas e acessos', month: 'Start', color: '#35301D', icon: '👋' },
+      { id: 'concepcao', name: 'CONCEPÇÃO', subtitle: 'Decisões estratégicas', month: 'Mês 1', color: '#656A41', icon: '💡' },
+      { id: 'validacao', name: 'VALIDAÇÃO', subtitle: 'Execução e primeiras vendas', month: 'Mês 2-3', color: '#7A8050', icon: '🚀' },
+      { id: 'otimizacao', name: 'OTIMIZAÇÃO', subtitle: 'Ajustes com dados reais', month: 'Mês 4-7', color: '#8B9060', icon: '📊' },
+      { id: 'escala', name: 'ESCALA', subtitle: 'Crescimento sustentável', month: 'Mês 8-12', color: '#C9A227', icon: '⭐' },
     ],
 
     // --- Phase sections ---
     phaseSections: {
       onboarding: [
         {
-          id: 'acessos', title: 'Acessos', subtitle: 'Bem-vindo ao CASE',
+          id: 'acessos', title: 'Acessos', subtitle: 'Você recebe os acessos',
           type: 'cards',
-          intro: 'Seus primeiros passos na mentoria. Aqui você recebe todos os acessos necessários para começar.',
+          badge: 'Fase 0 • Onboarding',
+          intro: 'Bem-vindo à Mentoria',
+          introSub: 'Você está entrando. Aqui você recebe todos os acessos necessários.',
           cards: [
-            { icon: '\u{1F4DD}', title: 'Contrato Digital', desc: 'Assinatura do contrato de mentoria com todos os termos e condições.' },
-            { icon: '\u{1F4AC}', title: 'Grupos WhatsApp', desc: 'Acesso ao grupo exclusivo de mentorados e canal de suporte direto.' },
-            { icon: '\u{1F464}', title: 'Cadastro na Plataforma', desc: 'Criação do perfil no dashboard com dados pessoais e do negócio.' },
+            { icon: '📄', title: 'Assinar Contrato', desc: 'Formalização da sua entrada na mentoria', color: '#35301D' },
+            { icon: '👥', title: 'Acesso aos Grupos', desc: 'Será seu grupo de apoio durante toda a jornada', color: '#656A41' },
+            { icon: '👤', title: 'Cadastro no Sistema', desc: 'Vamos te cadastrar para acompanhar do início ao fim', color: '#7A8050' },
           ]
         },
         {
-          id: 'call_onboarding', title: 'Call de Onboarding', subtitle: 'Primeira reunião com a equipe',
+          id: 'call-onboarding', title: 'Call de Onboarding', subtitle: 'Seu primeiro contato com o Time CASE para começar com clareza',
           type: 'list',
-          intro: 'Reunião de boas-vindas com a equipe CASE para alinhar expectativas e planejar os próximos passos.',
+          badge: 'SEU PRIMEIRO ENCONTRO',
+          intro: 'Call de Onboarding',
+          cardTitle: 'Apresentação Completa',
+          cardSub: 'Com o Time CASE',
+          cardText: 'Nesta call, você vai conhecer a **estrutura completa da mentoria**, entender cada etapa do processo e como vamos te acompanhar ao longo dos 12 meses.',
           items: [
-            { icon: '\u{1F4C5}', text: 'Agendamento da call dentro de 48h após o contrato' },
-            { icon: '\u{1F465}', text: 'Apresentação da equipe e dos canais de suporte' },
-            { icon: '\u{1F3AF}', text: 'Levantamento inicial de objetivos e situação atual' },
-            { icon: '\u{1F4CB}', text: 'Definição do cronograma personalizado' },
+            { icon: '👥', text: 'Você conhece o Time CASE e entende quem vai te apoiar' },
+            { icon: '🗺️', text: 'Explicamos passo a passo como funciona a jornada' },
+            { icon: '📋', text: 'Levantamos informações para personalizar sua experiência' },
+            { icon: '📅', text: 'Já deixamos agendada sua primeira call de estratégia' },
+          ],
+          highlight: 'Essa call é para você **começar com clareza total**, sem dúvidas sobre o caminho.',
+          voiceParticipants: [
+            { name: 'Time CASE', role: 'Equipe', speaking: true },
+            { name: 'Você', role: 'Mentorado(a)', speaking: false },
           ]
         },
         {
-          id: 'resumo_ob', title: 'Resumo do Onboarding', subtitle: 'O que você recebe',
+          id: 'resumo', title: 'Resumo', subtitle: 'Resumo da Etapa de Onboarding',
           type: 'checklist',
           items: [
-            'Acesso ao grupo exclusivo de WhatsApp',
-            'Login na plataforma Spalla',
-            'Cronograma personalizado da jornada',
-            'Contato direto do estrategista designado',
-            'Guia de primeiros passos (PDF)',
-            'Agenda dos encontros semanais',
-          ]
+            { icon: '🔑', text: 'Recebimento dos acessos à plataforma e grupos' },
+            { icon: '🎥', text: 'Participação na call de onboarding' },
+            { icon: '📅', text: 'Agendamento da call de estratégia' },
+            { icon: '📄', text: 'Recebimento do manual do mentorado com todas as informações sobre a entrega e os links necessários' },
+            { icon: '📄', text: 'Assinatura do contrato (obrigatória para agendar a call de estratégia)' },
+            { icon: '🔍', text: 'Realização da pesquisa de concorrentes' },
+          ],
+          footerMessage: 'Você está pronto para iniciar a concepção da sua estratégia e plano de ação junto com o Consultor e o time.'
         },
         {
-          id: 'marco_ob', title: 'Marco', subtitle: 'Clareza da Jornada',
+          id: 'marco', title: 'Marco', subtitle: 'Clareza da Jornada',
           type: 'milestone',
-          text: 'Ao final do onboarding, você terá clareza total sobre sua jornada na mentoria, com acessos configurados, equipe apresentada e cronograma definido.',
-          milestone: 'Clareza da Jornada'
+          milestone: 'Clareza da Jornada',
+          text: 'Você sabe exatamente o caminho que vai percorrer e está pronto para começar.',
+          milestoneColor: '#35301D',
+          button: 'Ir para Concepção'
         }
       ],
       concepcao: [
         {
-          id: 'intro_conc', title: 'Concepção de Estratégia', subtitle: 'Etapa 1 \u2022 Mês 1',
+          id: 'intro', title: 'Início', subtitle: 'Concepção de Estratégia',
           type: 'intro',
-          badge: 'Etapa 1 \u2022 Mês 1',
-          text: 'Nesta fase, vamos construir toda a base estratégica do seu negócio. É aqui que definimos posicionamento, oferta, funil de vendas e scripts de conversão.'
+          badge: 'Etapa 1 • Mês 1',
+          text: 'Nessa fase vamos **desenhar seu plano de ação** e entregar seu dossiê.'
         },
         {
-          id: 'call_estrategia', title: 'Call de Estratégia', subtitle: 'Reunião com o estrategista',
+          id: 'call-estrategica', title: 'Call de Estratégia', subtitle: 'É o momento que o Consultor vai discutir com você',
           type: 'list',
-          intro: 'Reunião profunda com seu estrategista para definir a direção do negócio.',
+          badge: 'PRIMEIRO ENCONTRO',
+          intro: 'É o momento que vamos **juntos discutir com você**, entender melhor o seu contexto, entender qual o seu nicho, definir os pilares do seu negócio.',
           items: [
-            { icon: '\u{1F3AF}', text: 'Definição do posicionamento e nicho específico' },
-            { icon: '\u{1F4B0}', text: 'Modelagem da oferta (ticket, formato, duração)' },
-            { icon: '\u{1F50D}', text: 'Análise de concorrência e diferenciação' },
-            { icon: '\u{1F4DD}', text: 'Briefing completo para produção dos dossiês' },
+            { icon: '🎯', text: 'Discutir sobre qual melhor produto' },
+            { icon: '📦', text: 'Qual melhor formato de entrega' },
+            { icon: '🔄', text: 'Qual melhor funil para validar essa oferta' },
+            { icon: '🎤', text: 'Qual posicionamento e narrativa' },
+          ],
+          voiceParticipants: [
+            { name: 'Consultor CASE', role: 'Estrategista', speaking: true },
+            { name: 'Você', role: 'Mentorado(a)', speaking: false },
           ]
         },
         {
-          id: 'dossie', title: 'Dossiê Estratégico', subtitle: '5 entregáveis completos',
+          id: 'apos-call', title: 'Dossiê', subtitle: 'Dossiê Estratégico com seu plano de ação personalizado',
           type: 'cards',
-          intro: 'O dossiê é o documento-mestre da sua mentoria. Produzido pela equipe CASE com base na call de estratégia.',
+          badge: 'APÓS A CALL',
+          intro: 'Após essa call, nosso time vai estruturar seu dossiê com as seguintes entregas:',
           cards: [
-            { icon: '\u{1F4E6}', title: 'Oferta', desc: 'Arquitetura completa da oferta com pricing, pilares e diferenciais.' },
-            { icon: '\u{1F3D7}\uFE0F', title: 'Arquitetura', desc: 'Estrutura do programa: módulos, entregas, cronograma interno.' },
-            { icon: '\u{1F3AF}', title: 'Funil de Vendas', desc: 'Funis completos com templates de mensagem e scripts.' },
-            { icon: '\u{1F3AC}', title: 'Aulas/Conteúdo', desc: 'Estratégia de conteúdo com pilares, calendários e roteiros.' },
-            { icon: '\u{1F4AC}', title: 'Scripts', desc: 'Scripts de vendas, qualificação e tratamento de objeções.' },
-          ]
+            { icon: '🎯', title: 'Oferta Desenhada', desc: 'Promessa, TESE, Formato e jornada, Ticket e sugestão de copy', color: '#656A41' },
+            { icon: '📦', title: 'Arquitetura Macro de Produto', desc: 'Estrutura do produto, Jornada do cliente', color: '#7A8050' },
+            { icon: '🗺️', title: 'Funil de Vendas Detalhado', desc: 'Etapas do funil, Pontos de conversão', color: '#8B9060' },
+            { icon: '🎥', title: 'Aulas sobre Vendas', desc: 'Técnicas de venda, Processo comercial', color: '#656A41' },
+            { icon: '💬', title: 'Scripts de Abordagens e Vendas', desc: 'Abordagens, Scripts de vendas', color: '#7A8050' },
+          ],
+          prazo: '1 a 2 semanas'
         },
         {
-          id: 'apresentacao_dossie', title: 'Apresentação do Dossiê', subtitle: 'Segunda call com estrategista',
+          id: 'apresentacao-dossie', title: 'Apresentação', subtitle: 'Você recebe seu dossiê estratégico personalizado',
           type: 'list',
-          intro: 'Reunião de apresentação e validação do dossiê produzido.',
+          badge: 'SEGUNDO ENCONTRO',
+          intro: 'Após o time trabalhar nos pilares estratégicos, você recebe seu **Dossiê Estratégico 100% personalizado**. E marcamos uma segunda call para apresentar cada detalhe.',
           items: [
-            { icon: '\u{1F4CA}', text: 'Apresentação detalhada de cada seção do dossiê' },
-            { icon: '\u{2705}', text: 'Validação e ajustes com o mentorado' },
-            { icon: '\u{1F4DD}', text: 'Definição do plano de ação imediato' },
-            { icon: '\u{1F4C5}', text: 'Agendamento das próximas entregas' },
-          ]
+            { icon: '📊', text: 'Apresentação completa do seu dossiê estratégico' },
+            { icon: '📋', text: 'Explicação de cada pilar definido para você' },
+            { icon: '❓', text: 'Espaço para tirar todas as suas dúvidas' },
+            { icon: '🚀', text: 'Alinhamento dos próximos passos da validação' },
+          ],
+          highlight: 'Você não precisa anotar nada: O dossiê fica disponível para você consultar sempre que precisar.'
         },
         {
-          id: 'marco_conc', title: 'Marco', subtitle: 'Estratégia Definida',
+          id: 'marco', title: 'Marco', subtitle: 'Estratégia Definida',
           type: 'milestone',
-          text: 'Com o dossiê validado, você tem toda a estratégia documentada e pronta para execução. Posicionamento, oferta, funil e scripts — tudo definido.',
-          milestone: 'Estratégia Definida'
+          milestone: 'Estratégia definida e detalhada em um plano de ação prático',
+          text: 'Após essa etapa, você vai ter clareza sobre **o que vender** (produto e oferta), **para quem vender** (posicionamento e público) e **qual plano para vender** (qual funil e qual técnica de venda).',
+          footerMessage: 'Com essa direção, vamos partir para a execução.',
+          milestoneColor: '#656A41'
         }
       ],
       validacao: [
         {
-          id: 'intro_val', title: 'Validação e Primeiras Vendas', subtitle: 'Etapa 2 \u2022 Mês 2-3',
+          id: 'intro', title: 'Início', subtitle: 'Validação',
           type: 'intro',
-          badge: 'Etapa 2 \u2022 Mês 2-3',
-          text: 'Hora de colocar a estratégia em prática. Nesta fase você executa o funil, faz as primeiras abordagens e fecha as primeiras vendas.'
+          badge: 'Etapa 2 • Mês 2-3',
+          text: 'Com seu dossiê em mãos e plano de ação...',
+          objective: 'Seu objetivo é fazer as **primeiras vendas** e os **primeiros cases**'
         },
         {
-          id: 'executar', title: 'O que Executar', subtitle: 'Ações práticas',
+          id: 'objetivo', title: 'O que executar', subtitle: 'Para validar sua oferta',
           type: 'cards',
-          intro: 'As 5 frentes de execução simultânea nesta fase.',
+          badge: 'O QUE VOCÊ VAI EXECUTAR',
+          intro: 'Para fazer as primeiras vendas, você vai executar:',
           cards: [
-            { icon: '\u{1F4E9}', title: 'Abordagens', desc: 'Envio de mensagens de prospecção usando os scripts do dossiê.' },
-            { icon: '\u{1F4F1}', title: 'Conteúdo', desc: 'Início da produção de conteúdo seguindo o calendário.' },
-            { icon: '\u{1F4DE}', title: 'Calls de Venda', desc: 'Agendamento e condução de calls de qualificação e venda.' },
-            { icon: '\u{1F4CA}', title: 'Métricas', desc: 'Registro diário de mensagens, respostas, calls e vendas.' },
-            { icon: '\u{1F504}', title: 'Iteração', desc: 'Ajustes rápidos baseados nos primeiros resultados.' },
+            { icon: '🎯', title: 'EXECUTAR O FUNIL', desc: 'Passo a passo no dossiê', color: '#7A8050', highlight: true },
+            { icon: '👥', title: 'LAPIDAR SEU PERFIL', desc: 'Seguindo o direcionamento do dossiê', color: '#7A8050' },
+            { icon: '🎥', title: 'INICIAR A LINHA EDITORIAL', desc: 'Usar os agentes para isso', color: '#7A8050' },
+            { icon: '📖', title: 'ESTUDAR TÉCNICA DE VENDA', desc: 'Trilhas e scripts prontos', color: '#656A41' },
+            { icon: '🛒', title: 'FAZER AS PRIMEIRAS VENDAS', desc: 'Aplicar o processo aprendido', color: '#656A41', highlight: true },
           ]
         },
         {
-          id: 'apoio_val', title: 'Apoio Disponível', subtitle: 'Suporte contínuo',
+          id: 'apoio', title: 'Apoio', subtitle: 'O que você recebe para te apoiar durante a execução',
           type: 'support_list',
+          supportColor: '#7A8050',
           items: [
-            'Revisão semanal de métricas com estrategista',
-            'Feedback em tempo real via WhatsApp',
-            'Correção de rota em calls quinzenais',
-            'Templates de follow-up atualizados',
-            'Treinamento de vendas ao vivo',
-            'Análise de conversas gravadas',
-            'Suporte técnico para ferramentas',
-            'Grupo de mentorados para troca',
+            { icon: '👥', text: 'Grupo Individual — Com Consultor e time de líderes' },
+            { icon: '🎥', text: 'Conselho Semanal — Em grupo de até 15 pessoas com Consultor' },
+            { icon: '🤖', text: 'Ferramentas de IA — Roteiros, copys, scripts de vendas e abordagens' },
+            { icon: '🎓', text: 'Trilhas Gravadas — Plataforma e aplicativo próprio' },
+            { icon: '🔧', text: 'Oficinas de Implementação — Encontros práticos mensais' },
+            { icon: '💬', text: 'Feedback do Time — Acompanhamento no dia a dia' },
+            { icon: '⚡', text: 'Calls com o Time — Para dúvidas de execução' },
+            { icon: '❤️', text: 'Comunidade — Troca com outros mentorados' },
           ]
         },
         {
-          id: 'habilidades_val', title: 'Habilidades a Desenvolver', subtitle: 'Foco desta fase',
+          id: 'habilidades', title: 'Habilidades', subtitle: 'Foco desta fase',
           type: 'cards',
           cards: [
-            { icon: '\u{1F4B5}', title: 'Vendas', desc: 'Dominar scripts, conduzir calls com confiança e tratar objeções.' },
-            { icon: '\u{1F4F2}', title: 'Conteúdo', desc: 'Produzir conteúdo estratégico que gera autoridade e atrai leads.' },
+            { icon: '💰', title: 'Habilidade de Vendas', desc: 'Você terá acesso ao nosso processo comercial e às técnicas de vendas, com tudo detalhado para que não fique inseguro nem perdido ao realizar suas primeiras vendas.', color: '#656A41', highlight: true },
+            { icon: '📱', title: 'Habilidade de Conteúdo', desc: 'Nessa fase, você ainda não vai dominar, mas já vai começar a pensar em conteúdo e aprender nosso processo de produção. Além disso, terá todas as ferramentas e feedbacks necessários para ajudá-lo na curva de aprendizado.', color: '#7A8050' },
           ]
         },
         {
-          id: 'marco_val', title: 'Marco', subtitle: 'Primeiras Vendas',
+          id: 'marco', title: 'Marco', subtitle: 'Primeiras Vendas',
           type: 'milestone',
-          text: 'O objetivo desta fase é fechar as primeiras vendas reais. Cada venda valida a estratégia e traz dados para otimização.',
-          milestone: 'Primeiras Vendas'
+          milestone: 'Primeiras Vendas',
+          milestoneSubtitle: 'Sua jornada até aqui',
+          button: 'Avançar para Otimização'
         }
       ],
       otimizacao: [
         {
-          id: 'intro_oti', title: 'Otimização com Dados Reais', subtitle: 'Etapa 3 \u2022 Mês 4-7',
+          id: 'intro', title: 'Início', subtitle: 'Otimização',
           type: 'intro',
-          badge: 'Etapa 3 \u2022 Mês 4-7',
-          text: 'Com as primeiras vendas realizadas, agora é hora de otimizar. Analisamos dados reais para aumentar conversão, ajustar oferta e criar consistência.'
+          badge: 'Etapa 3 • Mês 4-7',
+          text: 'Agora é hora de ganhar musculatura para gerar demanda e vender com consistência'
         },
         {
-          id: 'objetivos_oti', title: 'Objetivos', subtitle: '4 focos de otimização',
+          id: 'objetivos', title: 'Objetivos', subtitle: 'Vendas com Consistência',
           type: 'cards',
+          objective: 'Vendas com Consistência',
+          objectiveSub: 'Sair do "vendeu uma vez" para um processo que funciona todo mês',
           cards: [
-            { icon: '\u{1F4C8}', title: 'Taxa de Conversão', desc: 'Aumentar conversão de leads em clientes com ajustes finos nos scripts.' },
-            { icon: '\u{1F4B0}', title: 'Ticket Médio', desc: 'Validar e ajustar precificação baseado no feedback do mercado.' },
-            { icon: '\u{1F504}', title: 'Funil de Vendas', desc: 'Otimizar cada etapa do funil com base nos dados coletados.' },
-            { icon: '\u{1F4F1}', title: 'Conteúdo', desc: 'Ajustar estratégia de conteúdo com base no engajamento real.' },
+            { icon: '🔄', title: 'Otimizar funil existente', desc: 'Melhorar conversão', step: 1 },
+            { icon: '🎥', title: 'Masterizar conteúdo', desc: 'Conteúdo que converte', step: 2 },
+            { icon: '🔧', title: 'Otimizar entrega', desc: 'Experiência refinada', step: 3 },
+            { icon: '💬', title: 'Dominar vendas', desc: 'Processo comercial afiado', step: 4, highlight: true },
           ]
         },
         {
-          id: 'call_analise', title: 'Call de Análise', subtitle: 'Reunião com estrategista',
+          id: 'analise', title: 'Call de Análise', subtitle: 'Call de Análise com Estrategista',
           type: 'list',
-          intro: 'Reunião aprofundada para analisar métricas e definir otimizações.',
-          items: [
-            { icon: '\u{1F4CA}', text: 'Análise completa de métricas: mensagens, calls, vendas' },
-            { icon: '\u{1F50D}', text: 'Identificação de gargalos no funil' },
-            { icon: '\u{1F527}', text: 'Definição de ajustes específicos' },
-            { icon: '\u{1F4CB}', text: 'Plano de ação para o próximo mês' },
+          badgeHighlight: 'AQUI É UM MOMENTO DE UMA NOVA CALL DE ESTRATÉGIA',
+          badge: 'ANÁLISE CONJUNTA',
+          intro: 'Essa call pode ser com o Consultor ou algum dos estrategistas, vai depender do tipo de funil e caso em particular',
+          cards: [
+            { icon: '📊', title: 'O que funcionou', desc: 'Estratégias que geraram resultado' },
+            { icon: '🎯', title: 'Onde estão os gargalos', desc: 'Pontos de fricção a melhorar' },
+            { icon: '📈', title: 'O que escalar', desc: 'Ações para mais investimento' },
+          ],
+          voiceParticipants: [
+            { name: 'Estrategista CASE', role: 'Estrategista', speaking: true },
+            { name: 'Você', role: 'Mentorado', speaking: false },
           ]
         },
         {
-          id: 'apoio_oti', title: 'Apoio Disponível', subtitle: 'Suporte contínuo',
+          id: 'apoio', title: 'Apoio', subtitle: 'O que você recebe para te apoiar durante a execução',
           type: 'support_list',
+          supportColor: '#8B9060',
           items: [
-            'Dashboards de performance atualizados',
-            'Análise de gravações de calls de venda',
-            'Otimização de scripts baseada em dados',
-            'Estratégia de conteúdo ajustada',
-            'Coaching individual quando necessário',
-            'Benchmarking com outros mentorados',
-            'Suporte em automações e ferramentas',
-            'Grupo mastermind mensal',
+            { icon: '👥', text: 'Grupo Individual — Com Consultor e time de líderes' },
+            { icon: '🎥', text: 'Conselho Semanal — Em grupo de até 15 pessoas com Consultor' },
+            { icon: '🤖', text: 'Ferramentas de IA — Roteiros, copys, scripts de vendas e abordagens' },
+            { icon: '🎓', text: 'Trilhas Gravadas — Plataforma e aplicativo próprio' },
+            { icon: '🔧', text: 'Oficinas de Implementação — Encontros práticos mensais' },
+            { icon: '💬', text: 'Feedback do Time — Acompanhamento no dia a dia' },
+            { icon: '⚡', text: 'Calls com o Time — Para dúvidas de execução' },
+            { icon: '❤️', text: 'Comunidade — Troca com outros mentorados' },
           ]
         },
         {
-          id: 'habilidades_oti', title: 'Habilidades a Desenvolver', subtitle: 'Foco desta fase',
+          id: 'habilidades', title: 'Habilidades', subtitle: 'Foco desta fase',
           type: 'cards',
           cards: [
-            { icon: '\u{1F4CA}', title: 'Análise de Dados', desc: 'Interpretar métricas e tomar decisões baseadas em dados reais.' },
-            { icon: '\u{1F504}', title: 'Iteração Rápida', desc: 'Testar, medir e ajustar rapidamente cada elemento do funil.' },
+            { icon: '💰', title: 'Domínio do Processo de Vendas', desc: 'Ao final desta fase, você terá domínio completo do processo comercial e estará apto a delegar a venda, caso deseje.', color: '#656A41', highlight: true },
+            { icon: '📱', title: 'Conteúdo e Geração de Leads', desc: 'Você se tornará excelente na produção de conteúdo e aprenderá a gerar leads de forma consistente, seja por meio de conteúdos orgânicos ou de anúncios bem estruturados.', color: '#8B9060' },
           ]
         },
         {
-          id: 'marco_oti', title: 'Marco', subtitle: 'Vendas com Consistência',
+          id: 'marco', title: 'Marco', subtitle: 'Vendas com Consistência',
           type: 'milestone',
-          text: 'O objetivo é atingir consistência nas vendas — não depender de picos, mas ter um fluxo previsível e sustentável.',
-          milestone: 'Vendas com Consistência'
+          milestone: 'Vendas com Consistência',
+          text: 'Você está vendendo com **consistência**. Pronto para escalar.',
+          milestoneColor: '#8B9060',
+          button: 'Avançar para Escala'
         }
       ],
       escala: [
         {
-          id: 'intro_esc', title: 'Escala Sustentável', subtitle: 'Etapa 4 \u2022 Mês 8-12',
+          id: 'intro', title: 'Início', subtitle: 'ESCALA',
           type: 'intro',
-          badge: 'Etapa 4 \u2022 Mês 8-12',
-          text: 'A fase final transforma seu negócio em uma operação escalável. Automações, equipe, processos e novos canais de aquisição.'
+          badge: 'Etapa 4 • Mês 8-12',
+          text: '**Crescimento** com previsibilidade.'
         },
         {
-          id: 'objetivos_esc', title: 'Objetivos de Escala', subtitle: '6 frentes',
+          id: 'objetivos', title: 'Objetivos', subtitle: 'O que você vai conquistar',
           type: 'cards',
+          badge: 'OBJETIVOS DESSA FASE',
+          intro: 'Você validou, otimizou. Agora escala com estrutura.',
           cards: [
-            { icon: '\u{2699}\uFE0F', title: 'Automações', desc: 'Automatizar processos repetitivos: follow-up, agendamento, onboarding.' },
-            { icon: '\u{1F465}', title: 'Equipe', desc: 'Contratar e treinar SDR ou assistente para prospecção.' },
-            { icon: '\u{1F4CB}', title: 'Processos', desc: 'Documentar POPs (Procedimentos Operacionais Padrão) do negócio.' },
-            { icon: '\u{1F4E2}', title: 'Novos Canais', desc: 'Expandir para tráfego pago, parcerias e indicações.' },
-            { icon: '\u{1F3AC}', title: 'Eventos', desc: 'Planejar webinars ou eventos presenciais para lançamento.' },
-            { icon: '\u{1F4B8}', title: 'Recorrência', desc: 'Criar modelo de recorrência ou continuidade pós-mentoria.' },
+            { icon: '📚', title: 'Manter os funis funcionando', desc: 'Consistência nas vendas' },
+            { icon: '💰', title: 'Aumentar investimento em tráfego', desc: 'Escalar mídia paga', highlight: true },
+            { icon: '👤', title: 'Estruturar time', desc: 'Contratar e delegar', highlight: true },
+            { icon: '📚', title: 'Fazer mais funis', desc: 'Novos canais de venda' },
+            { icon: '📄', title: 'Colocar mais produtos', desc: 'Expandir oferta' },
+            { icon: '📈', title: 'Maestria em conteúdo', desc: 'Conteúdo de alta conversão', highlight: true },
           ]
         },
         {
-          id: 'plano_escala', title: 'Plano de Escala', subtitle: 'Reunião com consultor',
+          id: 'call-estrategia', title: 'Plano de Escala', subtitle: 'Call Estratégica para Plano de Escala',
           type: 'list',
-          intro: 'Call dedicada para montar o plano de escala personalizado.',
-          items: [
-            { icon: '\u{1F4CB}', text: 'Definição de metas de faturamento para os próximos 6 meses' },
-            { icon: '\u{1F465}', text: 'Plano de contratação e delegação' },
-            { icon: '\u{2699}\uFE0F', text: 'Mapeamento de automações prioritárias' },
-            { icon: '\u{1F4E2}', text: 'Estratégia de aquisição escalável' },
+          intro: 'Quando você tiver neste momento, vai ter uma call com o Consultor para definir sua execução nesta fase',
+          cards: [
+            { icon: '👤', title: 'Quem contratar', desc: 'Definir estrutura de time' },
+            { icon: '📈', title: 'Plano de metas', desc: 'Objetivos e KPIs claros' },
+            { icon: '📅', title: 'Iniciativas do ano', desc: 'Projetos prioritários' },
+          ],
+          voiceParticipants: [
+            { name: 'Consultor CASE', role: 'Estrategista', speaking: true },
+            { name: 'Você', role: 'Mentorado(a)', speaking: false },
           ]
         },
         {
-          id: 'apoio_esc', title: 'Apoio Disponível', subtitle: 'Suporte contínuo',
+          id: 'apoio', title: 'Apoio', subtitle: 'O que você recebe para te apoiar durante a execução',
           type: 'support_list',
+          supportColor: '#C9A227',
           items: [
-            'Consultoria em automações e ferramentas',
-            'Templates de POPs e processos',
-            'Estratégia de tráfego pago',
-            'Planejamento de eventos',
-            'Suporte na contratação de equipe',
-            'Revisão do modelo de negócio',
-            'Networking com outros mentorados avançados',
-            'Plano de transição pós-mentoria',
+            { icon: '👥', text: 'Grupo Individual — Com Consultor e time de líderes' },
+            { icon: '🎥', text: 'Conselho Semanal — Em grupo de até 15 pessoas com Consultor' },
+            { icon: '🤖', text: 'Ferramentas de IA — Roteiros, copys, scripts de vendas e abordagens' },
+            { icon: '🎓', text: 'Trilhas Gravadas — Plataforma e aplicativo próprio' },
+            { icon: '🔧', text: 'Oficinas de Implementação — Encontros práticos mensais' },
+            { icon: '💬', text: 'Feedback do Time — Acompanhamento no dia a dia' },
+            { icon: '⚡', text: 'Calls com o Time — Para dúvidas de execução' },
+            { icon: '❤️', text: 'Comunidade — Troca com outros mentorados' },
           ]
         },
         {
-          id: 'marco_esc', title: 'Marco', subtitle: 'Negócio Estruturado',
+          id: 'marco', title: 'Marco', subtitle: 'Negócio Estruturado',
           type: 'milestone',
-          text: 'Ao final desta fase, você terá um negócio estruturado com processos, equipe e canais de aquisição funcionando. Sua mentoria está completa — mas a jornada continua.',
           milestone: 'Negócio Estruturado',
+          text: 'Vendas consistentes, **alta margem de lucro**, receita previsível e processos claros.',
+          badgeFinal: 'Jornada Completa!',
           journeyComplete: true
         }
       ]
@@ -271,105 +317,406 @@ function jornadaStore() {
     // --- Support pages ---
     supportPages: [
       {
-        id: 'estrategista', icon: '\u{1F9E0}', label: 'Estrategista',
+        id: 'estrategista', icon: '👥', label: 'Estrategista',
         title: 'Sua Estrategista',
         content: {
-          name: 'Queila Trizotti',
-          role: 'Estrategista-Chefe',
+          name: 'QUEILA TRIZOTTI',
+          role: 'Estrategista-Chefe da CASE',
           photo: 'https://sttacbrmtyxiwprovhrf.supabase.co/storage/v1/object/public/user-avatars/Queilatrizotti.jpg',
-          bio: 'Especialista em posicionamento e monetização de mentorias. Mais de R$ 55M+ gerados no digital. Responsável por estruturar ofertas, funis e estratégias de conversão para mentorados CASE.',
-          responsibilities: [
-            'Definir posicionamento e estratégia de mercado',
-            'Produzir os dossiês estratégicos',
-            'Conduzir calls de estratégia e análise',
-            'Orientar decisões de pricing e oferta',
-            'Acompanhar evolução e corrigir rota',
-          ]
+          whatSheDoes: [
+            'Define sua oferta junto com você',
+            'Estrutura seu produto',
+            'Escolhe seu funil de vendas',
+            'Cria seu documento estratégico',
+            'Lidera os encontros semanais',
+            'Direciona sua jornada de ponta a ponta',
+          ],
+          whenSheJoins: [
+            { moment: 'Logo no início', action: 'Sessão estratégica completa' },
+            { moment: 'Toda semana', action: 'Encontros ao vivo' },
+            { moment: 'Após validação', action: 'Entrega do segundo documento estratégico' },
+            { moment: 'Durante toda jornada', action: 'Direcionamento e alinhamento' },
+          ],
+          whatChanges: [
+            'Você não precisa descobrir sozinho o que vende',
+            'Você tem alguém experiente definindo sua estratégia',
+            'Suas dúvidas estratégicas são respondidas por quem entende',
+            'Você tem direção, não fica perdido',
+          ],
+          quote: 'Eu vou junto com você definir cada decisão estratégica. Você não vai chutar — vai decidir com base.',
+          quoteAuthor: 'Queila Trizotti',
         }
       },
       {
-        id: 'equipe', icon: '\u{1F465}', label: 'Equipe',
+        id: 'equipe', icon: '💬', label: 'Equipe',
         title: 'Equipe CASE',
         content: {
           estrategistas: [
-            { name: 'Queila Trizotti', role: 'Estrategista-Chefe', photo: 'https://sttacbrmtyxiwprovhrf.supabase.co/storage/v1/object/public/user-avatars/Queilatrizotti.jpg', highlight: 'R$ 55M+ gerados no digital' },
-            { name: 'Hugo Nicchio', role: 'Estrategista', photo: 'https://sttacbrmtyxiwprovhrf.supabase.co/storage/v1/object/public/user-avatars/Hugo%20Nicchio.jpg', highlight: 'R$ 300M+ gerados no digital' },
-            { name: 'Kaique', role: 'Especialista em Funis', photo: 'https://sttacbrmtyxiwprovhrf.supabase.co/storage/v1/object/public/user-avatars/Kaique.jpg', highlight: 'Expert em IA e Performance' },
-            { name: 'Mariza Ribeiro', role: 'Especialista em Copy', photo: 'https://sttacbrmtyxiwprovhrf.supabase.co/storage/v1/object/public/user-avatars/Mariza%20Ribeiro.jpg', highlight: '+5 anos no time' },
-            { name: 'Victor Rubens', role: 'Especialista em Campanhas', photo: 'https://sttacbrmtyxiwprovhrf.supabase.co/storage/v1/object/public/user-avatars/Victor%20Rubens.jpg', highlight: '+R$ 30M em campanhas' },
+            {
+              name: 'Queila Trizotti', role: 'Estrategista',
+              photo: 'https://sttacbrmtyxiwprovhrf.supabase.co/storage/v1/object/public/user-avatars/Queilatrizotti.jpg',
+              highlight: 'R$ 55M+ gerados no digital',
+              credentials: '7 anos comandando operações de alto ticket • Criadora do método CASE • Expert em narrativas, posicionamento e arquitetura de ofertas premium',
+              function: 'Conduz as decisões estratégicas mais profundas do seu negócio na Call de Download e nos conselhos semanais',
+            },
+            {
+              name: 'Hugo Nicchio', role: 'Estrategista',
+              photo: 'https://sttacbrmtyxiwprovhrf.supabase.co/storage/v1/object/public/user-avatars/Hugo%20Nicchio.jpg',
+              highlight: 'R$ 300M+ gerados no digital',
+              credentials: 'Lidera equipe de +80 pessoas • ROI consistente de 10x a 40x • Fundador da Vita Science, Mentoria CASE e Digital Business School',
+              function: 'Co-conduz os conselhos semanais e garante suporte estratégico contínuo em todas as fases',
+            },
+            {
+              name: 'Kaique', role: 'Especialista em Funis',
+              photo: 'https://sttacbrmtyxiwprovhrf.supabase.co/storage/v1/object/public/user-avatars/Kaique.jpg',
+              highlight: 'Expert em IA e Performance',
+              credentials: 'Lançamentos de 7 dígitos executados • Experiência em tráfego pago e otimização de funis • Especialista em IA aplicada a performance e conversão',
+              function: 'Realiza calls de destrave em funil, conversão e tráfego quando você travar',
+            },
+            {
+              name: 'Mariza Ribeiro', role: 'Especialista em Copy',
+              photo: 'https://sttacbrmtyxiwprovhrf.supabase.co/storage/v1/object/public/user-avatars/Mariza%20Ribeiro.jpg',
+              highlight: '+5 anos no time',
+              credentials: 'Responsável por múltiplos lançamentos de 7 dígitos • Expert em copy orientada a prova social, clareza e vendas',
+              function: 'Transforma toda estratégia da Call de Download em dossiês executáveis e planos de copy prontos para rodar',
+            },
+            {
+              name: 'Victor Rubens', role: 'Especialista em Campanhas',
+              photo: 'https://sttacbrmtyxiwprovhrf.supabase.co/storage/v1/object/public/user-avatars/Victor%20Rubens.jpg',
+              highlight: '+R$ 30M em campanhas',
+              credentials: '+5 anos criando campanhas • Expert em vídeos, anúncios e criações de campanhas de alta conversão',
+              function: 'Dá feedbacks pontuais sobre campanhas e direção de vídeos',
+            },
           ],
           lideres: [
-            { name: 'Heitor', role: 'Líder Consultivo', photo: 'https://sttacbrmtyxiwprovhrf.supabase.co/storage/v1/object/public/user-avatars/Heitor.jpg', highlight: 'Seu parceiro de execução' },
-            { name: 'Lara', role: 'Líder Consultiva', photo: 'https://sttacbrmtyxiwprovhrf.supabase.co/storage/v1/object/public/user-avatars/Lara%20Santos.jpg', highlight: 'Sua parceira de execução' },
+            {
+              name: 'Heitor', role: 'Líder Consultivo',
+              photo: 'https://sttacbrmtyxiwprovhrf.supabase.co/storage/v1/object/public/user-avatars/Heitor.jpg',
+              highlight: 'Seu parceiro de execução',
+              credentials: 'Trabalha diretamente com Hugo • Participou de lançamentos de 7 dígitos • Expert em desenvolvimento de produtos digitais e arquitetura de ofertas',
+              function: 'Está com você no WhatsApp para dúvidas, feedbacks diretos e calls de destrave. Cobra a execução, acompanha seu progresso e garante que você execute rápido',
+            },
+            {
+              name: 'Lara', role: 'Líder Consultiva',
+              photo: 'https://sttacbrmtyxiwprovhrf.supabase.co/storage/v1/object/public/user-avatars/Lara%20Santos.jpg',
+              highlight: 'Sua parceira de execução',
+              credentials: '+4 anos no time • Treinada diretamente com a Estrategista • Especialista em CS, operação de atendimento e jornada do cliente',
+              function: 'Está com você no WhatsApp para dúvidas, feedbacks diretos e calls de destrave. Cobra a execução, acompanha seu progresso e garante que você execute rápido',
+            },
           ]
         }
       },
       {
-        id: 'agentes', icon: '\u{1F916}', label: 'Agentes IA',
+        id: 'agentes', icon: '🤖', label: 'Agentes IA',
         title: 'Agentes de Inteligência Artificial',
         content: {
           agents: [
-            { name: 'Agente de Extração Editorial', desc: 'Captura seu DNA editorial a partir de conteúdos e conversas.' },
-            { name: 'Agente de Conteúdo', desc: 'Gera ideias de conteúdo alinhadas com sua oferta e posicionamento.' },
-            { name: 'Agente de Roteiros', desc: 'Transforma ideias em roteiros prontos para stories e reels.' },
-            { name: 'Agente de Funil de Vendas', desc: 'Guia na execução do funil de vendas com scripts e templates.' },
-            { name: 'Agente Revisor de Arquitetura', desc: 'Estrutura seu produto e valida a arquitetura da oferta.' },
-            { name: 'Agente de Roteiro de Aulas', desc: 'Roteiriza suas aulas com estrutura pedagógica e engajamento.' },
-            { name: 'Agente de Lapidação de Perfil', desc: 'Analisa e direciona ajustes no seu perfil do Instagram.' },
-            { name: 'Seu Agente Personalizado', desc: 'Criado especificamente para você, com base no seu dossiê e contexto.' },
+            {
+              name: 'AGENTE DE EXTRAÇÃO EDITORIAL',
+              whatIs: 'Uma inteligência artificial que captura quem você é — sua essência, sua voz, seu jeito de falar.',
+              howItWorks: [
+                'Você alimenta com seu documento estratégico',
+                'Você responde perguntas sobre você, sua história, seu estilo',
+                'O agente absorve tudo e cria seu \'DNA editorial\'',
+                'Tudo que você cria depois sai alinhado com você',
+              ],
+              whenToUse: [
+                'Logo no início da execução',
+                'Antes de criar qualquer conteúdo',
+                'Quando sentir que o conteúdo está genérico',
+              ],
+              whatItHelps: [
+                'Você não cria conteúdo sem personalidade',
+                'Tudo que sai é você, não uma versão genérica',
+                'Sua comunicação fica coerente',
+              ],
+            },
+            {
+              name: 'AGENTE DE CONTEÚDO',
+              whatIs: 'Uma inteligência artificial que gera ideias de conteúdo alinhadas com sua oferta.',
+              howItWorks: [
+                'Você fala sobre o que quer comunicar',
+                'Você define o objetivo (atrair, engajar, vender)',
+                'O agente gera ideias específicas para você',
+                'Você escolhe as que fazem sentido',
+              ],
+              whenToUse: [
+                'Toda semana, para planejar conteúdo',
+                'Quando não sabe o que postar',
+                'Quando quer ideias para uma campanha',
+              ],
+              whatItHelps: [
+                'Você não fica olhando pra tela sem saber o que fazer',
+                'Suas ideias são alinhadas com seu objetivo',
+                'Você tem um banco de ideias sempre disponível',
+              ],
+            },
+            {
+              name: 'AGENTE DE ROTEIROS',
+              whatIs: 'Uma inteligência artificial que transforma suas ideias em roteiros prontos.',
+              howItWorks: [
+                'Você escolhe uma ideia (do Agente de Conteúdo ou sua)',
+                'Você define o formato (vídeo, carrossel, stories, post)',
+                'O agente cria o roteiro completo',
+                'Você ajusta se quiser e produz',
+              ],
+              whenToUse: [
+                'Depois de escolher a ideia',
+                'Antes de sentar pra produzir',
+                'Quando não sabe como estruturar',
+              ],
+              whatItHelps: [
+                'Você não fica horas pensando como começar',
+                'Seu conteúdo tem estrutura que funciona',
+                'Você produz mais rápido',
+              ],
+            },
+            {
+              name: 'AGENTE DE FUNIL DE VENDAS',
+              whatIs: 'Uma inteligência artificial específica para o seu funil de vendas.',
+              howItWorks: [
+                'O agente conhece o funil que foi escolhido pra você',
+                'Ele te guia em cada etapa da execução',
+                'Ele sugere abordagens, mensagens, ações',
+                'Ele te ajuda a converter',
+              ],
+              whenToUse: [
+                'Durante toda a execução do funil',
+                'Quando não sabe qual próximo passo',
+                'Quando quer otimizar alguma etapa',
+              ],
+              whatItHelps: [
+                'Você tem um guia específico pro seu caminho',
+                'Você não precisa decorar o manual',
+                'Você tem suporte na hora de vender',
+              ],
+            },
+            {
+              name: 'AGENTE REVISOR DE ARQUITETURA',
+              whatIs: 'Uma inteligência artificial que te ajuda a estruturar seu produto.',
+              howItWorks: [
+                'Você conversa sobre o que quer ensinar',
+                'O agente faz perguntas para entender a jornada do seu aluno',
+                'Juntos, vocês definem módulos, aulas, materiais',
+                'Você sai com a arquitetura completa',
+              ],
+              whenToUse: [
+                'Após receber o documento estratégico',
+                'Quando for estruturar seu produto',
+                'Quando quiser reorganizar algo',
+              ],
+              whatItHelps: [
+                'Você não cria produto desorganizado',
+                'Seu aluno tem uma jornada que faz sentido',
+                'Você pensa em tudo que precisa ter',
+              ],
+            },
+            {
+              name: 'AGENTE DE ROTEIRO DE AULAS',
+              whatIs: 'Uma inteligência artificial que roteiriza suas aulas.',
+              howItWorks: [
+                'Você define o tema da aula',
+                'O agente estrutura o roteiro completo',
+                'Introdução, desenvolvimento, conclusão, exercícios',
+                'Você ajusta e grava',
+              ],
+              whenToUse: [
+                'Depois de definir os módulos',
+                'Quando for gravar cada aula',
+                'Quando quiser melhorar uma aula existente',
+              ],
+              whatItHelps: [
+                'Suas aulas tem estrutura didática',
+                'Você não fica perdido na frente da câmera',
+                'Você grava mais rápido',
+              ],
+            },
+            {
+              name: 'AGENTE DE LAPIDAÇÃO DE PERFIL',
+              whatIs: 'Uma inteligência artificial que analisa e direciona ajustes no seu perfil.',
+              howItWorks: [
+                'O agente analisa seu perfil atual',
+                'Ele identifica o que está alinhado e o que não está',
+                'Ele gera sugestões de bio, destaques, posts fixados',
+                'Ele cria roteiros do que produzir',
+              ],
+              whenToUse: [
+                'Logo no início da jornada',
+                'Quando quiser reposicionar seu perfil',
+                'Quando sentir que o perfil não comunica direito',
+              ],
+              whatItHelps: [
+                'Você sabe exatamente o que ajustar',
+                'Você tem roteiros prontos, só produzir',
+                'Seu perfil comunica quem você é e o que faz',
+              ],
+            },
+            {
+              name: 'SEU AGENTE PERSONALIZADO',
+              whatIs: 'Uma inteligência artificial criada especificamente para você, com seu contexto, sua voz, seu estilo.',
+              howItWorks: [
+                'Na sessão hands-on, nós criamos juntos',
+                'Alimentamos com tudo sobre você',
+                'Configuramos para seu jeito de trabalhar',
+                'Ele vira seu assistente pessoal',
+              ],
+              whenToUse: [
+                'Para tudo',
+                'É seu parceiro de trabalho',
+                'Disponível sempre que precisar',
+              ],
+              whatItHelps: [
+                'Você tem um agente que te conhece',
+                'Não precisa explicar tudo de novo toda vez',
+                'É como ter um assistente que sabe sua história',
+              ],
+            },
           ]
         }
       },
       {
-        id: 'manuais', icon: '\u{1F4D6}', label: 'Manuais',
+        id: 'manuais', icon: '📄', label: 'Manuais',
         title: 'Manuais e Documentos',
         content: {
           docs: [
-            { title: 'Guia de Primeiros Passos', desc: 'Tudo que você precisa saber para começar com o pé direito.' },
-            { title: 'Manual de Vendas', desc: 'Scripts, técnicas e processos de venda validados.' },
-            { title: 'Guia de Conteúdo', desc: 'Como produzir conteúdo estratégico para atrair leads.' },
-            { title: 'Playbook de Automações', desc: 'Configuração de ferramentas e automações do funil.' },
+            {
+              title: 'MANUAL DO SEU FUNIL',
+              whatIs: 'O passo a passo completo do funil que foi escolhido pra você.',
+              whatInside: ['Visão geral do funil', 'Cada etapa explicada', 'O que fazer em cada momento', 'Scripts e modelos de mensagem', 'Checklist de execução', 'Métricas para acompanhar'],
+              whenToUse: 'Durante toda a execução. É seu guia de referência. Volte sempre que tiver dúvida.',
+            },
+            {
+              title: 'DOCUMENTO ESTRATÉGICO - FASE 1',
+              whatIs: 'Sua estratégia completa documentada.',
+              whatInside: ['Sua oferta posicionada', 'Sua narrativa e storytelling', 'Arquitetura do produto (Ponto A ao Ponto B)', 'Funil escolhido e por quê', 'Guia de lapidação de perfil', 'Plano de ação inicial'],
+              whenToUse: 'É sua bíblia estratégica. Base para todas as decisões. Referência para os agentes.',
+            },
+            {
+              title: 'DOCUMENTO ESTRATÉGICO - FASE 2',
+              whatIs: 'Seu redirecionamento após validação.',
+              whatInside: ['Análise do que funcionou', 'Plano de conteúdo otimizado', 'Ajustes no funil', 'Configuração refinada dos agentes', 'Próximos passos'],
+              whenToUse: 'Após validar a oferta. Para otimizar o que funciona. Base para escala.',
+            },
+            {
+              title: 'CHECKLIST DE EXECUÇÃO',
+              whatIs: 'Lista prática do que fazer em cada momento.',
+              whatInside: ['Tarefas da concepção', 'Tarefas da validação', 'Tarefas da otimização', 'Tarefas da escala', 'Marcadores de progresso'],
+              whenToUse: 'Todo dia, para saber o que fazer. É seu mapa de execução. Marque conforme avança.',
+            },
           ]
         }
       },
       {
-        id: 'encontros', icon: '\u{1F4C5}', label: 'Encontros',
+        id: 'encontros', icon: '🎥', label: 'Encontros',
         title: 'Encontros Semanais',
         content: {
-          description: 'Toda semana temos encontros ao vivo para acompanhamento, troca e aprendizado.',
-          meetings: [
-            { day: 'Terça-feira', time: '10h', title: 'Encontro de Estratégia', desc: 'Análise de casos, otimização de funis e correção de rota.' },
-            { day: 'Quinta-feira', time: '14h', title: 'Encontro de Conteúdo', desc: 'Planejamento de conteúdo, revisão de roteiros e tendências.' },
-          ]
+          frequency: 'Toda terça-feira',
+          format: 'Ao vivo, online',
+          with: 'Queila, estrategista-chefe',
+          duration: 'Aproximadamente 1 hora',
+          recording: 'Disponível em 24h',
+          whatHappens: [
+            'Queila traz um tema relevante',
+            'Você pode trazer dúvidas',
+            'Análise de casos reais',
+            'Direcionamento prático',
+            'Espaço para perguntas',
+          ],
+          topics: [
+            'Posicionamento e oferta',
+            'Conteúdo que converte',
+            'Técnicas de vendas',
+            'Utilização dos agentes',
+            'Análise de perfis',
+            'Otimização de funil',
+            'Mindset e bloqueios',
+          ],
+          whyImportant: [
+            'Você não fica sozinho na jornada',
+            'Suas dúvidas são respondidas ao vivo',
+            'Você aprende com casos de outros mentorados',
+            'Você tem direção toda semana',
+          ],
+          details: {
+            duracao: '~1 hora',
+            formato: 'Ao vivo',
+            gravacao: 'Em 24h',
+            material: 'Quando relevante',
+          }
         }
       },
       {
-        id: 'plataforma', icon: '\u{1F4BB}', label: 'Plataforma',
+        id: 'plataforma', icon: '🎓', label: 'Plataforma',
         title: 'Áreas da Plataforma',
         content: {
+          url: 'plataforma.casementoria.com',
           areas: [
-            { name: 'Dashboard', desc: 'Visão geral do seu progresso, métricas e próximos passos.' },
-            { name: 'Dossiês', desc: 'Acesso aos documentos estratégicos produzidos para você.' },
-            { name: 'Planos de Ação', desc: 'Tarefas e entregas organizadas por fase da mentoria.' },
-            { name: 'WhatsApp', desc: 'Gestão de conversas e histórico de atendimento.' },
-            { name: 'Agenda', desc: 'Calendário de calls, encontros e entregas.' },
-            { name: 'Equipe', desc: 'Informações da equipe e contatos diretos.' },
-          ]
+            {
+              id: 'aulas', title: 'ÁREA DE AULAS',
+              items: ['Aulas de fundamentos (oferta, produto, funil, mindset)', 'Aulas do seu funil específico', 'Aulas de conteúdo', 'Aulas de copy', 'Aulas de comercial', 'Aulas de utilização dos agentes'],
+            },
+            {
+              id: 'materiais', title: 'ÁREA DE MATERIAIS',
+              items: ['Templates', 'Modelos', 'Scripts', 'Checklists'],
+            },
+            {
+              id: 'gravacoes', title: 'ÁREA DE GRAVAÇÕES',
+              items: ['Todos os encontros gravados', 'Sessões especiais', 'Workshops'],
+            },
+            {
+              id: 'agentes', title: 'ÁREA DE AGENTES',
+              items: ['Acesso aos agentes de IA', 'Tutoriais de uso', 'Social Case Hub'],
+            },
+          ],
+          sidebar: ['Dashboard', 'Aulas', 'Materiais', 'Agentes', 'Gravações'],
+          courses: [
+            { name: 'Fundamentos', lessons: 12 },
+            { name: 'Seu Funil', lessons: 12 },
+            { name: 'Comercial', lessons: 12 },
+          ],
+          howToUse: [
+            'Acesse quando precisar aprender algo',
+            'Volte para revisar conceitos',
+            'Use como referência',
+            'Acompanhe seu progresso',
+          ],
+          note: 'Conteúdo organizado por etapa da jornada. Você sabe o que assistir em cada momento. Não precisa assistir tudo — só o que faz sentido pro seu momento.',
         }
       },
       {
-        id: 'comunidade', icon: '\u{1F91D}', label: 'Comunidade',
+        id: 'comunidade', icon: '❤️', label: 'Comunidade',
         title: 'Comunidade CASE',
         content: {
-          description: 'A comunidade CASE conecta mentorados em diferentes fases da jornada para troca de experiências e networking.',
-          features: [
-            'Grupo exclusivo no WhatsApp',
-            'Encontros mensais de networking',
-            'Compartilhamento de resultados e aprendizados',
-            'Parcerias entre mentorados',
-            'Acesso a cases de sucesso detalhados',
-            'Convites para eventos presenciais',
-          ]
+          where: [
+            { icon: '💬', title: 'Grupo WhatsApp', desc: 'Com a equipe e mentorados' },
+            { icon: '👥', title: 'Encontros semanais', desc: 'Ao vivo toda terça' },
+            { icon: '✨', title: 'Eventos especiais', desc: 'Workshops e sessões extras' },
+          ],
+          whatYouGet: [
+            'Troca com pessoas no mesmo momento',
+            'Ver que outras pessoas passam pelo mesmo',
+            'Aprender com erros e acertos dos outros',
+            'Networking real',
+            'Motivação de ver outros avançando',
+          ],
+          howItWorks: [
+            'Dúvidas respondidas pela equipe',
+            'Troca entre mentorados',
+            'Celebração de conquistas',
+            'Compartilhamento de aprendizados',
+          ],
+          whatItIsNot: [
+            'Não é um grupo genérico de networking',
+            'Não é espaço para vender',
+            'Não é foco em quantidade de pessoas',
+          ],
+          philosophy: 'É uma comunidade focada em execução e resultados.',
+          whyItMatters: [
+            'A jornada de empreender é solitária',
+            'Ter pessoas junto muda tudo',
+            'Você não está sozinho nos desafios',
+            'Você celebra junto as conquistas',
+          ],
         }
       }
     ],

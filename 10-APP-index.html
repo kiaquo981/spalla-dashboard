@@ -3933,7 +3933,7 @@
                 <div>
                   <div class="jrn-hero">
                     <h1>Jornada do Mentorado</h1>
-                    <p>Sua trajetoria completa na mentoria CASE, do onboarding a escala do negocio.</p>
+                    <p>Sua trajetória completa na mentoria CASE, do onboarding à escala do negócio.</p>
                     <button @click="showMapOverlay = true" style="margin-top: 16px; background: none; border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 20px; cursor: pointer; font-size: 0.82rem; color: #374151;">Ver Mapa Completo</button>
                   </div>
                   <div class="jrn-phases">
@@ -4072,7 +4072,7 @@
                         </button>
                         <span class="jrn-nav__indicator" x-text="(activeSection + 1) + ' / ' + totalSections + '  \u2022  ' + currentPhase.name"></span>
                         <button @click="nextSection()" :disabled="activePhase === phases.length - 1 && activeSection === totalSections - 1">
-                          Proximo <span>&rarr;</span>
+                          Próximo <span>&rarr;</span>
                         </button>
                       </div>
                     </div>
@@ -4107,37 +4107,63 @@
                             <div class="jrn-person__role" x-text="getSupportPage('estrategista').content.role"></div>
                           </div>
                         </div>
-                        <p class="jrn-bio" x-text="getSupportPage('estrategista').content.bio"></p>
-                        <div style="font-weight: 600; font-size: 0.85rem; color: #1f2937; margin-bottom: 8px;">Responsabilidades:</div>
+                        <div style="font-weight: 600; font-size: 0.85rem; color: #1f2937; margin-bottom: 8px;">O que ela faz:</div>
                         <ul class="jrn-resp-list">
-                          <template x-for="r in getSupportPage('estrategista').content.responsibilities" :key="r">
+                          <template x-for="r in getSupportPage('estrategista').content.whatSheDoes" :key="r">
                             <li x-text="r"></li>
                           </template>
                         </ul>
+                        <div style="font-weight: 600; font-size: 0.85rem; color: #1f2937; margin: 16px 0 8px;">Quando ela entra:</div>
+                        <template x-for="w in getSupportPage('estrategista').content.whenSheJoins" :key="w.moment">
+                          <div style="display: flex; gap: 8px; padding: 6px 0; font-size: 0.85rem; color: #374151;">
+                            <span style="font-weight: 600; color: #656A41; min-width: 120px;" x-text="w.moment"></span>
+                            <span x-text="w.action"></span>
+                          </div>
+                        </template>
+                        <div style="font-weight: 600; font-size: 0.85rem; color: #1f2937; margin: 16px 0 8px;">O que muda com ela:</div>
+                        <ul class="jrn-resp-list">
+                          <template x-for="c in getSupportPage('estrategista').content.whatChanges" :key="c">
+                            <li x-text="c"></li>
+                          </template>
+                        </ul>
+                        <div style="margin-top: 20px; padding: 16px; background: #FAFAF8; border-left: 3px solid #C9A227; border-radius: 8px;">
+                          <p style="font-style: italic; font-size: 0.9rem; color: #4b5563; margin-bottom: 4px;" x-text="'\"' + getSupportPage('estrategista').content.quote + '\"'"></p>
+                          <span style="font-size: 0.8rem; color: #9ca3af;" x-text="'— ' + getSupportPage('estrategista').content.quoteAuthor"></span>
+                        </div>
                       </div>
                     </template>
 
                     <!-- Equipe -->
                     <template x-if="activeSupportPage === 'equipe'">
                       <div>
-                        <div style="font-weight: 600; font-size: 0.85rem; color: #7A8050; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.06em;">Estrategistas</div>
+                        <div style="font-weight: 600; font-size: 0.85rem; color: #C9A227; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.06em;">Estrategistas</div>
                         <template x-for="p in getSupportPage('equipe').content.estrategistas" :key="p.name">
-                          <div class="jrn-person">
-                            <img class="jrn-person__photo" :src="p.photo" :alt="p.name">
-                            <div>
-                              <div class="jrn-person__name" x-text="p.name"></div>
-                              <div class="jrn-person__role" x-text="p.role"></div>
+                          <div class="jrn-person" style="flex-direction: column; align-items: flex-start;">
+                            <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
+                              <img class="jrn-person__photo" :src="p.photo" :alt="p.name">
+                              <div style="flex: 1;">
+                                <div class="jrn-person__name" x-text="p.name"></div>
+                                <div class="jrn-person__role" x-text="p.role"></div>
+                              </div>
+                              <span style="font-size: 0.7rem; font-weight: 600; color: #C9A227; background: #C9A227/10; padding: 2px 8px; border-radius: 10px;" x-text="p.highlight"></span>
                             </div>
+                            <div style="font-size: 0.78rem; color: #6b7280; margin-top: 8px;" x-text="p.credentials"></div>
+                            <div style="font-size: 0.78rem; color: #374151; margin-top: 4px;"><span style="font-weight: 600;">Função:</span> <span x-text="p.function"></span></div>
                           </div>
                         </template>
-                        <div style="font-weight: 600; font-size: 0.85rem; color: #7A8050; margin: 20px 0 12px; text-transform: uppercase; letter-spacing: 0.06em;">Lideres</div>
+                        <div style="font-weight: 600; font-size: 0.85rem; color: #656A41; margin: 20px 0 12px; text-transform: uppercase; letter-spacing: 0.06em;">Líderes Consultivos</div>
                         <template x-for="p in getSupportPage('equipe').content.lideres" :key="p.name">
-                          <div class="jrn-person">
-                            <img class="jrn-person__photo" :src="p.photo" :alt="p.name">
-                            <div>
-                              <div class="jrn-person__name" x-text="p.name"></div>
-                              <div class="jrn-person__role" x-text="p.role"></div>
+                          <div class="jrn-person" style="flex-direction: column; align-items: flex-start;">
+                            <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
+                              <img class="jrn-person__photo" :src="p.photo" :alt="p.name">
+                              <div style="flex: 1;">
+                                <div class="jrn-person__name" x-text="p.name"></div>
+                                <div class="jrn-person__role" x-text="p.role"></div>
+                              </div>
+                              <span style="font-size: 0.7rem; font-weight: 600; color: #656A41;" x-text="p.highlight"></span>
                             </div>
+                            <div style="font-size: 0.78rem; color: #6b7280; margin-top: 8px;" x-text="p.credentials"></div>
+                            <div style="font-size: 0.78rem; color: #374151; margin-top: 4px;"><span style="font-weight: 600;">Função:</span> <span x-text="p.function"></span></div>
                           </div>
                         </template>
                       </div>
@@ -4146,13 +4172,14 @@
                     <!-- Agentes IA -->
                     <template x-if="activeSupportPage === 'agentes'">
                       <div>
+                        <p style="font-size: 0.85rem; color: #6b7280; margin-bottom: 16px;">Ferramentas inteligentes que aceleram cada parte da sua execução.</p>
                         <template x-for="a in getSupportPage('agentes').content.agents" :key="a.name">
-                          <div class="jrn-agent">
-                            <span class="jrn-agent__icon">\u{1F916}</span>
-                            <div>
+                          <div class="jrn-agent" style="flex-direction: column; align-items: stretch;">
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                              <span class="jrn-agent__icon" x-text="a.icon"></span>
                               <div class="jrn-agent__name" x-text="a.name"></div>
-                              <div class="jrn-agent__desc" x-text="a.desc"></div>
                             </div>
+                            <div class="jrn-agent__desc" style="margin-top: 4px;" x-text="a.whatIs"></div>
                           </div>
                         </template>
                       </div>
@@ -4161,10 +4188,14 @@
                     <!-- Manuais -->
                     <template x-if="activeSupportPage === 'manuais'">
                       <div>
-                        <template x-for="d in getSupportPage('manuais').content.docs" :key="d.title">
+                        <p style="font-size: 0.85rem; color: #6b7280; margin-bottom: 16px;">Documentos passo a passo que guiam cada parte da sua execução.</p>
+                        <template x-for="d in getSupportPage('manuais').content.docs" :key="d.name">
                           <div class="jrn-doc">
-                            <div class="jrn-doc__title" x-text="d.title"></div>
-                            <div class="jrn-doc__desc" x-text="d.desc"></div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                              <span x-text="d.icon"></span>
+                              <div class="jrn-doc__title" x-text="d.name"></div>
+                            </div>
+                            <div class="jrn-doc__desc" x-text="d.whatIs" style="margin-top: 4px;"></div>
                           </div>
                         </template>
                       </div>
@@ -4173,24 +4204,39 @@
                     <!-- Encontros -->
                     <template x-if="activeSupportPage === 'encontros'">
                       <div>
-                        <p class="jrn-bio" x-text="getSupportPage('encontros').content.description"></p>
-                        <template x-for="m in getSupportPage('encontros').content.meetings" :key="m.title">
-                          <div class="jrn-meeting">
-                            <div class="jrn-meeting__day" x-text="m.day + ' \u2022 ' + m.time"></div>
-                            <div class="jrn-meeting__title" x-text="m.title"></div>
-                            <div class="jrn-meeting__desc" x-text="m.desc"></div>
-                          </div>
-                        </template>
+                        <p class="jrn-bio" x-text="getSupportPage('encontros').content.subtitle"></p>
+                        <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;">
+                          <template x-for="f in getSupportPage('encontros').content.format" :key="f.label">
+                            <div style="flex: 1; min-width: 100px; padding: 12px; background: #FAFAF8; border-radius: 8px; text-align: center;">
+                              <div style="font-size: 0.7rem; color: #9ca3af; text-transform: uppercase; margin-bottom: 2px;" x-text="f.label"></div>
+                              <div style="font-weight: 600; font-size: 0.85rem; color: #1f2937;" x-text="f.value"></div>
+                            </div>
+                          </template>
+                        </div>
+                        <div style="font-weight: 600; font-size: 0.85rem; color: #1f2937; margin-bottom: 8px;">Temas que aparecem:</div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px;">
+                          <template x-for="t in getSupportPage('encontros').content.topics" :key="t">
+                            <span style="padding: 4px 10px; background: #f3f4f6; border-radius: 16px; font-size: 0.78rem; color: #374151;" x-text="t"></span>
+                          </template>
+                        </div>
                       </div>
                     </template>
 
                     <!-- Plataforma -->
                     <template x-if="activeSupportPage === 'plataforma'">
                       <div>
-                        <template x-for="a in getSupportPage('plataforma').content.areas" :key="a.name">
+                        <p style="font-size: 0.85rem; color: #6b7280; margin-bottom: 16px;" x-text="getSupportPage('plataforma').content.subtitle"></p>
+                        <template x-for="a in getSupportPage('plataforma').content.areas" :key="a.title">
                           <div class="jrn-doc">
-                            <div class="jrn-doc__title" x-text="a.name"></div>
-                            <div class="jrn-doc__desc" x-text="a.desc"></div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                              <span x-text="a.icon"></span>
+                              <div class="jrn-doc__title" x-text="a.title"></div>
+                            </div>
+                            <ul style="list-style: none; padding: 0; margin: 6px 0 0;">
+                              <template x-for="item in a.items" :key="item">
+                                <li style="font-size: 0.8rem; color: #6b7280; padding: 2px 0;" x-text="'• ' + item"></li>
+                              </template>
+                            </ul>
                           </div>
                         </template>
                       </div>
@@ -4199,12 +4245,19 @@
                     <!-- Comunidade -->
                     <template x-if="activeSupportPage === 'comunidade'">
                       <div>
-                        <p class="jrn-bio" x-text="getSupportPage('comunidade').content.description"></p>
+                        <p class="jrn-bio" x-text="getSupportPage('comunidade').content.subtitle"></p>
+                        <div style="font-weight: 600; font-size: 0.85rem; color: #1f2937; margin-bottom: 8px;">O que você ganha:</div>
                         <ul class="jrn-feature-list">
-                          <template x-for="f in getSupportPage('comunidade').content.features" :key="f">
-                            <li x-text="f"></li>
+                          <template x-for="b in getSupportPage('comunidade').content.benefits" :key="b.text">
+                            <li x-text="b.text"></li>
                           </template>
                         </ul>
+                        <div style="font-weight: 600; font-size: 0.85rem; color: #1f2937; margin: 16px 0 8px;">O que não é:</div>
+                        <template x-for="n in getSupportPage('comunidade').content.whatItIsNot" :key="n">
+                          <div style="font-size: 0.85rem; color: #6b7280; padding: 4px 0; display: flex; gap: 6px;">
+                            <span style="color: #ef4444;">✕</span><span x-text="n"></span>
+                          </div>
+                        </template>
                       </div>
                     </template>
 
@@ -4456,7 +4509,7 @@
   <script src="12-APP-data.js?v=72"></script>
   <script src="13-APP-photos.js?v=72"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="20-APP-jornada.js?v=20260314"></script>
+  <script src="20-APP-jornada.js?v=20260314b"></script>
   <script src="11-APP-app.js?v=73"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
