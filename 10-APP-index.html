@@ -151,6 +151,12 @@
             <span x-show="ui.sidebarOpen">Google Docs</span>
           </a>
 
+          <div class="op-sidebar__section" x-show="ui.sidebarOpen">Mentorado</div>
+          <a class="op-nav-item" :class="{ active: ui.page === 'jornada_mentorado' }" @click="navigate('jornada_mentorado')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+            <span x-show="ui.sidebarOpen">Jornada</span>
+          </a>
+
           <div class="op-sidebar__section" x-show="ui.sidebarOpen">Sistema</div>
           <a class="op-nav-item" :class="{ active: ui.page === 'settings' }" @click="navigate('settings')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -3786,6 +3792,452 @@
           </div>
         </div>
 
+        <!-- ===== JORNADA DO MENTORADO ===== -->
+        <div class="page-content page-content--full" x-show="ui.page === 'jornada_mentorado'" x-transition>
+          <div x-data="jornadaStore()">
+
+            <style>
+              .jrn-bg { background: #FAFAF8; min-height: 100vh; }
+              .jrn-hero { text-align: center; padding: 48px 24px 32px; }
+              .jrn-hero h1 { font-family: var(--font-display, Georgia, serif); font-size: 2rem; font-weight: 700; color: #35301D; margin-bottom: 8px; }
+              .jrn-hero p { color: #6b7280; font-size: 1rem; max-width: 520px; margin: 0 auto; }
+              .jrn-phases { display: flex; gap: 16px; padding: 0 24px 48px; max-width: 1100px; margin: 0 auto; flex-wrap: wrap; justify-content: center; }
+              .jrn-phase-card { flex: 1 1 180px; max-width: 220px; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px 16px; text-align: center; cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden; }
+              .jrn-phase-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+              .jrn-phase-card__bar { height: 4px; position: absolute; top: 0; left: 0; right: 0; }
+              .jrn-phase-card__icon { font-size: 2rem; margin-bottom: 12px; }
+              .jrn-phase-card__name { font-weight: 700; font-size: 0.75rem; letter-spacing: 0.08em; margin-bottom: 4px; }
+              .jrn-phase-card__sub { font-size: 0.85rem; color: #6b7280; margin-bottom: 8px; }
+              .jrn-phase-card__month { font-size: 0.7rem; color: #9ca3af; font-weight: 600; text-transform: uppercase; }
+
+              /* Journey view */
+              .jrn-journey { max-width: 720px; margin: 0 auto; padding: 24px; }
+              .jrn-topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+              .jrn-back { background: none; border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 16px; cursor: pointer; font-size: 0.85rem; color: #374151; display: flex; align-items: center; gap: 6px; transition: background 0.15s; }
+              .jrn-back:hover { background: #f3f4f6; }
+              .jrn-phase-tabs { display: flex; gap: 4px; flex: 1; overflow-x: auto; }
+              .jrn-phase-tab { padding: 6px 12px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.05em; cursor: pointer; border: none; background: #f3f4f6; color: #6b7280; white-space: nowrap; transition: all 0.15s; }
+              .jrn-phase-tab.active { color: #fff; }
+
+              .jrn-progress { height: 3px; background: #e5e7eb; border-radius: 3px; margin-bottom: 24px; overflow: hidden; }
+              .jrn-progress__bar { height: 100%; border-radius: 3px; transition: width 0.3s; }
+
+              .jrn-section { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px 28px; margin-bottom: 20px; }
+              .jrn-section__badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em; margin-bottom: 12px; }
+              .jrn-section__title { font-family: var(--font-display, Georgia, serif); font-size: 1.5rem; font-weight: 700; color: #35301D; margin-bottom: 6px; }
+              .jrn-section__sub { font-size: 0.9rem; color: #9ca3af; margin-bottom: 16px; }
+              .jrn-section__text { font-size: 0.95rem; color: #4b5563; line-height: 1.6; }
+
+              .jrn-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
+              .jrn-card { background: #FAFAF8; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px 16px; }
+              .jrn-card__icon { font-size: 1.5rem; margin-bottom: 8px; }
+              .jrn-card__title { font-weight: 600; font-size: 0.9rem; color: #1f2937; margin-bottom: 4px; }
+              .jrn-card__desc { font-size: 0.82rem; color: #6b7280; line-height: 1.5; }
+
+              .jrn-list { list-style: none; padding: 0; margin: 16px 0 0; display: flex; flex-direction: column; gap: 10px; }
+              .jrn-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 0.9rem; color: #374151; line-height: 1.5; padding: 12px 16px; background: #FAFAF8; border-radius: 8px; }
+              .jrn-list li span:first-child { flex-shrink: 0; font-size: 1.1rem; }
+
+              .jrn-checklist { list-style: none; padding: 0; margin: 16px 0 0; display: flex; flex-direction: column; gap: 8px; }
+              .jrn-checklist li { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; color: #374151; padding: 10px 16px; background: #FAFAF8; border-radius: 8px; }
+              .jrn-checklist li::before { content: '\2713'; color: #7A8050; font-weight: 700; font-size: 1rem; flex-shrink: 0; }
+
+              .jrn-milestone { text-align: center; padding: 32px 24px; }
+              .jrn-milestone__icon { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 1.5rem; }
+              .jrn-milestone__title { font-family: var(--font-display, Georgia, serif); font-size: 1.3rem; font-weight: 700; color: #35301D; margin-bottom: 8px; }
+              .jrn-milestone__text { font-size: 0.9rem; color: #6b7280; line-height: 1.6; max-width: 480px; margin: 0 auto 20px; }
+              .jrn-milestone__badge { display: inline-block; padding: 8px 20px; border-radius: 24px; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.05em; }
+              .jrn-complete { margin-top: 16px; font-size: 0.85rem; color: #C9A227; font-weight: 600; }
+
+              .jrn-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+              .jrn-nav button { background: none; border: 1px solid #d1d5db; border-radius: 8px; padding: 10px 20px; cursor: pointer; font-size: 0.85rem; color: #374151; transition: all 0.15s; display: flex; align-items: center; gap: 6px; }
+              .jrn-nav button:hover:not(:disabled) { background: #f3f4f6; }
+              .jrn-nav button:disabled { opacity: 0.3; cursor: default; }
+              .jrn-nav__indicator { font-size: 0.75rem; color: #9ca3af; }
+
+              /* Support bar */
+              .jrn-support-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #e5e7eb; display: flex; justify-content: center; gap: 4px; padding: 8px 16px; z-index: 40; }
+              .jrn-support-btn { background: none; border: none; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 10px; cursor: pointer; border-radius: 8px; transition: background 0.15s; font-size: 0.65rem; color: #6b7280; }
+              .jrn-support-btn:hover { background: #f3f4f6; }
+              .jrn-support-btn__icon { font-size: 1.2rem; }
+
+              /* Support modal */
+              .jrn-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 24px; }
+              .jrn-modal { background: #fff; border-radius: 16px; max-width: 560px; width: 100%; max-height: 80vh; overflow-y: auto; padding: 32px 28px; position: relative; }
+              .jrn-modal__close { position: absolute; top: 16px; right: 16px; background: none; border: none; font-size: 1.3rem; cursor: pointer; color: #9ca3af; padding: 4px; }
+              .jrn-modal__close:hover { color: #374151; }
+              .jrn-modal__title { font-family: var(--font-display, Georgia, serif); font-size: 1.3rem; font-weight: 700; color: #35301D; margin-bottom: 20px; }
+
+              .jrn-person { display: flex; align-items: center; gap: 16px; padding: 16px; background: #FAFAF8; border-radius: 10px; margin-bottom: 12px; }
+              .jrn-person__photo { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; background: #e5e7eb; }
+              .jrn-person__name { font-weight: 600; font-size: 0.95rem; color: #1f2937; }
+              .jrn-person__role { font-size: 0.8rem; color: #6b7280; }
+
+              .jrn-agent { display: flex; gap: 12px; padding: 14px 16px; background: #FAFAF8; border-radius: 10px; margin-bottom: 8px; align-items: flex-start; }
+              .jrn-agent__icon { font-size: 1.3rem; flex-shrink: 0; margin-top: 2px; }
+              .jrn-agent__name { font-weight: 600; font-size: 0.9rem; color: #1f2937; }
+              .jrn-agent__desc { font-size: 0.82rem; color: #6b7280; }
+
+              .jrn-doc { padding: 14px 16px; background: #FAFAF8; border-radius: 10px; margin-bottom: 8px; }
+              .jrn-doc__title { font-weight: 600; font-size: 0.9rem; color: #1f2937; margin-bottom: 2px; }
+              .jrn-doc__desc { font-size: 0.82rem; color: #6b7280; }
+
+              .jrn-meeting { padding: 14px 16px; background: #FAFAF8; border-radius: 10px; margin-bottom: 8px; }
+              .jrn-meeting__day { font-weight: 700; font-size: 0.8rem; color: #7A8050; text-transform: uppercase; margin-bottom: 4px; }
+              .jrn-meeting__title { font-weight: 600; font-size: 0.9rem; color: #1f2937; margin-bottom: 2px; }
+              .jrn-meeting__desc { font-size: 0.82rem; color: #6b7280; }
+
+              .jrn-feature-list { list-style: none; padding: 0; margin: 12px 0 0; }
+              .jrn-feature-list li { padding: 8px 0; font-size: 0.9rem; color: #374151; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; gap: 8px; }
+              .jrn-feature-list li::before { content: '\25CF'; color: #C9A227; font-size: 0.5rem; }
+
+              .jrn-bio { font-size: 0.9rem; color: #4b5563; line-height: 1.6; margin-bottom: 16px; }
+              .jrn-resp-list { list-style: none; padding: 0; margin: 0; }
+              .jrn-resp-list li { padding: 6px 0; font-size: 0.85rem; color: #374151; display: flex; gap: 8px; }
+              .jrn-resp-list li::before { content: '\2192'; color: #7A8050; }
+
+              /* Map overlay */
+              .jrn-map-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 24px; }
+              .jrn-map { background: #fff; border-radius: 16px; max-width: 900px; width: 100%; max-height: 85vh; overflow-y: auto; padding: 40px 32px; position: relative; }
+              .jrn-map__close { position: absolute; top: 16px; right: 16px; background: none; border: none; font-size: 1.3rem; cursor: pointer; color: #9ca3af; }
+              .jrn-map__title { text-align: center; font-family: var(--font-display, Georgia, serif); font-size: 1.5rem; font-weight: 700; color: #35301D; margin-bottom: 32px; }
+              .jrn-map-phases { display: flex; flex-direction: column; gap: 0; position: relative; padding-left: 32px; }
+              .jrn-map-phases::before { content: ''; position: absolute; left: 15px; top: 8px; bottom: 8px; width: 2px; background: linear-gradient(to bottom, #35301D, #656A41, #7A8050, #8B9060, #C9A227); }
+              .jrn-map-phase { display: flex; align-items: flex-start; gap: 16px; padding: 16px 0; position: relative; cursor: pointer; }
+              .jrn-map-phase:hover .jrn-map-phase__name { text-decoration: underline; }
+              .jrn-map-dot { position: absolute; left: -25px; top: 20px; width: 14px; height: 14px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 2px currentColor; }
+              .jrn-map-phase__info { flex: 1; }
+              .jrn-map-phase__name { font-weight: 700; font-size: 0.9rem; }
+              .jrn-map-phase__sub { font-size: 0.82rem; color: #6b7280; }
+              .jrn-map-phase__month { font-size: 0.7rem; color: #9ca3af; font-weight: 600; }
+
+              /* Responsive */
+              @media (max-width: 640px) {
+                .jrn-phases { flex-direction: column; align-items: center; }
+                .jrn-phase-card { max-width: 100%; }
+                .jrn-cards { grid-template-columns: 1fr; }
+                .jrn-section { padding: 24px 20px; }
+                .jrn-phase-tabs { display: none; }
+                .jrn-support-bar { gap: 0; }
+                .jrn-support-btn { padding: 6px 6px; font-size: 0.6rem; }
+                .jrn-hero h1 { font-size: 1.5rem; }
+              }
+              /* Pad bottom for support bar */
+              .jrn-bg { padding-bottom: 72px; }
+            </style>
+
+            <div class="jrn-bg">
+
+              <!-- ========== MACRO VIEW ========== -->
+              <template x-if="view === 'macro'">
+                <div>
+                  <div class="jrn-hero">
+                    <h1>Jornada do Mentorado</h1>
+                    <p>Sua trajetoria completa na mentoria CASE, do onboarding a escala do negocio.</p>
+                    <button @click="showMapOverlay = true" style="margin-top: 16px; background: none; border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 20px; cursor: pointer; font-size: 0.82rem; color: #374151;">Ver Mapa Completo</button>
+                  </div>
+                  <div class="jrn-phases">
+                    <template x-for="(phase, i) in phases" :key="phase.id">
+                      <div class="jrn-phase-card" @click="enterJourney(i)">
+                        <div class="jrn-phase-card__bar" :style="{ background: phase.color }"></div>
+                        <div class="jrn-phase-card__icon" x-text="phase.icon"></div>
+                        <div class="jrn-phase-card__name" :style="{ color: phase.color }" x-text="phase.name"></div>
+                        <div class="jrn-phase-card__sub" x-text="phase.subtitle"></div>
+                        <div class="jrn-phase-card__month" x-text="phase.month"></div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+
+              <!-- ========== JOURNEY VIEW ========== -->
+              <template x-if="view === 'journey'">
+                <div class="jrn-journey">
+                  <!-- Top bar -->
+                  <div class="jrn-topbar">
+                    <button class="jrn-back" @click="backToMacro()">
+                      <span>&larr;</span> Voltar
+                    </button>
+                    <div class="jrn-phase-tabs">
+                      <template x-for="(phase, i) in phases" :key="phase.id">
+                        <button class="jrn-phase-tab"
+                          :class="{ active: activePhase === i }"
+                          :style="activePhase === i ? { background: phase.color } : {}"
+                          @click="goToPhase(i)"
+                          x-text="phase.name">
+                        </button>
+                      </template>
+                    </div>
+                  </div>
+
+                  <!-- Progress -->
+                  <div class="jrn-progress">
+                    <div class="jrn-progress__bar" :style="{ width: progressPct + '%', background: currentPhase.color }"></div>
+                  </div>
+
+                  <!-- Section content -->
+                  <template x-if="currentSection">
+                    <div>
+                      <!-- INTRO type -->
+                      <template x-if="currentSection.type === 'intro'">
+                        <div class="jrn-section">
+                          <span class="jrn-section__badge" :style="{ background: currentPhase.color + '18', color: currentPhase.color }" x-text="currentSection.badge"></span>
+                          <h2 class="jrn-section__title" x-text="currentSection.title"></h2>
+                          <p class="jrn-section__text" x-text="currentSection.text"></p>
+                        </div>
+                      </template>
+
+                      <!-- CARDS type -->
+                      <template x-if="currentSection.type === 'cards'">
+                        <div class="jrn-section">
+                          <h2 class="jrn-section__title" x-text="currentSection.title"></h2>
+                          <p class="jrn-section__sub" x-text="currentSection.subtitle"></p>
+                          <p x-show="currentSection.intro" class="jrn-section__text" x-text="currentSection.intro" style="margin-bottom: 16px;"></p>
+                          <div class="jrn-cards">
+                            <template x-for="card in currentSection.cards" :key="card.title">
+                              <div class="jrn-card">
+                                <div class="jrn-card__icon" x-text="card.icon"></div>
+                                <div class="jrn-card__title" x-text="card.title"></div>
+                                <div class="jrn-card__desc" x-text="card.desc"></div>
+                              </div>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
+
+                      <!-- LIST type -->
+                      <template x-if="currentSection.type === 'list'">
+                        <div class="jrn-section">
+                          <h2 class="jrn-section__title" x-text="currentSection.title"></h2>
+                          <p class="jrn-section__sub" x-text="currentSection.subtitle"></p>
+                          <p x-show="currentSection.intro" class="jrn-section__text" x-text="currentSection.intro" style="margin-bottom: 8px;"></p>
+                          <ul class="jrn-list">
+                            <template x-for="item in currentSection.items" :key="item.text">
+                              <li>
+                                <span x-text="item.icon"></span>
+                                <span x-text="item.text"></span>
+                              </li>
+                            </template>
+                          </ul>
+                        </div>
+                      </template>
+
+                      <!-- CHECKLIST type -->
+                      <template x-if="currentSection.type === 'checklist'">
+                        <div class="jrn-section">
+                          <h2 class="jrn-section__title" x-text="currentSection.title"></h2>
+                          <p class="jrn-section__sub" x-text="currentSection.subtitle"></p>
+                          <ul class="jrn-checklist">
+                            <template x-for="item in currentSection.items" :key="item">
+                              <li x-text="item"></li>
+                            </template>
+                          </ul>
+                        </div>
+                      </template>
+
+                      <!-- SUPPORT_LIST type -->
+                      <template x-if="currentSection.type === 'support_list'">
+                        <div class="jrn-section">
+                          <h2 class="jrn-section__title" x-text="currentSection.title"></h2>
+                          <p class="jrn-section__sub" x-text="currentSection.subtitle"></p>
+                          <ul class="jrn-checklist">
+                            <template x-for="item in currentSection.items" :key="item">
+                              <li x-text="item"></li>
+                            </template>
+                          </ul>
+                        </div>
+                      </template>
+
+                      <!-- MILESTONE type -->
+                      <template x-if="currentSection.type === 'milestone'">
+                        <div class="jrn-section">
+                          <div class="jrn-milestone">
+                            <div class="jrn-milestone__icon" :style="{ background: currentPhase.color + '20', color: currentPhase.color }">
+                              <span style="font-size: 1.5rem;">\u{1F3C6}</span>
+                            </div>
+                            <div class="jrn-milestone__title" x-text="'Marco: ' + currentSection.milestone"></div>
+                            <p class="jrn-milestone__text" x-text="currentSection.text"></p>
+                            <span class="jrn-milestone__badge" :style="{ background: currentPhase.color + '18', color: currentPhase.color }" x-text="currentSection.milestone"></span>
+                            <template x-if="currentSection.journeyComplete">
+                              <div class="jrn-complete">Jornada Completa</div>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
+
+                      <!-- Section navigation -->
+                      <div class="jrn-nav">
+                        <button @click="prevSection()" :disabled="activePhase === 0 && activeSection === 0">
+                          <span>&larr;</span> Anterior
+                        </button>
+                        <span class="jrn-nav__indicator" x-text="(activeSection + 1) + ' / ' + totalSections + '  \u2022  ' + currentPhase.name"></span>
+                        <button @click="nextSection()" :disabled="activePhase === phases.length - 1 && activeSection === totalSections - 1">
+                          Proximo <span>&rarr;</span>
+                        </button>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </template>
+
+              <!-- ========== SUPPORT BAR ========== -->
+              <div class="jrn-support-bar">
+                <template x-for="sp in supportPages" :key="sp.id">
+                  <button class="jrn-support-btn" @click="openSupportPage(sp.id)">
+                    <span class="jrn-support-btn__icon" x-text="sp.icon"></span>
+                    <span x-text="sp.label"></span>
+                  </button>
+                </template>
+              </div>
+
+              <!-- ========== SUPPORT PAGE MODALS ========== -->
+              <template x-if="activeSupportPage !== null">
+                <div class="jrn-modal-overlay" @click.self="closeSupportPage()">
+                  <div class="jrn-modal">
+                    <button class="jrn-modal__close" @click="closeSupportPage()">&times;</button>
+                    <h3 class="jrn-modal__title" x-text="getSupportPage(activeSupportPage)?.title"></h3>
+
+                    <!-- Estrategista -->
+                    <template x-if="activeSupportPage === 'estrategista'">
+                      <div>
+                        <div class="jrn-person" style="margin-bottom: 20px;">
+                          <img class="jrn-person__photo" :src="getSupportPage('estrategista').content.photo" :alt="getSupportPage('estrategista').content.name" style="width: 64px; height: 64px;">
+                          <div>
+                            <div class="jrn-person__name" x-text="getSupportPage('estrategista').content.name"></div>
+                            <div class="jrn-person__role" x-text="getSupportPage('estrategista').content.role"></div>
+                          </div>
+                        </div>
+                        <p class="jrn-bio" x-text="getSupportPage('estrategista').content.bio"></p>
+                        <div style="font-weight: 600; font-size: 0.85rem; color: #1f2937; margin-bottom: 8px;">Responsabilidades:</div>
+                        <ul class="jrn-resp-list">
+                          <template x-for="r in getSupportPage('estrategista').content.responsibilities" :key="r">
+                            <li x-text="r"></li>
+                          </template>
+                        </ul>
+                      </div>
+                    </template>
+
+                    <!-- Equipe -->
+                    <template x-if="activeSupportPage === 'equipe'">
+                      <div>
+                        <div style="font-weight: 600; font-size: 0.85rem; color: #7A8050; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.06em;">Estrategistas</div>
+                        <template x-for="p in getSupportPage('equipe').content.estrategistas" :key="p.name">
+                          <div class="jrn-person">
+                            <img class="jrn-person__photo" :src="p.photo" :alt="p.name">
+                            <div>
+                              <div class="jrn-person__name" x-text="p.name"></div>
+                              <div class="jrn-person__role" x-text="p.role"></div>
+                            </div>
+                          </div>
+                        </template>
+                        <div style="font-weight: 600; font-size: 0.85rem; color: #7A8050; margin: 20px 0 12px; text-transform: uppercase; letter-spacing: 0.06em;">Lideres</div>
+                        <template x-for="p in getSupportPage('equipe').content.lideres" :key="p.name">
+                          <div class="jrn-person">
+                            <img class="jrn-person__photo" :src="p.photo" :alt="p.name">
+                            <div>
+                              <div class="jrn-person__name" x-text="p.name"></div>
+                              <div class="jrn-person__role" x-text="p.role"></div>
+                            </div>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+
+                    <!-- Agentes IA -->
+                    <template x-if="activeSupportPage === 'agentes'">
+                      <div>
+                        <template x-for="a in getSupportPage('agentes').content.agents" :key="a.name">
+                          <div class="jrn-agent">
+                            <span class="jrn-agent__icon">\u{1F916}</span>
+                            <div>
+                              <div class="jrn-agent__name" x-text="a.name"></div>
+                              <div class="jrn-agent__desc" x-text="a.desc"></div>
+                            </div>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+
+                    <!-- Manuais -->
+                    <template x-if="activeSupportPage === 'manuais'">
+                      <div>
+                        <template x-for="d in getSupportPage('manuais').content.docs" :key="d.title">
+                          <div class="jrn-doc">
+                            <div class="jrn-doc__title" x-text="d.title"></div>
+                            <div class="jrn-doc__desc" x-text="d.desc"></div>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+
+                    <!-- Encontros -->
+                    <template x-if="activeSupportPage === 'encontros'">
+                      <div>
+                        <p class="jrn-bio" x-text="getSupportPage('encontros').content.description"></p>
+                        <template x-for="m in getSupportPage('encontros').content.meetings" :key="m.title">
+                          <div class="jrn-meeting">
+                            <div class="jrn-meeting__day" x-text="m.day + ' \u2022 ' + m.time"></div>
+                            <div class="jrn-meeting__title" x-text="m.title"></div>
+                            <div class="jrn-meeting__desc" x-text="m.desc"></div>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+
+                    <!-- Plataforma -->
+                    <template x-if="activeSupportPage === 'plataforma'">
+                      <div>
+                        <template x-for="a in getSupportPage('plataforma').content.areas" :key="a.name">
+                          <div class="jrn-doc">
+                            <div class="jrn-doc__title" x-text="a.name"></div>
+                            <div class="jrn-doc__desc" x-text="a.desc"></div>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+
+                    <!-- Comunidade -->
+                    <template x-if="activeSupportPage === 'comunidade'">
+                      <div>
+                        <p class="jrn-bio" x-text="getSupportPage('comunidade').content.description"></p>
+                        <ul class="jrn-feature-list">
+                          <template x-for="f in getSupportPage('comunidade').content.features" :key="f">
+                            <li x-text="f"></li>
+                          </template>
+                        </ul>
+                      </div>
+                    </template>
+
+                  </div>
+                </div>
+              </template>
+
+              <!-- ========== MAP OVERLAY ========== -->
+              <template x-if="showMapOverlay">
+                <div class="jrn-map-overlay" @click.self="showMapOverlay = false">
+                  <div class="jrn-map">
+                    <button class="jrn-map__close" @click="showMapOverlay = false">&times;</button>
+                    <div class="jrn-map__title">Mapa da Jornada</div>
+                    <div class="jrn-map-phases">
+                      <template x-for="(phase, i) in phases" :key="phase.id">
+                        <div class="jrn-map-phase" @click="showMapOverlay = false; enterJourney(i)">
+                          <div class="jrn-map-dot" :style="{ background: phase.color, color: phase.color }"></div>
+                          <div class="jrn-map-phase__info">
+                            <div class="jrn-map-phase__name" :style="{ color: phase.color }" x-text="phase.name"></div>
+                            <div class="jrn-map-phase__sub" x-text="phase.subtitle"></div>
+                            <div class="jrn-map-phase__month" x-text="phase.month"></div>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+            </div>
+          </div>
+        </div>
+
       </main>
 
       <!-- Task Modal — Global (outside pages so visible on all pages) -->
@@ -4004,6 +4456,7 @@
   <script src="12-APP-data.js?v=72"></script>
   <script src="13-APP-photos.js?v=72"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
+  <script src="20-APP-jornada.js?v=20260314"></script>
   <script src="11-APP-app.js?v=73"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
