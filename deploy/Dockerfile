@@ -3,20 +3,14 @@ FROM python:3.9-slim
 WORKDIR /app
 
 # Install dependencies
-COPY requirements-railway.txt .
+COPY app/backend/requirements-railway.txt .
 RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements-railway.txt
 
 # Copy server
-COPY 14-APP-server.py .
+COPY app/backend/14-APP-server.py .
 
-# Environment variables (will be overridden at runtime)
+# Environment variables (overridden at runtime via .env or docker-compose)
 ENV PORT=9999
-ENV ZOOM_ACCOUNT_ID=${ZOOM_ACCOUNT_ID}
-ENV ZOOM_CLIENT_ID=${ZOOM_CLIENT_ID}
-ENV ZOOM_CLIENT_SECRET=${ZOOM_CLIENT_SECRET}
-ENV SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
-ENV SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
-ENV EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
 
 EXPOSE 9999
 
