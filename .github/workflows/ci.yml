@@ -1,0 +1,51 @@
+name: CI — Spalla Dashboard
+on:
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate HTML references
+        run: |
+          echo "Checking script/link references..."
+          ERRORS=0
+          for html in $(find . -name "*.html" -maxdepth 3 -not -path './.git/*' -not -path './.aios-core/*' -not -path './spalla/*'); do
+            grep -oP 'src="([^"]+)"' "$html" 2>/dev/null | \
+              sed 's/src="//;s/".*//' | \
+              grep -v 'http' | \
+              sed 's/?.*//' | \
+              while read f; do
+                dir=$(dirname "$html")
+                if [ ! -f "$dir/$f" ] && [ ! -f "$f" ]; then
+                  echo "Missing: $f (in $html)"
+                  ERRORS=$((ERRORS+1))
+                fi
+              done
+          done
+          echo "Frontend references check complete"
+
+      - name: Validate Python backend
+        run: |
+          SERVER=$(find . -name "14-APP-server.py" -maxdepth 3 | head -1)
+          if [ -n "$SERVER" ]; then
+            python3 -m py_compile "$SERVER"
+            echo "Python compiles OK"
+          else
+            echo "No server.py found, skipping"
+          fi
+
+      - name: Check for hardcoded secrets
+        run: |
+          FOUND=$(grep -rn 'zsgo0Xjtih8Yn2B0\|07826A779A5C' . \
+            --include='*.yml' --include='*.yaml' --include='*.json' \
+            --exclude-dir=.git --exclude-dir=node_modules 2>/dev/null || true)
+          if [ -n "$FOUND" ]; then
+            echo "Hardcoded secrets found:"
+            echo "$FOUND"
+            exit 1
+          fi
+          echo "No hardcoded secrets"
