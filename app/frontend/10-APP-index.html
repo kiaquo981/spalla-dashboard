@@ -3541,7 +3541,7 @@
                           <div class="fin-mentee">
                             <div class="fin-avatar" :style="`background-image:url(${getPhoto(m.instagram || m.nome)})`" x-show="getPhoto(m.instagram || m.nome)"></div>
                             <div class="fin-avatar fin-avatar--initials" x-show="!getPhoto(m.instagram || m.nome)" x-text="m.nome?.charAt(0) || '?'"></div>
-                            <span class="fin-mentee__name" x-text="m.nome" @click="openDetail(m.id)" style="cursor:pointer"></span>
+                            <span class="fin-mentee__name" x-text="m.nome" @click="loadMenteeDetail(m.id)" style="cursor:pointer"></span>
                           </div>
                         </td>
                         <td><span class="fin-fase" x-text="phaseLabel(m.fase_jornada)"></span></td>
@@ -3583,7 +3583,7 @@
                               <button class="fin-dropdown__item" @click="finNoteModal = { open: true, menteeId: m.id, menteeNome: m.nome, text: '' }; open = false">
                                 Registrar Observacao
                               </button>
-                              <button class="fin-dropdown__item" @click="openDetail(m.id); open = false">
+                              <button class="fin-dropdown__item" @click="loadMenteeDetail(m.id); open = false">
                                 Ver Detalhes →
                               </button>
                             </div>
