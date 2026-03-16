@@ -113,6 +113,7 @@ def create_jwt_token(email, user_id, expiry_minutes=ACCESS_TOKEN_EXPIRY_MINUTES)
     payload = {
         'email': email,
         'user_id': user_id,
+        'role': 'team',
         'exp': datetime.now(timezone.utc) + timedelta(minutes=expiry_minutes),
         'iat': datetime.now(timezone.utc)
     }
@@ -1244,7 +1245,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         # Find mentorado (slug is sanitized, safe for ILIKE)
         mentee = supabase_request('GET',
             f'mentorados?nome=ilike.*{urllib.parse.quote(safe_slug)}*&select=id,nome&limit=5')
-        if not mentee or isinstance(mentee, dict) and mentee.get('error'):
+        if isinstance(mentee, dict) and mentee.get('error'):
+            self._send_json({'error': f'Database error looking up mentorado: {mentee["error"]}'}, 500)
+            return
+        if not mentee:
             self._send_json({'error': f'Mentorado not found: {safe_slug}'}, 404)
             return
         if len(mentee) > 1:
@@ -1259,7 +1263,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             f'ds_documentos?mentorado_id=eq.{mentorado_id}&tipo=eq.{tipo}'
             f'&producao_id=not.is.null&select=id,producao_id,estagio_atual'
             f'&order=created_at.desc&limit=1')
-        if not docs or isinstance(docs, dict) and docs.get('error'):
+        if isinstance(docs, dict) and docs.get('error'):
+            self._send_json({'error': f'Database error looking up document: {docs["error"]}'}, 500)
+            return
+        if not docs:
             self._send_json({'error': f'Document not found: {mentorado_nome} / {tipo}'}, 404)
             return
         doc = docs[0]
