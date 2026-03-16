@@ -1,40 +1,34 @@
 #!/bin/bash
-# worktree-guard.sh — Bloqueia criação de worktrees dentro de /workspace/
+# worktree-guard.sh — Bloqueia git worktree add direto. Força uso do script.
 # Hook: PreToolUse (Bash)
 #
-# Regra: Worktrees SEMPRE em /worktrees/. NUNCA dentro de /workspace/.
+# REGRA: NUNCA usar git worktree add diretamente.
+# SEMPRE usar: bash /workspace/.claude/scripts/create-worktree.sh
 
 INPUT=$(cat)
 CMD=$(echo "$INPUT" | jq -r '.command // empty' 2>/dev/null)
 
 # Só checa se é git worktree add
 if echo "$CMD" | grep -q "git worktree add"; then
-  # Extrai o path do worktree (argumento após git worktree add)
-  WT_PATH=$(echo "$CMD" | grep -oP 'git worktree add\s+(-b\s+\S+\s+)?(\S+)' | awk '{print $NF}')
-
-  # Se o path é relativo (não começa com /), resolve
-  if [[ "$WT_PATH" != /* ]]; then
-    WT_PATH="$(pwd)/$WT_PATH"
+  # Permite se veio de dentro do script create-worktree.sh
+  # (detecta pelo process tree ou env var)
+  if [ "$WORKTREE_SCRIPT_RUNNING" = "1" ]; then
+    exit 0
   fi
 
-  # Resolve .. no path
-  WT_PATH=$(realpath -m "$WT_PATH" 2>/dev/null || echo "$WT_PATH")
-
-  # BLOQUEIA se dentro de /workspace/
-  if [[ "$WT_PATH" == /workspace/* ]]; then
-    echo "🚫 BLOQUEADO: Worktree não pode ser criado dentro de /workspace/." >&2
-    echo "   Path detectado: $WT_PATH" >&2
-    echo "   Use: git worktree add -b <branch> /worktrees/<nome> develop" >&2
-    exit 2
-  fi
-
-  # BLOQUEIA se NÃO está em /worktrees/
-  if [[ "$WT_PATH" != /worktrees/* ]]; then
-    echo "🚫 BLOQUEADO: Worktrees devem ficar em /worktrees/." >&2
-    echo "   Path detectado: $WT_PATH" >&2
-    echo "   Use: git worktree add -b <branch> /worktrees/<nome> develop" >&2
-    exit 2
-  fi
+  echo "🚫 BLOQUEADO: git worktree add direto é proibido." >&2
+  echo "" >&2
+  echo "   Use o script atômico:" >&2
+  echo "   bash /workspace/.claude/scripts/create-worktree.sh \\" >&2
+  echo "     --name <nome> \\" >&2
+  echo "     --branch <branch> \\" >&2
+  echo "     --type <feature|fix|content> \\" >&2
+  echo "     --clickup <task_id> \\" >&2
+  echo "     --scope <dirs>" >&2
+  echo "" >&2
+  echo "   O script cria worktree + HANDOFF.md atomicamente." >&2
+  echo "   Sem HANDOFF.md = sem contexto pro agent." >&2
+  exit 2
 fi
 
 exit 0

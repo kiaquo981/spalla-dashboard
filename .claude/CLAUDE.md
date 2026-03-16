@@ -72,9 +72,28 @@ Isso é trabalho do agent no worktree.
 
 - **NÃO criar worktrees sem aprovação.**
 
-### Passo 4: Criar worktrees + HANDOFF.md (batch)
-- `git worktree add -b <branch> /worktrees/<nome> develop`
-- Em CADA worktree, escrever `HANDOFF.md` com YAML frontmatter:
+### Passo 4: Criar worktrees + HANDOFF.md (SCRIPT OBRIGATÓRIO)
+
+> ⚠️ `git worktree add` DIRETO É BLOQUEADO pelo hook. Use SEMPRE o script.
+
+Para cada worktree aprovado:
+
+```bash
+bash /workspace/.claude/scripts/create-worktree.sh \
+  --name widget-zoom \
+  --branch feature/widget-zoom \
+  --type feature \
+  --clickup abc123def \
+  --scope "app/frontend/" \
+  --exclude "app/backend/"
+```
+
+O script faz TUDO atomicamente:
+1. Cria o worktree em `/worktrees/<nome>/`
+2. Busca briefing do ClickUp (se `--clickup` fornecido)
+3. Escreve `HANDOFF.md` com YAML frontmatter completo
+
+HANDOFF.md gerado pelo script:
 
 ```markdown
 ---
