@@ -1,0 +1,32 @@
+{
+    "hooks": {
+        "PreToolUse": [
+            {
+                "matcher": "Bash",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "bash /home/vscode/.claude/hooks/worktree-guard.sh"
+                    },
+                    {
+                        "type": "command",
+                        "command": "bash /home/vscode/.claude/hooks/branch-guard.sh"
+                    }
+                ]
+            },
+            {
+                "matcher": "Write|Edit|MultiEdit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "bash /home/vscode/.claude/hooks/spec-gate.sh"
+                    },
+                    {
+                        "type": "command",
+                        "command": "bash /home/vscode/.claude/hooks/secret-guard.sh"
+                    }
+                ]
+            }
+        ]
+    }
+}
