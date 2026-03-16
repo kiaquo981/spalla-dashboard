@@ -7,14 +7,26 @@
 FROM python:3.9-slim
 
 # --- System deps ---
+ENV DEBIAN_FRONTEND=noninteractive TZ=America/Sao_Paulo LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openssh-server \
     git \
     curl \
+    wget \
     jq \
     sudo \
     ca-certificates \
     gnupg \
+    build-essential \
+    make \
+    less \
+    nano \
+    locales \
+    xdg-utils \
+    zip \
+    unzip \
+    && sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen \
     && rm -rf /var/lib/apt/lists/*
 
 # --- Node.js 20 (needed for AI CLIs) ---
@@ -49,13 +61,18 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
     && apt-get update && apt-get install -y gh && rm -rf /var/lib/apt/lists/*
 
-# --- AI Agent CLIs ---
+# --- AI Agent CLIs + Beads ---
 RUN npm install -g @anthropic-ai/claude-code 2>/dev/null || true \
     && npm install -g @openai/codex 2>/dev/null || true \
-    && npm install -g @google/gemini-cli 2>/dev/null || true
+    && npm install -g @google/gemini-cli 2>/dev/null || true \
+    && npm install -g @beads/bd 2>/dev/null || true
+
+# --- Entrypoint (persist env vars for SSH sessions) ---
+COPY .devcontainer/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 WORKDIR /workspace
 
 EXPOSE 22 9999
 
-CMD ["/usr/sbin/sshd", "-D"]
+CMD ["/entrypoint.sh"]

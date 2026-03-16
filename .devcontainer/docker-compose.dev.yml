@@ -28,8 +28,8 @@ services:
       - cli-auth-config:/home/vscode/.config
     working_dir: /workspace
     restart: unless-stopped
-    environment:
-      - CLICKUP_API_TOKEN=${CLICKUP_API_TOKEN:-}
+    env_file:
+      - .env
 
 volumes:
   cli-auth-claude:
