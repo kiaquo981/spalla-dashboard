@@ -5,23 +5,39 @@
 
 ---
 
+## Fluxo Geral
+
+```
+FASE 0  Setup do Ambiente (uma vez por repo)
+   ↓ 🔒 GATE: ENV_READY
+FASE 1  Recepção e Planejamento da Sessão (ClickUp auto-fetch)
+   ↓ 🔒 GATE: SESSION_PLANNED
+FASE 2  Criação de Worktrees (batch, SEM beads ainda)
+   ↓ 🔒 GATE: WORKTREES_READY
+FASE 3  Spec → Plan → Tasks → Beads (dentro de cada worktree)
+   ↓ 🔒 GATE: SPEC_APPROVED
+FASE 4  Desenvolvimento (código)
+   ↓ 🔒 GATE: CODE_CLEAN
+FASE 5  PR + Review
+   ↓ 🔒 GATE: PR_APPROVED
+FASE 6  Merge + Cleanup
+   ↓ 🔒 GATE: MERGE_COMPLETE
+FASE 7  Release (gate humano)
+   ↓ 🔒 GATE: DEPLOY_OK
+```
+
 ## Modelo de Dados
 
 ```
-ClickUp List (fonte de verdade das demandas)
-  └── ClickUp Task (estratégico — PRD, briefing)
-        └── Bead PAI (tático — tracking dev)
-              ├── Bead FILHO 1 → Worktree → PR (execução)
-              ├── Bead FILHO 2 → Worktree → PR
-              └── GATE: human (espera review)
+ClickUp Task (estratégico — fonte de verdade)
+  └── Worktree (ambiente isolado — 1 por task)
+        └── Spec (entendimento do problema)
+              └── Plan (decomposição em steps)
+                    └── Tasks → Beads (tracking com deps)
+                          └── Código → PR → Merge
 ```
 
-**Beads commands:**
-- `bd create "descrição" --parent <PAI>` → cria filho
-- `bd children <PAI>` → lista filhos
-- `bd dep add <B> <A>` → B depende de A
-- `bd gate` → travas assíncronas (human, gh:pr, bead)
-- `bd update <ID> --status blocked` → marca como travado (filhos param)
+**Regra:** Beads são criados DEPOIS da spec/plan. A spec revela a complexidade real.
 
 ---
 
@@ -46,236 +62,244 @@ ClickUp List (fonte de verdade das demandas)
 - [ ] **what:** Iniciar container em background
 - **target:** `/workspace/.devcontainer/docker-compose.dev.yml`
 - **success_criteria:** `docker ps --filter name=spalla-dev` → STATUS: Up
-- **rollback:** `docker compose -f /workspace/.devcontainer/docker-compose.dev.yml down && docker compose -f /workspace/.devcontainer/docker-compose.dev.yml up -d`
+- **rollback:** `docker compose down && docker compose up -d`
 
 ### 0.4 — Verificar SSH
 
 - [ ] **what:** Confirmar acesso SSH ao container
 - **target:** Host Mac → SSH → `vscode@localhost:2225`
-- **success_criteria:** `ssh -o StrictHostKeyChecking=no -p 2225 vscode@localhost hostname` retorna hash do container
+- **success_criteria:** `ssh -o StrictHostKeyChecking=no -p 2225 vscode@localhost hostname` retorna hash
 - **rollback:** `ssh-keygen -R "[localhost]:2225"` e repetir
 
-### 0.5 — Verificar credenciais dentro do container
+### 0.5 — Verificar credenciais
 
-- [ ] **what:** Confirmar que tokens e CLIs estão funcionais
-- **target:** `/workspace/.devcontainer/.env` (GITHUB_TOKEN + CLICKUP_API_TOKEN)
+- [ ] **what:** Confirmar tokens e CLIs funcionais
+- **target:** `/workspace/.devcontainer/.env`
 - **success_criteria:**
-  - `ssh -p 2225 vscode@localhost 'echo $GITHUB_TOKEN'` → não vazio
-  - `ssh -p 2225 vscode@localhost 'echo $CLICKUP_API_TOKEN'` → não vazio
-  - `ssh -p 2225 vscode@localhost 'claude --version'` → versão
-  - `ssh -p 2225 vscode@localhost 'gh auth status'` → ✓ Logged in
-  - `ssh -p 2225 vscode@localhost 'bd --version'` → versão
-- **rollback:** Verificar `/workspace/.devcontainer/.env` e `/workspace/.devcontainer/entrypoint.sh`
+  - `echo $GITHUB_TOKEN` → não vazio
+  - `echo $CLICKUP_API_TOKEN` → não vazio
+  - `claude --version` → versão
+  - `gh auth status` → ✓ Logged in
+  - `bd --version` → versão
+- **rollback:** Verificar `.devcontainer/.env` e `entrypoint.sh`
 
 ### 0.6 — Autenticar Claude Code (se primeira vez)
 
 - [ ] **what:** Login OAuth do Claude Code dentro do container
-- **target:** Volume Docker `spalla-cli-auth-claude` → `/home/vscode/.claude/`
+- **target:** Volume Docker `spalla-cli-auth-claude`
 - **constraints:** ⚠️ EXECUTAR DO TERMINAL DO MAC, NÃO DO MAESTRO
 - **success_criteria:** `ssh -t -p 2225 vscode@localhost claude login` → "Successfully logged in"
-- **rollback:** `docker compose -f /workspace/.devcontainer/docker-compose.dev.yml down` (SEM `-v`) e `up -d`
 
 ### 0.7 — Registrar no Maestro
 
 - [ ] **what:** Adicionar SSH host no Maestro.app
 - **target:** `~/Library/Application Support/maestro/maestro-settings.json`
-- **spec:**
-  - Name: `spalla-dev`
-  - Host: `localhost`
-  - Port: `2225`
-  - User: `vscode`
-  - Key: `~/.ssh/id_ed25519`
-  - Working Dir: `/workspace`
-  - Default Shell: Bash
+- **spec:** Name: `spalla-dev`, Host: `localhost`, Port: `2225`, User: `vscode`, Key: `~/.ssh/id_ed25519`, Working Dir: `/workspace`
 - **success_criteria:** Maestro → Test Connection → verde
 
 ### 0.8 — Validar sessão
 
-- [ ] **what:** Verificar que o Dev Concierge responde no Maestro
+- [ ] **what:** Dev Concierge responde no Maestro
 - **target:** Maestro.app → nova session em `spalla-dev`
-- **success_criteria:** Enviar "oi" → Dev Concierge responde com boas-vindas e pergunta de planejamento
-- **rollback:** Verificar `/workspace/.claude/CLAUDE.md` contém persona Dev Concierge
+- **success_criteria:** Enviar "oi" → Concierge responde com boas-vindas + oferece ClickUp
 
 ### 🔒 GATE: ENV_READY
 
 | Check | Comando | Esperado |
 |-------|---------|----------|
-| Container up | `docker ps --filter name=spalla-dev` | STATUS: Up |
+| Container up | `docker ps --filter name=spalla-dev` | Up |
 | SSH | `ssh -p 2225 vscode@localhost hostname` | Hash |
-| Claude | `claude --version` (dentro do container) | Versão |
-| GitHub | `gh auth status` (dentro do container) | ✓ Logged in |
-| Beads | `bd --version` (dentro do container) | Versão |
-| Maestro | Nova session responde | Concierge aparece |
+| Claude | `claude --version` | Versão |
+| GitHub | `gh auth status` | ✓ Logged in |
+| Beads | `bd --version` | Versão |
+| Maestro | Nova session | Concierge aparece |
 
-> ❌ **NÃO AVANÇA** sem 6/6 checks verdes.
+> ❌ **NÃO AVANÇA** sem 6/6.
 
 ---
 
 ## FASE 1 — Recepção e Planejamento
 
-### 1.1 — Boas-vindas
+### 1.1 — Boas-vindas + auto-fetch ClickUp
 
-- [ ] **what:** Exibir persona Dev Concierge e iniciar planejamento
-- **target:** `/workspace/.claude/CLAUDE.md` → seção "Boas-vindas"
-- **success_criteria:** Mensagem com "O que vamos trabalhar hoje?" exibida
-
-### 1.2 — Auto-fetch ClickUp
-
-- [ ] **what:** Buscar tarefas do dev no ClickUp automaticamente
+- [ ] **what:** Buscar tarefas do dev no ClickUp OU aceitar input manual
 - **target:** ClickUp API → `GET /team/{team_id}/task?assignees[]={user_id}&statuses[]=to+do&statuses[]=in+progress`
-- **success_criteria:** Tabela de tasks retornada ao dev
 - **spec:**
   - Se tem tasks atribuídas ao dev → listar e sugerir priorização
-  - Se NÃO tem tasks atribuídas → listar TODAS da lista e perguntar quais pegar
-  - Se dev prefere input manual → aceitar descrição livre ou link direto
+  - Se NÃO tem tasks atribuídas → listar TODAS e perguntar quais pegar
+  - Se dev prefere manual → aceitar links ou descrição livre
 - **integration:** `CLICKUP_API_TOKEN` do env → header `Authorization`
-- **constraints:** NÃO forçar ClickUp se dev quer input manual
 
-### 1.3 — Classificar cada demanda
+### 1.2 — Classificar cada demanda
 
-- [ ] **what:** Determinar Stream de cada task selecionada
-- **target:** Decisão baseada na pergunta: "Isso gera código que RODA em produção?"
+- [ ] **what:** Determinar Stream de cada task
 - **spec:**
-  - SIM → Stream A (CODE) → branch `feat/` ou `fix/`
-  - NÃO → Stream B (KNOWLEDGE) → branch `content/`
-- **success_criteria:** Cada item tem tipo (feat/fix/refactor/hotfix/content) definido
+  - "Gera código que RODA em produção?" → SIM = CODE → branch `feat/` ou `fix/`
+  - NÃO = KNOWLEDGE → branch `content/`
+- **success_criteria:** Cada item tem tipo definido
 
-### 1.4 — Ler contexto do ClickUp (TODAS as tasks)
+### 1.3 — Ler contexto do ClickUp (TODAS as tasks)
 
-- [ ] **what:** Ler briefing de CADA task selecionada no ClickUp
+- [ ] **what:** Ler briefing de CADA task selecionada
 - **target:** ClickUp API → `GET /task/{task_id}` PRA CADA task
-- **success_criteria:** Para cada task: título, descrição, checklists, anexos extraídos
 - **spec:**
-  - Avaliar se 1 task do ClickUp gera 1 ou N worktrees
-  - Se task grande demais → propor decomposição em N beads filhos
-  - REPETIR para TODAS as tasks, não uma por vez
-- **constraints:** NÃO pular nenhuma task. TODAS passam por este step.
+  - Extrair: título, descrição, checklists, anexos
+  - Avaliar se 1 task gera 1 ou N worktrees
+  - REPETIR para TODAS. NÃO pular nenhuma.
 
-### 1.5 — Propor plano de worktrees
+### 1.4 — Propor plano de worktrees
 
-- [ ] **what:** Apresentar tabela de worktrees propostas ao dev
-- **target:** Output formatado como tabela markdown
+- [ ] **what:** Apresentar tabela de worktrees propostas
 - **spec:**
 
-| # | Tipo | Worktree | Branch | Escopo | ClickUp | Beads |
-|---|------|----------|--------|--------|---------|-------|
-| 1 | feat | widget-zoom | feature/widget-zoom | `app/frontend/` | CU-abc123 | SPALLA-14 |
-| 2 | fix | login-redirect | fix/login-redirect | `app/backend/` | CU-xyz789 | SPALLA-15 |
-| 3 | content | playbook-update | content/playbook-update | `docs/` | CU-def456 | SPALLA-16 |
+| # | Tipo | Worktree | Branch | Escopo | ClickUp |
+|---|------|----------|--------|--------|---------|
+| 1 | feat | widget-zoom | feature/widget-zoom | `app/frontend/` | CU-abc123 |
+| 2 | fix | login-redirect | fix/login-redirect | `app/backend/` | CU-xyz789 |
 
-- **success_criteria:** Dev diz "ok", "confirma", "vai", ou similar
-- **constraints:** NÃO criar worktrees sem aprovação EXPLÍCITA. Se ajustar → refazer tabela → confirmar de novo.
+- **success_criteria:** Dev confirma explicitamente ("ok", "vai", "confirma")
+- **constraints:** NÃO criar worktrees sem aprovação.
 
 ### 🔒 GATE: SESSION_PLANNED
 
 | Check | Critério |
 |-------|----------|
-| ≥1 task definida | Tabela tem pelo menos 1 linha |
-| Cada task classificada | Tipo (feat/fix/content) definido |
-| Plano apresentado | Tabela formatada exibida |
-| Dev aprovou | Confirmação explícita registrada |
+| ≥1 task | Tabela tem pelo menos 1 linha |
+| Classificadas | Tipo definido pra cada |
+| Dev aprovou | Confirmação explícita |
 
-> ❌ **NÃO CRIA NENHUM WORKTREE** sem aprovação explícita.
+> ❌ **NÃO CRIA WORKTREES** sem aprovação.
 
 ---
 
-## FASE 2 — Criação de Worktrees + Beads (batch)
+## FASE 2 — Criação de Worktrees (batch, SEM beads)
 
 ### 2.1 — Atualizar develop
 
-- [ ] **what:** Garantir develop local sincronizado com remote
-- **target:** `/workspace` (repo principal)
-- **success_criteria:**
-  - `git checkout develop` → ok
-  - `git pull origin develop` → Already up to date (ou fast-forward)
+- [ ] **what:** Sincronizar develop local com remote
+- **target:** `/workspace`
+- **success_criteria:** `git checkout develop && git pull origin develop` → up to date
 - **rollback:** `git stash && git pull --rebase && git stash pop`
-- **constraints:** PARA TUDO se conflito não-resolvível
 
-### 2.2 — Criar Beads (pai + filhos)
-
-- [ ] **what:** Criar 1 Bead PAI por task do ClickUp + N Beads filhos por sub-etapa
-- **target:** `/workspace/.beads/issues.jsonl`
-- **spec:**
-  - Bead PAI: `bd create "feat: widget zoom (CU-abc123)"`
-  - Beads filhos: `bd create "sub: setup routes" --parent SPALLA-14`
-  - Dependências: `bd dep add SPALLA-14b SPALLA-14a` (b depende de a)
-- **success_criteria:** `bd list` → todos os beads criados com status open
-- **constraints:** Cada sub-bead deve ter escopo claro e atômico
-
-### 2.3 — Criar Worktrees (batch)
+### 2.2 — Criar Worktrees (batch)
 
 - [ ] **what:** Criar todos os worktrees de uma vez
 - **target:** `/workspace/../spalla-dashboard-worktrees/`
 - **spec:**
   - `mkdir -p /workspace/../spalla-dashboard-worktrees`
-  - Para cada: `git worktree add -b <branch> /workspace/../spalla-dashboard-worktrees/<nome> develop`
+  - Para cada: `git worktree add -b <branch> ../spalla-dashboard-worktrees/<nome> develop`
 - **success_criteria:** `git worktree list` → todos listados
 - **constraints:** Worktrees SEMPRE fora do repo (sibling). NUNCA dentro.
-- **rollback:** `git worktree remove <path>` e repetir
 
-### 2.4 — Reportar resultado
+### 2.3 — Reportar resultado
 
-- [ ] **what:** Apresentar tabela final com todos os worktrees criados
-- **target:** Output formatado
-- **success_criteria:** Tabela com colunas: #, Nome, Branch, Bead, Path, Status (✅)
+- [ ] **what:** Apresentar tabela final
+- **success_criteria:** Tabela com: #, Nome, Branch, Path, Status (✅)
 - **integration:** Instruir dev: "Aponte o Maestro pra `spalla-dashboard-worktrees/`"
-
-### 2.5 — Sync ClickUp
-
-- [ ] **what:** Atualizar ClickUp com progresso
-- **target:** ClickUp API → `PUT /task/{task_id}`
-- **spec:**
-  - Status da task → "in progress"
-  - Comment com links dos Beads
-- **success_criteria:** Status atualizado no ClickUp
 
 ### 🔒 GATE: WORKTREES_READY
 
 | Check | Comando | Esperado |
 |-------|---------|----------|
-| Beads criados | `bd list` | Todos open |
 | Worktrees existem | `git worktree list` | Todos os paths |
 | Branches existem | `git branch` | feature/*, fix/*, content/* |
-| Maestro descobre | Abrir Maestro em worktree-root | Subpastas visíveis |
 
-> ❌ **NÃO COMEÇA A CODAR** sem 4/4 checks.
+> ❌ **NÃO COMEÇA SPEC** sem worktrees validados.
+> ⚠️ Note: ZERO beads existem neste ponto. É intencional.
 
 ---
 
-## FASE 3 — Desenvolvimento (por worktree, paralelo)
+## FASE 3 — Spec → Plan → Tasks → Beads (dentro de cada worktree)
 
-### 3.1 — Entrar no worktree
+> Esta fase acontece DENTRO de cada worktree isoladamente.
+> É aqui que o problema é entendido e a complexidade real revelada.
 
-- [ ] **what:** Navegar para o worktree e confirmar branch
-- **target:** `/workspace/../spalla-dashboard-worktrees/<nome>/`
+### 3.1 — Spec (entender o problema)
+
+- [ ] **what:** Analisar requisitos e escrever especificação
+- **target:** `<worktree>/spec.md`
+- **spec:**
+  - Ler briefing do ClickUp (já extraído na FASE 1)
+  - Investigar código existente no escopo
+  - Documentar: o que precisa mudar, por quê, impacto
+  - Listar dependências e riscos
+- **success_criteria:** `spec.md` escrito e coerente
+- **constraints:** SPEC É LEITURA. Zero código nesta fase.
+
+### 3.2 — Plan (decompor em steps)
+
+- [ ] **what:** Criar plano de execução a partir da spec
+- **target:** `<worktree>/plan.md`
+- **spec:**
+  - Quebrar a spec em steps atômicos (Task Atom format)
+  - Cada step tem: what, target (arquivo exato), success_criteria, rollback, constraints
+  - Definir ordem e dependências entre steps
+  - Estimar esforço
+- **success_criteria:** `plan.md` com N steps numerados, cada um no formato Task Atom
+
+### 3.3 — Tasks → Beads
+
+- [ ] **what:** Criar Beads a partir do plan (AGORA sim)
+- **target:** `/workspace/.beads/issues.jsonl`
+- **spec:**
+  - Bead PAI: `bd create "feat: widget zoom (CU-abc123)"`
+  - Beads filhos (1 por step do plan): `bd create "sub: setup routes" --parent <PAI>`
+  - Dependências: `bd dep add <B> <A>` (B depende de A)
+- **success_criteria:** `bd list` → todos criados com deps corretas
+- **constraints:** Cada bead = 1 step do plan. Escopo atômico.
+
+### 3.4 — Sync ClickUp
+
+- [ ] **what:** Atualizar ClickUp com progresso
+- **target:** ClickUp API → `PUT /task/{task_id}`
+- **spec:** Status → "in progress", comment com links dos Beads
+
+### 🔒 GATE: SPEC_APPROVED
+
+| Check | Critério |
+|-------|----------|
+| spec.md existe | Arquivo escrito no worktree |
+| plan.md existe | Steps atômicos no formato Task Atom |
+| Beads criados | `bd children <PAI>` → filhos com deps |
+| ClickUp atualizado | Status = in progress |
+
+> ❌ **NÃO COMEÇA A CODAR** sem spec + plan + beads.
+
+---
+
+## FASE 4 — Desenvolvimento (por worktree, paralelo)
+
+### 4.1 — Confirmar branch
+
+- [ ] **what:** Verificar worktree e branch corretos
 - **success_criteria:** `git branch --show-current` retorna branch planejada
 
-### 3.2 — Implementar dentro do escopo
+### 4.2 — Implementar dentro do escopo
 
-- [ ] **what:** Escrever código APENAS nos diretórios do plano
+- [ ] **what:** Escrever código seguindo o plan.md step by step
 - **target:** Diretórios da coluna "Escopo" (FASE 1)
 - **constraints:**
+  - Seguir a ORDEM dos steps do plan
   - NUNCA modificar fora do escopo
   - Arquivo SHARED → PARAR e perguntar
   - NUNCA commitar `.env`, `.key`, `.pem`, `*secret*`
 
-### 3.3 — Commits atômicos
+### 4.3 — Commits atômicos
 
-- [ ] **what:** 1 commit = 1 unidade lógica, formato convencional
+- [ ] **what:** 1 commit = 1 step do plan, formato convencional
 - **spec:** `tipo(escopo): descrição #BEAD-ID` (max 72 chars)
-- **success_criteria:** `git log --oneline -5` → padrão ok
 
-### 3.4 — Sync com develop
+### 4.4 — Sync com develop
 
 - [ ] **what:** Rebase periódico (mínimo 1x por sessão)
 - **spec:** `git fetch origin develop && git rebase origin/develop`
 - **rollback:** `git rebase --abort`
 
-### 3.5 — Atualizar Bead filho
+### 4.5 — Atualizar Beads
 
-- [ ] **what:** Marcar progresso no Bead
-- **spec:** `bd update <BEAD-FILHO> --status in_progress` → `done`
-- **integration:** Se sub-bead falhou → `bd update <ID> --status blocked`
+- [ ] **what:** Marcar progresso nos Beads filhos
+- **spec:** `bd update <BEAD-FILHO> --status in_progress` → `done` conforme completa cada step
+- **integration:** Se sub-bead falhou → `bd update <ID> --status blocked` → deps param
 
 ### 🔒 GATE: CODE_CLEAN
 
@@ -291,55 +315,52 @@ ClickUp List (fonte de verdade das demandas)
 
 ---
 
-## FASE 4 — PR + Review
+## FASE 5 — PR + Review
 
-### 4.1 — Push
+### 5.1 — Push
 
-- [ ] **what:** Enviar branch pro remote
-- **success_criteria:** `git push -u origin <branch>` → success
+- [ ] **what:** `git push -u origin <branch>` → success
 
-### 4.2 — Criar PR
+### 5.2 — Criar PR
 
-- [ ] **what:** Abrir PR pra develop
-- **spec:** `gh pr create --base develop --title "tipo(escopo): desc" --body "Bead: SPALLA-XX\nClickUp: CU-xxx"`
+- [ ] **what:** `gh pr create --base develop --title "tipo(escopo): desc" --body "Bead: SPALLA-XX\nClickUp: CU-xxx"`
 - **constraints:** NUNCA PR pra main
 
-### 4.3 — Esperar CI + CodeRabbit
+### 5.3 — Esperar CI + CodeRabbit
 
 - [ ] **what:** Aguardar pipeline automático
 - **success_criteria:** CI verde + CodeRabbit comentou
 
-### 4.4 — Auto-fix loop (max 5x)
+### 5.4 — Auto-fix loop (max 5x)
 
 - [ ] **what:** Ler feedback → corrigir → push → repetir
 - **rollback:** 5 retries esgotados → `bd update <ID> --status blocked`
 
-### 4.5 — Sync ClickUp
+### 5.5 — Sync ClickUp
 
 - [ ] **what:** Link do PR na task ClickUp
-- **spec:** `POST /task/{id}/comment`
 
 ### 🔒 GATE: PR_APPROVED — CI verde + CodeRabbit limpo + PR pra develop + sem conflitos
 
 ---
 
-## FASE 5 — Merge + Cleanup
+## FASE 6 — Merge + Cleanup
 
-### 5.1 — `gh pr merge --squash`
-### 5.2 — `bd close <BEAD-PAI>`
-### 5.3 — `git worktree remove` + `git worktree prune` + `git branch -d`
-### 5.4 — `git checkout develop && git pull origin develop`
-### 5.5 — ClickUp → status done
+### 6.1 — `gh pr merge --squash`
+### 6.2 — `bd close <BEAD-PAI>`
+### 6.3 — `git worktree remove` + `git worktree prune` + `git branch -d`
+### 6.4 — `git checkout develop && git pull origin develop`
+### 6.5 — ClickUp → status done
 
 ### 🔒 GATE: MERGE_COMPLETE — PR merged + Bead closed + worktree removido + develop atualizado
 
 ---
 
-## FASE 6 — Release (gate humano)
+## FASE 7 — Release (gate humano)
 
-### 6.1 — `gh pr create --base main --head develop --title "release: vX.Y.Z"`
-### 6.2 — Aprovação HUMANA (Concierge NÃO mergeia sozinho)
-### 6.3 — `gh pr merge --merge` (NÃO squash) + `git tag vX.Y.Z`
+### 7.1 — `gh pr create --base main --head develop --title "release: vX.Y.Z"`
+### 7.2 — Aprovação HUMANA (Concierge NÃO mergeia sozinho)
+### 7.3 — `gh pr merge --merge` (NÃO squash) + `git tag vX.Y.Z`
 
 ### 🔒 GATE: DEPLOY_OK — main atualizada + tag + deploy ok
 
@@ -362,6 +383,7 @@ ClickUp List (fonte de verdade das demandas)
 | 11 | Secrets no commit | Verificar `.gitignore` |
 | 12 | Volume destruído com `-v` | `down` SEM `-v` preserva auth |
 | 13 | Sub-bead falhou | `bd update <ID> --status blocked` → deps param |
+| 14 | Beads criados antes da spec | ❌ ERRADO. Spec revela complexidade. Beads vêm DEPOIS. |
 
 ---
 
@@ -378,32 +400,28 @@ ClickUp List (fonte de verdade das demandas)
 
 ## v2 Roadmap (planejado)
 
-> Tudo caminha pro playbook. v2 transforma o output do Concierge Path em Auto Run Playbooks autônomos.
+> Tudo caminha pro playbook. v2 transforma o output da FASE 3 em Auto Run Playbooks autônomos.
 
 ### Features v2
 
 1. **Output = Maestro Auto Run Playbook**
-   - Cada worktree gera uma pasta de playbook com N `.md` numerados
-   - Usa o squad `autorun-playbook-creation` como fase final
+   - FASE 3 (spec/plan) gera playbook com N `.md` numerados
+   - Usa squad `autorun-playbook-creation` como conversor
    - Dev planeja de dia → playbooks geram → machine executa de madrugada
 
 2. **Multi-Claude Account Randomization**
    - FASE 0 pede ao dev pra logar N contas Claude (via `CLAUDE_CONFIG_DIR`)
-   - Setup: `claude login` → `cp -a ~/.claude ~/.claude-<conta>` → symlinks
    - Concierge distribui worktrees entre contas round-robin
    - Ex: 5 worktrees na conta A, 5 na conta B → zero rate limit
 
 3. **Night Mode (Batch Execution)**
-   - Após planejamento + spec + playbook gerado pra cada worktree
    - Comando único lança todos os Auto Runs em paralelo
-   - Cada playbook roda isolado no seu worktree
    - Resultado de manhã: N PRs prontos pra review
 
 4. **Account Setup no Container**
    - `entrypoint.sh` detecta todas as pastas `~/.claude-*`
-   - Lista contas disponíveis ao Concierge na FASE 0
    - Concierge escolhe automaticamente qual conta usar por worktree
 
 ---
 
-> **Concierge Path v1.0** — 16/Mar/2026 — Baseado em guia-operacional.md v2.2 + Task Atom + Beads gates
+> **Concierge Path v1.0** — 16/Mar/2026 — Baseado em guia-operacional.md v1.0 + Task Atom + Beads gates
