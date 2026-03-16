@@ -3866,6 +3866,48 @@
               </div>
             </div>
           </div>
+
+          <!-- Password Change Section -->
+          <div class="settings-section" style="margin-top:24px">
+            <div class="settings-section__header">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <div>
+                <h3>Alterar Senha</h3>
+                <p class="settings-section__desc">Troque sua senha de acesso ao sistema</p>
+              </div>
+            </div>
+            <div class="settings-password" x-data="{ pwCurrent: '', pwNew: '', pwConfirm: '', pwLoading: false, pwMsg: '' }">
+              <div class="settings-user-info__row">
+                <span class="settings-user-info__label">Senha atual</span>
+                <input type="password" x-model="pwCurrent" placeholder="Sua senha atual" class="modal__input" style="max-width:300px">
+              </div>
+              <div class="settings-user-info__row">
+                <span class="settings-user-info__label">Nova senha</span>
+                <input type="password" x-model="pwNew" placeholder="Minimo 6 caracteres" class="modal__input" style="max-width:300px">
+              </div>
+              <div class="settings-user-info__row">
+                <span class="settings-user-info__label">Confirmar</span>
+                <input type="password" x-model="pwConfirm" placeholder="Repita a nova senha" class="modal__input" style="max-width:300px">
+              </div>
+              <p x-show="pwMsg" x-text="pwMsg" :style="pwMsg.includes('sucesso') ? 'color:var(--color-success)' : 'color:var(--color-error)'" style="margin:8px 0;font-size:14px"></p>
+              <button class="btn btn--primary" style="margin-top:12px" :disabled="pwLoading || !pwCurrent || !pwNew || !pwConfirm"
+                @click="
+                  if (pwNew !== pwConfirm) { pwMsg = 'Senhas nao conferem'; return; }
+                  if (pwNew.length < 6) { pwMsg = 'Minimo 6 caracteres'; return; }
+                  pwLoading = true; pwMsg = '';
+                  fetch(CONFIG.API_BASE + '/api/auth/change-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('spalla_access_token') || '') },
+                    body: JSON.stringify({ current_password: pwCurrent, new_password: pwNew })
+                  }).then(r => r.json()).then(d => {
+                    if (d.success) { pwMsg = 'Senha alterada com sucesso!'; pwCurrent = ''; pwNew = ''; pwConfirm = ''; }
+                    else { pwMsg = d.error || 'Erro ao alterar senha'; }
+                  }).catch(() => { pwMsg = 'Erro de conexao'; }).finally(() => { pwLoading = false; });
+                ">
+                <span x-text="pwLoading ? 'Alterando...' : 'Alterar Senha'"></span>
+              </button>
+            </div>
+          </div>
         </div>
 
       </main>

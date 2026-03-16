@@ -1,0 +1,381 @@
+# Concierge Path — Fluxo de Execução
+# Cada step é bloqueante. O agent segue na ordem. Sem pular.
+
+flow:
+  name: concierge-path
+  version: "1.0"
+  description: "Fluxo do Dev Concierge — do planejamento ao worktree pronto"
+
+# ──────────────────────────────────────────────
+# FASE 0 — Setup (uma vez por repo, não repete)
+# ──────────────────────────────────────────────
+phases:
+  - id: setup
+    name: "Setup do Ambiente"
+    when: first_session_only
+    steps:
+      - id: check_docker
+        action: verify
+        command: "docker ps --filter name=spalla-dev --format '{{.Status}}'"
+        expect: "Up"
+        on_fail: "Docker Desktop não está rodando. Abrir manualmente."
+
+      - id: check_ssh
+        action: verify
+        command: "ssh -o StrictHostKeyChecking=no -p 2225 vscode@localhost hostname"
+        expect: exits_0
+        on_fail: "ssh-keygen -R '[localhost]:2225' e repetir"
+
+      - id: check_tokens
+        action: verify
+        commands:
+          - "echo $CLICKUP_API_TOKEN | head -c 5"
+          - "echo $GITHUB_TOKEN | head -c 5"
+          - "claude --version"
+          - "gh auth status"
+          - "bd --version"
+        expect: all_non_empty
+        on_fail: "Verificar /workspace/.devcontainer/.env"
+
+    gate:
+      id: ENV_READY
+      checks: [check_docker, check_ssh, check_tokens]
+      block: "NÃO AVANÇA sem 3/3"
+
+  # ──────────────────────────────────────────
+  # FASE 1 — Recepção e Coleta de Demandas
+  # ──────────────────────────────────────────
+  - id: reception
+    name: "Recepção e Planejamento"
+    steps:
+      - id: greet
+        action: display
+        message: |
+          🧭 Dev Concierge — Spalla Dashboard
+          Ambiente: container spalla-dev | /workspace
+
+          📋 O que vamos trabalhar hoje?
+
+          1. 🔍 "puxa do clickup" → busco suas tasks
+          2. 📎 Cole links do ClickUp
+          3. ✏️ Descreva livre
+
+      - id: collect_demands
+        action: branch
+        options:
+          clickup_auto:
+            trigger: "puxa do clickup"
+            command: |
+              AUTH="Authorization: $CLICKUP_API_TOKEN"
+              curl -s -H "$AUTH" "https://api.clickup.com/api/v2/team/9011530618/task?assignees[]=MEMBER_ID&statuses[]=to+do&statuses[]=in+progress" | jq '.tasks[] | {id, name, list: .list.name}'
+            next: read_context
+
+          clickup_manual:
+            trigger: "CU-* links"
+            action: "Extrair task_ids dos links"
+            next: read_context
+
+          freestyle:
+            trigger: "descrição livre"
+            action: "Criar task no ClickUp via POST API"
+            command: |
+              AUTH="Authorization: $CLICKUP_API_TOKEN"
+              curl -s -X POST -H "$AUTH" -H "Content-Type: application/json" \
+                -d '{"name":"<TITULO>","status":"in progress"}' \
+                "https://api.clickup.com/api/v2/list/<LIST_ID>/task"
+            next: read_context
+
+      - id: read_context
+        action: foreach_task
+        description: "Ler briefing de CADA task selecionada"
+        command: |
+          AUTH="Authorization: $CLICKUP_API_TOKEN"
+          curl -s -H "$AUTH" "https://api.clickup.com/api/v2/task/{TASK_ID}" | jq '{name, description, status: .status.status, assignees: [.assignees[].username]}'
+        extract: [title, description, checklists, attachments]
+        rule: "REPETIR para TODAS. NÃO pular nenhuma."
+
+      - id: classify
+        action: foreach_task
+        description: "Classificar cada demanda"
+        question: "Gera código que RODA em produção?"
+        options:
+          yes: { type: code, branch_prefix: "feature/ | fix/" }
+          no:  { type: knowledge, branch_prefix: "content/" }
+
+      - id: propose_worktrees
+        action: display_table
+        description: "Apresentar plano e pedir aprovação"
+        columns: ["#", "Tipo", "Worktree", "Branch", "Escopo", "ClickUp"]
+        require: explicit_approval
+        block: "NÃO criar worktrees sem 'ok', 'vai', ou 'confirma'"
+
+    gate:
+      id: SESSION_PLANNED
+      checks: [collect_demands, read_context, classify, propose_worktrees]
+      block: "NÃO CRIA WORKTREES sem aprovação explícita"
+
+  # ──────────────────────────────────────────
+  # FASE 2 — Criar Worktrees + HANDOFF.md
+  # ──────────────────────────────────────────
+  - id: worktree_setup
+    name: "Criação de Worktrees"
+    steps:
+      - id: update_develop
+        action: run
+        command: "git checkout develop && git pull origin develop"
+        expect: exits_0
+
+      - id: create_worktrees
+        action: foreach_task
+        description: "Criar worktree isolado pra cada demanda"
+        command: "git worktree add -b {branch} /worktrees/{worktree_name} develop"
+        constraints:
+          - "Path SEMPRE em /worktrees/"
+          - "NUNCA dentro de /workspace/"
+          - "Hook worktree-guard.sh valida automaticamente"
+
+      - id: write_handoffs
+        action: foreach_worktree
+        description: "Escrever HANDOFF.md com YAML frontmatter em cada worktree"
+        template: |
+          ---
+          worktree: {worktree_name}
+          branch: {branch}
+          type: {type}
+          created: {date}
+          clickup:
+            task_id: "{task_id}"
+            task_url: "https://app.clickup.com/t/{task_id}"
+            workspace_id: "9011530618"
+            list_id: "{list_id}"
+          scope:
+            directories: {directories}
+            key_files: {key_files}
+            excluded: {excluded}
+          status: pending
+          ---
+
+          # Handoff — {title}
+
+          ## Briefing (extraído do ClickUp)
+          {clickup_description}
+
+          ## Entregável
+          {deliverable_summary}
+
+          ## Próximos passos
+          1. Criar spec.md
+          2. Criar plan.md
+          3. Criar Beads (bd create)
+          4. Implementar
+          5. PR para develop
+
+      - id: report
+        action: display_table
+        description: "Reportar resultado final"
+        columns: ["#", "Worktree", "Branch", "Path", "HANDOFF.md", "Status"]
+        message: "Pronto. Aponte os agents nos worktrees acima."
+
+    gate:
+      id: WORKTREES_READY
+      checks:
+        - "git worktree list → todos presentes"
+        - "HANDOFF.md existe em cada worktree"
+        - "YAML frontmatter válido em cada HANDOFF.md"
+      block: "FIM do trabalho do Concierge. Agent assume daqui."
+
+  # ──────────────────────────────────────────
+  # FASE 3 — Spec + Plan (AGENT no worktree)
+  # ──────────────────────────────────────────
+  - id: spec_plan
+    name: "Especificação e Planejamento"
+    executor: agent_in_worktree  # NÃO é o Concierge
+    steps:
+      - id: read_handoff
+        action: auto
+        description: "Hook handoff-injector.sh injeta HANDOFF.md no contexto"
+
+      - id: write_spec
+        action: create_file
+        target: "{worktree}/spec.md"
+        description: "Investigar código, dependências, riscos. Documentar o que muda e por quê."
+        constraints:
+          - "SPEC É LEITURA. Zero código nesta fase."
+
+      - id: write_plan
+        action: create_file
+        target: "{worktree}/plan.md"
+        description: "Decompor spec em steps atômicos (Task Atom format)"
+        format_per_step:
+          - what: "Descrição da ação"
+          - target: "Arquivo exato"
+          - success_criteria: "Como validar"
+          - rollback: "Como desfazer"
+          - constraints: "Limites"
+
+      - id: create_beads
+        action: run
+        description: "Criar Beads a partir do plan — AGORA sim"
+        commands:
+          - 'bd create "feat: {title} (CU-{task_id})"'
+          - 'bd create "sub: {step_name}" --parent {PARENT_ID}'
+          - 'bd dep add {B} {A}'
+
+      - id: sync_clickup
+        action: run
+        command: |
+          AUTH="Authorization: $CLICKUP_API_TOKEN"
+          curl -s -X PUT -H "$AUTH" -H "Content-Type: application/json" \
+            -d '{"status":"in progress"}' \
+            "https://api.clickup.com/api/v2/task/{TASK_ID}"
+
+    gate:
+      id: SPEC_APPROVED
+      checks:
+        - "spec.md existe"
+        - "plan.md existe com steps atômicos"
+        - "Beads criados com dependências"
+      block: "Hook spec-gate.sh BLOQUEIA código sem spec+plan"
+
+  # ──────────────────────────────────────────
+  # FASE 4 — Desenvolvimento (AGENT)
+  # ──────────────────────────────────────────
+  - id: development
+    name: "Desenvolvimento"
+    executor: agent_in_worktree
+    steps:
+      - id: implement
+        action: code
+        description: "Seguir plan.md step by step"
+        constraints:
+          - "1 commit = 1 step do plan"
+          - "Formato: tipo(escopo): desc #BEAD-ID"
+          - "NUNCA fora do scope.directories"
+          - "scope.excluded = PROIBIDO"
+
+      - id: rebase
+        action: run
+        command: "git fetch origin develop && git rebase origin/develop"
+        frequency: "mínimo 1x por sessão"
+
+      - id: update_beads
+        action: foreach_step
+        command: 'bd update {BEAD_ID} --status done'
+
+    gate:
+      id: CODE_CLEAN
+      checks:
+        - "git status limpo"
+        - "Commits convencionais"
+        - "Zero secrets no stage"
+        - "Dentro do escopo"
+
+  # ──────────────────────────────────────────
+  # FASE 5 — PR + Review
+  # ──────────────────────────────────────────
+  - id: pr_review
+    name: "PR e Review"
+    executor: agent_in_worktree
+    steps:
+      - id: push
+        command: "git push -u origin {branch}"
+
+      - id: create_pr
+        command: 'gh pr create --base develop --title "tipo(escopo): desc" --body "ClickUp: {task_url}\nBead: {BEAD_ID}"'
+        constraints:
+          - "NUNCA PR pra main"
+          - "Hook branch-guard.sh valida"
+
+      - id: wait_ci
+        action: wait
+        description: "Aguardar CI + CodeRabbit"
+
+      - id: autofix_loop
+        action: loop
+        max_retries: 5
+        on_fail: 'bd update {BEAD_ID} --status blocked'
+
+    gate:
+      id: PR_APPROVED
+      checks: ["CI verde", "CodeRabbit limpo", "Base = develop"]
+
+  # ──────────────────────────────────────────
+  # FASE 6 — Merge + Cleanup
+  # ──────────────────────────────────────────
+  - id: merge_cleanup
+    name: "Merge e Cleanup"
+    executor: agent_in_worktree
+    steps:
+      - id: merge
+        command: "gh pr merge --squash"
+      - id: close_bead
+        command: "bd close {BEAD_PARENT_ID}"
+      - id: remove_worktree
+        commands:
+          - "git worktree remove /worktrees/{worktree_name}"
+          - "git worktree prune"
+          - "git branch -d {branch}"
+      - id: sync_develop
+        command: "git checkout develop && git pull origin develop"
+      - id: close_clickup
+        command: |
+          AUTH="Authorization: $CLICKUP_API_TOKEN"
+          curl -s -X PUT -H "$AUTH" -H "Content-Type: application/json" \
+            -d '{"status":"done"}' \
+            "https://api.clickup.com/api/v2/task/{TASK_ID}"
+
+    gate:
+      id: MERGE_COMPLETE
+      checks: ["PR merged", "Bead closed", "Worktree removido", "ClickUp done"]
+
+  # ──────────────────────────────────────────
+  # FASE 7 — Release (gate humano)
+  # ──────────────────────────────────────────
+  - id: release
+    name: "Release"
+    executor: human_gate
+    steps:
+      - id: create_release_pr
+        command: 'gh pr create --base main --head develop --title "release: vX.Y.Z"'
+      - id: human_approval
+        action: wait_human
+        description: "Aprovação HUMANA. Concierge NÃO mergeia sozinho."
+      - id: merge_release
+        command: "gh pr merge --merge"
+      - id: tag
+        command: "git tag vX.Y.Z && git push origin vX.Y.Z"
+
+    gate:
+      id: DEPLOY_OK
+      checks: ["main atualizada", "tag criada"]
+
+# ──────────────────────────────────────────
+# HOOKS (enforcement automático)
+# ──────────────────────────────────────────
+hooks:
+  session_start:
+    - name: handoff-injector
+      file: /home/vscode/.claude/hooks/handoff-injector.sh
+      description: "Injeta HANDOFF.md como additionalContext"
+      trigger: "SessionStart"
+
+  pre_tool_use:
+    - name: worktree-guard
+      file: /home/vscode/.claude/hooks/worktree-guard.sh
+      matcher: Bash
+      blocks: "git worktree add dentro de /workspace/"
+
+    - name: branch-guard
+      file: /home/vscode/.claude/hooks/branch-guard.sh
+      matcher: Bash
+      blocks: "git push origin main|develop"
+
+    - name: spec-gate
+      file: /home/vscode/.claude/hooks/spec-gate.sh
+      matcher: "Write|Edit|MultiEdit"
+      blocks: "Código sem spec.md + plan.md no worktree"
+
+    - name: secret-guard
+      file: /home/vscode/.claude/hooks/secret-guard.sh
+      matcher: "Write|Edit|MultiEdit"
+      blocks: "API keys/tokens fora de .env"

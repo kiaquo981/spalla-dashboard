@@ -71,6 +71,11 @@ RUN npm install -g @anthropic-ai/claude-code 2>/dev/null || true \
 COPY .devcontainer/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+# --- Concierge Path hooks (staged to /opt, synced to ~/.claude on start) ---
+COPY .devcontainer/hooks/*.sh /opt/hooks/
+COPY .devcontainer/hooks/settings.json /opt/hooks/settings.json
+RUN chmod +x /opt/hooks/*.sh
+
 WORKDIR /workspace
 
 EXPOSE 22 9999
