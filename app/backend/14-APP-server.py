@@ -843,6 +843,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_create_calendar_event()
         elif self.path == '/api/sheets/sync':
             self._handle_sheets_sync()
+        elif self.path == '/api/ds/update-stage':
+            self._handle_ds_update_stage()
         else:
             self._send_json({'error': 'Not found'}, 404)
 
@@ -1160,6 +1162,85 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             'last_result': _sheets_last_result,
             'payments_sheet': PAYMENTS_SHEET_ID,
             'contracts_sheet': CONTRACTS_SHEET_ID,
+        })
+
+    # ===== DOSSIÊ PRODUCTION SYSTEM =====
+    def _handle_ds_update_stage(self):
+        """Update ds_documentos stage and create ds_eventos audit trail.
+        POST /api/ds/update-stage
+        Body: { mentorado_slug: str, dossie_tipo: str, estagio: str }
+        """
+        try:
+            body = json.loads(self._read_body())
+        except Exception:
+            self._send_json({'error': 'Invalid JSON'}, 400)
+            return
+
+        slug = body.get('mentorado_slug', '')
+        tipo = body.get('dossie_tipo', '')
+        estagio = body.get('estagio', '')
+
+        if not slug or not tipo or not estagio:
+            self._send_json({'error': 'mentorado_slug, dossie_tipo, and estagio are required'}, 400)
+            return
+
+        valid_tipos = ('oferta', 'funil', 'conteudo')
+        if tipo not in valid_tipos:
+            self._send_json({'error': f'dossie_tipo must be one of {valid_tipos}'}, 400)
+            return
+
+        # Find mentorado
+        mentee = supabase_request('GET', f'mentorados?nome=ilike.*{slug}*&select=id,nome&limit=1')
+        if not mentee or isinstance(mentee, dict) and mentee.get('error'):
+            self._send_json({'error': f'Mentorado not found: {slug}'}, 404)
+            return
+        mentorado_id = mentee[0]['id']
+        mentorado_nome = mentee[0]['nome']
+
+        # Find ds_documentos via producao
+        docs = supabase_request('GET',
+            f'ds_documentos?mentorado_id=eq.{mentorado_id}&tipo=eq.{tipo}&select=id,producao_id,estagio_atual&limit=1')
+        if not docs or isinstance(docs, dict) and docs.get('error'):
+            self._send_json({'error': f'Document not found: {mentorado_nome} / {tipo}'}, 404)
+            return
+        doc = docs[0]
+
+        # Determine next responsavel
+        responsavel_map = {
+            'producao_ia': 'Mariza',
+            'revisao_mariza': 'Mariza',
+            'revisao_kaique': 'Kaique',
+            'revisao_queila': 'Queila',
+        }
+        responsavel = responsavel_map.get(estagio)
+
+        # Update document stage
+        update = {'estagio_atual': estagio, 'estagio_desde': datetime.now(timezone.utc).isoformat()}
+        if estagio == 'producao_ia':
+            update['data_producao_ia'] = datetime.now(timezone.utc).isoformat()
+        if responsavel:
+            update['responsavel_atual'] = responsavel
+
+        result = supabase_request('PATCH', f'ds_documentos?id=eq.{doc["id"]}', update)
+
+        # Create audit event
+        supabase_request('POST', 'ds_eventos', {
+            'producao_id': doc['producao_id'],
+            'documento_id': doc['id'],
+            'mentorado_id': mentorado_id,
+            'tipo_evento': 'estagio_change',
+            'de_valor': doc['estagio_atual'],
+            'para_valor': estagio,
+            'responsavel': responsavel or 'pipeline-auto',
+            'descricao': f'{tipo} → {estagio} (via API)',
+        })
+
+        self._send_json({
+            'ok': True,
+            'mentorado': mentorado_nome,
+            'tipo': tipo,
+            'estagio': estagio,
+            'responsavel': responsavel,
         })
 
     def _handle_sheets_sync(self):
