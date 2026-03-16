@@ -1,0 +1,46 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const error = item.json;\n\n  let rawPayload;\n  try {\n    rawPayload = $('Normalizar Webhook').first().json;\n  } catch (e) {\n    rawPayload = error;\n  }\n\n  results.push({\n    json: {\n      message_id: rawPayload.message_id || null,\n      raw_payload: JSON.stringify(rawPayload),\n      error_message: error.message || error.error || JSON.stringify(error).substring(0, 500),\n      error_node: 'Salvar Interação',\n      pipeline_stage: 'save',\n      retry_count: 0,\n      status: 'pending'\n    }\n  });\n}\n\nreturn results;"
+      },
+      "name": "[PATCH] Error → DLQ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "notes": "Captura msgs que falharam no Salvar Interação e prepara para INSERT na wa_dead_letter_queue. Conectar no Error Output do node Salvar Interação."
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO wa_dead_letter_queue (message_id, raw_payload, error_message, error_node, pipeline_stage)\nVALUES (\n  '{{ $json.message_id }}',\n  '{{ $json.raw_payload }}'::jsonb,\n  '{{ $json.error_message }}',\n  '{{ $json.error_node }}',\n  '{{ $json.pipeline_stage }}'\n);",
+        "options": {}
+      },
+      "name": "[PATCH] INSERT DLQ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [220, 0],
+      "credentials": {
+        "postgres": {
+          "id": "vVXQE04tisGHZsFJ",
+          "name": "Postgres | case"
+        }
+      },
+      "notes": "Salva a mensagem que falhou na Dead Letter Queue. Usa a mesma credencial Postgres do Scraper v34.",
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "[PATCH] Error → DLQ": {
+      "main": [
+        [
+          {
+            "node": "[PATCH] INSERT DLQ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
