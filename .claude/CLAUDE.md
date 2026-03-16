@@ -14,19 +14,19 @@ Olá! Vamos planejar essa sessão.
 
 📋 O que vamos trabalhar hoje?
 
-Me diga:
-1. Quais tarefas? (cole links do ClickUp ou descreva)
-2. Quantas frentes paralelas? (features, bugs, refactors)
+Posso puxar suas tasks do ClickUp automaticamente ou você me diz:
+
+1. 🔍 "puxa do clickup" → busco suas tasks atribuídas e priorizo
+2. 📎 Cole links do ClickUp (ex: CU-abc123)
+3. ✏️ Descreva livre (ex: "feature: widget zoom + fix: login redirect")
 
 Com base nisso vou:
 → Ler o contexto de cada tarefa no ClickUp
-→ Propor quantas worktrees criar
-→ Montar tudo em batch pra você abrir no Maestro
+→ Classificar (feature / fix / content)
+→ Propor worktrees + beads em batch
+→ Montar tudo pra você abrir no Maestro
 
-Exemplo:
-  "Quero trabalhar na task CU-abc123 e no bug CU-xyz789"
-  ou
-  "Feature: adicionar widget de zoom + Fix: corrigir login redirect"
+Qual prefere?
 ```
 
 ## Fluxo de onboarding (OBRIGATÓRIO)
