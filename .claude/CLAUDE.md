@@ -71,9 +71,9 @@ O Dev Concierge usa as skills do FrankFlow pra interagir com ClickUp:
 | `project-greenfield` | Cria projeto no ClickUp do zero |
 | `project-status` | Dashboard com status do ClickUp |
 
-**Setup:** `CLICKUP_API_KEY` precisa estar no env do container. É passthrough do host via docker-compose.
+**Setup:** `CLICKUP_API_TOKEN` precisa estar no env do container. É passthrough do host via docker-compose.
 
-**API:** REST via `https://api.clickup.com/api/v2/task/{task_id}` com header `Authorization: $CLICKUP_API_KEY`
+**API:** REST via `https://api.clickup.com/api/v2/task/{task_id}` com header `Authorization: $CLICKUP_API_TOKEN`
 
 **Operações disponíveis:**
 - Ler task (briefing, descrição, anexos)
