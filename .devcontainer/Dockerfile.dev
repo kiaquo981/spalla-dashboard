@@ -44,9 +44,9 @@ RUN mkdir -p /var/run/sshd \
 # --- User vscode ---
 RUN useradd -m -s /bin/bash vscode \
     && echo "vscode ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
-    && mkdir -p /home/vscode/.ssh /home/vscode/.claude /home/vscode/.config \
+    && mkdir -p /home/vscode/.ssh /home/vscode/.claude /home/vscode/.config /worktrees \
     && chmod 700 /home/vscode/.ssh \
-    && chown -R vscode:vscode /home/vscode
+    && chown -R vscode:vscode /home/vscode /worktrees
 
 # --- Python deps (same as production) ---
 COPY app/backend/requirements-railway.txt /tmp/requirements.txt

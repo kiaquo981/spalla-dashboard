@@ -14,19 +14,19 @@ Olá! Vamos planejar essa sessão.
 
 📋 O que vamos trabalhar hoje?
 
-Me diga:
-1. Quais tarefas? (cole links do ClickUp ou descreva)
-2. Quantas frentes paralelas? (features, bugs, refactors)
+Posso puxar suas tasks do ClickUp automaticamente ou você me diz:
+
+1. 🔍 "puxa do clickup" → busco suas tasks atribuídas e priorizo
+2. 📎 Cole links do ClickUp (ex: CU-abc123)
+3. ✏️ Descreva livre (ex: "feature: widget zoom + fix: login redirect")
 
 Com base nisso vou:
 → Ler o contexto de cada tarefa no ClickUp
-→ Propor quantas worktrees criar
-→ Montar tudo em batch pra você abrir no Maestro
+→ Classificar (feature / fix / content)
+→ Propor worktrees + beads em batch
+→ Montar tudo pra você abrir no Maestro
 
-Exemplo:
-  "Quero trabalhar na task CU-abc123 e no bug CU-xyz789"
-  ou
-  "Feature: adicionar widget de zoom + Fix: corrigir login redirect"
+Qual prefere?
 ```
 
 ## Fluxo de onboarding (OBRIGATÓRIO)
@@ -60,27 +60,58 @@ Exemplo:
 - Manter bidirecional: progresso no terminal → atualiza ClickUp
 - A cada PR merged → marcar checklist no ClickUp
 
-## ClickUp Integration (via FrankFlow)
+## ClickUp — Referência Rápida (COPIAR E COLAR)
 
-O Dev Concierge usa as skills do FrankFlow pra interagir com ClickUp:
+### Env Vars (EXATAS)
 
-| Skill | O que faz |
-|-------|-----------|
-| `project-validar clickup` | Valida sync: task existe, status, sprint, branch, assignee |
-| `project-brownfield` | Popula ClickUp com tasks de projeto existente |
-| `project-greenfield` | Cria projeto no ClickUp do zero |
-| `project-status` | Dashboard com status do ClickUp |
+```bash
+# Localização: /workspace/.devcontainer/.env
+# Carregado via: docker-compose env_file + entrypoint.sh → .bashrc
+echo $CLICKUP_API_TOKEN    # pk_230491216_...
+echo $GITHUB_TOKEN         # ghp_...
+```
 
-**Setup:** `CLICKUP_API_KEY` precisa estar no env do container. É passthrough do host via docker-compose.
+### IDs Fixos
 
-**API:** REST via `https://api.clickup.com/api/v2/task/{task_id}` com header `Authorization: $CLICKUP_API_KEY`
+| Recurso | ID | Nome |
+|---------|----|------|
+| Workspace | `9011530618` | All In Marketing |
+| Space | `90114112693` | Case Scale |
+| Sprint Folder | `90117773705` | Sprint Folder |
+| Sprint 1 | `901113377455` | Sprint 1 (3/16 - 3/22) |
+| Sprint 2 | `901113377456` | Sprint 2 (3/23 - 3/29) |
+| Sprint 3 | `901113377457` | Sprint 3 (3/30 - 4/5) |
 
-**Operações disponíveis:**
-- Ler task (briefing, descrição, anexos)
-- Criar subtarefas
-- Atualizar status
-- Criar/marcar checklists
-- Adicionar comentários
+### Curl Commands (prontos pra usar)
+
+```bash
+# Header padrão (NUNCA mudar)
+AUTH="Authorization: $CLICKUP_API_TOKEN"
+
+# Listar tasks de uma lista/sprint
+curl -s -H "$AUTH" "https://api.clickup.com/api/v2/list/901113377455/task" | jq '.tasks[] | {id, name, status: .status.status}'
+
+# Ler UMA task (briefing completo)
+curl -s -H "$AUTH" "https://api.clickup.com/api/v2/task/{TASK_ID}" | jq '{name, description, status: .status.status, assignees: [.assignees[].username]}'
+
+# Listar tasks atribuídas ao dev (todas as listas)
+curl -s -H "$AUTH" "https://api.clickup.com/api/v2/team/9011530618/task?assignees[]=MEMBER_ID&statuses[]=to+do&statuses[]=in+progress" | jq '.tasks[] | {id, name, list: .list.name}'
+
+# Atualizar status de uma task
+curl -s -X PUT -H "$AUTH" -H "Content-Type: application/json" -d '{"status":"in progress"}' "https://api.clickup.com/api/v2/task/{TASK_ID}"
+
+# Adicionar comment numa task
+curl -s -X POST -H "$AUTH" -H "Content-Type: application/json" -d '{"comment_text":"Bead: SPALLA-XX | PR: #123"}' "https://api.clickup.com/api/v2/task/{TASK_ID}/comment"
+
+# Listar membros do workspace (pra pegar MEMBER_ID)
+curl -s -H "$AUTH" "https://api.clickup.com/api/v2/team/9011530618" | jq '.team.members[] | {id: .user.id, username: .user.username}'
+```
+
+### Regras ClickUp
+
+- **NÃO buscar o token.** Ele já está em `$CLICKUP_API_TOKEN`. Usar direto.
+- **NÃO explorar a API.** Os IDs acima são fixos. Copiar e colar.
+- **NÃO descobrir o workspace ID.** É `9011530618`. Sempre.
 
 ## Modelo de dados
 

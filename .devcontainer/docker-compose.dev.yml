@@ -26,6 +26,8 @@ services:
       # --- AI CLI auth (persistent named volume) ---
       - cli-auth-claude:/home/vscode/.claude
       - cli-auth-config:/home/vscode/.config
+      # --- Worktrees (persistent, outside /workspace) ---
+      - worktrees:/worktrees
     working_dir: /workspace
     restart: unless-stopped
     env_file:
@@ -36,3 +38,5 @@ volumes:
     name: spalla-cli-auth-claude
   cli-auth-config:
     name: spalla-cli-auth-config
+  worktrees:
+    name: spalla-worktrees
