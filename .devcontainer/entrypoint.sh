@@ -14,5 +14,11 @@ for var in CLICKUP_API_TOKEN GITHUB_TOKEN GH_TOKEN; do
 done
 chown vscode:vscode /home/vscode/.bashrc
 
+# Sync Concierge Path hooks into ~/.claude (volume mount overwrites build)
+mkdir -p /home/vscode/.claude/hooks
+cp /opt/hooks/*.sh /home/vscode/.claude/hooks/ 2>/dev/null
+cp /opt/hooks/settings.json /home/vscode/.claude/settings.json 2>/dev/null
+chown -R vscode:vscode /home/vscode/.claude/
+
 # Start sshd
 exec /usr/sbin/sshd -D
