@@ -47,7 +47,14 @@ async function initSupabase() {
 
   // Prevent parallel initialization (race condition guard)
   if (_sbInitPromise) return _sbInitPromise;
-  _sbInitPromise = _doInitSupabase();
+  _sbInitPromise = (async () => {
+    try {
+      return await _doInitSupabase();
+    } finally {
+      // Allow retry when init fails or returns null
+      if (!sb) _sbInitPromise = null;
+    }
+  })();
   return _sbInitPromise;
 }
 
@@ -71,7 +78,6 @@ async function _doInitSupabase() {
     return client;
   } catch (e) {
     console.error('[Spalla] Failed to init Supabase:', e);
-    _sbInitPromise = null;
     return null;
   }
 }
