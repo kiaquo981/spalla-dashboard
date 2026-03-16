@@ -33,6 +33,7 @@ const EVOLUTION_INSTANCE = typeof EVOLUTION_CONFIG !== 'undefined' ? EVOLUTION_C
 
 // ===== SUPABASE CLIENT =====
 let sb = null;
+let _sbInitPromise = null;
 
 async function initSupabase() {
   if (!CONFIG.SUPABASE_ANON_KEY) {
@@ -42,6 +43,14 @@ async function initSupabase() {
 
   // Reuse existing instance if already initialized
   if (sb) return sb;
+
+  // Prevent parallel initialization (race condition guard)
+  if (_sbInitPromise) return _sbInitPromise;
+  _sbInitPromise = _doInitSupabase();
+  return _sbInitPromise;
+}
+
+async function _doInitSupabase() {
 
   // Wait for Supabase JS to load (with timeout)
   let attempts = 0;
@@ -57,9 +66,11 @@ async function initSupabase() {
 
   try {
     const client = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+    sb = client;
     return client;
   } catch (e) {
     console.error('[Spalla] Failed to init Supabase:', e);
+    _sbInitPromise = null;
     return null;
   }
 }
@@ -588,7 +599,7 @@ function operon() {
     // ===================== SHARED HELPERS =====================
 
     get currentUserName() {
-      return this.auth.currentUser?.full_name || this.auth.currentUser?.email || 'Sistema';
+      return this.auth.currentUser?.full_name || this.auth.currentUser?.email || 'Anônimo';
     },
 
     todayStr() { return new Date().toISOString().split('T')[0]; },
@@ -992,7 +1003,7 @@ function operon() {
                 body: JSON.stringify({ refresh_token: refreshToken })
               });
               if (refreshResp.ok) {
-                const data = await refreshResp.json();
+                const data = await refreshResp.json().catch(() => ({}));
                 this.auth.authenticated = true;
                 this.auth.currentUser = data.user || JSON.parse(userStr);
                 this.auth.accessToken = data.access_token;
@@ -1300,7 +1311,7 @@ function operon() {
             return;
           }
           if (res.ok) {
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
             const msgs = data.messages?.records || data.messages || data || [];
             const newMsgs = (Array.isArray(msgs) ? msgs : []).reverse();
             // Compare last message ID to detect changes (length alone is unreliable)
@@ -1591,7 +1602,7 @@ function operon() {
           body: JSON.stringify({ where: { key: { remoteJid } }, limit: 10 }),
         });
         if (!res.ok) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         const msgs = data.messages?.records || data.messages || data || [];
         const interactions = (Array.isArray(msgs) ? msgs : []).reverse().map(msg => ({
           sender: msg.key?.fromMe ? 'Equipe CASE' : (msg.pushName || nome),
@@ -4113,7 +4124,7 @@ function operon() {
               invitees: f.email ? [f.email] : [],
             }),
           });
-          const zoomData = await zoomRes.json();
+          const zoomData = await zoomRes.json().catch(() => ({}));
           if (zoomData.join_url) zoomUrl = zoomData.join_url;
         } catch (e) {
           console.warn('[Schedule] Zoom creation warning:', e.message);
@@ -4134,7 +4145,7 @@ function operon() {
               location: zoomUrl || '',
             }),
           });
-          const calData = await calRes.json();
+          const calData = await calRes.json().catch(() => ({}));
           if (calData.html_link) calendarUrl = calData.html_link;
         } catch (e) {
           console.warn('[Schedule] Calendar creation warning:', e.message);
@@ -5590,7 +5601,7 @@ function operon() {
           body: JSON.stringify({ mentorado_id: mid }),
         });
 
-        const data = await resp.json();
+        const data = await resp.json().catch(() => ({}));
         if (!resp.ok || data.error) throw new Error(data.error || 'Erro na Edge Function');
 
         // Salva localmente caso o upsert da Edge Function tenha falhado
