@@ -184,10 +184,9 @@ ClickUp Task (estratégico — fonte de verdade)
 ### 2.2 — Criar Worktrees (batch)
 
 - [ ] **what:** Criar todos os worktrees de uma vez
-- **target:** `/workspace/../spalla-dashboard-worktrees/`
+- **target:** `/worktrees/`
 - **spec:**
-  - `mkdir -p /workspace/../spalla-dashboard-worktrees`
-  - Para cada: `git worktree add -b <branch> ../spalla-dashboard-worktrees/<nome> develop`
+  - Para cada: `git worktree add -b <branch> /worktrees/<nome> develop`
 - **success_criteria:** `git worktree list` → todos listados
 - **constraints:** Worktrees SEMPRE fora do repo (sibling). NUNCA dentro.
 
@@ -377,7 +376,7 @@ ClickUp Task (estratégico — fonte de verdade)
 | 5 | `bd` not found | `sudo npm install -g @beads/bd` + `/workspace/.devcontainer/Dockerfile.dev:L56` |
 | 6 | Env vars não chegam via SSH | Verificar `/workspace/.devcontainer/entrypoint.sh` |
 | 7 | Push rejeitado | `git stash && git pull --rebase && git stash pop && git push` |
-| 8 | Worktree dentro do repo | SEMPRE em `../<repo>-worktrees/` |
+| 8 | Worktree dentro do repo | SEMPRE em `/worktrees/` |
 | 9 | Container novo por feature | Usar worktree no MESMO container |
 | 10 | Push direto pra main | SEMPRE via PR pra develop |
 | 11 | Secrets no commit | Verificar `.gitignore` |

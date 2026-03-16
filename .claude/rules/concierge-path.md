@@ -10,13 +10,13 @@
 ### WORKTREE: CAMINHO OBRIGATÓRIO
 
 ```
-✅ CORRETO:  git worktree add -b <branch> /workspace/../spalla-dashboard-worktrees/<nome> develop
+✅ CORRETO:  git worktree add -b <branch> /worktrees/<nome> develop
 ❌ ERRADO:   git worktree add -b <branch> /workspace/<nome> develop
 ❌ ERRADO:   git worktree add -b <branch> ./<nome> develop
 ❌ ERRADO:   qualquer path DENTRO de /workspace/
 ```
 
-**REGRA:** Worktrees SEMPRE em `/workspace/../spalla-dashboard-worktrees/`. NUNCA dentro do repo. Se o path do worktree começa com `/workspace/` e NÃO tem `../`, está ERRADO. PARE IMEDIATAMENTE.
+**REGRA:** Worktrees SEMPRE em `/worktrees/`. NUNCA dentro de `/workspace/`. Volume Docker persistente — sobrevive a rebuilds.
 
 ### FASE OBRIGATÓRIA: SPEC ANTES DE CÓDIGO
 
@@ -46,7 +46,7 @@ FASE 7 → 🔒 DEPLOY_OK
 
 ## Regras Invioláveis (todas)
 
-1. **NUNCA** criar worktree DENTRO de `/workspace/`. Sempre em `../spalla-dashboard-worktrees/`.
+1. **NUNCA** criar worktree DENTRO de `/workspace/`. Sempre em `/worktrees/`.
 2. **NUNCA** escrever código sem ter `spec.md` e `plan.md` prontos.
 3. **NUNCA** criar Beads antes da spec. A spec revela a complexidade real.
 4. **NUNCA** pular um GATE.
