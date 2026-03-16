@@ -22,7 +22,7 @@
 <body>
   <div id="loading-fallback"><span>Operon</span></div>
 
-  <div id="app" x-data="operon()" style="display:none">
+  <div id="app" x-data="operon()" x-init="init()" style="display:none">
 
     <!-- ======= AUTH GATE ======= -->
     <div class="auth-overlay" x-show="!auth.authenticated" x-transition.opacity>
