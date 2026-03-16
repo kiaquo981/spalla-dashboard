@@ -1189,10 +1189,23 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': f'dossie_tipo must be one of {valid_tipos}'}, 400)
             return
 
-        # Find mentorado
-        mentee = supabase_request('GET', f'mentorados?nome=ilike.*{slug}*&select=id,nome&limit=1')
+        valid_estagios = ('pendente', 'producao_ia', 'revisao_mariza', 'revisao_kaique',
+                          'revisao_queila', 'aprovado', 'enviado', 'finalizado')
+        if estagio not in valid_estagios:
+            self._send_json({'error': f'estagio must be one of {valid_estagios}'}, 400)
+            return
+
+        # Sanitize slug: only allow alphanumeric, spaces, hyphens, accented chars
+        safe_slug = re.sub(r'[^a-zA-ZÀ-ÿ0-9\s\-]', '', slug).strip()
+        if not safe_slug or len(safe_slug) < 2:
+            self._send_json({'error': 'Invalid mentorado_slug'}, 400)
+            return
+
+        # Find mentorado (slug is sanitized, safe for ILIKE)
+        mentee = supabase_request('GET',
+            f'mentorados?nome=ilike.*{urllib.parse.quote(safe_slug)}*&select=id,nome&limit=1')
         if not mentee or isinstance(mentee, dict) and mentee.get('error'):
-            self._send_json({'error': f'Mentorado not found: {slug}'}, 404)
+            self._send_json({'error': f'Mentorado not found: {safe_slug}'}, 404)
             return
         mentorado_id = mentee[0]['id']
         mentorado_nome = mentee[0]['nome']
@@ -1222,9 +1235,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             update['responsavel_atual'] = responsavel
 
         result = supabase_request('PATCH', f'ds_documentos?id=eq.{doc["id"]}', update)
+        if isinstance(result, dict) and result.get('error'):
+            self._send_json({'error': f'Failed to update document: {result["error"]}'}, 500)
+            return
 
         # Create audit event
-        supabase_request('POST', 'ds_eventos', {
+        evt_result = supabase_request('POST', 'ds_eventos', {
             'producao_id': doc['producao_id'],
             'documento_id': doc['id'],
             'mentorado_id': mentorado_id,
@@ -1234,6 +1250,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             'responsavel': responsavel or 'pipeline-auto',
             'descricao': f'{tipo} → {estagio} (via API)',
         })
+        if isinstance(evt_result, dict) and evt_result.get('error'):
+            log_error('DS', 'Failed to create audit event', evt_result['error'])
 
         self._send_json({
             'ok': True,
