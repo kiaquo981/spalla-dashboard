@@ -113,6 +113,7 @@ def create_jwt_token(email, user_id, expiry_minutes=ACCESS_TOKEN_EXPIRY_MINUTES)
     payload = {
         'email': email,
         'user_id': user_id,
+        'role': 'team',
         'exp': datetime.now(timezone.utc) + timedelta(minutes=expiry_minutes),
         'iat': datetime.now(timezone.utc)
     }
@@ -845,6 +846,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_create_calendar_event()
         elif self.path == '/api/sheets/sync':
             self._handle_sheets_sync()
+        elif self.path == '/api/ds/update-stage':
+            self._handle_ds_update_stage()
         elif self.path == '/api/financial/update-status':
             self._handle_financial_update_status()
         elif self.path == '/api/financial/add-note':
@@ -1168,6 +1171,167 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             'contracts_sheet': CONTRACTS_SHEET_ID,
         })
 
+    # ===== DOSSIÊ PRODUCTION SYSTEM =====
+
+    # CR-C1: Role-based auth — only team members can mutate pipeline
+    DS_ALLOWED_ROLES = ('admin', 'team')
+
+    def _ds_check_auth(self):
+        """Verify JWT token + role for DS endpoints. Returns payload or None (sends 401/403)."""
+        auth_header = self.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            self._send_json({'error': 'Missing or invalid token'}, 401)
+            return None
+        payload = verify_jwt_token(auth_header[7:])
+        if not payload or payload.get('type') == 'refresh':
+            self._send_json({'error': 'Invalid or expired token'}, 401)
+            return None
+        # Check role — require explicit role in JWT, no fallback
+        role = payload.get('role')
+        if not role or role not in self.DS_ALLOWED_ROLES:
+            self._send_json({'error': 'Insufficient permissions — JWT must contain role (admin or team)'}, 403)
+            return None
+        return payload
+
+    # CR-M1: State machine — valid stage transitions
+    DS_VALID_TRANSITIONS = {
+        'pendente': ('producao_ia',),
+        'producao_ia': ('revisao_mariza',),
+        'revisao_mariza': ('revisao_kaique', 'producao_ia'),  # can send back
+        'revisao_kaique': ('revisao_queila', 'revisao_mariza'),  # can send back
+        'revisao_queila': ('aprovado', 'revisao_kaique'),  # can send back
+        'aprovado': ('enviado',),
+        'enviado': ('finalizado', 'ajustes'),
+        'finalizado': (),
+        'ajustes': ('revisao_mariza',),
+    }
+
+    def _handle_ds_update_stage(self):
+        """Update ds_documentos stage and create ds_eventos audit trail.
+        POST /api/ds/update-stage
+        Body: { mentorado_slug: str, dossie_tipo: str, estagio: str }
+        Requires: Bearer JWT token with role in DS_ALLOWED_ROLES
+        Returns: 200 {ok, mentorado, tipo, estagio, responsavel}
+        Errors: 400 (validation), 401 (auth), 403 (role), 404 (not found), 409 (invalid transition), 500 (server)
+        """
+        auth = self._ds_check_auth()
+        if not auth:
+            return
+
+        try:
+            body = json.loads(self._read_body())
+        except Exception:
+            self._send_json({'error': 'Invalid JSON'}, 400)
+            return
+
+        slug = body.get('mentorado_slug', '')
+        tipo = body.get('dossie_tipo', '')
+        estagio = body.get('estagio', '')
+
+        if not slug or not tipo or not estagio:
+            self._send_json({'error': 'mentorado_slug, dossie_tipo, and estagio are required'}, 400)
+            return
+
+        valid_tipos = ('oferta', 'funil', 'conteudo')
+        if tipo not in valid_tipos:
+            self._send_json({'error': f'dossie_tipo must be one of {valid_tipos}'}, 400)
+            return
+
+        valid_estagios = tuple(self.DS_VALID_TRANSITIONS.keys())
+        if estagio not in valid_estagios:
+            self._send_json({'error': f'estagio must be one of {valid_estagios}'}, 400)
+            return
+
+        # Sanitize slug: only allow alphanumeric, spaces, hyphens, accented chars
+        safe_slug = re.sub(r'[^a-zA-ZÀ-ÿ0-9\s\-]', '', slug).strip()
+        if not safe_slug or len(safe_slug) < 2:
+            self._send_json({'error': 'Invalid mentorado_slug'}, 400)
+            return
+
+        # Find mentorado (slug is sanitized, safe for ILIKE)
+        mentee = supabase_request('GET',
+            f'mentorados?nome=ilike.*{urllib.parse.quote(safe_slug)}*&select=id,nome&limit=5')
+        if isinstance(mentee, dict) and mentee.get('error'):
+            self._send_json({'error': f'Database error looking up mentorado: {mentee["error"]}'}, 500)
+            return
+        if not mentee:
+            self._send_json({'error': f'Mentorado not found: {safe_slug}'}, 404)
+            return
+        if len(mentee) > 1:
+            names = [m['nome'] for m in mentee]
+            self._send_json({'error': f'Ambiguous slug — {len(mentee)} matches: {names}. Be more specific.'}, 400)
+            return
+        mentorado_id = mentee[0]['id']
+        mentorado_nome = mentee[0]['nome']
+
+        # CR-M2: Find document via active producao (not cancelled/finalizado)
+        docs = supabase_request('GET',
+            f'ds_documentos?mentorado_id=eq.{mentorado_id}&tipo=eq.{tipo}'
+            f'&producao_id=not.is.null&select=id,producao_id,estagio_atual'
+            f'&order=created_at.desc&limit=1')
+        if isinstance(docs, dict) and docs.get('error'):
+            self._send_json({'error': f'Database error looking up document: {docs["error"]}'}, 500)
+            return
+        if not docs:
+            self._send_json({'error': f'Document not found: {mentorado_nome} / {tipo}'}, 404)
+            return
+        doc = docs[0]
+
+        # CR-M1: Validate state transition
+        current_stage = doc['estagio_atual']
+        allowed_next = self.DS_VALID_TRANSITIONS.get(current_stage, ())
+        if estagio not in allowed_next:
+            self._send_json({
+                'error': f'Invalid transition: {current_stage} → {estagio}',
+                'allowed': list(allowed_next),
+            }, 409)
+            return
+
+        # Determine next responsavel
+        responsavel_map = {
+            'producao_ia': 'Mariza',
+            'revisao_mariza': 'Mariza',
+            'revisao_kaique': 'Kaique',
+            'revisao_queila': 'Queila',
+        }
+        responsavel = responsavel_map.get(estagio)
+
+        # Update document stage
+        update = {'estagio_atual': estagio, 'estagio_desde': datetime.now(timezone.utc).isoformat()}
+        if estagio == 'producao_ia':
+            update['data_producao_ia'] = datetime.now(timezone.utc).isoformat()
+        if responsavel:
+            update['responsavel_atual'] = responsavel
+
+        result = supabase_request('PATCH', f'ds_documentos?id=eq.{doc["id"]}', update)
+        if isinstance(result, dict) and result.get('error'):
+            self._send_json({'error': f'Failed to update document: {result["error"]}'}, 500)
+            return
+
+        # Create audit event
+        evt_result = supabase_request('POST', 'ds_eventos', {
+            'producao_id': doc['producao_id'],
+            'documento_id': doc['id'],
+            'mentorado_id': mentorado_id,
+            'tipo_evento': 'estagio_change',
+            'de_valor': current_stage,
+            'para_valor': estagio,
+            'responsavel': responsavel or 'pipeline-auto',
+            'descricao': f'{tipo} → {estagio} (via API)',
+        })
+        audit_ok = not (isinstance(evt_result, dict) and evt_result.get('error'))
+        if not audit_ok:
+            log_error('DS', 'Failed to create audit event', evt_result['error'])
+
+        self._send_json({
+            'ok': True,
+            'mentorado': mentorado_nome,
+            'tipo': tipo,
+            'estagio': estagio,
+            'responsavel': responsavel,
+            'audit_event': audit_ok,
+        })
+
     def _handle_sheets_sync(self):
         try:
             result = sync_sheets_to_supabase()
@@ -1438,7 +1602,6 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'action_type': 'status_change',
                 'observacao': observacao or None,
                 'changed_by': full_name,
-                'changed_by_user_id': user_id,
             }
             supabase_request('POST', 'god_financial_logs', log_entry)
 
@@ -1468,7 +1631,6 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'action_type': 'note',
                 'observacao': observacao,
                 'changed_by': full_name,
-                'changed_by_user_id': user_id,
             }
             result = supabase_request('POST', 'god_financial_logs', log_entry)
             if isinstance(result, dict) and result.get('error'):

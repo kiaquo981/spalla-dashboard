@@ -1,0 +1,194 @@
+{
+  "name": "DS Stage Notification — Dossiê Handoff Alerts",
+  "nodes": [
+    {
+      "name": "A cada 5 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        250,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Buscar eventos recentes",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        470,
+        300
+      ],
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "ds_eventos",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "tipo_evento",
+              "keyValue": "estagio_change",
+              "condition": "equal"
+            },
+            {
+              "keyName": "created_at",
+              "keyValue": "={{ $now.minus(5, 'minutes').toISO() }}",
+              "condition": "greaterThanOrEqual"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "TODO_REPLACE_WITH_N8N_CREDENTIAL_ID",
+          "name": "Supabase CASE (replace ID after N8N import)"
+        }
+      }
+    },
+    {
+      "name": "Tem eventos?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        690,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Formatar mensagem",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        910,
+        200
+      ],
+      "parameters": {
+        "jsCode": "\nconst items = $input.all();\nreturn items.map(item => {\n  const e = item.json;\n  const msg = `[Dossiê] ${e.descricao || 'Mudança de estágio'}\\n` +\n              `De: ${e.de_valor || '—'} → Para: ${e.para_valor}\\n` +\n              `Responsável: ${e.proximo_responsavel || e.responsavel || '—'}`;\n  return { json: { ...e, formatted_message: msg } };\n});\n"
+      }
+    },
+    {
+      "name": "Enviar WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1130,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EVOLUTION_API_URL }}/message/sendText/producao002",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.EVOLUTION_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $env.NOTIFY_GROUP_ID }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.formatted_message }}"
+            }
+          ]
+        },
+        "options": {
+          "retry": {
+            "enabled": true,
+            "maxTries": 2,
+            "waitBetweenTries": 3000
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "A cada 5 min": {
+      "main": [
+        [
+          {
+            "node": "Buscar eventos recentes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar eventos recentes": {
+      "main": [
+        [
+          {
+            "node": "Tem eventos?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem eventos?": {
+      "main": [
+        [
+          {
+            "node": "Formatar mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Formatar mensagem": {
+      "main": [
+        [
+          {
+            "node": "Enviar WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "dossie-pipeline"
+    }
+  ]
+}
