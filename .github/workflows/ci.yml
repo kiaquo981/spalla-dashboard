@@ -42,7 +42,7 @@ jobs:
         run: |
           FOUND=$(grep -rn 'zsgo0Xjtih8Yn2B0\|07826A779A5C' . \
             --include='*.yml' --include='*.yaml' --include='*.json' \
-            --exclude-dir=.git --exclude-dir=node_modules 2>/dev/null || true)
+            --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.github 2>/dev/null || true)
           if [ -n "$FOUND" ]; then
             echo "Hardcoded secrets found:"
             echo "$FOUND"
