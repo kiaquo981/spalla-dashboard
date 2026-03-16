@@ -1,0 +1,97 @@
+{
+  "meta": {
+    "instanceId": "33738330930e3881dd5571eca013f36ddf8aab20e4ea5c1f2ebaf4a2b4668ac6"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ac-check-1",
+              "leftValue": "={{ $json.choices ? JSON.parse($json.choices[0].message.content).acao_concluida : $json.acao_concluida }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b1c2d3e4-0010-4000-8000-000000000010",
+      "name": "Tem Ação Concluída?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1488,
+        3280
+      ],
+      "notes": "CONECTAR: Detectar Ação Concluída → Este IF → (true) Auto-Check Tarefas"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/bridge_auto_check_task",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_mentorado_id: $('Processar Classificação').item.json.mentorado_id, p_acao_concluida: $json.choices ? JSON.parse($json.choices[0].message.content).acao_concluida : ($json.acao_concluida || ''), p_evidencia: $json.choices ? JSON.parse($json.choices[0].message.content).evidencia : ($json.evidencia || null), p_interacao_id: $('Salvar Interação').item.json.id || null }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "b1c2d3e4-0011-4000-8000-000000000011",
+      "name": "Auto-Check Tarefas",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1712,
+        3180
+      ],
+      "continueOnFail": true,
+      "notes": "Chama bridge_auto_check_task via RPC. Dá check automático em god_tasks quando mentorado reporta conclusão."
+    }
+  ],
+  "connections": {
+    "Tem Ação Concluída?": {
+      "main": [
+        [
+          {
+            "node": "Auto-Check Tarefas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
