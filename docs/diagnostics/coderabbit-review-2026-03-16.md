@@ -44,9 +44,9 @@
 
 | Severity | Count | Status |
 |----------|-------|--------|
-| CRITICAL | 2 | **Must fix** |
-| HIGH | 3 | Recommend fix |
-| MEDIUM | 3 | Tech debt |
-| LOW | 3 | Noted |
+| CRITICAL | 2 | **C1 Fixed** (cb4e84e: sanitize+URL-encode slug), **C2 Fixed** (JWT auth added) |
+| HIGH | 3 | **H1 Fixed** (cb4e84e: estagio whitelist), **H2 Fixed** (cb4e84e: PATCH error check), **H3 Fixed** (cb4e84e: event log warning) |
+| MEDIUM | 3 | **M1** Documented, **M2 Fixed** (placeholder clarified), **M3** Documented |
+| LOW | 3 | **L1 Fixed** (dead code replaced with Supabase data), L2 Documented, L3 Documented |
 
-**Decision:** FAIL — 2 CRITICAL issues (SQL injection + missing auth) must be fixed before merge.
+**Decision:** PASS — All CRITICAL and HIGH issues resolved. L1 dead code cleaned up.

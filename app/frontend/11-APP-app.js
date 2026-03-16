@@ -937,18 +937,8 @@ function operon() {
       };
     },
 
-    // Dossiers: filtered
-    get filteredDossiers() {
-      if (this.ui.dossierFilter === 'all') return DOSSIER_PIPELINE;
-      const statusMap = {
-        enviado: ['enviado'],
-        em_revisao: ['em_revisao', 'ajustar', 'ajustando', 'aprovado_enviar', 'revisao_kaique', 'revisao_mariza', 'revisao_queila'],
-        producao_ia: ['producao_ia'],
-        nao_iniciado: ['nao_iniciado', 'onboarding', 'pausado'],
-      };
-      const statuses = statusMap[this.ui.dossierFilter] || [this.ui.dossierFilter];
-      return DOSSIER_PIPELINE.filter(d => statuses.includes(d.status));
-    },
+    // Dossiers: DEPRECATED — data now from ds_producoes/ds_documentos via Supabase
+    get filteredDossiers() { return []; },
 
     // Reminders: filtered
     get filteredReminders() {
@@ -4137,12 +4127,14 @@ function operon() {
       return DOSSIER_STATUS_CONFIG[status] || DOSSIER_STATUS_CONFIG.nao_iniciado;
     },
 
+    // DEPRECATED: stats now computed from dsProducoes (Supabase data)
     dossierStats() {
-      const total = DOSSIER_PIPELINE.length;
-      const enviados = DOSSIER_PIPELINE.filter(d => d.status === 'enviado').length;
-      const emRevisao = DOSSIER_PIPELINE.filter(d => ['em_revisao', 'ajustar', 'ajustando', 'aprovado_enviar', 'revisao_kaique', 'revisao_mariza', 'revisao_queila'].includes(d.status)).length;
-      const producaoIa = DOSSIER_PIPELINE.filter(d => d.status === 'producao_ia').length;
-      const naoIniciado = DOSSIER_PIPELINE.filter(d => ['nao_iniciado', 'onboarding', 'pausado'].includes(d.status)).length;
+      const prods = this.data.dsProducoes;
+      const total = prods.length;
+      const enviados = prods.filter(p => p.status === 'enviado' || p.status === 'finalizado').length;
+      const emRevisao = prods.filter(p => p.status === 'revisao').length;
+      const producaoIa = prods.filter(p => p.status === 'producao').length;
+      const naoIniciado = prods.filter(p => ['nao_iniciado', 'call_estrategia', 'pausado'].includes(p.status)).length;
       return { total, enviados, emRevisao, producaoIa, naoIniciado };
     },
 

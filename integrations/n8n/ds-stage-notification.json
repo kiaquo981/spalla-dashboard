@@ -49,8 +49,8 @@
       },
       "credentials": {
         "supabaseApi": {
-          "id": "SUPABASE_CRED_ID",
-          "name": "Supabase CASE"
+          "id": "TODO_REPLACE_WITH_N8N_CREDENTIAL_ID",
+          "name": "Supabase CASE (replace ID after N8N import)"
         }
       }
     },

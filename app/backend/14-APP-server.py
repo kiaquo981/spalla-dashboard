@@ -1165,11 +1165,28 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         })
 
     # ===== DOSSIÊ PRODUCTION SYSTEM =====
+    def _ds_check_auth(self):
+        """Verify JWT token for DS endpoints. Returns payload or None (sends 401)."""
+        auth_header = self.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            self._send_json({'error': 'Missing or invalid token'}, 401)
+            return None
+        payload = verify_jwt_token(auth_header[7:])
+        if not payload or payload.get('type') == 'refresh':
+            self._send_json({'error': 'Invalid or expired token'}, 401)
+            return None
+        return payload
+
     def _handle_ds_update_stage(self):
         """Update ds_documentos stage and create ds_eventos audit trail.
         POST /api/ds/update-stage
         Body: { mentorado_slug: str, dossie_tipo: str, estagio: str }
+        Requires: Bearer JWT token
         """
+        auth = self._ds_check_auth()
+        if not auth:
+            return
+
         try:
             body = json.loads(self._read_body())
         except Exception:
