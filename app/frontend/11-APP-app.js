@@ -5,10 +5,11 @@
    ================================================================ */
 
 // ===== CONFIG =====
+const _env = window.__SPALLA_ENV__ || {};
 const CONFIG = {
-  API_BASE: 'https://web-production-2cde5.up.railway.app',  // Production server (Railway HTTPS proxy)
-  SUPABASE_URL: 'https://knusqfbvhsqworzyhvip.supabase.co',
-  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtudXNxZmJ2aHNxd29yenlodmlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4NTg3MjcsImV4cCI6MjA3MDQzNDcyN30.f-m7TlmCoccBpUxLZhA4P5kr2lWBGtRIv6inzInAKCo',
+  API_BASE: _env.API_BASE || 'https://web-production-2cde5.up.railway.app',
+  SUPABASE_URL: _env.SUPABASE_URL || '',
+  SUPABASE_ANON_KEY: _env.SUPABASE_ANON_KEY || '',
   AUTH_STORAGE_KEY: 'spalla_auth',
   TASKS_STORAGE_KEY: 'spalla_tasks',
   REMINDERS_STORAGE_KEY: 'spalla_reminders',
@@ -269,7 +270,8 @@ function operon() {
 
     // Task organization: 2 Spaces — Jornada (mentee-owned) + Gestão (team-owned)
     spaces: [
-      { id: 'space_jornada', name: 'Jornada Mentorados', icon: '◎', color: '#6366f1',
+      {
+        id: 'space_jornada', name: 'Jornada Mentorados', icon: '◎', color: '#6366f1',
         lists: [
           { id: 'list_onboarding', name: 'Onboarding', icon: '▸' },
           { id: 'list_concepcao', name: 'Concepção', icon: '◇' },
@@ -278,7 +280,8 @@ function operon() {
           { id: 'list_escala', name: 'Escala', icon: '▲' },
         ]
       },
-      { id: 'space_gestao', name: 'Gestão CASE', icon: '◈', color: '#f59e0b',
+      {
+        id: 'space_gestao', name: 'Gestão CASE', icon: '◈', color: '#f59e0b',
         lists: [
           { id: 'list_direcionamentos', name: 'Direcionamentos Queila', icon: '★' },
           { id: 'list_operacional', name: 'Operacional', icon: '✦' },
@@ -2174,7 +2177,7 @@ function operon() {
       try {
         const raw = localStorage.getItem(CONFIG.TASKS_STORAGE_KEY);
         if (raw) { const parsed = JSON.parse(raw); if (parsed.length > 0) { this.data.tasks = parsed; this._autoCategorize(); return; } }
-      } catch (e) {}
+      } catch (e) { }
       this.data.tasks = DEMO_TASKS;
       this._cacheTasksLocal();
     },
@@ -2242,12 +2245,12 @@ function operon() {
     },
 
     _cacheTasksLocal() {
-      try { localStorage.setItem(CONFIG.TASKS_STORAGE_KEY, JSON.stringify(this.data.tasks)); } catch (e) {}
+      try { localStorage.setItem(CONFIG.TASKS_STORAGE_KEY, JSON.stringify(this.data.tasks)); } catch (e) { }
     },
 
     async _sbUpsertTask(task, isNew = false) {
       if (!sb) return { ok: false };
-      const VALID_COLS = ['id','titulo','descricao','status','prioridade','responsavel','acompanhante','mentorado_id','mentorado_nome','data_inicio','data_fim','space_id','list_id','parent_task_id','tags','fonte','doc_link','created_at','updated_at','created_by','recorrencia','dia_recorrencia','recorrencia_ativa','recorrencia_origem_id'];
+      const VALID_COLS = ['id', 'titulo', 'descricao', 'status', 'prioridade', 'responsavel', 'acompanhante', 'mentorado_id', 'mentorado_nome', 'data_inicio', 'data_fim', 'space_id', 'list_id', 'parent_task_id', 'tags', 'fonte', 'doc_link', 'created_at', 'updated_at', 'created_by', 'recorrencia', 'dia_recorrencia', 'recorrencia_ativa', 'recorrencia_origem_id'];
       const row = {};
       for (const k of VALID_COLS) { if (task[k] !== undefined) row[k] = task[k]; }
       if (row.mentorado_id) row.mentorado_id = parseInt(row.mentorado_id) || null;
@@ -3641,7 +3644,7 @@ function operon() {
       void this.photoTick;
 
       const isHandle = !handleOrName.includes(' ');
-      const clean = handleOrName.replace('@','').toLowerCase();
+      const clean = handleOrName.replace('@', '').toLowerCase();
 
       // First: try embedded data URLs (PHOTO_DATA_URLS — base64, never expire)
       if (typeof PHOTO_DATA_URLS !== 'undefined' && PHOTO_DATA_URLS[clean]) {
@@ -3673,8 +3676,8 @@ function operon() {
       if (!call) return null;
       // Match by ID first (reliable), then name fallback
       const m = (call.mentorado_id && this.data.mentees.find(x => String(x.id) === String(call.mentorado_id)))
-             || this.data.mentees.find(x => x.nome === call.mentorado)
-             || this.data.mentees.find(x => x.nome?.toLowerCase().trim() === call.mentorado?.toLowerCase().trim());
+        || this.data.mentees.find(x => x.nome === call.mentorado)
+        || this.data.mentees.find(x => x.nome?.toLowerCase().trim() === call.mentorado?.toLowerCase().trim());
       return this.igPhoto(m?.instagram || call.mentorado);
     },
 
@@ -3828,7 +3831,7 @@ function operon() {
     // ===================== CALENDAR METHODS =====================
 
     calendarTitle() {
-      const months = ['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+      const months = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
       return months[this.ui.calendarMonth] + ' ' + this.ui.calendarYear;
     },
 
@@ -3873,12 +3876,12 @@ function operon() {
         const d = prevLastDay - i;
         const m2 = month === 0 ? 11 : month - 1;
         const y2 = month === 0 ? year - 1 : year;
-        const ds = `${y2}-${String(m2+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const ds = `${y2}-${String(m2 + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         days.push({ key: ds, num: d, currentMonth: false, isToday: ds === todayStr, dateStr: ds, calls: callMap[ds] || 0 });
       }
       // Current month days
       for (let d = 1; d <= lastDay.getDate(); d++) {
-        const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         days.push({ key: ds, num: d, currentMonth: true, isToday: ds === todayStr, dateStr: ds, calls: callMap[ds] || 0 });
       }
       // Next month days to fill grid (6 rows)
@@ -3886,7 +3889,7 @@ function operon() {
       for (let d = 1; d <= remaining; d++) {
         const m2 = month === 11 ? 0 : month + 1;
         const y2 = month === 11 ? year + 1 : year;
-        const ds = `${y2}-${String(m2+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const ds = `${y2}-${String(m2 + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         days.push({ key: ds, num: d, currentMonth: false, isToday: ds === todayStr, dateStr: ds, calls: callMap[ds] || 0 });
       }
       return days;
@@ -5205,7 +5208,7 @@ function operon() {
       const r = (size - stroke) / 2;
       const c = 2 * Math.PI * r;
       const offset = c - (pct / 100) * c;
-      return `<svg class="progress-ring" width="${size}" height="${size}"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="#e2e8f0" stroke-width="${stroke}"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-dasharray="${c}" stroke-dashoffset="${offset}" stroke-linecap="round"/></svg>`;
+      return `<svg class="progress-ring" width="${size}" height="${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#e2e8f0" stroke-width="${stroke}"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-dasharray="${c}" stroke-dashoffset="${offset}" stroke-linecap="round"/></svg>`;
     },
 
     statBoxClass(value, warnThreshold, dangerThreshold, inverse = false) {
@@ -5460,7 +5463,7 @@ function operon() {
     },
 
     destroyPerfilCharts() {
-      Object.values(this._perfilCharts).forEach(c => { try { c.destroy(); } catch(e) {} });
+      Object.values(this._perfilCharts).forEach(c => { try { c.destroy(); } catch (e) { } });
       this._perfilCharts = {};
     },
 
@@ -5481,7 +5484,7 @@ function operon() {
               labels: ['Abert.', 'Consc.', 'Extrov.', 'Amabil.', 'Neurot.'],
               datasets: [{
                 label: 'Score',
-                data: [bf.abertura||0, bf.conscienciosidade||0, bf.extroversao||0, bf.amabilidade||0, bf.neuroticismo||0],
+                data: [bf.abertura || 0, bf.conscienciosidade || 0, bf.extroversao || 0, bf.amabilidade || 0, bf.neuroticismo || 0],
                 backgroundColor: 'rgba(245,158,11,0.2)',
                 borderColor: 'rgb(245,158,11)',
                 borderWidth: 2,
@@ -5504,7 +5507,7 @@ function operon() {
               labels: ['Domin.', 'Influen.', 'Estabil.', 'Conform.'],
               datasets: [{
                 label: 'Score',
-                data: [d.dominancia||0, d.influencia||0, d.estabilidade||0, d.conformidade||d.consciencia||0],
+                data: [d.dominancia || 0, d.influencia || 0, d.estabilidade || 0, d.conformidade || d.consciencia || 0],
                 backgroundColor: 'rgba(99,102,241,0.2)',
                 borderColor: 'rgb(99,102,241)',
                 borderWidth: 2,
@@ -5521,7 +5524,7 @@ function operon() {
         const ctx = document.getElementById('chart-zonas');
         if (ctx) {
           const z = dim.quatro_zonas;
-          const getVal = (v) => typeof v === 'object' ? (v?.score||0) : (v||0);
+          const getVal = (v) => typeof v === 'object' ? (v?.score || 0) : (v || 0);
           this._perfilCharts.zonas = new Chart(ctx, {
             type: 'radar',
             data: {
@@ -5585,7 +5588,7 @@ function operon() {
           legend: { display: false },
           tooltip: {
             callbacks: {
-              label: function(ctx) { return ctx.raw + '/100'; }
+              label: function (ctx) { return ctx.raw + '/100'; }
             }
           }
         },
