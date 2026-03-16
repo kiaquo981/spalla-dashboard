@@ -1,0 +1,7 @@
+{
+  "buildCommand": "echo Static SPA",
+  "outputDirectory": "app/frontend",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/10-APP-index.html" }
+  ]
+}
