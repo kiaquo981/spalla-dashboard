@@ -8,7 +8,7 @@ const EVOLUTION_CONFIG = {
   BASE_URL: 'https://evolution.manager01.feynmanproject.com',
   INSTANCE: 'producao002',
   INSTANCE_UUID: '34f920b5-83b9-470f-9775-c662cf23d482', // UUID da instância para S3 paths
-  API_KEY: 'E8F969C9-4A5F-4044-94AB-5DCF4FF1DF77',
+  // API_KEY removed — all Evolution calls go through backend proxy
 };
 
 // ===== APIFY CONFIG (Instagram Profile Scraper) =====

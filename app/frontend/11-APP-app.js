@@ -1621,7 +1621,7 @@ function operon() {
           const jid = chat.remoteJid || chat.id;
           const fullChat = this.data.whatsappChats.find(c => (c.remoteJid || c.id) === jid);
           this.selectWhatsAppChat(fullChat || chat);
-        });
+        }).catch(e => { console.error("[Spalla] Error loading WA chats:", e); this.toast("Erro ao carregar chats", "error"); });
       } else {
         this.navigate('whatsapp');
         this.fetchWhatsAppChats();
@@ -1728,11 +1728,11 @@ function operon() {
           await this.loadFinanceiro();
           this.finActionDropdown = null;
         } else {
-          alert(data.error || 'Erro ao atualizar status');
+          this.toast(data.error || 'Erro ao atualizar status', 'error');
         }
       } catch (e) {
         console.error('[Spalla] changeFinStatus error:', e);
-        alert('Erro ao atualizar status financeiro');
+        this.toast('Erro ao atualizar status financeiro', 'error');
       }
     },
 
@@ -1752,11 +1752,11 @@ function operon() {
           this.finNoteModal = { open: false, menteeId: null, menteeNome: '', text: '' };
           await this.loadFinanceiro();
         } else {
-          alert(data.error || 'Erro ao adicionar observacao');
+          this.toast(data.error || 'Erro ao adicionar observacao', 'error');
         }
       } catch (e) {
         console.error('[Spalla] addFinNote error:', e);
-        alert('Erro ao adicionar observacao');
+        this.toast('Erro ao adicionar observacao', 'error');
       }
     },
 
