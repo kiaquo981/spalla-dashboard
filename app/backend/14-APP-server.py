@@ -836,6 +836,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_auth_refresh()
         elif self.path == '/api/auth/reset-password':
             self._handle_auth_reset_password()
+        elif self.path == '/api/auth/change-password':
+            self._handle_auth_change_password()
         elif self.path.startswith('/api/evolution/'):
             self._proxy_evolution('POST')
         elif self.path == '/api/schedule-call':
@@ -1499,6 +1501,55 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             log_error('AUTH', f'Token refresh failed: {e}')
             self._send_json({'error': 'Token refresh failed'}, 500)
+
+    def _handle_auth_change_password(self):
+        """Handle password change for logged-in users"""
+        try:
+            # Verify JWT token
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Token obrigatorio'}, 401)
+                return
+
+            token = auth_header[7:]
+            payload = verify_jwt_token(token)
+            if not payload:
+                self._send_json({'error': 'Token invalido ou expirado'}, 401)
+                return
+
+            user_id = payload.get('user_id')
+            body = json.loads(self._read_body())
+            current_password = body.get('current_password', '')
+            new_password = body.get('new_password', '')
+
+            if not current_password or not new_password:
+                self._send_json({'error': 'Senha atual e nova senha obrigatorias'}, 400)
+                return
+
+            if len(new_password) < 6:
+                self._send_json({'error': 'Nova senha deve ter no minimo 6 caracteres'}, 400)
+                return
+
+            # Get current hash
+            result = supabase_request('GET', f'auth_users?id=eq.{user_id}&select=id,password_hash')
+            if not isinstance(result, list) or len(result) == 0:
+                self._send_json({'error': 'Usuario nao encontrado'}, 404)
+                return
+
+            stored_hash = result[0]['password_hash']
+            pw_check = verify_password(current_password, stored_hash)
+            if not pw_check:
+                self._send_json({'error': 'Senha atual incorreta'}, 401)
+                return
+
+            # Hash new password with bcrypt
+            new_hash = hash_password(new_password)
+            supabase_request('PATCH', f'auth_users?id=eq.{user_id}', {'password_hash': new_hash})
+
+            self._send_json({'success': True, 'message': 'Senha alterada com sucesso'}, 200)
+        except Exception as e:
+            log_error('AUTH', f'Change password error: {e}')
+            self._send_json({'error': 'Erro ao alterar senha'}, 500)
 
     def _handle_auth_reset_password(self):
         """Handle password reset request — returns generic message to prevent email enumeration"""
