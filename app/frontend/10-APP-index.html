@@ -3876,33 +3876,34 @@
                 <p class="settings-section__desc">Troque sua senha de acesso ao sistema</p>
               </div>
             </div>
-            <div class="settings-password" x-data="{ pwCurrent: '', pwNew: '', pwConfirm: '', pwLoading: false, pwMsg: '' }">
-              <div class="settings-user-info__row">
-                <span class="settings-user-info__label">Senha atual</span>
-                <input type="password" x-model="pwCurrent" placeholder="Sua senha atual" class="modal__input" style="max-width:300px">
+            <div class="settings-password" x-data="{ pwCurrent: '', pwNew: '', pwConfirm: '', pwLoading: false, pwMsg: '', pwSuccess: false }">
+              <div class="settings-password__field">
+                <label>Senha atual</label>
+                <input type="password" x-model="pwCurrent" placeholder="Digite sua senha atual">
               </div>
-              <div class="settings-user-info__row">
-                <span class="settings-user-info__label">Nova senha</span>
-                <input type="password" x-model="pwNew" placeholder="Minimo 6 caracteres" class="modal__input" style="max-width:300px">
+              <div class="settings-password__field">
+                <label>Nova senha</label>
+                <input type="password" x-model="pwNew" placeholder="Minimo 6 caracteres">
               </div>
-              <div class="settings-user-info__row">
-                <span class="settings-user-info__label">Confirmar</span>
-                <input type="password" x-model="pwConfirm" placeholder="Repita a nova senha" class="modal__input" style="max-width:300px">
+              <div class="settings-password__field">
+                <label>Confirmar nova senha</label>
+                <input type="password" x-model="pwConfirm" placeholder="Repita a nova senha">
               </div>
-              <p x-show="pwMsg" x-text="pwMsg" :style="pwMsg.includes('sucesso') ? 'color:var(--color-success)' : 'color:var(--color-error)'" style="margin:8px 0;font-size:14px"></p>
-              <button class="btn btn--primary" style="margin-top:12px" :disabled="pwLoading || !pwCurrent || !pwNew || !pwConfirm"
+              <div x-show="pwMsg" class="settings-password__msg" :class="pwSuccess ? 'settings-password__msg--success' : 'settings-password__msg--error'" x-text="pwMsg" x-transition></div>
+              <button class="btn btn--primary settings-password__btn" :disabled="pwLoading || !pwCurrent || !pwNew || !pwConfirm"
                 @click="
-                  if (pwNew !== pwConfirm) { pwMsg = 'Senhas nao conferem'; return; }
-                  if (pwNew.length < 6) { pwMsg = 'Minimo 6 caracteres'; return; }
+                  pwSuccess = false;
+                  if (pwNew !== pwConfirm) { pwMsg = 'As senhas nao conferem'; return; }
+                  if (pwNew.length < 6) { pwMsg = 'A nova senha deve ter no minimo 6 caracteres'; return; }
                   pwLoading = true; pwMsg = '';
                   fetch(CONFIG.API_BASE + '/api/auth/change-password', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('spalla_access_token') || '') },
                     body: JSON.stringify({ current_password: pwCurrent, new_password: pwNew })
                   }).then(r => r.json()).then(d => {
-                    if (d.success) { pwMsg = 'Senha alterada com sucesso!'; pwCurrent = ''; pwNew = ''; pwConfirm = ''; }
+                    if (d.success) { pwSuccess = true; pwMsg = 'Senha alterada com sucesso!'; pwCurrent = ''; pwNew = ''; pwConfirm = ''; }
                     else { pwMsg = d.error || 'Erro ao alterar senha'; }
-                  }).catch(() => { pwMsg = 'Erro de conexao'; }).finally(() => { pwLoading = false; });
+                  }).catch(() => { pwMsg = 'Erro de conexao com o servidor'; }).finally(() => { pwLoading = false; });
                 ">
                 <span x-text="pwLoading ? 'Alterando...' : 'Alterar Senha'"></span>
               </button>
