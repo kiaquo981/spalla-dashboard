@@ -1602,7 +1602,6 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'action_type': 'status_change',
                 'observacao': observacao or None,
                 'changed_by': full_name,
-                'changed_by_user_id': user_id,
             }
             supabase_request('POST', 'god_financial_logs', log_entry)
 
@@ -1632,7 +1631,6 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'action_type': 'note',
                 'observacao': observacao,
                 'changed_by': full_name,
-                'changed_by_user_id': user_id,
             }
             result = supabase_request('POST', 'god_financial_logs', log_entry)
             if isinstance(result, dict) and result.get('error'):
