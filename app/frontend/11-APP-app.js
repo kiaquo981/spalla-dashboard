@@ -195,6 +195,7 @@ function operon() {
       paModal: false,           // create plan modal
       paExpandedFases: {},      // { faseId: true } for accordion
       paLoading: false,         // loading state for PA detail
+      finDetailLoading: false,  // loading state for financial detail logs
       paSearchQuery: '',        // busca por nome do mentorado
       // Perfil Comportamental
       perfilLoading: false,
@@ -241,6 +242,7 @@ function operon() {
       pendencias: [],
       paPlanos: [],       // vw_pa_pipeline data
       paMenteePa: null,   // full PA for current mentee detail
+      finDetailLogs: [],  // financial logs for mentee detail tab
       paAllFases: [],     // lightweight fases for sentinel calcs
       paAllAcoes: [],     // lightweight acoes for sentinel calcs
       // Onboarding CS
@@ -1663,6 +1665,9 @@ function operon() {
     finNoteModal: { open: false, menteeId: null, menteeNome: '', text: '' },
     finActionDropdown: null, // mentorado id with open dropdown
 
+    // Financeiro detail (logs for mentee detail tab)
+    // data.finDetailLogs is set on the data object
+
     get financialMentees() {
       if (!this.financeiro?.mentorados) return [];
       let list = this.financeiro.mentorados;
@@ -1774,6 +1779,35 @@ function operon() {
       if (hours < 24) return `${hours}h atras`;
       const days = Math.floor(hours / 24);
       return `${days}d atras`;
+    },
+
+    // Load mentee detail and jump directly to Financeiro tab
+    async loadMenteeFinDetail(id) {
+      await this.loadMenteeDetail(id);
+      this.ui.activeDetailTab = 'financeiro';
+      await this.loadFinDetailLogs();
+    },
+
+    // Fetch financial logs for the currently selected mentee
+    async loadFinDetailLogs() {
+      const id = this.ui.selectedMenteeId;
+      if (!id) return;
+      this.ui.finDetailLoading = true;
+      this.data.finDetailLogs = [];
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/financial/logs/${id}`, {
+          headers: { 'Authorization': `Bearer ${this.auth.accessToken}` },
+        });
+        const result = await resp.json();
+        if (result.success && Array.isArray(result.logs)) {
+          this.data.finDetailLogs = result.logs;
+        } else if (Array.isArray(result)) {
+          this.data.finDetailLogs = result;
+        }
+      } catch (e) {
+        console.error('[Spalla] loadFinDetailLogs error:', e);
+      }
+      this.ui.finDetailLoading = false;
     },
 
     // ===================== PLANO DE AÇÃO (PA) =====================
