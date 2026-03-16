@@ -37,7 +37,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT bridge_auto_check_task(\n  {{ $('Processar Classificação').item.json.mentorado_id }}::bigint,\n  '{{ ($json.choices ? JSON.parse($json.choices[0].message.content).acao_concluida : ($json.acao_concluida || '')).replace(/'/g, \"''\") }}'::text,\n  {{ ($json.choices ? JSON.parse($json.choices[0].message.content).evidencia : ($json.evidencia || null)) ? \"'\" + ($json.choices ? JSON.parse($json.choices[0].message.content).evidencia : $json.evidencia).replace(/'/g, \"''\") + \"'\" : 'NULL' }}::text,\n  {{ $('Salvar Interação').item.json.id ? $('Salvar Interação').item.json.id : 'NULL' }}::bigint\n);",
+        "query": "SELECT bridge_auto_check_task(\n  {{ $('Processar Classificação').item.json.mentorado_id }},\n  '{{ ($json.choices ? JSON.parse($json.choices[0].message.content).acao_concluida : ($json.acao_concluida || '')).replace(/'/g, \"''\") }}',\n  {{ ($json.choices ? JSON.parse($json.choices[0].message.content).evidencia : $json.evidencia) ? \"'\" + ($json.choices ? JSON.parse($json.choices[0].message.content).evidencia : $json.evidencia).replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  NULL\n);",
         "options": {}
       },
       "id": "b1c2d3e4-0011-4000-8000-000000000011",
@@ -52,7 +52,7 @@
         }
       },
       "continueOnFail": true,
-      "notes": "Chama bridge_auto_check_task via Postgres. Dá check automático em god_tasks quando mentorado reporta conclusão."
+      "notes": "Chama bridge_auto_check_task via Postgres. p_interacao_id = NULL (uuid, difícil passar do contexto)."
     }
   ],
   "connections": {
