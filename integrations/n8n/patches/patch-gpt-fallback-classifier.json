@@ -1,14 +1,22 @@
 {
+  "meta": {
+    "instanceId": "33738330930e3881dd5571eca013f36ddf8aab20e4ea5c1f2ebaf4a2b4668ac6"
+  },
   "nodes": [
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\n\nfor (const item of items) {\n  const d = item.json;\n\n  if (d.classificacao && d.eh_equipe !== undefined && d.requer_resposta !== undefined) {\n    continue;\n  }\n\n  d.classificacao = d.classificacao || 'NAO_CLASSIFICADO';\n  d.tipo_interacao = d.tipo_interacao || 'mensagem';\n  d.sentimento = d.sentimento || 'neutro';\n  d.prioridade = d.prioridade || 'normal';\n  d.score_engajamento = d.score_engajamento || 5;\n  d.classification_fallback = true;\n  d._fallback_reason = 'gpt_failure';\n  d._fallback_timestamp = new Date().toISOString();\n}\n\nreturn items;"
+        "jsCode": "// FALLBACK: Classificação conservadora quando GPT falha\n// Garante que a mensagem não desaparece do pipeline\nconst items = $input.all();\n\nfor (const item of items) {\n  const d = item.json;\n\n  if (d.classificacao && d.eh_equipe !== undefined && d.requer_resposta !== undefined) {\n    continue;\n  }\n\n  d.classificacao = d.classificacao || 'NAO_CLASSIFICADO';\n  d.tipo_interacao = d.tipo_interacao || 'mensagem';\n  d.sentimento = d.sentimento || 'neutro';\n  d.prioridade = d.prioridade || 'normal';\n  d.score_engajamento = d.score_engajamento || 5;\n  d.classification_fallback = true;\n  d._fallback_reason = 'gpt_failure';\n  d._fallback_timestamp = new Date().toISOString();\n}\n\nreturn items;"
       },
-      "name": "[PATCH] GPT Fallback Classifier",
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "[SAFETY] GPT Fallback Classifier",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [0, 0],
-      "notes": "Classificação conservadora quando GPT falha (timeout, rate limit, JSON inválido). Marca como NAO_CLASSIFICADO + classification_fallback=true. Conectar no Error Output do Detector Tipo Mensagem."
+      "position": [
+        -1200,
+        5600
+      ],
+      "notes": "CONECTAR: Error Output do 'Classificar e Enriquecer Completo' → Este node → 'Salvar Interação'"
     }
-  ]
+  ],
+  "connections": {}
 }

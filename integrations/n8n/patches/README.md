@@ -1,53 +1,99 @@
-# N8N Safety Net Patches
+# N8N Safety Net Patches — Scraper v34
 
-Patches JSON para importar no N8N Scraper v34. Cada arquivo é um node (ou par de nodes) pronto para colar no workflow.
+JSONs prontos para importar no N8N (Ctrl+V no canvas).
 
-## Patches Disponíveis
+## Arquitetura do Pipeline (real, mapeada do v34)
 
-| Arquivo | Aplicar em | Função |
+```
+Merge → Classificar e Enriquecer Completo (GPT) → Salvar Interação (INSERT)
+                                                          │
+                                            ┌─────────────┼──────────────────┐
+                                            ↓             ↓                  ↓
+                               [PATCH] Detector    É Msg Equipe?    Classificar Grupo
+                                  Tipo Msg              ↓                    ↓
+                                     ↓           Buscar Dúvidas     Switch Categoria
+                            [PATCH] Switch           ...                  ...
+                              Roteamento
+                                  ↓
+                          [PATCH] Buscar Pendentes ...
+```
+
+## Onde Entram os Safety Nets
+
+### Cenário 1 — Safety antes do Salvar Interação
+
+Os fallbacks `eh_equipe` e `requer_resposta` devem rodar ENTRE
+o `Classificar e Enriquecer Completo` e o `Salvar Interação`,
+pra garantir que os campos nunca chegam null no INSERT.
+
+```
+ANTES:
+  Classificar e Enriquecer ────→ Salvar Interação
+
+DEPOIS:
+  Classificar e Enriquecer ──→ [SAFETY] Fallback eh_equipe
+                                        ↓
+                               [SAFETY] Fallback requer_resposta
+                                        ↓
+                               Salvar Interação
+```
+
+**Se o GPT do "Classificar e Enriquecer" falhar:**
+```
+  Classificar e Enriquecer ──ERRO──→ [SAFETY] GPT Fallback Classifier
+                                              ↓
+                                     [SAFETY] Fallback eh_equipe
+                                              ↓
+                                     [SAFETY] Fallback requer_resposta
+                                              ↓
+                                     Salvar Interação
+```
+
+### Cenário 2 — DLQ se o Salvar Interação falhar
+
+```
+  Salvar Interação ──ERRO──→ [SAFETY] Error → Preparar DLQ
+                                       ↓
+                             [SAFETY] INSERT DLQ (Postgres)
+```
+
+## Patches
+
+| Arquivo | Node Type | Onde conectar |
 |---|---|---|
-| `patch-gpt-fallback-classifier.json` | Error branch do "Detector Tipo Mensagem" | Classificação conservadora quando GPT falha |
-| `patch-fallback-eh-equipe.json` | Code node APÓS Detector, ANTES de Salvar | Determina eh_equipe por telefone/nome se GPT falhou |
-| `patch-fallback-requer-resposta.json` | Code node APÓS fallback-eh-equipe | Determina requer_resposta por heurísticas |
-| `patch-save-error-to-dlq.json` | Error branch do "Salvar Interação" | Salva msg na DLQ se Supabase falhar (2 nodes: Code + Postgres) |
+| `patch-gpt-fallback-classifier.json` | Code | Error output do "Classificar e Enriquecer Completo" |
+| `patch-fallback-eh-equipe.json` | Code | Entre "Classificar e Enriquecer" (ou GPT Fallback) e "Salvar Interação" |
+| `patch-fallback-requer-resposta.json` | Code | Entre "Fallback eh_equipe" e "Salvar Interação" |
+| `patch-save-error-to-dlq.json` | Code + Postgres | Error output do "Salvar Interação" (2 nodes já conectados) |
 
-## Como Importar no N8N
+## Como Importar
 
-1. Abrir workflow "Sistema de Gestão de Whatsapp - Scraper v34"
-2. Para cada patch: **Ctrl+V** o conteúdo JSON do arquivo no canvas
-3. Conectar os nodes na posição correta (ver diagrama abaixo)
-4. Salvar e testar
+1. Abrir "Sistema de Gestão de Whatsapp - Scraper v34" no N8N
+2. Copiar o conteúdo JSON do patch
+3. No canvas do N8N: Ctrl+V (cola os nodes)
+4. Arrastar para a posição correta
+5. Conectar as setas conforme diagramas acima
+6. Salvar workflow
 
-## Ordem de Aplicação no Pipeline
+## Passo a Passo
 
-```
-Webhook
-  → Normalizar Webhook
-    → [existente] Detector Tipo Mensagem (GPT)
-       ├── OK → gpt output
-       └── ERRO → patch-gpt-fallback-classifier.json      ← PATCH 1
-    → patch-fallback-eh-equipe.json                         ← PATCH 2
-    → patch-fallback-requer-resposta.json                   ← PATCH 3
-    → [existente] Salvar Interação (Supabase)
-       ├── OK → continua pipeline
-       └── ERRO → patch-save-error-to-dlq.json             ← PATCH 4 (2 nodes)
-```
+### PATCH 1: GPT Fallback
+1. Abrir `patch-gpt-fallback-classifier.json`, copiar conteúdo
+2. Ctrl+V no canvas do N8N
+3. Clicar no node "Classificar e Enriquecer Completo"
+4. Settings → ativar "Error Output" (toggle on)
+5. Conectar saída vermelha (Error) → `[SAFETY] GPT Fallback Classifier`
 
-## Credenciais
+### PATCH 2 + 3: Fallbacks eh_equipe + requer_resposta
+1. Colar os 2 JSONs no canvas
+2. DESCONECTAR a seta `Classificar e Enriquecer Completo → Salvar Interação`
+3. Conectar: `Classificar e Enriquecer (OK)` → `[SAFETY] Fallback eh_equipe`
+4. Conectar: `[SAFETY] GPT Fallback` → `[SAFETY] Fallback eh_equipe`
+5. Conectar: `[SAFETY] Fallback eh_equipe` → `[SAFETY] Fallback requer_resposta`
+6. Conectar: `[SAFETY] Fallback requer_resposta` → `Salvar Interação`
 
-O patch DLQ usa a credencial `Postgres | case` (ID: `vVXQE04tisGHZsFJ`) — mesma do Scraper v34. Se o ID não bater, atualizar no node `[PATCH] INSERT DLQ`.
-
-## SQL Migrations Necessárias (já aplicadas)
-
-Executar no Supabase ANTES de aplicar patches:
-
-1. `54-SQL-wa-dead-letter-queue.sql` — Tabela DLQ ✅
-2. `55-SQL-wa-pipeline-stats.sql` — Tabela de stats ✅
-
-## Como Testar
-
-1. Enviar mensagem de teste em grupo WhatsApp
-2. Verificar no Supabase: `SELECT * FROM interacoes_mentoria ORDER BY created_at DESC LIMIT 1;`
-3. Verificar campos não são NULL: `eh_equipe`, `requer_resposta`, `classificacao`
-4. Para testar DLQ: temporariamente quebrar credenciais Supabase no N8N
-5. Verificar: `SELECT * FROM wa_dead_letter_queue WHERE status = 'pending';`
+### PATCH 4: DLQ
+1. Colar JSON (já contém 2 nodes conectados entre si)
+2. Clicar no node "Salvar Interação" (Supabase)
+3. Settings → ativar "Error Output"
+4. Conectar saída vermelha → `[SAFETY] Error → Preparar DLQ`

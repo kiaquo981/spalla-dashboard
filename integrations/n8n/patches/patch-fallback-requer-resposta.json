@@ -1,14 +1,22 @@
 {
+  "meta": {
+    "instanceId": "33738330930e3881dd5571eca013f36ddf8aab20e4ea5c1f2ebaf4a2b4668ac6"
+  },
   "nodes": [
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\n\nfor (const item of items) {\n  const d = item.json;\n\n  if (d.requer_resposta === true || d.requer_resposta === false) continue;\n\n  if (d.eh_equipe === true) {\n    d.requer_resposta = false;\n    d._requer_resposta_source = 'is_equipe';\n    continue;\n  }\n\n  const conteudo = (d.conteudo || d.content || '').toLowerCase();\n  const tipo = (d.tipo_interacao || d.classificacao || '').toLowerCase();\n\n  if (conteudo.includes('?')) {\n    d.requer_resposta = true;\n    d._requer_resposta_source = 'has_question_mark';\n    continue;\n  }\n\n  if (['duvida', 'bloqueio', 'solicitacao', 'pedido'].some(t => tipo.includes(t))) {\n    d.requer_resposta = true;\n    d._requer_resposta_source = 'tipo_match';\n    continue;\n  }\n\n  if (['social', 'informativo', 'saudacao', 'agradecimento'].some(t => tipo.includes(t))) {\n    d.requer_resposta = false;\n    d._requer_resposta_source = 'social_tipo';\n    continue;\n  }\n\n  const HELP_KEYWORDS = ['ajuda', 'como faz', 'não sei', 'nao sei', 'dúvida', 'duvida', 'preciso', 'urgente', 'problema', 'não consigo', 'nao consigo', 'travado', 'parado'];\n  if (HELP_KEYWORDS.some(kw => conteudo.includes(kw))) {\n    d.requer_resposta = true;\n    d._requer_resposta_source = 'keyword_match';\n    continue;\n  }\n\n  d.requer_resposta = false;\n  d._requer_resposta_source = 'default_no';\n}\n\nreturn items;"
+        "jsCode": "// FALLBACK: requer_resposta por heurísticas quando GPT retorna null\nconst items = $input.all();\n\nfor (const item of items) {\n  const d = item.json;\n\n  if (d.requer_resposta === true || d.requer_resposta === false) continue;\n\n  if (d.eh_equipe === true) {\n    d.requer_resposta = false;\n    d._requer_resposta_source = 'is_equipe';\n    continue;\n  }\n\n  const conteudo = (d.conteudo || d.content || '').toLowerCase();\n  const tipo = (d.tipo_interacao || d.classificacao || '').toLowerCase();\n\n  if (conteudo.includes('?')) {\n    d.requer_resposta = true;\n    d._requer_resposta_source = 'has_question_mark';\n    continue;\n  }\n\n  if (['duvida', 'bloqueio', 'solicitacao', 'pedido'].some(t => tipo.includes(t))) {\n    d.requer_resposta = true;\n    d._requer_resposta_source = 'tipo_match';\n    continue;\n  }\n\n  if (['social', 'informativo', 'saudacao', 'agradecimento'].some(t => tipo.includes(t))) {\n    d.requer_resposta = false;\n    d._requer_resposta_source = 'social_tipo';\n    continue;\n  }\n\n  const HELP_KEYWORDS = ['ajuda', 'como faz', 'não sei', 'nao sei', 'dúvida', 'duvida', 'preciso', 'urgente', 'problema', 'não consigo', 'nao consigo', 'travado', 'parado'];\n  if (HELP_KEYWORDS.some(kw => conteudo.includes(kw))) {\n    d.requer_resposta = true;\n    d._requer_resposta_source = 'keyword_match';\n    continue;\n  }\n\n  d.requer_resposta = false;\n  d._requer_resposta_source = 'default_no';\n}\n\nreturn items;"
       },
-      "name": "[PATCH] Fallback requer_resposta",
+      "id": "a1b2c3d4-0003-4000-8000-000000000003",
+      "name": "[SAFETY] Fallback requer_resposta",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [0, 0],
-      "notes": "Heurísticas para requer_resposta quando GPT retorna null. Regras: equipe=false, ?=true, keywords de ajuda=true, social=false. Colocar APÓS fallback-eh-equipe, ANTES de Salvar Interação."
+      "position": [
+        -720,
+        5600
+      ],
+      "notes": "CONECTAR: Fallback eh_equipe → Este node → 'Salvar Interação'"
     }
-  ]
+  ],
+  "connections": {}
 }
