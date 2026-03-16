@@ -110,20 +110,20 @@ Atualiza estágio de documento e cria evento de auditoria.
 |-------|------|---------|
 | `mentorado_slug` | string | Nome parcial do mentorado (ILIKE match) |
 | `dossie_tipo` | string | `oferta`, `funil`, `conteudo` |
-| `estagio` | string | `pendente`, `producao_ia`, `revisao_mariza`, `revisao_kaique`, `revisao_queila`, `aprovado`, `enviado`, `finalizado` |
+| `estagio` | string | `pendente`, `producao_ia`, `revisao_mariza`, `revisao_kaique`, `revisao_queila`, `aprovado`, `enviado`, `ajustes`, `finalizado` |
 
 **Transições válidas:**
-```
+```text
 pendente → producao_ia → revisao_mariza → revisao_kaique → revisao_queila → aprovado → enviado → finalizado
-                ↑              ↑                ↑
-            (send back)    (send back)      (send back)
+                ↑              ↑                ↑                                          ↓
+            (send back)    (send back)      (send back)                              ajustes → revisao_mariza
 ```
 
 **Respostas:**
 
 | Status | Descrição |
 |--------|-----------|
-| 200 | `{ok, mentorado, tipo, estagio, responsavel}` |
+| 200 | `{ok, mentorado, tipo, estagio, responsavel, audit_event}` |
 | 400 | Validação falhou (campo faltando, tipo/estágio inválido) |
 | 401 | Token JWT ausente ou inválido |
 | 403 | Role insuficiente (requer `admin` ou `team`) |

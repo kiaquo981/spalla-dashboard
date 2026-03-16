@@ -1179,10 +1179,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         if not payload or payload.get('type') == 'refresh':
             self._send_json({'error': 'Invalid or expired token'}, 401)
             return None
-        # Check role — default to 'team' for existing users without role field
-        role = payload.get('role', 'team')
-        if role not in self.DS_ALLOWED_ROLES:
-            self._send_json({'error': 'Insufficient permissions'}, 403)
+        # Check role — require explicit role in JWT, no fallback
+        role = payload.get('role')
+        if not role or role not in self.DS_ALLOWED_ROLES:
+            self._send_json({'error': 'Insufficient permissions — JWT must contain role (admin or team)'}, 403)
             return None
         return payload
 
@@ -1243,9 +1243,13 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
         # Find mentorado (slug is sanitized, safe for ILIKE)
         mentee = supabase_request('GET',
-            f'mentorados?nome=ilike.*{urllib.parse.quote(safe_slug)}*&select=id,nome&limit=1')
+            f'mentorados?nome=ilike.*{urllib.parse.quote(safe_slug)}*&select=id,nome&limit=5')
         if not mentee or isinstance(mentee, dict) and mentee.get('error'):
             self._send_json({'error': f'Mentorado not found: {safe_slug}'}, 404)
+            return
+        if len(mentee) > 1:
+            names = [m['nome'] for m in mentee]
+            self._send_json({'error': f'Ambiguous slug — {len(mentee)} matches: {names}. Be more specific.'}, 400)
             return
         mentorado_id = mentee[0]['id']
         mentorado_nome = mentee[0]['nome']
@@ -1302,7 +1306,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             'responsavel': responsavel or 'pipeline-auto',
             'descricao': f'{tipo} → {estagio} (via API)',
         })
-        if isinstance(evt_result, dict) and evt_result.get('error'):
+        audit_ok = not (isinstance(evt_result, dict) and evt_result.get('error'))
+        if not audit_ok:
             log_error('DS', 'Failed to create audit event', evt_result['error'])
 
         self._send_json({
@@ -1311,6 +1316,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             'tipo': tipo,
             'estagio': estagio,
             'responsavel': responsavel,
+            'audit_event': audit_ok,
         })
 
     def _handle_sheets_sync(self):

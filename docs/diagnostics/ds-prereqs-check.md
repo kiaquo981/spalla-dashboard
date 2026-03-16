@@ -54,7 +54,7 @@ tipo, titulo, updated_at
 
 - **DS-02, DS-03, DS-04, DS-05** → SKIP (schema + seed já executados)
 - **DS-06** → ✅ god_tasks tem todas as colunas necessárias
-- **DS-07** → PRECISA EXECUTAR (migration 46 bridge)
+- **DS-07** → ✅ EXECUTADO (migration 46-SQL-ds-bridge-v2.sql deployada e testada)
 - **DS-08** → Validação parcial — dados existem, view funciona
 - **DS-09** → Frontend deveria funcionar — testar
 - **DS-10** → Ainda relevante (deprecar array estático)

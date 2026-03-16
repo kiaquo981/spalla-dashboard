@@ -65,7 +65,7 @@ curl -X POST "https://manager01.juridicomarinho.com.br:9999/api/ds/update-stage"
 
 - O workflow importa sem erro de schema.
 - O node Supabase usa a credencial real do ambiente.
-- O node HTTP retorna sucesso ou `neverError` sem bloqueio.
+- O node HTTP usa retry (`maxTries: 2`, `waitBetweenTries: 3000ms`) e entrega a notificação.
 - Um evento real de `estagio_change` gera uma mensagem WhatsApp legível com estágio anterior, estágio novo e responsável.
 
 ## Riscos conhecidos
