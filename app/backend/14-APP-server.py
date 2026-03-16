@@ -1386,7 +1386,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': 'User not found'}, 404)
             return None
         full_name = result[0].get('full_name', '')
-        if full_name.lower() not in self.CFO_ALLOWED_USERS:
+        if not any(full_name.lower().startswith(u) for u in self.CFO_ALLOWED_USERS):
             self._send_json({'error': 'Access denied: not authorized for financial operations'}, 403)
             return None
         return (user_id, full_name)

@@ -1664,7 +1664,7 @@ function operon() {
 
     get isCfoUser() {
       const name = (this.auth.currentUser?.full_name || '').toLowerCase();
-      return this.CFO_ALLOWED_USERS.includes(name);
+      return this.CFO_ALLOWED_USERS.some(u => name.startsWith(u));
     },
 
     // Financeiro data state
