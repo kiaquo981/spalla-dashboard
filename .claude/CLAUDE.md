@@ -74,37 +74,52 @@ Isso é trabalho do agent no worktree.
 
 ### Passo 4: Criar worktrees + HANDOFF.md (batch)
 - `git worktree add -b <branch> /worktrees/<nome> develop`
-- Em CADA worktree, escrever `HANDOFF.md`:
+- Em CADA worktree, escrever `HANDOFF.md` com YAML frontmatter:
 
 ```markdown
-# Handoff — <nome do worktree>
+---
+worktree: widget-zoom
+branch: feature/widget-zoom
+type: feature                        # feature | fix | refactor | content
+created: 2026-03-16
+clickup:
+  task_id: "abc123def"               # ID do ClickUp (sem CU- prefix)
+  task_url: "https://app.clickup.com/t/abc123def"
+  workspace_id: "9011530618"
+  list_id: "901113377455"            # Sprint list onde vive
+scope:
+  directories:
+    - app/frontend/
+  key_files:
+    - app/frontend/10-APP-index.html
+    - app/frontend/components/zoom-widget.js
+  excluded:
+    - app/backend/                   # NÃO TOCAR
+status: pending                      # pending | in_progress | blocked | done
+---
 
-## Task
-- **ClickUp:** CU-abc123 (link)
-- **Tipo:** feature
-- **Branch:** feature/widget-zoom
+# Handoff — Widget Zoom
 
-## Briefing
-<briefing completo extraído do ClickUp>
+## Briefing (extraído do ClickUp)
 
-## Escopo
-- Diretórios: `app/frontend/`
-- Arquivos-chave: `app/frontend/10-APP-index.html`
+<briefing completo copiado do ClickUp: descrição, checklists, anexos, referências>
 
-## O que precisa ser feito
-<resumo claro do entregável>
+## Entregável
 
-## Próximos passos (para o agent)
-1. Ler este HANDOFF.md
-2. Criar spec.md (investigar código, entender problema)
-3. Criar plan.md (decompor em steps atômicos)
-4. Criar Beads a partir do plan (bd create)
-5. Implementar seguindo o plan
-6. PR + Review
+<resumo claro do que precisa ser entregue>
+
+## Próximos passos
+
+1. Criar `spec.md` — investigar código existente, entender dependências
+2. Criar `plan.md` — decompor em steps atômicos (Task Atom format)
+3. Criar Beads a partir do plan (`bd create`)
+4. Implementar seguindo o plan step by step
+5. PR para develop
 ```
 
-- Reportar tabela final com paths
-- Dizer: "Aponte os agents pro /worktrees/ e todos aparecem"
+- **YAML é obrigatório.** O hook `handoff-injector.sh` injeta no contexto do agent.
+- **`clickup.task_id` é obrigatório se veio do ClickUp.** Se freestyle, o Concierge cria a task primeiro.
+- **`scope.excluded` é importante.** Define o que o agent NÃO pode tocar.
 
 ### Passo 5: Sync ClickUp
 - Atualizar status → "in progress"
