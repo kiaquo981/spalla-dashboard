@@ -5,10 +5,11 @@
    ================================================================ */
 
 // ===== CONFIG =====
+const _env = window.__SPALLA_ENV__ || {};
 const CONFIG = {
-  API_BASE: 'https://web-production-2cde5.up.railway.app',  // Production server (Railway HTTPS proxy)
-  SUPABASE_URL: 'https://knusqfbvhsqworzyhvip.supabase.co',
-  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtudXNxZmJ2aHNxd29yenlodmlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4NTg3MjcsImV4cCI6MjA3MDQzNDcyN30.f-m7TlmCoccBpUxLZhA4P5kr2lWBGtRIv6inzInAKCo',
+  API_BASE: _env.API_BASE || 'https://web-production-2cde5.up.railway.app',
+  SUPABASE_URL: _env.SUPABASE_URL || '',
+  SUPABASE_ANON_KEY: _env.SUPABASE_ANON_KEY || '',
   AUTH_STORAGE_KEY: 'spalla_auth',
   TASKS_STORAGE_KEY: 'spalla_tasks',
   REMINDERS_STORAGE_KEY: 'spalla_reminders',
@@ -269,7 +270,8 @@ function operon() {
 
     // Task organization: 2 Spaces — Jornada (mentee-owned) + Gestão (team-owned)
     spaces: [
-      { id: 'space_jornada', name: 'Jornada Mentorados', icon: '◎', color: '#6366f1',
+      {
+        id: 'space_jornada', name: 'Jornada Mentorados', icon: '◎', color: '#6366f1',
         lists: [
           { id: 'list_onboarding', name: 'Onboarding', icon: '▸' },
           { id: 'list_concepcao', name: 'Concepção', icon: '◇' },
@@ -278,7 +280,8 @@ function operon() {
           { id: 'list_escala', name: 'Escala', icon: '▲' },
         ]
       },
-      { id: 'space_gestao', name: 'Gestão CASE', icon: '◈', color: '#f59e0b',
+      {
+        id: 'space_gestao', name: 'Gestão CASE', icon: '◈', color: '#f59e0b',
         lists: [
           { id: 'list_direcionamentos', name: 'Direcionamentos Queila', icon: '★' },
           { id: 'list_operacional', name: 'Operacional', icon: '✦' },
@@ -1634,6 +1637,8 @@ function operon() {
       this.ui.mobileMenuOpen = false;
       localStorage.setItem('spalla_page', page);
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      // Auto-load financial data when navigating to financeiro
+      if (page === 'financeiro') this.loadFinanceiro();
     },
 
     goBack() {
@@ -1641,6 +1646,134 @@ function operon() {
       localStorage.setItem('spalla_page', 'dashboard');
       this.data.detail = null;
       this.ui.selectedMenteeId = null;
+    },
+
+    // ===================== FINANCEIRO (CFO Payments View) =====================
+
+    CFO_ALLOWED_USERS: ['kaique', 'heitor', 'hugo', 'queila', 'lara'],
+
+    get isCfoUser() {
+      const name = (this.auth.currentUser?.full_name || '').toLowerCase();
+      return this.CFO_ALLOWED_USERS.some(u => name.startsWith(u));
+    },
+
+    // Financeiro data state
+    financeiro: null,
+    finFilter: '',
+    finNoteModal: { open: false, menteeId: null, menteeNome: '', text: '' },
+    finActionDropdown: null, // mentorado id with open dropdown
+
+    get financialMentees() {
+      if (!this.financeiro?.mentorados) return [];
+      let list = this.financeiro.mentorados;
+      if (this.finFilter) {
+        if (this.finFilter === 'sem_contrato') {
+          list = list.filter(m => m.contrato_assinado === false);
+        } else if (this.finFilter === 'acao_pendente') {
+          list = list.filter(m => m.acao_pendente === true);
+        } else {
+          list = list.filter(m => m.status_financeiro === this.finFilter);
+        }
+      }
+      return list;
+    },
+
+    async loadFinanceiro() {
+      if (!sb) { sb = await initSupabase(); }
+      if (!sb) return;
+      try {
+        const [mentoradosRes, snapshotsRes, logsRes] = await Promise.all([
+          sb.from('vw_god_financeiro').select('*'),
+          sb.from('god_financial_snapshots').select('*').order('snapshot_date', { ascending: false }).limit(12),
+          sb.from('god_financial_logs').select('*').order('created_at', { ascending: false }).limit(20),
+        ]);
+
+        const mentorados = mentoradosRes.data || [];
+        const snapshots = (snapshotsRes.data || []).reverse(); // chronological order
+        const logs = logsRes.data || [];
+
+        // Calculate KPIs
+        const kpis = {
+          em_dia: mentorados.filter(m => ['em_dia', 'pago'].includes(m.status_financeiro)).length,
+          atrasado: mentorados.filter(m => m.status_financeiro === 'atrasado').length,
+          quitado: mentorados.filter(m => m.status_financeiro === 'quitado').length,
+          sem_contrato: mentorados.filter(m => m.contrato_assinado === false).length,
+          total: mentorados.length,
+          acao_pendente: mentorados.filter(m => m.acao_pendente === true).length,
+        };
+
+        this.financeiro = { mentorados, snapshots, logs, kpis };
+      } catch (e) {
+        console.error('[Spalla] loadFinanceiro error:', e);
+      }
+    },
+
+    async changeFinStatus(menteeId, newStatus, observacao) {
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/financial/update-status`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.auth.accessToken}`,
+          },
+          body: JSON.stringify({ mentorado_id: menteeId, new_status: newStatus, observacao: observacao || '' }),
+        });
+        const data = await resp.json();
+        if (data.success) {
+          await this.loadFinanceiro();
+          this.finActionDropdown = null;
+        } else {
+          alert(data.error || 'Erro ao atualizar status');
+        }
+      } catch (e) {
+        console.error('[Spalla] changeFinStatus error:', e);
+        alert('Erro ao atualizar status financeiro');
+      }
+    },
+
+    async addFinNote() {
+      if (!this.finNoteModal.menteeId || !this.finNoteModal.text.trim()) return;
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/financial/add-note`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.auth.accessToken}`,
+          },
+          body: JSON.stringify({ mentorado_id: this.finNoteModal.menteeId, observacao: this.finNoteModal.text.trim() }),
+        });
+        const data = await resp.json();
+        if (data.success) {
+          this.finNoteModal = { open: false, menteeId: null, menteeNome: '', text: '' };
+          await this.loadFinanceiro();
+        } else {
+          alert(data.error || 'Erro ao adicionar observacao');
+        }
+      } catch (e) {
+        console.error('[Spalla] addFinNote error:', e);
+        alert('Erro ao adicionar observacao');
+      }
+    },
+
+    finStatusLabel(status) {
+      const labels = { em_dia: 'Em Dia', atrasado: 'Atrasado', quitado: 'Quitado', pago: 'Pago', sem_contrato: 'Sem Contrato', pendente: 'Pendente' };
+      return labels[status] || status;
+    },
+
+    finStatusColor(status) {
+      const colors = { em_dia: '#22c55e', atrasado: '#ef4444', quitado: '#3b82f6', pago: '#22c55e', sem_contrato: '#f59e0b', pendente: '#a855f7' };
+      return colors[status] || '#6b7280';
+    },
+
+    finTimeAgo(dateStr) {
+      if (!dateStr) return '';
+      const diff = Date.now() - new Date(dateStr).getTime();
+      const mins = Math.floor(diff / 60000);
+      if (mins < 60) return `${mins}min atras`;
+      const hours = Math.floor(mins / 60);
+      if (hours < 24) return `${hours}h atras`;
+      const days = Math.floor(hours / 24);
+      return `${days}d atras`;
     },
 
     // ===================== PLANO DE AÇÃO (PA) =====================
@@ -2164,7 +2297,7 @@ function operon() {
       try {
         const raw = localStorage.getItem(CONFIG.TASKS_STORAGE_KEY);
         if (raw) { const parsed = JSON.parse(raw); if (parsed.length > 0) { this.data.tasks = parsed; this._autoCategorize(); return; } }
-      } catch (e) {}
+      } catch (e) { }
       this.data.tasks = DEMO_TASKS;
       this._cacheTasksLocal();
     },
@@ -2232,12 +2365,12 @@ function operon() {
     },
 
     _cacheTasksLocal() {
-      try { localStorage.setItem(CONFIG.TASKS_STORAGE_KEY, JSON.stringify(this.data.tasks)); } catch (e) {}
+      try { localStorage.setItem(CONFIG.TASKS_STORAGE_KEY, JSON.stringify(this.data.tasks)); } catch (e) { }
     },
 
     async _sbUpsertTask(task, isNew = false) {
       if (!sb) return { ok: false };
-      const VALID_COLS = ['id','titulo','descricao','status','prioridade','responsavel','acompanhante','mentorado_id','mentorado_nome','data_inicio','data_fim','space_id','list_id','parent_task_id','tags','fonte','doc_link','created_at','updated_at','created_by','recorrencia','dia_recorrencia','recorrencia_ativa','recorrencia_origem_id'];
+      const VALID_COLS = ['id', 'titulo', 'descricao', 'status', 'prioridade', 'responsavel', 'acompanhante', 'mentorado_id', 'mentorado_nome', 'data_inicio', 'data_fim', 'space_id', 'list_id', 'parent_task_id', 'tags', 'fonte', 'doc_link', 'created_at', 'updated_at', 'created_by', 'recorrencia', 'dia_recorrencia', 'recorrencia_ativa', 'recorrencia_origem_id'];
       const row = {};
       for (const k of VALID_COLS) { if (task[k] !== undefined) row[k] = task[k]; }
       if (row.mentorado_id) row.mentorado_id = parseInt(row.mentorado_id) || null;
@@ -3631,7 +3764,7 @@ function operon() {
       void this.photoTick;
 
       const isHandle = !handleOrName.includes(' ');
-      const clean = handleOrName.replace('@','').toLowerCase();
+      const clean = handleOrName.replace('@', '').toLowerCase();
 
       // First: try embedded data URLs (PHOTO_DATA_URLS — base64, never expire)
       if (typeof PHOTO_DATA_URLS !== 'undefined' && PHOTO_DATA_URLS[clean]) {
@@ -3663,8 +3796,8 @@ function operon() {
       if (!call) return null;
       // Match by ID first (reliable), then name fallback
       const m = (call.mentorado_id && this.data.mentees.find(x => String(x.id) === String(call.mentorado_id)))
-             || this.data.mentees.find(x => x.nome === call.mentorado)
-             || this.data.mentees.find(x => x.nome?.toLowerCase().trim() === call.mentorado?.toLowerCase().trim());
+        || this.data.mentees.find(x => x.nome === call.mentorado)
+        || this.data.mentees.find(x => x.nome?.toLowerCase().trim() === call.mentorado?.toLowerCase().trim());
       return this.igPhoto(m?.instagram || call.mentorado);
     },
 
@@ -3818,7 +3951,7 @@ function operon() {
     // ===================== CALENDAR METHODS =====================
 
     calendarTitle() {
-      const months = ['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+      const months = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
       return months[this.ui.calendarMonth] + ' ' + this.ui.calendarYear;
     },
 
@@ -3863,12 +3996,12 @@ function operon() {
         const d = prevLastDay - i;
         const m2 = month === 0 ? 11 : month - 1;
         const y2 = month === 0 ? year - 1 : year;
-        const ds = `${y2}-${String(m2+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const ds = `${y2}-${String(m2 + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         days.push({ key: ds, num: d, currentMonth: false, isToday: ds === todayStr, dateStr: ds, calls: callMap[ds] || 0 });
       }
       // Current month days
       for (let d = 1; d <= lastDay.getDate(); d++) {
-        const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         days.push({ key: ds, num: d, currentMonth: true, isToday: ds === todayStr, dateStr: ds, calls: callMap[ds] || 0 });
       }
       // Next month days to fill grid (6 rows)
@@ -3876,7 +4009,7 @@ function operon() {
       for (let d = 1; d <= remaining; d++) {
         const m2 = month === 11 ? 0 : month + 1;
         const y2 = month === 11 ? year + 1 : year;
-        const ds = `${y2}-${String(m2+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const ds = `${y2}-${String(m2 + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         days.push({ key: ds, num: d, currentMonth: false, isToday: ds === todayStr, dateStr: ds, calls: callMap[ds] || 0 });
       }
       return days;
@@ -5197,7 +5330,7 @@ function operon() {
       const r = (size - stroke) / 2;
       const c = 2 * Math.PI * r;
       const offset = c - (pct / 100) * c;
-      return `<svg class="progress-ring" width="${size}" height="${size}"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="#e2e8f0" stroke-width="${stroke}"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-dasharray="${c}" stroke-dashoffset="${offset}" stroke-linecap="round"/></svg>`;
+      return `<svg class="progress-ring" width="${size}" height="${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#e2e8f0" stroke-width="${stroke}"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-dasharray="${c}" stroke-dashoffset="${offset}" stroke-linecap="round"/></svg>`;
     },
 
     statBoxClass(value, warnThreshold, dangerThreshold, inverse = false) {
@@ -5452,7 +5585,7 @@ function operon() {
     },
 
     destroyPerfilCharts() {
-      Object.values(this._perfilCharts).forEach(c => { try { c.destroy(); } catch(e) {} });
+      Object.values(this._perfilCharts).forEach(c => { try { c.destroy(); } catch (e) { } });
       this._perfilCharts = {};
     },
 
@@ -5473,7 +5606,7 @@ function operon() {
               labels: ['Abert.', 'Consc.', 'Extrov.', 'Amabil.', 'Neurot.'],
               datasets: [{
                 label: 'Score',
-                data: [bf.abertura||0, bf.conscienciosidade||0, bf.extroversao||0, bf.amabilidade||0, bf.neuroticismo||0],
+                data: [bf.abertura || 0, bf.conscienciosidade || 0, bf.extroversao || 0, bf.amabilidade || 0, bf.neuroticismo || 0],
                 backgroundColor: 'rgba(245,158,11,0.2)',
                 borderColor: 'rgb(245,158,11)',
                 borderWidth: 2,
@@ -5496,7 +5629,7 @@ function operon() {
               labels: ['Domin.', 'Influen.', 'Estabil.', 'Conform.'],
               datasets: [{
                 label: 'Score',
-                data: [d.dominancia||0, d.influencia||0, d.estabilidade||0, d.conformidade||d.consciencia||0],
+                data: [d.dominancia || 0, d.influencia || 0, d.estabilidade || 0, d.conformidade || d.consciencia || 0],
                 backgroundColor: 'rgba(99,102,241,0.2)',
                 borderColor: 'rgb(99,102,241)',
                 borderWidth: 2,
@@ -5513,7 +5646,7 @@ function operon() {
         const ctx = document.getElementById('chart-zonas');
         if (ctx) {
           const z = dim.quatro_zonas;
-          const getVal = (v) => typeof v === 'object' ? (v?.score||0) : (v||0);
+          const getVal = (v) => typeof v === 'object' ? (v?.score || 0) : (v || 0);
           this._perfilCharts.zonas = new Chart(ctx, {
             type: 'radar',
             data: {
@@ -5577,7 +5710,7 @@ function operon() {
           legend: { display: false },
           tooltip: {
             callbacks: {
-              label: function(ctx) { return ctx.raw + '/100'; }
+              label: function (ctx) { return ctx.raw + '/100'; }
             }
           }
         },

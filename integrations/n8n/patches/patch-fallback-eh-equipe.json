@@ -1,0 +1,22 @@
+{
+  "meta": {
+    "instanceId": "33738330930e3881dd5571eca013f36ddf8aab20e4ea5c1f2ebaf4a2b4668ac6"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// FALLBACK: eh_equipe por telefone/nome quando GPT retorna null\nconst EQUIPE_PHONES = new Set([\n  '5527999473185',  // Heitor\n  '5511964682447',  // Kaique\n  '5524992514909',  // Lara\n  '5527988918032',  // Queila\n  '5511967755879',  // Thiago\n]);\n\nconst EQUIPE_NAMES = ['heitor', 'kaique', 'lara', 'queila', 'thiago', 'hugo'];\n\nconst items = $input.all();\n\nfor (const item of items) {\n  const d = item.json;\n\n  if (d.eh_equipe === true || d.eh_equipe === false) continue;\n\n  const phone = (d.sender_phone || '').replace(/\\D/g, '');\n  if (EQUIPE_PHONES.has(phone)) {\n    d.eh_equipe = true;\n    d._eh_equipe_source = 'phone_match';\n    continue;\n  }\n\n  if (d.from_me === true) {\n    d.eh_equipe = true;\n    d._eh_equipe_source = 'from_me';\n    continue;\n  }\n\n  const name = (d.sender_name || '').toLowerCase();\n  if (EQUIPE_NAMES.some(n => name.includes(n))) {\n    d.eh_equipe = true;\n    d._eh_equipe_source = 'name_match';\n    continue;\n  }\n\n  d.eh_equipe = false;\n  d._eh_equipe_source = 'default';\n}\n\nreturn items;"
+      },
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "[SAFETY] Fallback eh_equipe",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -960,
+        5600
+      ],
+      "notes": "CONECTAR: Depois do 'Classificar e Enriquecer Completo' (ou GPT Fallback) → Este node → Fallback requer_resposta"
+    }
+  ],
+  "connections": {}
+}

@@ -1,0 +1,14 @@
+.git
+.aios-core
+spalla
+sql
+docs
+.github
+.claude
+*.md
+.env*
+!.env.example
+node_modules
+__pycache__
+*.pyc
+*.sock

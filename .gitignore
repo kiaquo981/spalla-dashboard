@@ -27,3 +27,8 @@ Thumbs.db
 .aios-core/local/
 .claude/settings.local.json
 .aios/install-log.txt
+.devcontainer/.env
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db

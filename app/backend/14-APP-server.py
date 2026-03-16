@@ -806,6 +806,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_instance_uuid()
         elif self.path == '/api/sheets/status':
             self._handle_sheets_status()
+        elif self.path.startswith('/api/financial/logs/'):
+            self._handle_financial_get_logs()
         elif self.path == '/api/health':
             self._send_json({
                 'status': 'ok',
@@ -846,6 +848,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_sheets_sync()
         elif self.path == '/api/ds/update-stage':
             self._handle_ds_update_stage()
+        elif self.path == '/api/financial/update-status':
+            self._handle_financial_update_status()
+        elif self.path == '/api/financial/add-note':
+            self._handle_financial_add_note()
         else:
             self._send_json({'error': 'Not found'}, 404)
 
@@ -1520,6 +1526,147 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             log_error('AUTH', f'Reset password error: {e}')
             self._send_json({'error': 'Erro ao processar solicitacao'}, 500)
+
+    # ===== FINANCIAL ENDPOINTS (CFO Payments View) =====
+
+    CFO_ALLOWED_USERS = ['kaique', 'heitor', 'hugo', 'queila', 'lara']
+    VALID_FINANCIAL_STATUSES = ['em_dia', 'atrasado', 'quitado', 'pago', 'sem_contrato', 'pendente']
+
+    def _verify_cfo_access(self):
+        """Verify JWT and check if user is in CFO allowed list. Returns (user_id, full_name) or None."""
+        auth_header = self.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            self._send_json({'error': 'Missing or invalid token'}, 401)
+            return None
+        token = auth_header[7:]
+        payload = verify_jwt_token(token)
+        if not payload:
+            self._send_json({'error': 'Invalid or expired token'}, 401)
+            return None
+        user_id = payload.get('user_id')
+        # Fetch user full_name to check permission
+        result = supabase_request('GET', f'auth_users?id=eq.{user_id}&select=id,full_name')
+        if not isinstance(result, list) or len(result) == 0:
+            self._send_json({'error': 'User not found'}, 404)
+            return None
+        full_name = result[0].get('full_name', '')
+        if not any(full_name.lower().startswith(u) for u in self.CFO_ALLOWED_USERS):
+            self._send_json({'error': 'Access denied: not authorized for financial operations'}, 403)
+            return None
+        return (user_id, full_name)
+
+    def _handle_financial_update_status(self):
+        """POST /api/financial/update-status — Change mentorado payment status"""
+        try:
+            cfo_user = self._verify_cfo_access()
+            if not cfo_user:
+                return
+            user_id, full_name = cfo_user
+
+            body = json.loads(self._read_body())
+            mentorado_id = body.get('mentorado_id')
+            new_status = body.get('new_status', '').strip()
+            observacao = body.get('observacao', '').strip()
+
+            if not mentorado_id or not new_status:
+                self._send_json({'error': 'mentorado_id and new_status required'}, 400)
+                return
+            if new_status not in self.VALID_FINANCIAL_STATUSES:
+                self._send_json({'error': f'Invalid status. Must be one of: {", ".join(self.VALID_FINANCIAL_STATUSES)}'}, 400)
+                return
+
+            # Get current status
+            current = supabase_request('GET', f'mentorados?id=eq.{mentorado_id}&select=id,status_financeiro,contrato_assinado')
+            if not isinstance(current, list) or len(current) == 0:
+                self._send_json({'error': 'Mentorado not found'}, 404)
+                return
+            old_status = current[0].get('status_financeiro', 'em_dia')
+
+            # Update mentorados table
+            update_data = {'status_financeiro': new_status}
+            if new_status == 'sem_contrato':
+                update_data['contrato_assinado'] = False
+            elif new_status in ('em_dia', 'quitado', 'pago') and not current[0].get('contrato_assinado'):
+                update_data['contrato_assinado'] = True
+
+            result = supabase_request('PATCH', f'mentorados?id=eq.{mentorado_id}', update_data)
+            if isinstance(result, dict) and result.get('error'):
+                self._send_json({'error': f'Failed to update: {result["error"]}'}, 500)
+                return
+
+            # Insert audit log
+            log_entry = {
+                'mentorado_id': mentorado_id,
+                'old_status': old_status,
+                'new_status': new_status,
+                'action_type': 'status_change',
+                'observacao': observacao or None,
+                'changed_by': full_name,
+                'changed_by_user_id': user_id,
+            }
+            supabase_request('POST', 'god_financial_logs', log_entry)
+
+            self._send_json({'success': True, 'old_status': old_status, 'new_status': new_status})
+        except Exception as e:
+            log_error('FINANCIAL', f'Update status failed: {e}')
+            self._send_json({'error': 'Update status failed'}, 500)
+
+    def _handle_financial_add_note(self):
+        """POST /api/financial/add-note — Add financial observation for a mentorado"""
+        try:
+            cfo_user = self._verify_cfo_access()
+            if not cfo_user:
+                return
+            user_id, full_name = cfo_user
+
+            body = json.loads(self._read_body())
+            mentorado_id = body.get('mentorado_id')
+            observacao = body.get('observacao', '').strip()
+
+            if not mentorado_id or not observacao:
+                self._send_json({'error': 'mentorado_id and observacao required'}, 400)
+                return
+
+            log_entry = {
+                'mentorado_id': mentorado_id,
+                'action_type': 'note',
+                'observacao': observacao,
+                'changed_by': full_name,
+                'changed_by_user_id': user_id,
+            }
+            result = supabase_request('POST', 'god_financial_logs', log_entry)
+            if isinstance(result, dict) and result.get('error'):
+                self._send_json({'error': f'Failed to add note: {result["error"]}'}, 500)
+                return
+
+            self._send_json({'success': True})
+        except Exception as e:
+            log_error('FINANCIAL', f'Add note failed: {e}')
+            self._send_json({'error': 'Add note failed'}, 500)
+
+    def _handle_financial_get_logs(self):
+        """GET /api/financial/logs/<mentorado_id> — Get financial action logs"""
+        try:
+            cfo_user = self._verify_cfo_access()
+            if not cfo_user:
+                return
+
+            # Extract mentorado_id from path: /api/financial/logs/123
+            parts = self.path.split('/')
+            if len(parts) < 5:
+                self._send_json({'error': 'mentorado_id required in path'}, 400)
+                return
+            mentorado_id = parts[4].split('?')[0]  # strip query params
+
+            result = supabase_request('GET', f'god_financial_logs?mentorado_id=eq.{mentorado_id}&order=created_at.desc&limit=50')
+            if isinstance(result, dict) and result.get('error'):
+                self._send_json({'error': result['error']}, 500)
+                return
+
+            self._send_json({'logs': result if isinstance(result, list) else []})
+        except Exception as e:
+            log_error('FINANCIAL', f'Get logs failed: {e}')
+            self._send_json({'error': 'Get logs failed'}, 500)
 
     def log_message(self, format, *args):
         path = str(args[0]) if args else ''
