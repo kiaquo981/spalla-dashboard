@@ -30,6 +30,7 @@ CREATE OR REPLACE FUNCTION bridge_ds_stage_to_task()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, "case"
 AS $$
 DECLARE
   v_task_id UUID;

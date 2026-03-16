@@ -16,7 +16,7 @@ estagio_stats AS (
 avg_time AS (
   SELECT
     estagio_atual,
-    AVG(EXTRACT(DAY FROM now() - estagio_desde))::INT AS avg_dias
+    (AVG(EXTRACT(EPOCH FROM now() - estagio_desde)) / 86400)::INT AS avg_dias
   FROM ds_documentos
   WHERE estagio_atual NOT IN ('pendente', 'finalizado')
   GROUP BY estagio_atual
@@ -25,7 +25,7 @@ bottleneck AS (
   SELECT COUNT(*) AS docs_parados
   FROM ds_documentos
   WHERE estagio_atual NOT IN ('finalizado', 'enviado', 'pendente')
-    AND EXTRACT(DAY FROM now() - estagio_desde) > 3
+    AND EXTRACT(EPOCH FROM now() - estagio_desde) / 86400 > 3
 ),
 throughput AS (
   SELECT COUNT(*) AS enviados_30d
@@ -39,3 +39,5 @@ SELECT
   (SELECT json_agg(json_build_object('estagio', estagio_atual, 'avg_dias', avg_dias)) FROM avg_time) AS tempo_medio_por_estagio,
   (SELECT docs_parados FROM bottleneck) AS docs_bottleneck,
   (SELECT enviados_30d FROM throughput) AS throughput_30d;
+
+-- Rollback: DROP VIEW IF EXISTS vw_ds_metrics;

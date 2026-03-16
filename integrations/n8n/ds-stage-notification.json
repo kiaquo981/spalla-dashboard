@@ -127,7 +127,11 @@
           ]
         },
         "options": {
-          "neverError": true
+          "retry": {
+            "enabled": true,
+            "maxTries": 2,
+            "waitBetweenTries": 3000
+          }
         }
       }
     }

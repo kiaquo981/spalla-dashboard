@@ -14,7 +14,7 @@ Cada mentorado recebe 3 dossiês gold-standard: Oferta, Posicionamento, Funil.
 
 ## Diagrama do Pipeline
 
-```
+```text
 Transcrição       Fila de          Produção      Revisão        Revisão        Revisão
 Disponível   →    Produção    →    IA (~12h)  →  Mariza    →    Kaique    →    Queila    →  Aprovado → Enviado
                                                                                              │
@@ -64,7 +64,7 @@ status=disponivel production_queue auto/manual   estagio=       estagio=       e
 
 ## Estágios de Documento
 
-```
+```text
 pendente → producao_ia → revisao_mariza → revisao_kaique → revisao_queila → aprovado → enviado → finalizado
 ```
 
@@ -91,11 +91,45 @@ pendente → producao_ia → revisao_mariza → revisao_kaique → revisao_queil
 
 ## API Endpoints
 
-| Endpoint | Método | Descrição |
-|----------|--------|-----------|
-| `/api/ds/update-stage` | POST | Atualiza estágio de documento + cria evento audit |
+### `POST /api/ds/update-stage`
 
-Body: `{ mentorado_slug, dossie_tipo, estagio }`
+Atualiza estágio de documento e cria evento de auditoria.
+
+**Headers:** `Authorization: Bearer <jwt_token>`
+
+**Body:**
+```json
+{
+  "mentorado_slug": "thiago-kailer",
+  "dossie_tipo": "oferta",
+  "estagio": "producao_ia"
+}
+```
+
+| Campo | Tipo | Valores |
+|-------|------|---------|
+| `mentorado_slug` | string | Nome parcial do mentorado (ILIKE match) |
+| `dossie_tipo` | string | `oferta`, `funil`, `conteudo` |
+| `estagio` | string | `pendente`, `producao_ia`, `revisao_mariza`, `revisao_kaique`, `revisao_queila`, `aprovado`, `enviado`, `finalizado` |
+
+**Transições válidas:**
+```
+pendente → producao_ia → revisao_mariza → revisao_kaique → revisao_queila → aprovado → enviado → finalizado
+                ↑              ↑                ↑
+            (send back)    (send back)      (send back)
+```
+
+**Respostas:**
+
+| Status | Descrição |
+|--------|-----------|
+| 200 | `{ok, mentorado, tipo, estagio, responsavel}` |
+| 400 | Validação falhou (campo faltando, tipo/estágio inválido) |
+| 401 | Token JWT ausente ou inválido |
+| 403 | Role insuficiente (requer `admin` ou `team`) |
+| 404 | Mentorado ou documento não encontrado |
+| 409 | Transição de estágio inválida |
+| 500 | Erro interno ao atualizar banco |
 
 ## N8N Workflows
 
@@ -134,8 +168,10 @@ Body: `{ mentorado_slug, dossie_tipo, estagio }`
 1. Instanciar playbook: copiar `pipeline-dossies-auto.md` e substituir `{slug}`, `{mentorado}`, `{SLUG_UPPER}`
 2. Executar via Maestro ou Claude Code
 3. Ao concluir, chamar:
-   ```
-   POST /api/ds/update-stage
-   { "mentorado_slug": "nome", "dossie_tipo": "oferta", "estagio": "producao_ia" }
+   ```bash
+   curl -X POST http://localhost:9999/api/ds/update-stage \
+     -H "Authorization: Bearer <jwt_token>" \
+     -H "Content-Type: application/json" \
+     -d '{"mentorado_slug": "nome", "dossie_tipo": "oferta", "estagio": "producao_ia"}'
    ```
 4. Repetir para funil e conteudo

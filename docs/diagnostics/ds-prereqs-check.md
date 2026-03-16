@@ -48,7 +48,7 @@ data_revisao_kaique, data_revisao_mariza, data_revisao_queila, estagio_atual,
 estagio_desde, id, link_doc, mentorado_id, ordem, producao_id, responsavel_atual,
 tipo, titulo, updated_at
 
-**Nota: NÃO tem `god_task_id`** — migration 46-SQL-ds-bridge.sql NÃO foi executada.
+**Nota: NÃO tinha `god_task_id`** — migration 46-SQL-ds-bridge-v2.sql foi executada e corrigiu isso.
 
 ## Impacto no Plano
 

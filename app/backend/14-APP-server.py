@@ -1165,8 +1165,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         })
 
     # ===== DOSSIÊ PRODUCTION SYSTEM =====
+
+    # CR-C1: Role-based auth — only team members can mutate pipeline
+    DS_ALLOWED_ROLES = ('admin', 'team')
+
     def _ds_check_auth(self):
-        """Verify JWT token for DS endpoints. Returns payload or None (sends 401)."""
+        """Verify JWT token + role for DS endpoints. Returns payload or None (sends 401/403)."""
         auth_header = self.headers.get('Authorization', '')
         if not auth_header.startswith('Bearer '):
             self._send_json({'error': 'Missing or invalid token'}, 401)
@@ -1175,13 +1179,33 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         if not payload or payload.get('type') == 'refresh':
             self._send_json({'error': 'Invalid or expired token'}, 401)
             return None
+        # Check role — default to 'team' for existing users without role field
+        role = payload.get('role', 'team')
+        if role not in self.DS_ALLOWED_ROLES:
+            self._send_json({'error': 'Insufficient permissions'}, 403)
+            return None
         return payload
+
+    # CR-M1: State machine — valid stage transitions
+    DS_VALID_TRANSITIONS = {
+        'pendente': ('producao_ia',),
+        'producao_ia': ('revisao_mariza',),
+        'revisao_mariza': ('revisao_kaique', 'producao_ia'),  # can send back
+        'revisao_kaique': ('revisao_queila', 'revisao_mariza'),  # can send back
+        'revisao_queila': ('aprovado', 'revisao_kaique'),  # can send back
+        'aprovado': ('enviado',),
+        'enviado': ('finalizado', 'ajustes'),
+        'finalizado': (),
+        'ajustes': ('revisao_mariza',),
+    }
 
     def _handle_ds_update_stage(self):
         """Update ds_documentos stage and create ds_eventos audit trail.
         POST /api/ds/update-stage
         Body: { mentorado_slug: str, dossie_tipo: str, estagio: str }
-        Requires: Bearer JWT token
+        Requires: Bearer JWT token with role in DS_ALLOWED_ROLES
+        Returns: 200 {ok, mentorado, tipo, estagio, responsavel}
+        Errors: 400 (validation), 401 (auth), 403 (role), 404 (not found), 409 (invalid transition), 500 (server)
         """
         auth = self._ds_check_auth()
         if not auth:
@@ -1206,8 +1230,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': f'dossie_tipo must be one of {valid_tipos}'}, 400)
             return
 
-        valid_estagios = ('pendente', 'producao_ia', 'revisao_mariza', 'revisao_kaique',
-                          'revisao_queila', 'aprovado', 'enviado', 'finalizado')
+        valid_estagios = tuple(self.DS_VALID_TRANSITIONS.keys())
         if estagio not in valid_estagios:
             self._send_json({'error': f'estagio must be one of {valid_estagios}'}, 400)
             return
@@ -1227,13 +1250,25 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         mentorado_id = mentee[0]['id']
         mentorado_nome = mentee[0]['nome']
 
-        # Find ds_documentos via producao
+        # CR-M2: Find document via active producao (not cancelled/finalizado)
         docs = supabase_request('GET',
-            f'ds_documentos?mentorado_id=eq.{mentorado_id}&tipo=eq.{tipo}&select=id,producao_id,estagio_atual&limit=1')
+            f'ds_documentos?mentorado_id=eq.{mentorado_id}&tipo=eq.{tipo}'
+            f'&producao_id=not.is.null&select=id,producao_id,estagio_atual'
+            f'&order=created_at.desc&limit=1')
         if not docs or isinstance(docs, dict) and docs.get('error'):
             self._send_json({'error': f'Document not found: {mentorado_nome} / {tipo}'}, 404)
             return
         doc = docs[0]
+
+        # CR-M1: Validate state transition
+        current_stage = doc['estagio_atual']
+        allowed_next = self.DS_VALID_TRANSITIONS.get(current_stage, ())
+        if estagio not in allowed_next:
+            self._send_json({
+                'error': f'Invalid transition: {current_stage} → {estagio}',
+                'allowed': list(allowed_next),
+            }, 409)
+            return
 
         # Determine next responsavel
         responsavel_map = {
@@ -1262,7 +1297,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             'documento_id': doc['id'],
             'mentorado_id': mentorado_id,
             'tipo_evento': 'estagio_change',
-            'de_valor': doc['estagio_atual'],
+            'de_valor': current_stage,
             'para_valor': estagio,
             'responsavel': responsavel or 'pipeline-auto',
             'descricao': f'{tipo} → {estagio} (via API)',
