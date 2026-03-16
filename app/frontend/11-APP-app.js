@@ -32,6 +32,7 @@ const TEAM_MEMBERS = [
 const EVOLUTION_INSTANCE = typeof EVOLUTION_CONFIG !== 'undefined' ? EVOLUTION_CONFIG.INSTANCE : null;
 
 // ===== SUPABASE CLIENT =====
+const _SPALLA_DEBUG = (window.location.search || '').includes('debug=true');
 let sb = null;
 let _sbInitPromise = null;
 
@@ -1045,7 +1046,7 @@ function operon() {
         sb = await initSupabase();
 
         await this.loadTasks();
-        this.loadTaskTags(); // non-blocking
+        this.loadTaskTags().catch(e => console.warn('[Spalla] loadTaskTags:', e.message)); // non-blocking
 
         if (this.auth.authenticated) {
           await this.loadReminders(); // Load from Supabase
@@ -1053,9 +1054,9 @@ function operon() {
           // Pre-fetch WhatsApp profile pics in background
           this._loadWaProfilePics();
           // Fetch schedule-related data from backend API
-          this.fetchUpcomingCalls();
+          this.fetchUpcomingCalls().catch(e => console.warn('[Spalla] fetchUpcomingCalls:', e.message));
           // Fetch Instagram profiles from Apify (background, non-blocking)
-          this.updateInstagramProfiles();
+          this.updateInstagramProfiles().catch(e => console.warn('[Spalla] updateInstagramProfiles:', e.message));
           // Load WhatsApp per-user session + start health check
           this.loadWaSession();
           this.waStartHealthCheck();
@@ -1394,9 +1395,9 @@ function operon() {
           if (paFasesRes.data) this.data.paAllFases = paFasesRes.data;
           if (paAcoesRes.data) this.data.paAllAcoes = paAcoesRes.data;
           // Load DS pipeline data
-          this.loadDsData();
+          this.loadDsData().catch(e => console.warn('[Spalla] loadDsData:', e.message));
           // Load OB onboarding data
-          this.loadObData();
+          this.loadObData().catch(e => console.warn('[Spalla] loadObData:', e.message));
 
           if (mentees.data?.length) {
             this.data.mentees = mentees.data;
@@ -1506,7 +1507,14 @@ function operon() {
             sb.from('calls_mentoria').select('*,mentorados(id,nome)').eq('mentorado_id', id).order('data_call', { ascending: false }),
           ]);
           if (detailRes.data) {
-            const detail = typeof detailRes.data === 'string' ? JSON.parse(detailRes.data) : detailRes.data;
+            const detail = (() => {
+          try {
+            return typeof detailRes.data === 'string' ? JSON.parse(detailRes.data) : detailRes.data;
+          } catch (e) {
+            console.error('[Spalla] Failed to parse detail data:', e.message);
+            return detailRes.data || {};
+          }
+        })();
             // Enrich with real calls from vw_god_calls
             if (callsRes.data?.length) {
               detail.last_calls = callsRes.data.map(c => ({
@@ -2356,7 +2364,7 @@ function operon() {
         if (fase === 'escala') return 'list_escala';
         return 'list_concepcao';
       };
-      this.data.tasks.forEach(t => {
+      (this.data.tasks || []).forEach(t => {
         // Migrate old space IDs to new ones
         if (t.space_id === 'space_mentorados' || t.space_id === 'space_equipe' || t.space_id === 'space_queila') {
           t.space_id = null; t.list_id = null;
@@ -4191,7 +4199,7 @@ function operon() {
         this.scheduleForm = { mentorado: '', mentorado_id: '', tipo: 'acompanhamento', data: '', horario: '10:00', duracao: 60, email: '', notas: '' };
 
         // Refresh upcoming calls
-        this.fetchUpcomingCalls();
+        this.fetchUpcomingCalls().catch(e => console.warn('[Spalla] fetchUpcomingCalls:', e.message));
 
       } catch (err) {
         console.error('[Schedule]', err);
@@ -4507,7 +4515,7 @@ function operon() {
 
       // Refresh
       await this.loadDsMenteeDetail(doc.producao_id);
-      await this.loadDsData();
+      await this.loadDsData().catch(e => console.warn('[Spalla] loadDsData:', e.message));
       this.toast(`Avançou para ${nextEstagio.label}`, 'success');
     },
 
@@ -4532,7 +4540,7 @@ function operon() {
       await this._logDsEvento(doc.producao_id, docId, 'estagio_change', doc.estagio_atual, prevEstagio.id, user, motivo || `Retornou para ${prevEstagio.label}`);
       await this._updateDsProducaoStatus(doc.producao_id);
       await this.loadDsMenteeDetail(doc.producao_id);
-      await this.loadDsData();
+      await this.loadDsData().catch(e => console.warn('[Spalla] loadDsData:', e.message));
       this.toast(`Retornou para ${prevEstagio.label}`, 'info');
     },
 
@@ -4559,7 +4567,7 @@ function operon() {
       if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
       const user = this.currentUserName;
       await this._logDsEvento(producaoId, null, 'nota', null, valor, user, `Contrato: ${valor}`);
-      await this.loadDsData();
+      await this.loadDsData().catch(e => console.warn('[Spalla] loadDsData:', e.message));
       this.toast('Contrato atualizado', 'success');
     },
 
@@ -4572,7 +4580,7 @@ function operon() {
       else {
         const user = this.currentUserName;
         await this._logDsEvento(producaoId, null, 'nota', null, data, user, `${campo} definido: ${data}`);
-        await this.loadDsData();
+        await this.loadDsData().catch(e => console.warn('[Spalla] loadDsData:', e.message));
         this.toast('Data atualizada', 'success');
       }
     },
@@ -4832,7 +4840,7 @@ function operon() {
             await this._logDsEvento(producaoId, doc.id, 'estagio_change', doc.estagio_atual, targetStage.id, user, `Pipeline: ${doc.tipo} → ${targetStage.label}`);
           }
           await this._updateDsProducaoStatus(producaoId);
-          await this.loadDsData();
+          await this.loadDsData().catch(e => console.warn('[Spalla] loadDsData:', e.message));
           this.toast(`Movido para ${targetStage.label}`, 'success');
         },
       };
@@ -4934,7 +4942,7 @@ function operon() {
         });
         if (error) { this.toast('Erro ao criar trilha: ' + error.message, 'error'); return; }
         this.toast('Trilha de onboarding criada!', 'success');
-        await this.loadObData();
+        await this.loadObData().catch(e => console.warn('[Spalla] loadObData:', e.message));
         this.ui.obNewTrilhaModal = false;
         return data;
       } catch (e) {
@@ -4975,7 +4983,7 @@ function operon() {
         }
         await this.loadObDetail(this.ui.obDetailTrilhaId);
       }
-      await this.loadObData();
+      await this.loadObData().catch(e => console.warn('[Spalla] loadObData:', e.message));
     },
 
     async _recalcObEtapaStatus(etapaId) {
@@ -5025,7 +5033,7 @@ function operon() {
       // Log event
       const statusLabels = { em_andamento: 'Em Andamento', concluido: 'Concluído', pausado: 'Pausado' };
       await this._logObEvento(trilhaId, null, null, 'trilha_status', oldStatus, status, 'Status: ' + (statusLabels[oldStatus] || oldStatus || '-') + ' → ' + (statusLabels[status] || status));
-      await this.loadObData();
+      await this.loadObData().catch(e => console.warn('[Spalla] loadObData:', e.message));
       if (this.ui.obDetailTrilhaId === trilhaId) await this.loadObDetail(trilhaId);
       this.toast('Status atualizado', 'success');
     },
@@ -5037,7 +5045,7 @@ function operon() {
       this.data.obTrilhaDetail = null;
       this.ui.obDetailTrilhaId = null;
       this.ui.obExpandedTrilha = null;
-      await this.loadObData();
+      await this.loadObData().catch(e => console.warn('[Spalla] loadObData:', e.message));
       this.toast('Trilha excluída', 'success');
     },
 
