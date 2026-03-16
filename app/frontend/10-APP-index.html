@@ -22,7 +22,7 @@
 <body>
   <div id="loading-fallback"><span>Operon</span></div>
 
-  <div id="app" x-data="operon()" style="display:none">
+  <div id="app" x-data="operon()" x-init="init()" style="display:none">
 
     <!-- ======= AUTH GATE ======= -->
     <div class="auth-overlay" x-show="!auth.authenticated" x-transition.opacity>
@@ -3770,6 +3770,7 @@
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js" integrity="sha384-Sm2s7OXxsAMTyJ4iIyRBgVpeGUvMPk2lRQnnZhE78Wej7oggIoolKt+SCt0XJbUB" crossorigin="anonymous"></script>
+  <script src="00-config-env.js?v=73"></script>
   <script src="12-APP-data.js?v=72"></script>
   <script src="13-APP-photos.js?v=72"></script>
   <script src="11-APP-app.js?v=72"></script>

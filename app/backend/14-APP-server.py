@@ -31,6 +31,19 @@ try:
 except ImportError:
     _bcrypt = None  # Falls back to SHA-256 if not installed
 
+# ===== SENTRY ERROR MONITORING =====
+try:
+    import sentry_sdk
+    _sentry_dsn = os.environ.get('SENTRY_DSN', '')
+    if _sentry_dsn:
+        sentry_sdk.init(dsn=_sentry_dsn, traces_sample_rate=0.1)
+        print('[Sentry] Initialized successfully')
+    else:
+        print('[Sentry] SENTRY_DSN not set — error monitoring disabled')
+except ImportError:
+    print('[Sentry] sentry-sdk not installed — pip install sentry-sdk')
+
+
 PORT = int(os.environ.get('PORT', 8888))
 
 # ===== CONFIG =====
