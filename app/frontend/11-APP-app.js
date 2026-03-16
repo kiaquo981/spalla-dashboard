@@ -1647,6 +1647,8 @@ function operon() {
       this.ui.mobileMenuOpen = false;
       localStorage.setItem('spalla_page', page);
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      // Auto-load financial data when navigating to financeiro
+      if (page === 'financeiro') this.loadFinanceiro();
     },
 
     goBack() {
@@ -1654,6 +1656,134 @@ function operon() {
       localStorage.setItem('spalla_page', 'dashboard');
       this.data.detail = null;
       this.ui.selectedMenteeId = null;
+    },
+
+    // ===================== FINANCEIRO (CFO Payments View) =====================
+
+    CFO_ALLOWED_USERS: ['kaique', 'heitor', 'hugo', 'queila', 'lara'],
+
+    get isCfoUser() {
+      const name = (this.auth.currentUser?.full_name || '').toLowerCase();
+      return this.CFO_ALLOWED_USERS.some(u => name.startsWith(u));
+    },
+
+    // Financeiro data state
+    financeiro: null,
+    finFilter: '',
+    finNoteModal: { open: false, menteeId: null, menteeNome: '', text: '' },
+    finActionDropdown: null, // mentorado id with open dropdown
+
+    get financialMentees() {
+      if (!this.financeiro?.mentorados) return [];
+      let list = this.financeiro.mentorados;
+      if (this.finFilter) {
+        if (this.finFilter === 'sem_contrato') {
+          list = list.filter(m => m.contrato_assinado === false);
+        } else if (this.finFilter === 'acao_pendente') {
+          list = list.filter(m => m.acao_pendente === true);
+        } else {
+          list = list.filter(m => m.status_financeiro === this.finFilter);
+        }
+      }
+      return list;
+    },
+
+    async loadFinanceiro() {
+      if (!sb) { sb = await initSupabase(); }
+      if (!sb) return;
+      try {
+        const [mentoradosRes, snapshotsRes, logsRes] = await Promise.all([
+          sb.from('vw_god_financeiro').select('*'),
+          sb.from('god_financial_snapshots').select('*').order('snapshot_date', { ascending: false }).limit(12),
+          sb.from('god_financial_logs').select('*').order('created_at', { ascending: false }).limit(20),
+        ]);
+
+        const mentorados = mentoradosRes.data || [];
+        const snapshots = (snapshotsRes.data || []).reverse(); // chronological order
+        const logs = logsRes.data || [];
+
+        // Calculate KPIs
+        const kpis = {
+          em_dia: mentorados.filter(m => ['em_dia', 'pago'].includes(m.status_financeiro)).length,
+          atrasado: mentorados.filter(m => m.status_financeiro === 'atrasado').length,
+          quitado: mentorados.filter(m => m.status_financeiro === 'quitado').length,
+          sem_contrato: mentorados.filter(m => m.contrato_assinado === false).length,
+          total: mentorados.length,
+          acao_pendente: mentorados.filter(m => m.acao_pendente === true).length,
+        };
+
+        this.financeiro = { mentorados, snapshots, logs, kpis };
+      } catch (e) {
+        console.error('[Spalla] loadFinanceiro error:', e);
+      }
+    },
+
+    async changeFinStatus(menteeId, newStatus, observacao) {
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/financial/update-status`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.auth.accessToken}`,
+          },
+          body: JSON.stringify({ mentorado_id: menteeId, new_status: newStatus, observacao: observacao || '' }),
+        });
+        const data = await resp.json();
+        if (data.success) {
+          await this.loadFinanceiro();
+          this.finActionDropdown = null;
+        } else {
+          alert(data.error || 'Erro ao atualizar status');
+        }
+      } catch (e) {
+        console.error('[Spalla] changeFinStatus error:', e);
+        alert('Erro ao atualizar status financeiro');
+      }
+    },
+
+    async addFinNote() {
+      if (!this.finNoteModal.menteeId || !this.finNoteModal.text.trim()) return;
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/financial/add-note`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.auth.accessToken}`,
+          },
+          body: JSON.stringify({ mentorado_id: this.finNoteModal.menteeId, observacao: this.finNoteModal.text.trim() }),
+        });
+        const data = await resp.json();
+        if (data.success) {
+          this.finNoteModal = { open: false, menteeId: null, menteeNome: '', text: '' };
+          await this.loadFinanceiro();
+        } else {
+          alert(data.error || 'Erro ao adicionar observacao');
+        }
+      } catch (e) {
+        console.error('[Spalla] addFinNote error:', e);
+        alert('Erro ao adicionar observacao');
+      }
+    },
+
+    finStatusLabel(status) {
+      const labels = { em_dia: 'Em Dia', atrasado: 'Atrasado', quitado: 'Quitado', pago: 'Pago', sem_contrato: 'Sem Contrato', pendente: 'Pendente' };
+      return labels[status] || status;
+    },
+
+    finStatusColor(status) {
+      const colors = { em_dia: '#22c55e', atrasado: '#ef4444', quitado: '#3b82f6', pago: '#22c55e', sem_contrato: '#f59e0b', pendente: '#a855f7' };
+      return colors[status] || '#6b7280';
+    },
+
+    finTimeAgo(dateStr) {
+      if (!dateStr) return '';
+      const diff = Date.now() - new Date(dateStr).getTime();
+      const mins = Math.floor(diff / 60000);
+      if (mins < 60) return `${mins}min atras`;
+      const hours = Math.floor(mins / 60);
+      if (hours < 24) return `${hours}h atras`;
+      const days = Math.floor(hours / 24);
+      return `${days}d atras`;
     },
 
     // ===================== PLANO DE AÇÃO (PA) =====================

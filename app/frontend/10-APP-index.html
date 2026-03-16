@@ -151,6 +151,12 @@
             <span x-show="ui.sidebarOpen">Google Docs</span>
           </a>
 
+          <div class="op-sidebar__section" x-show="ui.sidebarOpen && isCfoUser">Gestao</div>
+          <a class="op-nav-item" :class="{ active: ui.page === 'financeiro' }" @click="navigate('financeiro')" x-show="isCfoUser">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <span x-show="ui.sidebarOpen">Financeiro</span>
+          </a>
+
           <div class="op-sidebar__section" x-show="ui.sidebarOpen">Sistema</div>
           <a class="op-nav-item" :class="{ active: ui.page === 'settings' }" @click="navigate('settings')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -3444,6 +3450,204 @@
           </div>
         </div>
 
+        <!-- ===== PAGE: FINANCEIRO (CFO Payments View) ===== -->
+        <div class="page-content fin-page" x-show="ui.page === 'financeiro' && isCfoUser" x-transition>
+          <div class="page-header">
+            <div>
+              <h2>Financeiro</h2>
+              <p class="page-header__sub">Gestao de pagamentos e contratos dos mentorados</p>
+            </div>
+            <button class="btn btn--sm btn--ghost" @click="loadFinanceiro()" title="Atualizar">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            </button>
+          </div>
+
+          <!-- Loading state -->
+          <div class="fin-loading" x-show="!financeiro" style="text-align:center;padding:3rem;color:#6b7280">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin:0 auto 1rem;display:block;animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            Carregando dados financeiros...
+          </div>
+
+          <div x-show="financeiro">
+
+            <!-- KPI CARDS -->
+            <div class="fin-kpis">
+              <div class="fin-kpi fin-kpi--green" @click="finFilter = finFilter === 'em_dia' ? '' : 'em_dia'" :class="{ 'fin-kpi--active': finFilter === 'em_dia' }">
+                <div class="fin-kpi__val" x-text="financeiro?.kpis?.em_dia || 0"></div>
+                <div class="fin-kpi__label">Em Dia</div>
+              </div>
+              <div class="fin-kpi fin-kpi--red" @click="finFilter = finFilter === 'atrasado' ? '' : 'atrasado'" :class="{ 'fin-kpi--active': finFilter === 'atrasado' }">
+                <div class="fin-kpi__val" x-text="financeiro?.kpis?.atrasado || 0"></div>
+                <div class="fin-kpi__label">Inadimplentes</div>
+              </div>
+              <div class="fin-kpi fin-kpi--blue" @click="finFilter = finFilter === 'quitado' ? '' : 'quitado'" :class="{ 'fin-kpi--active': finFilter === 'quitado' }">
+                <div class="fin-kpi__val" x-text="financeiro?.kpis?.quitado || 0"></div>
+                <div class="fin-kpi__label">Quitados</div>
+              </div>
+              <div class="fin-kpi fin-kpi--amber" @click="finFilter = finFilter === 'sem_contrato' ? '' : 'sem_contrato'" :class="{ 'fin-kpi--active': finFilter === 'sem_contrato' }">
+                <div class="fin-kpi__val" x-text="financeiro?.kpis?.sem_contrato || 0"></div>
+                <div class="fin-kpi__label">Sem Contrato</div>
+              </div>
+            </div>
+
+            <!-- CHART: Evolucao de Inadimplencias -->
+            <div class="fin-chart-box" x-show="financeiro?.snapshots?.length >= 2">
+              <div class="fin-section-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                Evolucao de Inadimplencias
+              </div>
+              <svg id="fin-chart-svg" class="fin-chart-svg" viewBox="0 0 560 120" preserveAspectRatio="xMidYMid meet"
+                x-effect="if (financeiro?.snapshots) renderFinChart(financeiro.snapshots)"></svg>
+            </div>
+            <div class="fin-chart-empty" x-show="financeiro && (!financeiro?.snapshots || financeiro?.snapshots?.length < 2)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              Dados insuficientes para grafico (minimo 2 snapshots)
+            </div>
+
+            <!-- TABELA: Mentorados com Acao Pendente -->
+            <div class="fin-table-box">
+              <div class="fin-section-header">
+                <div class="fin-section-title">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  Mentorados
+                  <span class="fin-count" x-text="`(${financialMentees.length})`"></span>
+                </div>
+                <div class="fin-filters">
+                  <button class="fin-filter-btn" :class="{ active: finFilter === '' }" @click="finFilter = ''">Todos</button>
+                  <button class="fin-filter-btn fin-filter-btn--red" :class="{ active: finFilter === 'atrasado' }" @click="finFilter = finFilter === 'atrasado' ? '' : 'atrasado'">Atrasados</button>
+                  <button class="fin-filter-btn fin-filter-btn--amber" :class="{ active: finFilter === 'sem_contrato' }" @click="finFilter = finFilter === 'sem_contrato' ? '' : 'sem_contrato'">Sem Contrato</button>
+                  <button class="fin-filter-btn fin-filter-btn--green" :class="{ active: finFilter === 'em_dia' }" @click="finFilter = finFilter === 'em_dia' ? '' : 'em_dia'">Em Dia</button>
+                  <button class="fin-filter-btn fin-filter-btn--blue" :class="{ active: finFilter === 'quitado' }" @click="finFilter = finFilter === 'quitado' ? '' : 'quitado'">Quitados</button>
+                </div>
+              </div>
+
+              <div class="fin-table-wrap">
+                <table class="fin-table">
+                  <thead>
+                    <tr>
+                      <th>Mentorado</th>
+                      <th>Fase</th>
+                      <th>Status</th>
+                      <th>Dia Pgto</th>
+                      <th>Contrato</th>
+                      <th>Ultima Acao</th>
+                      <th>Acoes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <template x-for="m in financialMentees" :key="m.id">
+                      <tr :class="{ 'fin-row--alert': m.acao_pendente }">
+                        <td>
+                          <div class="fin-mentee">
+                            <div class="fin-avatar" :style="`background-image:url(${getPhoto(m.instagram || m.nome)})`" x-show="getPhoto(m.instagram || m.nome)"></div>
+                            <div class="fin-avatar fin-avatar--initials" x-show="!getPhoto(m.instagram || m.nome)" x-text="m.nome?.charAt(0) || '?'"></div>
+                            <span class="fin-mentee__name" x-text="m.nome" @click="openDetail(m.id)" style="cursor:pointer"></span>
+                          </div>
+                        </td>
+                        <td><span class="fin-fase" x-text="phaseLabel(m.fase_jornada)"></span></td>
+                        <td>
+                          <span class="mc-card__fin-badge"
+                            :class="{
+                              'mc-card__fin-badge--danger': m.status_financeiro === 'atrasado' || !m.contrato_assinado,
+                              'mc-card__fin-badge--success': m.status_financeiro === 'quitado' || m.status_financeiro === 'pago',
+                              'mc-card__fin-badge--warning': m.status_financeiro === 'em_dia',
+                            }"
+                            x-text="!m.contrato_assinado ? 'SEM CONTRATO' : finStatusLabel(m.status_financeiro)">
+                          </span>
+                        </td>
+                        <td x-text="m.dia_pagamento ? `Dia ${m.dia_pagamento}` : '—'"></td>
+                        <td>
+                          <span x-show="m.contrato_assinado" style="color:#22c55e;font-size:18px">✓</span>
+                          <span x-show="!m.contrato_assinado" style="color:#ef4444;font-size:18px">✗</span>
+                        </td>
+                        <td>
+                          <span class="fin-log-preview" x-show="m.ultimo_log_obs" x-text="m.ultimo_log_obs" :title="m.ultimo_log_data ? finTimeAgo(m.ultimo_log_data) : ''"></span>
+                          <span x-show="!m.ultimo_log_obs" style="color:#6b7280">—</span>
+                        </td>
+                        <td>
+                          <div class="fin-actions" x-data="{ open: false }">
+                            <button class="fin-action-btn" @click="open = !open; $event.stopPropagation()">
+                              Acoes <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                            </button>
+                            <div class="fin-dropdown" x-show="open" @click.outside="open = false" x-transition>
+                              <button class="fin-dropdown__item fin-dropdown__item--green" @click="changeFinStatus(m.id, 'em_dia', ''); open = false">
+                                Marcar Em Dia
+                              </button>
+                              <button class="fin-dropdown__item fin-dropdown__item--blue" @click="changeFinStatus(m.id, 'quitado', ''); open = false">
+                                Marcar Quitado
+                              </button>
+                              <button class="fin-dropdown__item fin-dropdown__item--red" @click="changeFinStatus(m.id, 'atrasado', ''); open = false">
+                                Marcar Atrasado
+                              </button>
+                              <div class="fin-dropdown__divider"></div>
+                              <button class="fin-dropdown__item" @click="finNoteModal = { open: true, menteeId: m.id, menteeNome: m.nome, text: '' }; open = false">
+                                Registrar Observacao
+                              </button>
+                              <button class="fin-dropdown__item" @click="openDetail(m.id); open = false">
+                                Ver Detalhes →
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    </template>
+                    <tr x-show="financialMentees.length === 0">
+                      <td colspan="7" style="text-align:center;color:#6b7280;padding:2rem">Nenhum mentorado encontrado</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- LOG DE ACOES RECENTES -->
+            <div class="fin-log-box" x-show="financeiro?.logs?.length > 0">
+              <div class="fin-section-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                Acoes Recentes
+              </div>
+              <div class="fin-log-list">
+                <template x-for="log in (financeiro?.logs || [])" :key="log.id">
+                  <div class="fin-log-item">
+                    <div class="fin-log-icon"
+                      :class="{
+                        'fin-log-icon--change': log.action_type === 'status_change',
+                        'fin-log-icon--note': log.action_type === 'note',
+                      }">
+                      <svg x-show="log.action_type === 'status_change'" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                      <svg x-show="log.action_type === 'note'" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    </div>
+                    <div class="fin-log-body">
+                      <span class="fin-log-who" x-text="log.changed_by"></span>
+                      <span x-show="log.action_type === 'status_change'">
+                        alterou status de <strong x-text="finStatusLabel(log.old_status)"></strong> para <strong x-text="finStatusLabel(log.new_status)"></strong>
+                      </span>
+                      <span x-show="log.action_type === 'note'">registrou observacao</span>
+                      <span x-show="log.observacao"> — <em x-text="log.observacao"></em></span>
+                    </div>
+                    <div class="fin-log-time" x-text="finTimeAgo(log.created_at)"></div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+          </div><!-- /x-show financeiro -->
+        </div>
+
+        <!-- Modal: Registrar Observacao -->
+        <div class="fin-modal-overlay" x-show="finNoteModal.open" @click.self="finNoteModal.open = false" x-transition>
+          <div class="fin-modal">
+            <div class="fin-modal__header">
+              <h3>Observacao Financeira</h3>
+              <span x-text="finNoteModal.menteeNome" style="color:#6b7280;font-size:0.875rem"></span>
+            </div>
+            <textarea class="fin-modal__textarea" x-model="finNoteModal.text" placeholder="Ex: Mentorado pediu prazo ate dia 20..." rows="4" @keydown.escape="finNoteModal.open = false"></textarea>
+            <div class="fin-modal__footer">
+              <button class="btn btn--ghost" @click="finNoteModal.open = false">Cancelar</button>
+              <button class="btn btn--primary" @click="addFinNote()" :disabled="!finNoteModal.text.trim()">Salvar</button>
+            </div>
+          </div>
+        </div>
+
         <!-- ===== PAGE: SETTINGS ===== -->
         <div class="page-content" x-show="ui.page === 'settings'" x-transition>
           <div class="page-header">
@@ -3781,6 +3985,37 @@
       document.getElementById('loading-fallback')?.remove();
       document.getElementById('app').style.display = '';
     });
+
+    // ===== CFO PAYMENTS SVG CHART =====
+    function renderFinChart(snapshots) {
+      if (!snapshots || snapshots.length < 2) return;
+      const el = document.getElementById('fin-chart-svg');
+      if (!el) return;
+      const W = el.clientWidth || 560, H = 120, pad = 30;
+      const max = Math.max(...snapshots.map(s => s.atrasado_count), 1);
+      const pts = snapshots.map((s, i) => {
+        const x = pad + (i / (snapshots.length - 1)) * (W - pad * 2);
+        const y = H - pad - ((s.atrasado_count / max) * (H - pad * 2));
+        return { x, y, s };
+      });
+      const pathD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+      const areaD = pathD + ` L${pts[pts.length-1].x.toFixed(1)},${H-pad} L${pts[0].x.toFixed(1)},${H-pad} Z`;
+      el.innerHTML = `
+        <defs><linearGradient id="fin-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ef4444" stop-opacity="0.3"/><stop offset="100%" stop-color="#ef4444" stop-opacity="0.02"/></linearGradient></defs>
+        <path d="${areaD}" fill="url(#fin-grad)"/>
+        <path d="${pathD}" fill="none" stroke="#ef4444" stroke-width="2" stroke-linejoin="round"/>
+        ${pts.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="#ef4444"/>`).join('')}
+        ${pts.filter((_, i) => i === 0 || i === pts.length - 1 || i % 3 === 0).map(p => {
+          const d = new Date(p.s.snapshot_date);
+          const label = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+          return `<text x="${p.x.toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="9" fill="#9ca3af">${label}</text>`;
+        }).join('')}
+        <text x="${pad}" y="${H-pad+4}" text-anchor="middle" font-size="9" fill="#9ca3af">${snapshots[0]?.atrasado_count || 0}</text>
+        <text x="${W-pad}" y="${H-pad+4}" text-anchor="middle" font-size="9" fill="#9ca3af">${snapshots[snapshots.length-1]?.atrasado_count || 0}</text>
+        <text x="${pad}" y="${pad-6}" text-anchor="start" font-size="9" fill="#9ca3af">${max}</text>
+      `;
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => {
         if (document.getElementById('loading-fallback')) {
