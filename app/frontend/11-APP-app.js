@@ -1420,12 +1420,14 @@ function operon() {
 
           if (mentees.data?.length) {
             this.data.mentees = mentees.data;
-            // Load emails for schedule form auto-fill (not in vw_god_overview)
+            // Load emails for schedule form auto-fill via backend API
+            // (vw_god_overview doesn't expose email; direct table access blocked by RLS)
             try {
-              const { data: emailData } = await sb.from('mentorados')
-                .select('id, nome, email, contato_email')
-                .eq('ativo', true);
-              if (emailData) this._menteesWithEmail = emailData;
+              const emailResp = await fetch(`${CONFIG.API_BASE}/api/mentees`);
+              if (emailResp.ok) {
+                const emailData = await emailResp.json();
+                if (Array.isArray(emailData)) this._menteesWithEmail = emailData;
+              }
             } catch (e) {
               console.warn('[Spalla] Failed to load mentee emails:', e);
             }
