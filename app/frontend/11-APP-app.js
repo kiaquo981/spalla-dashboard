@@ -149,7 +149,7 @@ function operon() {
       sidebarOpen: true,
       mobileMenuOpen: false,
       search: '',
-      filters: { fase: '', risco: '', cohort: '', status: '', financeiro: '' },
+      filters: { fase: '', risco: '', cohort: '', status: '', financeiro: '', carteira: '' },
       sort: 'nome',
       sortDir: 'asc',
       loading: true,
@@ -390,6 +390,9 @@ function operon() {
       } else if (this.ui.filters.financeiro === 'quitado') {
         list = list.filter(m => m.status_financeiro === 'quitado');
       }
+      if (this.ui.filters.carteira) {
+        list = list.filter(m => m.consultor_responsavel === this.ui.filters.carteira);
+      }
       list.sort((a, b) => {
         let va = a[this.ui.sort], vb = b[this.ui.sort];
         if (typeof va === 'string') va = va?.toLowerCase() || '';
@@ -609,6 +612,13 @@ function operon() {
       return this.auth.currentUser?.full_name || this.auth.currentUser?.email || 'Anônimo';
     },
 
+    get myCarteira() {
+      const name = (this.auth.currentUser?.full_name || '').toLowerCase();
+      if (name.includes('lara')) return 'Lara';
+      if (name.includes('heitor')) return 'Heitor';
+      return null;
+    },
+
     todayStr() { return new Date().toISOString().split('T')[0]; },
 
     _filterTasks(tasks) {
@@ -753,7 +763,10 @@ function operon() {
 
     // Kanban: group mentees by phase
     menteesByPhase(fase) {
-      return this.data.mentees.filter(m => m.fase_jornada === fase);
+      const base = this.ui.filters.carteira
+        ? this.data.mentees.filter(m => m.consultor_responsavel === this.ui.filters.carteira)
+        : this.data.mentees;
+      return base.filter(m => m.fase_jornada === fase);
     },
 
     // Kanban drag-and-drop: move mentorado between phases
@@ -2320,7 +2333,7 @@ function operon() {
     },
 
     clearFilters() {
-      this.ui.filters = { fase: '', risco: '', cohort: '', status: '', financeiro: '' };
+      this.ui.filters = { fase: '', risco: '', cohort: '', status: '', financeiro: '', carteira: '' };
       this.ui.search = '';
     },
 
