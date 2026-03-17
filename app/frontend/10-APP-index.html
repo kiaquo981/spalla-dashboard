@@ -492,6 +492,7 @@
                   <span class="badge" :class="'badge--' + riskClass(data.detail?.phase?.risco_churn)" x-text="riskLabel(data.detail?.phase?.risco_churn)"></span>
                   <span class="badge badge--neutral" x-text="data.detail?.profile?.cohort"></span>
                   <span class="badge badge--neutral" x-text="data.detail?.phase?.marco_atual"></span>
+                  <span class="badge badge--info" x-text="'Consultor: ' + data.detail?.profile?.consultor_responsavel" x-show="data.detail?.profile?.consultor_responsavel" style="font-size:11px"></span>
                 </div>
                 <div class="detail-hero__meta" x-show="data.detail?.profile?.instagram">
                   <a :href="'https://instagram.com/' + (data.detail?.profile?.instagram || '').replace(/^@/, '')" target="_blank" rel="noopener noreferrer" style="text-decoration:none;color:inherit" @click.stop>
