@@ -11,6 +11,17 @@
                 ]
             }
         ],
+        "UserPromptSubmit": [
+            {
+                "matcher": "",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "bash /home/vscode/.claude/hooks/prompt-rules-injector.sh"
+                    }
+                ]
+            }
+        ],
         "PreToolUse": [
             {
                 "matcher": "Bash",

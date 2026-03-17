@@ -330,7 +330,9 @@
             <select class="ln-select" x-model="ui.filters.cohort"><option value="">Cohort</option><option value="N1">N1</option><option value="N2">N2</option></select>
             <select class="ln-select" x-model="ui.filters.status"><option value="">Status</option><option value="em_dia">Em Dia</option><option value="com_pendencia">Pendencia</option><option value="sem_call">Sem Call 21d+</option></select>
             <select class="ln-select" x-model="ui.filters.financeiro"><option value="">Financeiro</option><option value="sem_contrato">Sem Contrato</option><option value="atrasado">Pgto Atrasado</option><option value="em_dia">Em Dia</option><option value="quitado">Quitado</option></select>
-            <button class="ln-clear" @click="clearFilters()" x-show="ui.filters.fase || ui.filters.risco || ui.filters.cohort || ui.filters.status || ui.filters.financeiro">Limpar</button>
+            <button class="ln-phase-pill" :class="{ 'ln-phase-pill--active': ui.filters.carteira === myCarteira }" @click="ui.filters.carteira = ui.filters.carteira === myCarteira ? '' : myCarteira" x-show="myCarteira" style="white-space:nowrap;font-size:12px;padding:4px 10px" title="Filtrar mentorados da minha carteira">Minha Carteira <span style="font-weight:700" x-text="'(' + data.mentees.filter(m => m.consultor_responsavel === myCarteira).length + ')'"></span></button>
+            <select class="ln-select" x-model="ui.filters.carteira"><option value="">Consultor</option><option value="Lara">Lara</option><option value="Heitor">Heitor</option></select>
+            <button class="ln-clear" @click="clearFilters()" x-show="ui.filters.fase || ui.filters.risco || ui.filters.cohort || ui.filters.status || ui.filters.financeiro || ui.filters.carteira">Limpar</button>
             <span class="ln-count" x-text="filteredMentees.length"></span>
           </div>
 
@@ -389,6 +391,7 @@
                   </div>
                   <div class="mc-card__identity">
                     <span class="mc-card__name" x-text="m.nome"></span>
+                    <span class="badge badge--sm" :class="m.consultor_responsavel === 'Lara' ? 'badge--info' : 'badge--neutral'" x-text="m.consultor_responsavel" x-show="m.consultor_responsavel" style="font-size:10px;padding:1px 6px;margin-left:4px"></span>
                     <template x-if="m.instagram">
                       <a :href="'https://instagram.com/' + (m.instagram || '').replace(/^@/, '')" target="_blank" rel="noopener noreferrer" class="mc-card__handle" style="text-decoration:none;color:inherit" @click.stop>
                         <span x-text="'@' + (m.instagram || '').replace(/^@/, '')"></span>

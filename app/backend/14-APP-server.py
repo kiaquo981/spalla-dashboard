@@ -76,9 +76,13 @@ S3_REGION     = os.environ.get('S3_REGION', 'eu-central')
 # ===== JWT AUTH CONFIG =====
 JWT_SECRET = os.environ.get('JWT_SECRET')
 if not JWT_SECRET:
-    import secrets as _s
-    JWT_SECRET = _s.token_hex(32)
-    print(f'[WARNING] JWT_SECRET not set — generated ephemeral key (tokens will not survive restarts)')
+    _is_production = os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('RAILWAY_SERVICE_ID')
+    if _is_production:
+        print('[FATAL] JWT_SECRET environment variable is required in production')
+        print('[FATAL] Set it in Railway: railway variables set JWT_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")')
+        sys.exit(1)
+    JWT_SECRET = secrets.token_hex(32)
+    print('[WARNING] JWT_SECRET not set — generated ephemeral key (dev only, tokens will not survive restarts)')
 JWT_ALGORITHM = 'HS256'
 ACCESS_TOKEN_EXPIRY_MINUTES = 60
 REFRESH_TOKEN_EXPIRY_DAYS = 7
