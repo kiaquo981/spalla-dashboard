@@ -56,7 +56,7 @@ ZOOM_CLIENT_ID = os.environ.get('ZOOM_CLIENT_ID', '')
 ZOOM_CLIENT_SECRET = os.environ.get('ZOOM_CLIENT_SECRET', '')
 
 # Google Service Account
-GOOGLE_SA_PATH = os.path.expanduser('~/.config/google/credentials.json')
+GOOGLE_SA_PATH = os.environ.get('GOOGLE_SA_PATH', os.path.expanduser('~/.config/google/credentials.json'))
 
 # Supabase
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
@@ -303,27 +303,37 @@ _gcal_service = None
 
 
 def get_gcal_service():
-    """Initialize Google Calendar API service using service account"""
+    """Initialize Google Calendar API service using service account.
+    Supports GOOGLE_SA_JSON (base64-encoded JSON) for Docker environments
+    or GOOGLE_SA_PATH (file path) for local development.
+    """
     global _gcal_service
     if _gcal_service:
         return _gcal_service
 
     try:
+        import base64
         from google.oauth2 import service_account
         from googleapiclient.discovery import build
 
-        if not os.path.exists(GOOGLE_SA_PATH):
-            print(f'[GCal] Service account not found at {GOOGLE_SA_PATH}')
+        SCOPES = ['https://www.googleapis.com/auth/calendar']
+        sa_json = os.environ.get('GOOGLE_SA_JSON', '')
+
+        if sa_json:
+            info = json.loads(base64.b64decode(sa_json))
+            credentials = service_account.Credentials.from_service_account_info(
+                info, scopes=SCOPES
+            )
+            print('[GCal] using GOOGLE_SA_JSON')
+        elif os.path.exists(GOOGLE_SA_PATH):
+            credentials = service_account.Credentials.from_service_account_file(
+                GOOGLE_SA_PATH, scopes=SCOPES
+            )
+            print(f'[GCal] using GOOGLE_SA_PATH: {GOOGLE_SA_PATH}')
+        else:
+            print(f'[GCal] No credentials found (GOOGLE_SA_JSON not set, {GOOGLE_SA_PATH} not found)')
             return None
 
-        SCOPES = ['https://www.googleapis.com/auth/calendar']
-        credentials = service_account.Credentials.from_service_account_file(
-            GOOGLE_SA_PATH, scopes=SCOPES
-        )
-
-        # If GOOGLE_CALENDAR_ID is not the service account's own calendar,
-        # we need to impersonate the user (requires domain-wide delegation)
-        # For now, use the service account's own calendar or a shared one
         _gcal_service = build('calendar', 'v3', credentials=credentials)
         return _gcal_service
     except Exception as e:
@@ -399,6 +409,26 @@ def list_calendar_events(time_min=None, time_max=None, max_results=50):
         ).execute()
         return {'events': result.get('items', [])}
     except Exception as e:
+        return {'error': str(e)}
+
+
+def delete_calendar_event(event_id):
+    """Delete a Google Calendar event by ID"""
+    if not event_id:
+        return {'skipped': True, 'reason': 'no event_id provided'}
+
+    service = get_gcal_service()
+    if not service:
+        return {'error': 'Google Calendar not configured'}
+
+    try:
+        service.events().delete(
+            calendarId=GOOGLE_CALENDAR_ID,
+            eventId=event_id
+        ).execute()
+        return {'deleted': True, 'event_id': event_id}
+    except Exception as e:
+        print(f'[GCal] Delete event error: {e}')
         return {'error': str(e)}
 
 
@@ -853,10 +883,20 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': 'Not found'}, 404)
 
     def do_DELETE(self):
-        if self.path.startswith('/api/evolution/'):
+        if self.path.startswith('/api/calendar/event/'):
+            self._handle_delete_calendar_event()
+        elif self.path.startswith('/api/evolution/'):
             self._proxy_evolution('DELETE')
         else:
             self._send_json({'error': 'Not found'}, 404)
+
+    def _handle_delete_calendar_event(self):
+        try:
+            event_id = self.path.split('/')[-1]
+            result = delete_calendar_event(event_id)
+            self._send_json(result)
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
 
     # ===== SCHEDULE CALL (main orchestrator) =====
     def _handle_schedule_call(self):
@@ -976,8 +1016,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             body = json.loads(self._read_body())
             result = create_calendar_event(
                 summary=body.get('summary', ''),
-                start_iso=body.get('start', ''),
-                end_iso=body.get('end', ''),
+                start_iso=body.get('start_iso') or body.get('start', ''),
+                end_iso=body.get('end_iso') or body.get('end', ''),
                 description=body.get('description', ''),
                 attendees=body.get('attendees', []),
                 location=body.get('location', '')
