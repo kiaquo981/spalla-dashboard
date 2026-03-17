@@ -1420,6 +1420,15 @@ function operon() {
 
           if (mentees.data?.length) {
             this.data.mentees = mentees.data;
+            // Load emails for schedule form auto-fill (not in vw_god_overview)
+            try {
+              const { data: emailData } = await sb.from('mentorados')
+                .select('id, nome, email, contato_email')
+                .eq('ativo', true);
+              if (emailData) this._menteesWithEmail = emailData;
+            } catch (e) {
+              console.warn('[Spalla] Failed to load mentee emails:', e);
+            }
           } else {
             console.warn('[Spalla] Supabase mentees empty, using demo');
             this.loadDemoData();
