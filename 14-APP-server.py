@@ -60,6 +60,17 @@ S3_BUCKET     = os.environ.get('S3_BUCKET', 'case-evolution-media')
 S3_ENDPOINT   = os.environ.get('S3_ENDPOINT', 'hel1.your-objectstorage.com')
 S3_REGION     = os.environ.get('S3_REGION', 'eu-central')
 
+# ===== OPENAI CONFIG (Semantic Search) =====
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+EMBEDDING_MODEL = 'text-embedding-3-small'
+WHISPER_MODEL = 'whisper-1'
+VISION_MODEL = 'gpt-4o'
+
+# Chunking config
+CHUNK_SIZE_TOKENS = 800
+CHUNK_OVERLAP_TOKENS = 200
+MIN_CHUNK_TOKENS = 50
+
 # ===== JWT AUTH CONFIG =====
 JWT_SECRET = os.environ.get('JWT_SECRET')
 if not JWT_SECRET:
@@ -745,6 +756,450 @@ def insert_scheduled_call(data):
     return supabase_request('POST', 'calls_mentoria', data)
 
 
+# ===== STORAGE PROCESSING PIPELINE =====
+
+def _openai_request(endpoint, method='POST', body=None, files=None, timeout=120):
+    """Make request to OpenAI API. Returns parsed JSON or raises."""
+    if not OPENAI_API_KEY:
+        raise ValueError('OPENAI_API_KEY not configured')
+
+    if files:
+        # Multipart upload (for Whisper)
+        import io
+        boundary = f'----FormBoundary{secrets.token_hex(8)}'
+        parts = []
+        for key, val in (body or {}).items():
+            parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{key}"\r\n\r\n{val}\r\n')
+        for key, (filename, filedata, content_type) in files.items():
+            parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{key}"; filename="{filename}"\r\nContent-Type: {content_type}\r\n\r\n')
+            parts.append(filedata)
+            parts.append('\r\n')
+        parts.append(f'--{boundary}--\r\n')
+
+        raw_body = b''
+        for p in parts:
+            raw_body += p.encode() if isinstance(p, str) else p
+
+        conn = http.client.HTTPSConnection('api.openai.com', timeout=timeout)
+        conn.request(method, f'/v1/{endpoint}', body=raw_body, headers={
+            'Authorization': f'Bearer {OPENAI_API_KEY}',
+            'Content-Type': f'multipart/form-data; boundary={boundary}',
+        })
+    else:
+        conn = http.client.HTTPSConnection('api.openai.com', timeout=timeout)
+        conn.request(method, f'/v1/{endpoint}',
+                     body=json.dumps(body).encode() if body else None,
+                     headers={
+                         'Authorization': f'Bearer {OPENAI_API_KEY}',
+                         'Content-Type': 'application/json',
+                     })
+    resp = conn.getresponse()
+    data = resp.read()
+    conn.close()
+    if resp.status >= 400:
+        raise ValueError(f'OpenAI API error {resp.status}: {data.decode()[:500]}')
+    return json.loads(data)
+
+
+def openai_embed(texts):
+    """Generate embeddings for a list of texts. Returns list of 1536-dim vectors."""
+    result = _openai_request('embeddings', body={
+        'model': EMBEDDING_MODEL,
+        'input': texts,
+    })
+    return [item['embedding'] for item in result['data']]
+
+
+def openai_whisper(audio_bytes, filename, mime_type):
+    """Transcribe audio/video via Whisper API. Returns text."""
+    result = _openai_request('audio/transcriptions',
+        body={'model': WHISPER_MODEL, 'language': 'pt', 'response_format': 'text'},
+        files={'file': (filename, audio_bytes, mime_type)},
+        timeout=300)
+    # When response_format=text, result is plain text not JSON
+    if isinstance(result, dict) and 'text' in result:
+        return result['text']
+    return str(result)
+
+
+def openai_vision_describe(image_bytes, mime_type):
+    """Describe image content using GPT-4o vision. Returns text description."""
+    b64 = base64.b64encode(image_bytes).decode()
+    result = _openai_request('chat/completions', body={
+        'model': VISION_MODEL,
+        'max_tokens': 1000,
+        'messages': [{
+            'role': 'user',
+            'content': [
+                {'type': 'text', 'text': 'Descreva detalhadamente o conteúdo desta imagem em português. Se houver texto, transcreva-o. Se for um screenshot, descreva o contexto.'},
+                {'type': 'image_url', 'image_url': {'url': f'data:{mime_type};base64,{b64}'}}
+            ]
+        }]
+    })
+    return result['choices'][0]['message']['content']
+
+
+def _download_from_supabase_storage(storage_path):
+    """Download file bytes from Supabase Storage bucket."""
+    key = SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY
+    encoded_path = urllib.parse.quote(storage_path, safe='/')
+    url = f'/storage/v1/object/spalla-arquivos/{encoded_path}'
+
+    conn = http.client.HTTPSConnection('knusqfbvhsqworzyhvip.supabase.co', timeout=60)
+    conn.request('GET', url, headers={
+        'apikey': key,
+        'Authorization': f'Bearer {key}',
+    })
+    resp = conn.getresponse()
+    data = resp.read()
+    conn.close()
+    if resp.status >= 400:
+        raise ValueError(f'Storage download failed {resp.status}: {data.decode()[:200]}')
+    return data
+
+
+def _extract_text_pdf(file_bytes):
+    """Extract text from PDF using pdfplumber."""
+    try:
+        import pdfplumber
+        import io
+        text_parts = []
+        with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+            for i, page in enumerate(pdf.pages):
+                page_text = page.extract_text() or ''
+                if page_text.strip():
+                    text_parts.append(f'--- Página {i+1} ---\n{page_text}')
+        return '\n\n'.join(text_parts), {'pages': len(pdf.pages)}, 'pdf_extract'
+    except ImportError:
+        # Fallback: try pymupdf
+        try:
+            import fitz
+            import io
+            doc = fitz.open(stream=file_bytes, filetype='pdf')
+            text_parts = []
+            for i, page in enumerate(doc):
+                page_text = page.get_text()
+                if page_text.strip():
+                    text_parts.append(f'--- Página {i+1} ---\n{page_text}')
+            return '\n\n'.join(text_parts), {'pages': len(doc)}, 'pdf_extract'
+        except ImportError:
+            raise ValueError('Neither pdfplumber nor pymupdf installed. Run: pip install pdfplumber')
+
+
+def _extract_text_docx(file_bytes):
+    """Extract text from DOCX."""
+    try:
+        import docx
+        import io
+        doc = docx.Document(io.BytesIO(file_bytes))
+        text_parts = [p.text for p in doc.paragraphs if p.text.strip()]
+        return '\n\n'.join(text_parts), {'paragraphs': len(text_parts)}, 'docx_extract'
+    except ImportError:
+        raise ValueError('python-docx not installed. Run: pip install python-docx')
+
+
+def _extract_text_xlsx(file_bytes):
+    """Extract text from XLSX — each sheet as structured text."""
+    try:
+        import openpyxl
+        import io
+        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
+        text_parts = []
+        structured = {}
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            rows = []
+            for row in ws.iter_rows(values_only=True):
+                row_text = ' | '.join(str(c) if c is not None else '' for c in row)
+                if row_text.strip(' |'):
+                    rows.append(row_text)
+            if rows:
+                sheet_text = f'=== Planilha: {sheet_name} ===\n' + '\n'.join(rows)
+                text_parts.append(sheet_text)
+                structured[sheet_name] = rows
+        return '\n\n'.join(text_parts), {'sheets': list(wb.sheetnames)}, 'xlsx_extract'
+    except ImportError:
+        raise ValueError('openpyxl not installed. Run: pip install openpyxl')
+
+
+def _extract_text_csv(file_bytes):
+    """Extract text from CSV."""
+    import csv, io
+    text = file_bytes.decode('utf-8', errors='replace')
+    reader = csv.reader(io.StringIO(text))
+    rows = [' | '.join(row) for row in reader if any(c.strip() for c in row)]
+    return '\n'.join(rows), {'rows': len(rows)}, 'text_direct'
+
+
+def _simple_token_count(text):
+    """Approximate token count (4 chars per token heuristic for Portuguese)."""
+    return len(text) // 4
+
+
+def _chunk_text(text, chunk_size=CHUNK_SIZE_TOKENS, overlap=CHUNK_OVERLAP_TOKENS, min_size=MIN_CHUNK_TOKENS):
+    """Split text into overlapping chunks by approximate token count."""
+    words = text.split()
+    # ~1.3 words per token for Portuguese
+    words_per_chunk = int(chunk_size * 1.3)
+    words_overlap = int(overlap * 1.3)
+
+    chunks = []
+    start = 0
+    while start < len(words):
+        end = min(start + words_per_chunk, len(words))
+        chunk_text = ' '.join(words[start:end])
+        if _simple_token_count(chunk_text) >= min_size:
+            chunks.append(chunk_text)
+        start += words_per_chunk - words_overlap
+    return chunks
+
+
+def _resolve_mentorado_from_entity(entidade_tipo, entidade_id):
+    """Resolve mentorado_id and mentorado_nome from entity reference."""
+    if entidade_tipo == 'mentorado' and entidade_id:
+        result = supabase_request('GET', f'mentorados?select=id,nome&id=eq.{entidade_id}')
+        if isinstance(result, list) and result:
+            return int(result[0]['id']), result[0]['nome']
+    elif entidade_tipo == 'task' and entidade_id:
+        result = supabase_request('GET', f'god_tasks?select=mentorado_id,mentorado_nome&id=eq.{entidade_id}')
+        if isinstance(result, list) and result and result[0].get('mentorado_id'):
+            return int(result[0]['mentorado_id']), result[0].get('mentorado_nome', '')
+    elif entidade_tipo in ('dossie_doc', 'dossie_producao') and entidade_id:
+        table = 'ds_documentos' if entidade_tipo == 'dossie_doc' else 'ds_producoes'
+        result = supabase_request('GET', f'{table}?select=mentorado_id&id=eq.{entidade_id}')
+        if isinstance(result, list) and result and result[0].get('mentorado_id'):
+            mid = int(result[0]['mentorado_id'])
+            m = supabase_request('GET', f'mentorados?select=nome&id=eq.{mid}')
+            nome = m[0]['nome'] if isinstance(m, list) and m else ''
+            return mid, nome
+    return None, None
+
+
+def process_file_pipeline(arquivo_id):
+    """
+    Full processing pipeline for a file:
+    1. Download from Supabase Storage
+    2. Extract text based on mime_type
+    3. Chunk text
+    4. Generate embeddings
+    5. Store in sp_conteudo_extraido + sp_chunks
+    """
+    log_info('Storage', f'Processing file {arquivo_id}...')
+
+    # Get file metadata
+    result = supabase_request('GET', f'sp_arquivos?select=*&id=eq.{arquivo_id}')
+    if not isinstance(result, list) or not result:
+        log_error('Storage', f'File {arquivo_id} not found')
+        return
+
+    arquivo = result[0]
+    mime = arquivo['mime_type']
+    ext = (arquivo.get('extensao') or '').lower()
+    storage_path = arquivo['storage_path']
+    nome = arquivo['nome_original']
+
+    try:
+        # Update status
+        supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
+                        {'status_processamento': 'extraindo'})
+
+        # Download file
+        file_bytes = _download_from_supabase_storage(storage_path)
+        log_info('Storage', f'Downloaded {nome} ({len(file_bytes)} bytes)')
+
+        # Extract content based on type
+        texto = ''
+        metadados = {}
+        metodo = 'text_direct'
+        duracao_seg = None
+
+        if mime in ('text/plain', 'text/markdown') or ext in ('txt', 'md'):
+            texto = file_bytes.decode('utf-8', errors='replace')
+            metodo = 'text_direct'
+
+        elif mime == 'application/pdf' or ext == 'pdf':
+            texto, metadados, metodo = _extract_text_pdf(file_bytes)
+
+        elif mime == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' or ext == 'docx':
+            texto, metadados, metodo = _extract_text_docx(file_bytes)
+
+        elif mime in ('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel') or ext in ('xlsx', 'xls'):
+            texto, metadados, metodo = _extract_text_xlsx(file_bytes)
+
+        elif mime == 'text/csv' or ext == 'csv':
+            texto, metadados, metodo = _extract_text_csv(file_bytes)
+
+        elif mime.startswith('audio/') or ext in ('mp3', 'wav', 'ogg', 'm4a'):
+            if not OPENAI_API_KEY:
+                raise ValueError('OPENAI_API_KEY required for audio transcription')
+            texto = openai_whisper(file_bytes, nome, mime)
+            metodo = 'whisper_stt'
+
+        elif mime.startswith('video/') or ext in ('mp4', 'mov', 'webm'):
+            if not OPENAI_API_KEY:
+                raise ValueError('OPENAI_API_KEY required for video transcription')
+            # Whisper API accepts video files directly (mp4, webm, etc)
+            texto = openai_whisper(file_bytes, nome, mime)
+            metodo = 'whisper_video'
+
+        elif mime.startswith('image/') or ext in ('png', 'jpg', 'jpeg', 'webp'):
+            if not OPENAI_API_KEY:
+                raise ValueError('OPENAI_API_KEY required for image description')
+            texto = openai_vision_describe(file_bytes, mime)
+            metodo = 'ocr_vision'
+
+        else:
+            # Unsupported type — mark as ignored
+            supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
+                            {'status_processamento': 'ignorado',
+                             'erro_processamento': f'Tipo não suportado: {mime}'})
+            log_info('Storage', f'Skipped unsupported type: {mime}')
+            return
+
+        if not texto or not texto.strip():
+            supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
+                            {'status_processamento': 'ignorado',
+                             'erro_processamento': 'Nenhum conteúdo extraído'})
+            return
+
+        word_count = len(texto.split())
+        log_info('Storage', f'Extracted {word_count} words via {metodo}')
+
+        # Save extracted content
+        conteudo_row = supabase_request('POST', 'sp_conteudo_extraido', {
+            'arquivo_id': arquivo_id,
+            'conteudo_texto': texto,
+            'conteudo_estruturado': metadados if metadados else None,
+            'metadados_extracao': {
+                'word_count': word_count,
+                'method': metodo,
+                'file_size': len(file_bytes),
+            },
+            'metodo_extracao': metodo,
+            'word_count': word_count,
+            'duracao_segundos': duracao_seg,
+        })
+
+        conteudo_id = conteudo_row[0]['id'] if isinstance(conteudo_row, list) and conteudo_row else conteudo_row.get('id')
+        if not conteudo_id:
+            raise ValueError(f'Failed to insert sp_conteudo_extraido: {conteudo_row}')
+
+        # Update status
+        supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
+                        {'status_processamento': 'chunking'})
+
+        # Chunk text
+        chunks = _chunk_text(texto)
+        log_info('Storage', f'Created {len(chunks)} chunks')
+
+        if not chunks:
+            supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
+                            {'status_processamento': 'concluido',
+                             'processado_em': datetime.now(timezone.utc).isoformat()})
+            return
+
+        # Update status
+        supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
+                        {'status_processamento': 'embedding'})
+
+        # Generate embeddings (batch, max 2048 per request)
+        BATCH_SIZE = 100
+        all_embeddings = []
+        for i in range(0, len(chunks), BATCH_SIZE):
+            batch = chunks[i:i + BATCH_SIZE]
+            embeddings = openai_embed(batch)
+            all_embeddings.extend(embeddings)
+        log_info('Storage', f'Generated {len(all_embeddings)} embeddings')
+
+        # Resolve mentorado
+        mentorado_id, mentorado_nome = _resolve_mentorado_from_entity(
+            arquivo['entidade_tipo'], arquivo.get('entidade_id'))
+
+        # Insert chunks with embeddings
+        for idx, (chunk_text, embedding) in enumerate(zip(chunks, all_embeddings)):
+            chunk_row = {
+                'arquivo_id': arquivo_id,
+                'conteudo_id': conteudo_id,
+                'texto': chunk_text,
+                'chunk_index': idx,
+                'token_count': _simple_token_count(chunk_text),
+                'embedding': str(embedding),  # pgvector accepts string format
+                'arquivo_nome': nome,
+                'entidade_tipo': arquivo['entidade_tipo'],
+                'entidade_id': arquivo.get('entidade_id'),
+                'categoria': arquivo.get('categoria'),
+                'mentorado_id': mentorado_id,
+                'mentorado_nome': mentorado_nome,
+            }
+            supabase_request('POST', 'sp_chunks', chunk_row)
+
+        # Done!
+        supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
+                        {'status_processamento': 'concluido',
+                         'processado_em': datetime.now(timezone.utc).isoformat()})
+
+        log_info('Storage', f'✓ File {nome} processed: {len(chunks)} chunks indexed')
+
+    except Exception as e:
+        log_error('Storage', f'Processing failed for {nome}', e)
+        supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
+                        {'status_processamento': 'erro',
+                         'erro_processamento': str(e)[:500]})
+
+
+def search_semantic(query_text, mode='hybrid', filters=None, limit=10):
+    """
+    Execute semantic/keyword/hybrid search.
+    Returns list of results with file info and matching chunks.
+    """
+    filters = filters or {}
+
+    if mode == 'keyword':
+        # Keyword-only via RPC
+        params = {
+            'p_query': query_text,
+            'p_limit': limit,
+            'p_entidade_tipo': filters.get('entidade_tipo'),
+            'p_categoria': filters.get('categoria'),
+            'p_mentorado_id': filters.get('mentorado_id'),
+        }
+        result = supabase_request('POST', 'rpc/fn_busca_keyword', params)
+        return result if isinstance(result, list) else []
+
+    # Need embedding for semantic/hybrid
+    if not OPENAI_API_KEY:
+        raise ValueError('OPENAI_API_KEY required for semantic search')
+
+    embeddings = openai_embed([query_text])
+    query_embedding = embeddings[0]
+
+    if mode == 'semantic':
+        params = {
+            'p_query_embedding': str(query_embedding),
+            'p_limit': limit,
+            'p_entidade_tipo': filters.get('entidade_tipo'),
+            'p_categoria': filters.get('categoria'),
+            'p_mentorado_id': filters.get('mentorado_id'),
+            'p_threshold': filters.get('threshold', 0.3),
+        }
+        result = supabase_request('POST', 'rpc/fn_busca_semantica', params)
+        return result if isinstance(result, list) else []
+
+    else:  # hybrid (default)
+        params = {
+            'p_query_embedding': str(query_embedding),
+            'p_query_text': query_text,
+            'p_limit': limit,
+            'p_entidade_tipo': filters.get('entidade_tipo'),
+            'p_categoria': filters.get('categoria'),
+            'p_mentorado_id': filters.get('mentorado_id'),
+            'p_semantic_weight': filters.get('semantic_weight', 0.7),
+            'p_threshold': filters.get('threshold', 0.25),
+        }
+        result = supabase_request('POST', 'rpc/fn_busca_hibrida', params)
+        return result if isinstance(result, list) else []
+
+
 # ===== CUSTOM HTTP SERVER (fix SO_REUSEADDR) =====
 class ReuseAddrHTTPServer(http.server.HTTPServer):
     allow_reuse_address = True
@@ -793,6 +1248,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_instance_uuid()
         elif self.path == '/api/sheets/status':
             self._handle_sheets_status()
+        elif self.path.startswith('/api/storage/files'):
+            self._handle_storage_list_files()
+        elif self.path.startswith('/api/storage/status'):
+            self._handle_storage_status()
         elif self.path == '/api/health':
             self._send_json({
                 'status': 'ok',
@@ -800,6 +1259,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'gcal_configured': os.path.exists(GOOGLE_SA_PATH),
                 'supabase_configured': bool(SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY),
                 'sheets_configured': get_sheets_service() is not None,
+                'openai_configured': bool(OPENAI_API_KEY),
+                'storage_search': bool(OPENAI_API_KEY),
             })
         else:
             super().do_GET()
@@ -833,6 +1294,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_sheets_sync()
         elif self.path == '/api/welcome-flow/register':
             self._handle_welcome_flow_register()
+        elif self.path == '/api/storage/process':
+            self._handle_storage_process()
+        elif self.path == '/api/storage/search':
+            self._handle_storage_search()
+        elif self.path == '/api/storage/reprocess':
+            self._handle_storage_reprocess()
         else:
             self._send_json({'error': 'Not found'}, 404)
 
@@ -1417,6 +1884,133 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             log_error('WELCOME', f'Welcome flow registration failed: {e}')
             self._send_json({'error': 'Registration failed'}, 500)
 
+    # ===== STORAGE HANDLERS =====
+
+    def _handle_storage_process(self):
+        """POST /api/storage/process — Trigger file processing pipeline."""
+        try:
+            body = json.loads(self._read_body())
+        except Exception:
+            self._send_json({'error': 'Invalid JSON'}, 400)
+            return
+
+        arquivo_id = body.get('arquivo_id')
+        if not arquivo_id:
+            self._send_json({'error': 'arquivo_id is required'}, 400)
+            return
+
+        # Process in background thread
+        def _bg():
+            try:
+                process_file_pipeline(arquivo_id)
+            except Exception as e:
+                log_error('Storage', f'Background processing failed: {e}')
+
+        t = threading.Thread(target=_bg, daemon=True)
+        t.start()
+
+        self._send_json({'status': 'processing', 'arquivo_id': arquivo_id})
+
+    def _handle_storage_search(self):
+        """POST /api/storage/search — Semantic/keyword/hybrid search."""
+        try:
+            body = json.loads(self._read_body())
+        except Exception:
+            self._send_json({'error': 'Invalid JSON'}, 400)
+            return
+
+        query = body.get('query', '').strip()
+        if not query:
+            self._send_json({'error': 'query is required'}, 400)
+            return
+
+        mode = body.get('mode', 'hybrid')
+        if mode not in ('semantic', 'keyword', 'hybrid'):
+            mode = 'hybrid'
+
+        filters = body.get('filters', {})
+        limit = min(body.get('limit', 10), 50)
+
+        try:
+            start_time = time.time()
+            results = search_semantic(query, mode=mode, filters=filters, limit=limit)
+            elapsed_ms = int((time.time() - start_time) * 1000)
+
+            self._send_json({
+                'results': results,
+                'total': len(results),
+                'query': query,
+                'mode': mode,
+                'query_time_ms': elapsed_ms,
+            })
+        except ValueError as e:
+            self._send_json({'error': str(e)}, 400)
+        except Exception as e:
+            log_error('Storage', 'Search failed', e)
+            self._send_json({'error': f'Search failed: {str(e)}'}, 500)
+
+    def _handle_storage_list_files(self):
+        """GET /api/storage/files?entidade_tipo=X&entidade_id=Y — List files for entity."""
+        qs = urllib.parse.urlparse(self.path).query
+        params = urllib.parse.parse_qs(qs)
+        entidade_tipo = params.get('entidade_tipo', [None])[0]
+        entidade_id = params.get('entidade_id', [None])[0]
+
+        query = 'sp_arquivos?select=*&deleted_at=is.null&order=created_at.desc'
+        if entidade_tipo:
+            query += f'&entidade_tipo=eq.{entidade_tipo}'
+        if entidade_id:
+            query += f'&entidade_id=eq.{entidade_id}'
+
+        result = supabase_request('GET', query)
+        self._send_json(result if isinstance(result, list) else [])
+
+    def _handle_storage_status(self):
+        """GET /api/storage/status — Storage overview (files, sizes, processing queue)."""
+        overview = supabase_request('GET', 'vw_storage_overview?select=*')
+        queue = supabase_request('GET', 'vw_processamento_fila?select=*&limit=20')
+        self._send_json({
+            'overview': overview if isinstance(overview, list) else [],
+            'queue': queue if isinstance(queue, list) else [],
+            'openai_configured': bool(OPENAI_API_KEY),
+        })
+
+    def _handle_storage_reprocess(self):
+        """POST /api/storage/reprocess — Reprocess all files with status 'pendente' or 'erro'."""
+        try:
+            body = json.loads(self._read_body()) if int(self.headers.get('Content-Length', 0)) > 0 else {}
+        except Exception:
+            body = {}
+
+        status_filter = body.get('status', 'pendente')  # 'pendente', 'erro', or 'all'
+
+        query = 'sp_arquivos?select=id&deleted_at=is.null'
+        if status_filter == 'all':
+            query += '&status_processamento=in.(pendente,erro)'
+        else:
+            query += f'&status_processamento=eq.{status_filter}'
+
+        result = supabase_request('GET', query)
+        if not isinstance(result, list):
+            self._send_json({'error': 'Failed to query files'}, 500)
+            return
+
+        count = 0
+        for row in result:
+            def _bg(aid=row['id']):
+                try:
+                    process_file_pipeline(aid)
+                except Exception as e:
+                    log_error('Storage', f'Reprocess failed for {aid}: {e}')
+            t = threading.Thread(target=_bg, daemon=True)
+            t.start()
+            count += 1
+            # Stagger to avoid overwhelming OpenAI API
+            if count % 5 == 0:
+                time.sleep(1)
+
+        self._send_json({'queued': count, 'status_filter': status_filter})
+
     def log_message(self, format, *args):
         path = str(args[0]) if args else ''
         if '/api/' in path:
@@ -1436,6 +2030,7 @@ if __name__ == '__main__':
     print(f'[Spalla] Bcrypt:   {"✓ installed" if _bcrypt else "⚠ not installed (using SHA-256)"}')
     print(f'[Spalla] Proxy:    /api/evolution/*')
     print(f'[Spalla] Sheets:   {"✓ service account found" if os.path.exists(GOOGLE_SA_PATH) else "✗ no service account"}')
+    print(f'[Spalla] OpenAI:   {"✓ configured" if OPENAI_API_KEY else "✗ set OPENAI_API_KEY for semantic search"}')
     print(f'[Spalla] Endpoints:')
     print(f'  POST /api/schedule-call    — Full scheduling (Zoom + Calendar + DB)')
     print(f'  POST /api/zoom/create-meeting')
@@ -1445,6 +2040,11 @@ if __name__ == '__main__':
     print(f'  GET  /api/mentees          — Mentorados with email')
     print(f'  GET  /api/calendar/events   — Upcoming calendar events')
     print(f'  GET  /api/calls/upcoming    — Scheduled calls from DB')
+    print(f'  POST /api/storage/process   — Process uploaded file (extract+embed)')
+    print(f'  POST /api/storage/search    — Semantic/keyword/hybrid search')
+    print(f'  GET  /api/storage/files     — List files by entity')
+    print(f'  GET  /api/storage/status    — Storage overview & queue')
+    print(f'  POST /api/storage/reprocess — Reprocess pending/failed files')
     print(f'  GET  /api/health')
 
     # Start sheets sync background thread
