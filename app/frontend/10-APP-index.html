@@ -3891,22 +3891,23 @@
             <div class="op-grid op-grid-cols-3" style="gap:12px">
               <!-- Custom folders -->
               <template x-for="cf in arquivos.customFolders" :key="cf.id">
-                <div class="op-card arquivos-folder-card arquivos-custom-folder-card" style="cursor:pointer;padding:16px;transition:all 0.15s;position:relative;border-left:4px solid"
-                  :style="'border-left-color:' + (cf.cor || '#6b7280')"
-                  @click="openCustomFolder(cf)" tabindex="0" role="button" @keydown.enter="openCustomFolder(cf)">
+                <div class="op-card arquivos-folder-card arquivos-custom-folder-card" style="cursor:pointer;padding:16px;transition:all 0.15s;position:relative"
+                  @click="openCustomFolder(cf)" tabindex="0" role="button" @keydown.enter="openCustomFolder(cf)"
+                  @mouseenter="$el.style.borderColor='var(--primary)'"
+                  @mouseleave="$el.style.borderColor='var(--border)'">
                   <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-                    <div class="avatar avatar--md" style="display:flex;align-items:center;justify-content:center;font-size:16px;border-radius:10px;width:44px;height:44px"
-                      :style="'background:' + (cf.cor || '#6b7280') + '18;color:' + (cf.cor || '#6b7280')">
+                    <div class="avatar avatar--md" style="color:white;display:flex;align-items:center;justify-content:center;font-size:16px;border-radius:10px;width:44px;height:44px"
+                      :style="'background:linear-gradient(135deg,' + (cf.cor || '#6b7280') + ',' + (cf.cor || '#6b7280') + 'aa)'">
                       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                     </div>
-                    <div style="flex:1;min-width:0">
-                      <div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="cf.nome"></div>
-                      <div style="font-size:11px;color:var(--text-muted)" x-text="cf.descricao || (cf.mentorado_nome ? cf.mentorado_nome : 'Pasta personalizada')"></div>
+                    <div>
+                      <div style="font-weight:600;font-size:14px" x-text="cf.nome"></div>
+                      <div style="font-size:11px;color:var(--text-muted)" x-text="cf.descricao || 'Pasta personalizada'"></div>
                     </div>
                   </div>
                   <div style="display:flex;gap:8px;flex-wrap:wrap">
                     <span class="badge badge--sm badge--neutral" x-text="(cf.total_arquivos || 0) + ' arquivos'"></span>
-                    <span class="badge badge--sm" x-show="cf.total_mb > 0" x-text="(cf.total_mb || 0).toFixed(1) + ' MB'"></span>
+                    <span class="badge badge--sm" x-text="_formatBytes((cf.total_mb || 0) * 1048576)"></span>
                   </div>
                   <div class="arquivos-custom-folder-actions" style="position:absolute;top:8px;right:8px;display:none;gap:2px">
                     <button class="op-btn op-btn--ghost op-btn--sm" @click.stop="openEditFolderForm(cf)" title="Editar pasta" aria-label="Editar pasta" style="padding:2px 6px">
@@ -4907,7 +4908,7 @@
   <script src="12-APP-data.js?v=72"></script>
   <script src="13-APP-photos.js?v=72"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=85"></script>
+  <script src="11-APP-app.js?v=86"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {
