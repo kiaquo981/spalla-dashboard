@@ -3500,115 +3500,106 @@
 
           <!-- Upload Modal -->
           <div class="modal-overlay" x-show="arquivos.uploadForm.showModal" x-transition.opacity @click.self="closeUploadModal()" role="dialog" aria-modal="true" style="z-index:1000">
-            <div class="modal" style="max-width:600px" @click.stop>
+            <div class="modal" style="max-width:560px;overflow:visible" @click.stop>
               <div class="modal__header">
                 <h3>Upload de Arquivos</h3>
                 <button @click="closeUploadModal()">&times;</button>
               </div>
-              <div class="modal__body">
+              <div class="modal__body" style="overflow:visible">
 
-                <!-- Mentorado Selector (autocomplete) -->
-                <label>Mentorado (opcional)</label>
-                <div style="position:relative">
-                  <div style="display:flex;gap:6px;align-items:center">
-                    <input type="text" class="modal__input" style="flex:1"
+                <!-- Mentorado Selector -->
+                <div style="margin-bottom:16px;position:relative;z-index:50">
+                  <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px">Mentorado (opcional)</label>
+                  <div style="position:relative">
+                    <input type="text" class="op-input" style="width:100%"
                       placeholder="Buscar mentorado por nome..."
                       x-model="arquivos.uploadForm.mentoradoSearch"
                       @focus="arquivos.uploadForm.showMentoradoDropdown = true"
                       @input="arquivos.uploadForm.showMentoradoDropdown = true; if(!$event.target.value) clearUploadMentorado()"
                       @keydown.escape="arquivos.uploadForm.showMentoradoDropdown = false">
-                    <button class="op-btn op-btn--ghost op-btn--sm" x-show="arquivos.uploadForm.mentoradoId"
-                      @click="clearUploadMentorado()" title="Limpar" style="flex-shrink:0">&times;</button>
+                    <!-- Dropdown -->
+                    <div x-show="arquivos.uploadForm.showMentoradoDropdown && uploadFilteredMentees.length > 0"
+                      x-transition
+                      @click.outside="arquivos.uploadForm.showMentoradoDropdown = false"
+                      style="position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:100;background:white;border:1px solid var(--border);border-radius:8px;max-height:220px;overflow-y:auto;box-shadow:0 12px 32px rgba(0,0,0,.18)">
+                      <template x-for="m in uploadFilteredMentees" :key="m.id">
+                        <div style="padding:8px 12px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px"
+                          @click="selectUploadMentorado(m)"
+                          @mouseenter="$el.style.background='#f5f5f5'"
+                          @mouseleave="$el.style.background=''">
+                          <span style="font-weight:500" x-text="m.nome"></span>
+                          <span style="color:#999;font-size:11px" x-show="m.instagram" x-text="'@' + m.instagram"></span>
+                        </div>
+                      </template>
+                    </div>
                   </div>
-                  <div x-show="arquivos.uploadForm.showMentoradoDropdown && uploadFilteredMentees.length > 0"
-                    @click.outside="arquivos.uploadForm.showMentoradoDropdown = false"
-                    style="position:absolute;top:100%;left:0;right:0;z-index:10;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.15);margin-top:4px">
-                    <template x-for="m in uploadFilteredMentees" :key="m.id">
-                      <div style="padding:8px 12px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)"
-                        @click="selectUploadMentorado(m)"
-                        :style="arquivos.uploadForm.mentoradoId === m.id ? 'background:var(--primary-bg)' : ''"
-                        @mouseenter="$el.style.background='var(--hover-bg)'"
-                        @mouseleave="$el.style.background = arquivos.uploadForm.mentoradoId === m.id ? 'var(--primary-bg)' : ''">
-                        <span style="font-weight:500" x-text="m.nome"></span>
-                        <span style="color:var(--text-muted);font-size:11px" x-show="m.instagram" x-text="'@' + m.instagram"></span>
-                      </div>
-                    </template>
+                  <div x-show="arquivos.uploadForm.mentoradoId" style="margin-top:6px">
+                    <span class="badge badge--sm badge--success" x-text="arquivos.uploadForm.mentoradoNome"></span>
+                    <button class="op-btn op-btn--ghost op-btn--sm" @click="clearUploadMentorado()" style="font-size:11px;margin-left:4px">limpar</button>
                   </div>
-                </div>
-                <div x-show="arquivos.uploadForm.mentoradoId" style="margin-top:4px;margin-bottom:4px">
-                  <span class="badge badge--sm badge--success" x-text="arquivos.uploadForm.mentoradoNome"></span>
                 </div>
 
-                <!-- Entity Type (only when mentorado selected) -->
-                <div x-show="arquivos.uploadForm.mentoradoId" x-transition style="margin-top:8px">
-                  <label>Tipo de Arquivo</label>
-                  <select class="modal__select" x-model="arquivos.uploadForm.entidadeTipo">
-                    <option value="mentorado">Geral do Mentorado</option>
-                    <option value="dossie_doc">Dossie</option>
-                    <option value="plano_acao">Plano de Acao</option>
-                    <option value="call">Call / Gravacao</option>
-                  </select>
+                <!-- Row: Tipo + Pasta -->
+                <div style="display:flex;gap:12px;margin-bottom:16px">
+                  <div style="flex:1" x-show="arquivos.uploadForm.mentoradoId" x-transition>
+                    <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px">Tipo</label>
+                    <select class="op-select" style="width:100%" x-model="arquivos.uploadForm.entidadeTipo">
+                      <option value="mentorado">Geral do Mentorado</option>
+                      <option value="dossie_doc">Dossie</option>
+                      <option value="plano_acao">Plano de Acao</option>
+                      <option value="call">Call / Gravacao</option>
+                    </select>
+                  </div>
+                  <div style="flex:1">
+                    <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px">Pasta (opcional)</label>
+                    <select class="op-select" style="width:100%" x-model="arquivos.uploadForm.pastaId">
+                      <option :value="null">Nenhuma pasta</option>
+                      <template x-for="p in arquivos.customFolders" :key="p.id">
+                        <option :value="p.id" x-text="p.nome"></option>
+                      </template>
+                    </select>
+                  </div>
                 </div>
-
-                <!-- Pasta (folder) selector -->
-                <label style="margin-top:12px">Pasta (opcional)</label>
-                <select class="modal__select" x-model="arquivos.uploadForm.pastaId">
-                  <option :value="null">Nenhuma pasta</option>
-                  <template x-for="p in arquivos.customFolders" :key="p.id">
-                    <option :value="p.id" x-text="p.nome"></option>
-                  </template>
-                </select>
 
                 <!-- Description -->
-                <label style="margin-top:12px">Descricao (opcional)</label>
-                <input type="text" class="modal__input" x-model="arquivos.uploadForm.descricao"
-                  placeholder="Ex: Dossie completo, gravacao call 15/03...">
+                <div style="margin-bottom:16px">
+                  <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px">Descricao (opcional)</label>
+                  <input type="text" class="op-input" style="width:100%" x-model="arquivos.uploadForm.descricao"
+                    placeholder="Ex: Dossie completo, gravacao call 15/03...">
+                </div>
 
                 <!-- Drag and Drop Zone -->
-                <div style="margin-top:16px;border:2px dashed var(--border);border-radius:8px;padding:32px 16px;text-align:center;transition:all 0.2s;cursor:pointer;position:relative"
-                  @dragover.prevent="$el.style.borderColor='var(--primary)';$el.style.background='var(--primary-bg)'"
-                  @dragleave.prevent="$el.style.borderColor='var(--border)';$el.style.background='transparent'"
-                  @drop.prevent="handleUploadDrop($event);$el.style.borderColor='var(--border)';$el.style.background='transparent'"
+                <div style="border:2px dashed var(--border);border-radius:8px;padding:28px 16px;text-align:center;transition:all 0.2s;cursor:pointer"
+                  @dragover.prevent="$el.style.borderColor='var(--primary)';$el.style.background='rgba(0,0,0,0.02)'"
+                  @dragleave.prevent="$el.style.borderColor='var(--border)';$el.style.background=''"
+                  @drop.prevent="handleUploadDrop($event);$el.style.borderColor='var(--border)';$el.style.background=''"
                   @click="$refs.uploadFileInput.click()">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5" style="margin-bottom:8px">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="17 8 12 3 7 8"/>
-                    <line x1="12" y1="3" x2="12" y2="15"/>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="1.5" style="margin-bottom:6px">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
                   </svg>
-                  <div style="font-size:13px;color:var(--text-muted)">
-                    Arraste arquivos aqui ou <strong style="color:var(--primary)">clique para selecionar</strong>
-                  </div>
-                  <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
-                    PDF, DOCX, XLSX, CSV, MD, TXT, MP3, WAV, MP4, MOV, imagens
-                  </div>
-                  <input type="file" multiple hidden x-ref="uploadFileInput"
-                    @change="handleUploadFileInput($event)"
+                  <div style="font-size:13px;color:#666">Arraste arquivos aqui ou <strong style="color:var(--primary)">clique para selecionar</strong></div>
+                  <div style="font-size:11px;color:#999;margin-top:2px">PDF, DOCX, XLSX, CSV, MD, TXT, MP3, WAV, MP4, MOV, imagens</div>
+                  <input type="file" multiple hidden x-ref="uploadFileInput" @change="handleUploadFileInput($event)"
                     accept=".pdf,.docx,.xlsx,.csv,.md,.txt,.mp3,.wav,.ogg,.mp4,.mov,.webm,.png,.jpg,.jpeg,.webp">
                 </div>
 
-                <!-- File list preview -->
+                <!-- File list -->
                 <div x-show="arquivos.uploadForm.files.length > 0" style="margin-top:12px">
-                  <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--text-muted)" x-text="arquivos.uploadForm.files.length + ' arquivo(s) selecionado(s)'"></div>
+                  <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:6px" x-text="arquivos.uploadForm.files.length + ' arquivo(s)'"></div>
                   <template x-for="(entry, idx) in arquivos.uploadForm.files" :key="entry.name + entry.size">
                     <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;font-size:12px">
-                      <span x-text="_uploadFileIcon(entry.type)" style="font-size:16px;flex-shrink:0"></span>
+                      <span x-text="_uploadFileIcon(entry.type)" style="font-size:15px;flex-shrink:0"></span>
                       <div style="flex:1;min-width:0">
                         <div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="entry.name"></div>
-                        <div style="color:var(--text-muted);font-size:11px" x-text="_formatBytes(entry.size)"></div>
+                        <div style="color:#999;font-size:11px" x-text="_formatBytes(entry.size)"></div>
                       </div>
-                      <!-- Status indicators -->
                       <span x-show="entry.status === 'waiting'" class="badge badge--sm badge--neutral">Aguardando</span>
-                      <span x-show="entry.status === 'uploading'" class="badge badge--sm badge--info">Enviando...</span>
-                      <span x-show="entry.status === 'processing'" class="badge badge--sm badge--warning">Processando...</span>
-                      <span x-show="entry.status === 'done'" class="badge badge--sm badge--success">Concluido</span>
-                      <span x-show="entry.status === 'error'" class="badge badge--sm badge--danger" :title="entry.error">Erro</span>
-                      <!-- Progress bar -->
-                      <div x-show="entry.status === 'uploading' || entry.status === 'processing'" style="width:60px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;flex-shrink:0">
-                        <div style="height:100%;background:var(--primary);border-radius:2px;transition:width 0.3s" :style="'width:' + entry.progress + '%'"></div>
-                      </div>
-                      <!-- Remove button (only before upload starts) -->
+                      <span x-show="entry.status === 'uploading'" class="badge badge--sm badge--info">Enviando</span>
+                      <span x-show="entry.status === 'processing'" class="badge badge--sm badge--warning">Processando</span>
+                      <span x-show="entry.status === 'done'" class="badge badge--sm badge--success">OK</span>
+                      <span x-show="entry.status === 'error'" class="badge badge--sm badge--danger">Erro</span>
                       <button x-show="entry.status === 'waiting'" class="op-btn op-btn--ghost op-btn--sm"
-                        @click="removeUploadFile(idx)" title="Remover" style="flex-shrink:0;color:var(--danger)">&times;</button>
+                        @click="removeUploadFile(idx)" style="color:var(--danger);flex-shrink:0">&times;</button>
                     </div>
                   </template>
                 </div>
@@ -4812,7 +4803,7 @@
   <script src="12-APP-data.js?v=72"></script>
   <script src="13-APP-photos.js?v=72"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=82"></script>
+  <script src="11-APP-app.js?v=83"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {
