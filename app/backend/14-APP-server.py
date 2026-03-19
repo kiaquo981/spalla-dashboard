@@ -63,8 +63,10 @@ S3_REGION     = os.environ.get('S3_REGION', 'eu-central')
 # ===== AI CONFIG (Semantic Search + Processing) =====
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
 VOYAGE_API_KEY = os.environ.get('VOYAGE_API_KEY', '')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 WHISPER_MODEL = 'whisper-1'
 VISION_MODEL = 'gpt-4o'
+GEMINI_VISION_MODEL = 'gemini-2.5-flash'
 
 # Embedding config — Voyage AI (512 dims via voyage-3-lite, $0.02/1M tokens, 200M free)
 EMBEDDING_PROVIDER = os.environ.get('EMBEDDING_PROVIDER', 'voyage')  # 'voyage' or 'openai'
@@ -902,6 +904,33 @@ def openai_whisper(audio_bytes, filename, mime_type):
     return str(result)
 
 
+def gemini_vision_describe(image_bytes, mime_type):
+    """Describe image content using Gemini Vision API (free tier). Returns text description."""
+    if not GEMINI_API_KEY:
+        raise ValueError('GEMINI_API_KEY not configured')
+    b64 = base64.b64encode(image_bytes).decode()
+    body = {
+        'contents': [{
+            'parts': [
+                {'text': 'Descreva detalhadamente o conteúdo desta imagem em português. Se houver texto, transcreva-o. Se for um screenshot, descreva o contexto.'},
+                {'inline_data': {'mime_type': mime_type, 'data': b64}}
+            ]
+        }]
+    }
+    conn = http.client.HTTPSConnection('generativelanguage.googleapis.com', timeout=120)
+    conn.request('POST',
+                 f'/v1beta/models/{GEMINI_VISION_MODEL}:generateContent?key={GEMINI_API_KEY}',
+                 body=json.dumps(body).encode(),
+                 headers={'Content-Type': 'application/json'})
+    resp = conn.getresponse()
+    data = resp.read()
+    conn.close()
+    if resp.status >= 400:
+        raise ValueError(f'Gemini API error {resp.status}: {data.decode()[:500]}')
+    result = json.loads(data)
+    return result['candidates'][0]['content']['parts'][0]['text']
+
+
 def openai_vision_describe(image_bytes, mime_type):
     """Describe image content using GPT-4o vision. Returns text description."""
     b64 = base64.b64encode(image_bytes).decode()
@@ -917,6 +946,30 @@ def openai_vision_describe(image_bytes, mime_type):
         }]
     })
     return result['choices'][0]['message']['content']
+
+
+def vision_describe(image_bytes, mime_type):
+    """Describe image using Gemini (primary, free) → OpenAI (fallback). Returns (text, method).
+    Method is always 'ocr_vision' for DB constraint compatibility; provider logged separately."""
+    provider = None
+    # Try Gemini first (free tier)
+    if GEMINI_API_KEY:
+        try:
+            text = gemini_vision_describe(image_bytes, mime_type)
+            log_info('Storage', f'Vision OCR via Gemini ({GEMINI_VISION_MODEL}) succeeded')
+            return text, 'ocr_vision'
+        except Exception as e:
+            log_info('Storage', f'Gemini vision failed, trying OpenAI fallback: {e}')
+    # Fallback to OpenAI
+    if OPENAI_API_KEY:
+        try:
+            text = openai_vision_describe(image_bytes, mime_type)
+            log_info('Storage', f'Vision OCR via OpenAI ({VISION_MODEL}) succeeded')
+            return text, 'ocr_vision'
+        except Exception as e:
+            log_info('Storage', f'OpenAI vision also failed: {e}')
+            raise
+    raise ValueError('No vision API configured (need GEMINI_API_KEY or OPENAI_API_KEY)')
 
 
 def _download_from_supabase_storage(storage_path):
@@ -1183,10 +1236,9 @@ def process_file_pipeline(arquivo_id):
             metodo = 'whisper_video'
 
         elif mime.startswith('image/') or ext in ('png', 'jpg', 'jpeg', 'webp'):
-            if not OPENAI_API_KEY:
-                raise ValueError('OPENAI_API_KEY required for image description')
-            texto = openai_vision_describe(file_bytes, mime)
-            metodo = 'ocr_vision'
+            if not GEMINI_API_KEY and not OPENAI_API_KEY:
+                raise ValueError('GEMINI_API_KEY or OPENAI_API_KEY required for image description')
+            texto, metodo = vision_describe(file_bytes, mime)
 
         else:
             # Unsupported type — mark as ignored
@@ -2152,6 +2204,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             'embedding_dims': EMBEDDING_DIMS,
             'voyage_configured': bool(VOYAGE_API_KEY),
             'openai_configured': bool(OPENAI_API_KEY),
+            'gemini_configured': bool(GEMINI_API_KEY),
+            'vision_provider': 'gemini' if GEMINI_API_KEY else ('openai' if OPENAI_API_KEY else 'none'),
         })
 
     def _handle_storage_test(self):

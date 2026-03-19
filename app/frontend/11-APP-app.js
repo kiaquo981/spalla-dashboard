@@ -1492,6 +1492,17 @@ function operon() {
 
           if (mentees.data?.length) {
             this.data.mentees = mentees.data;
+            // Load emails for schedule form auto-fill via backend API
+            // (vw_god_overview doesn't expose email; direct table access blocked by RLS)
+            try {
+              const emailResp = await fetch(`${CONFIG.API_BASE}/api/mentees`);
+              if (emailResp.ok) {
+                const emailData = await emailResp.json();
+                if (Array.isArray(emailData)) this._menteesWithEmail = emailData;
+              }
+            } catch (e) {
+              console.warn('[Spalla] Failed to load mentee emails:', e);
+            }
           } else {
             console.warn('[Spalla] Supabase mentees empty, using demo');
             this.loadDemoData();
@@ -4022,10 +4033,36 @@ function operon() {
 
     // ===================== WHATSAPP PER-USER SESSION =====================
 
+    // Pre-linked Evolution instances per user (skip QR, always connected)
+    _waPrelinkedInstances: {
+      mariza: { instance_name: 'producao002', phone_number: '5511941936764' },
+    },
+
+    _isPrelinkedUser() {
+      const name = (this.auth.currentUser?.full_name || '').toLowerCase().trim();
+      return this._waPrelinkedInstances[name] || null;
+    },
+
     async loadWaSession() {
       if (!sb || !this.auth.currentUser) return;
       const userId = String(this.auth.currentUser.id);
       if (!userId) return;
+
+      // Check if user has a pre-linked instance (no QR needed)
+      const prelinked = this._isPrelinkedUser();
+      if (prelinked) {
+        this.data.waSession = {
+          id: 'prelinked',
+          user_id: userId,
+          instance_name: prelinked.instance_name,
+          status: 'connected',
+          phone_number: prelinked.phone_number,
+          connected_at: new Date().toISOString(),
+        };
+        this.waVerifyConnection(prelinked.instance_name);
+        return;
+      }
+
       try {
         const { data, error } = await sb.from('wa_sessions')
           .select('*')
@@ -4098,6 +4135,11 @@ function operon() {
     },
 
     async waStartConnection() {
+      // Pre-linked users are already connected, no need to scan QR
+      if (this._isPrelinkedUser()) {
+        this.toast('Seu WhatsApp já está vinculado automaticamente', 'info');
+        return;
+      }
       if (!sb || !this.auth.currentUser) {
         this.toast('Erro: servico indisponivel', 'error');
         return;
@@ -4251,6 +4293,11 @@ function operon() {
 
     async waDisconnect() {
       if (!this.data.waSession) return;
+      // Pre-linked users cannot disconnect (shared instance)
+      if (this._isPrelinkedUser()) {
+        this.toast('Esta instância é vinculada permanentemente à sua conta', 'warning');
+        return;
+      }
       const session = this.data.waSession;
       try {
         const logoutRes = await fetch(`${CONFIG.API_BASE}/api/evolution/instance/logout/${session.instance_name}`, {
@@ -4375,6 +4422,11 @@ function operon() {
 
     // Story 3.1: Dynamic send routing — uses user's instance if connected, fallback to producao002
     _waActiveInstance() {
+      // Pre-linked users always use their assigned instance
+      const prelinked = this._isPrelinkedUser();
+      if (prelinked) {
+        return { instance: prelinked.instance_name, isPersonal: true };
+      }
       const session = this.data.waSession;
       if (session?.status === 'connected' && session?.instance_name) {
         return { instance: session.instance_name, isPersonal: true };
