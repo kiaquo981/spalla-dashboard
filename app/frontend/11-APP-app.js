@@ -1705,7 +1705,7 @@ function operon() {
     // ===================== ARQUIVOS (Storage + Search) =====================
 
     async loadArquivos() {
-      const { data } = await CONFIG.supabase.from('sp_arquivos')
+      const { data } = await this.supabase.from('sp_arquivos')
         .select('*')
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
@@ -1734,14 +1734,14 @@ function operon() {
           const path = `${entidadeTipo}/${nomeStorage}`;
 
           // 1. Upload to Supabase Storage
-          const { error: uploadError } = await CONFIG.supabase.storage
+          const { error: uploadError } = await this.supabase.storage
             .from('spalla-arquivos')
             .upload(path, file);
           if (uploadError) throw uploadError;
 
           // 2. Insert metadata
           const categoria = this._detectCategoria(file.type, ext);
-          const { data: inserted, error: insertError } = await CONFIG.supabase
+          const { data: inserted, error: insertError } = await this.supabase
             .from('sp_arquivos')
             .insert({
               nome_original: file.name,
@@ -1805,14 +1805,14 @@ function operon() {
 
     async deleteArquivo(id) {
       if (!confirm('Excluir este arquivo?')) return;
-      await CONFIG.supabase.from('sp_arquivos')
+      await this.supabase.from('sp_arquivos')
         .update({ deleted_at: new Date().toISOString() })
         .eq('id', id);
       this.arquivos.list = this.arquivos.list.filter(a => a.id !== id);
     },
 
     async togglePinArquivo(id, currentPinned) {
-      await CONFIG.supabase.from('sp_arquivos')
+      await this.supabase.from('sp_arquivos')
         .update({ pinned: !currentPinned })
         .eq('id', id);
       const item = this.arquivos.list.find(a => a.id === id);
@@ -1820,7 +1820,7 @@ function operon() {
     },
 
     async getArquivoUrl(storagePath) {
-      const { data } = await CONFIG.supabase.storage
+      const { data } = await this.supabase.storage
         .from('spalla-arquivos')
         .createSignedUrl(storagePath, 3600);
       if (data?.signedUrl) window.open(data.signedUrl, '_blank');
