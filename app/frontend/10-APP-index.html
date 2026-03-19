@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="16-APP-operon-molecules.css?v=3">
   <link rel="stylesheet" href="17-APP-operon-utilities.css?v=2">
   <link rel="stylesheet" href="18-APP-operon-bridge.css?v=1">
-  <link rel="stylesheet" href="13-APP-styles.css?v=74">
+  <link rel="stylesheet" href="13-APP-styles.css?v=75">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1c1910,#35301d,#1c1910);font-family:'Open Sauce Sans',system-ui,sans-serif;color:var(--brand-500,#8a7d52);font-size:24px;font-weight:700;letter-spacing:0.05em; }
@@ -3451,7 +3451,11 @@
                 <h2 x-show="arquivos.viewMode === 'folder_detail' && arquivos.currentFolder">
                   <span style="color:var(--text-muted);cursor:pointer" @click="closeFolderView()">Arquivos</span>
                   <span style="color:var(--text-muted);margin:0 6px">/</span>
-                  <span x-text="arquivos.currentFolder?.mentorado_nome || 'Geral'"></span>
+                  <span x-show="arquivos.currentFolder?.pasta_id" style="display:inline-flex;align-items:center;gap:6px">
+                    <span style="width:10px;height:10px;border-radius:50%;display:inline-block" :style="'background:' + (arquivos.currentFolder?.cor || '#6b7280')"></span>
+                    <span x-text="arquivos.currentFolder?.nome"></span>
+                  </span>
+                  <span x-show="!arquivos.currentFolder?.pasta_id" x-text="arquivos.currentFolder?.mentorado_nome || 'Geral'"></span>
                 </h2>
                 <h2 x-show="arquivos.viewMode === 'all'">Todos os Arquivos</h2>
               </div>
@@ -3466,6 +3470,19 @@
               <button x-show="arquivos.viewMode === 'all'" class="op-btn op-btn--ghost op-btn--sm" @click="arquivos.viewMode = 'folders'">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                 Pastas
+              </button>
+              <!-- Custom folder actions in detail view -->
+              <button x-show="arquivos.viewMode === 'folder_detail' && arquivos.currentFolder?.pasta_id" class="op-btn op-btn--ghost op-btn--sm"
+                @click="openEditFolderForm(arquivos.currentFolder)" title="Editar pasta">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <button x-show="arquivos.viewMode === 'folder_detail' && arquivos.currentFolder?.pasta_id" class="op-btn op-btn--ghost op-btn--sm op-btn--danger"
+                @click="deleteFolder(arquivos.currentFolder.pasta_id)" title="Excluir pasta">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+              <button x-show="arquivos.viewMode === 'folders'" class="op-btn op-btn--outline op-btn--sm" @click="openNewFolderForm()" title="Nova Pasta">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+                Nova Pasta
               </button>
               <button class="op-btn op-btn--primary" @click="arquivos.viewMode === 'folder_detail' ? openUploadForFolder() : openUploadModal()">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -3533,6 +3550,15 @@
                   </select>
                 </div>
 
+                <!-- Pasta (folder) selector -->
+                <label style="margin-top:12px">Pasta (opcional)</label>
+                <select class="modal__select" x-model="arquivos.uploadForm.pastaId">
+                  <option :value="null">Nenhuma pasta</option>
+                  <template x-for="p in arquivos.customFolders" :key="p.id">
+                    <option :value="p.id" x-text="p.nome"></option>
+                  </template>
+                </select>
+
                 <!-- Description -->
                 <label style="margin-top:12px">Descricao (opcional)</label>
                 <input type="text" class="modal__input" x-model="arquivos.uploadForm.descricao"
@@ -3595,6 +3621,125 @@
                   <span x-show="!arquivos.uploadLoading" x-text="'Enviar ' + arquivos.uploadForm.files.filter(f => f.status === 'waiting').length + ' arquivo(s)'"></span>
                   <span x-show="arquivos.uploadLoading">Enviando...</span>
                 </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5.6 — New Folder Modal -->
+          <div class="modal-overlay" x-show="arquivos.showNewFolderForm" x-transition.opacity @click.self="closeNewFolderForm()" style="z-index:1001">
+            <div class="modal" style="max-width:480px" @click.stop>
+              <div class="modal__header">
+                <h3>Nova Pasta</h3>
+                <button @click="closeNewFolderForm()">&times;</button>
+              </div>
+              <div class="modal__body">
+                <label>Nome *</label>
+                <input type="text" class="modal__input" x-model="arquivos.newFolderForm.nome" placeholder="Ex: Depoimentos, Contratos..." @keydown.enter="createFolder()">
+
+                <label style="margin-top:12px">Descricao (opcional)</label>
+                <input type="text" class="modal__input" x-model="arquivos.newFolderForm.descricao" placeholder="Breve descricao da pasta...">
+
+                <label style="margin-top:12px">Cor</label>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+                  <template x-for="c in arquivos.folderColors" :key="c.hex">
+                    <button type="button" style="width:28px;height:28px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:all 0.15s;padding:0"
+                      :style="'background:' + c.hex + ';' + (arquivos.newFolderForm.cor === c.hex ? 'border-color:var(--text);transform:scale(1.2)' : 'border-color:transparent')"
+                      @click="arquivos.newFolderForm.cor = c.hex"
+                      :title="c.name"></button>
+                  </template>
+                </div>
+
+                <label style="margin-top:12px">Mentorado (opcional - vincular pasta)</label>
+                <div style="position:relative">
+                  <div style="display:flex;gap:6px;align-items:center">
+                    <input type="text" class="modal__input" style="flex:1"
+                      placeholder="Buscar mentorado..."
+                      x-model="arquivos.newFolderForm.mentoradoSearch"
+                      @focus="arquivos.newFolderForm.showMentoradoDropdown = true"
+                      @input="arquivos.newFolderForm.showMentoradoDropdown = true"
+                      @keydown.escape="arquivos.newFolderForm.showMentoradoDropdown = false">
+                    <button class="op-btn op-btn--ghost op-btn--sm" x-show="arquivos.newFolderForm.mentoradoId"
+                      @click="clearNewFolderMentorado()" style="flex-shrink:0">&times;</button>
+                  </div>
+                  <div x-show="arquivos.newFolderForm.showMentoradoDropdown && newFolderFilteredMentees.length > 0"
+                    @click.outside="arquivos.newFolderForm.showMentoradoDropdown = false"
+                    style="position:absolute;top:100%;left:0;right:0;z-index:10;background:var(--bg-card, #fff);border:1px solid var(--border);border-radius:6px;max-height:160px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.15);margin-top:4px">
+                    <template x-for="m in newFolderFilteredMentees" :key="m.id">
+                      <div style="padding:6px 12px;cursor:pointer;font-size:13px" @click="selectNewFolderMentorado(m)"
+                        @mouseenter="$el.style.background='var(--hover-bg, #f3f4f6)'" @mouseleave="$el.style.background=''">
+                        <span style="font-weight:500" x-text="m.nome"></span>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+              <div class="modal__footer">
+                <button class="btn" @click="closeNewFolderForm()">Cancelar</button>
+                <button class="btn btn--brand" @click="createFolder()" :disabled="!arquivos.newFolderForm.nome.trim()">Criar Pasta</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5.6 — Edit Folder Modal -->
+          <div class="modal-overlay" x-show="arquivos.showEditFolderForm" x-transition.opacity @click.self="closeEditFolderForm()" style="z-index:1001">
+            <div class="modal" style="max-width:480px" @click.stop>
+              <div class="modal__header">
+                <h3>Editar Pasta</h3>
+                <button @click="closeEditFolderForm()">&times;</button>
+              </div>
+              <div class="modal__body">
+                <label>Nome</label>
+                <input type="text" class="modal__input" x-model="arquivos.editingFolder.nome" @keydown.enter="editFolder()">
+
+                <label style="margin-top:12px">Descricao</label>
+                <input type="text" class="modal__input" x-model="arquivos.editingFolder.descricao">
+
+                <label style="margin-top:12px">Cor</label>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+                  <template x-for="c in arquivos.folderColors" :key="c.hex">
+                    <button type="button" style="width:28px;height:28px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:all 0.15s;padding:0"
+                      :style="'background:' + c.hex + ';' + (arquivos.editingFolder?.cor === c.hex ? 'border-color:var(--text);transform:scale(1.2)' : 'border-color:transparent')"
+                      @click="arquivos.editingFolder.cor = c.hex"
+                      :title="c.name"></button>
+                  </template>
+                </div>
+              </div>
+              <div class="modal__footer">
+                <button class="btn" @click="closeEditFolderForm()">Cancelar</button>
+                <button class="btn btn--brand" @click="editFolder()">Salvar</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5.6 — Move File to Folder Modal -->
+          <div class="modal-overlay" x-show="arquivos.showMoveModal" x-transition.opacity @click.self="closeMoveModal()" style="z-index:1001">
+            <div class="modal" style="max-width:420px" @click.stop>
+              <div class="modal__header">
+                <h3>Mover para Pasta</h3>
+                <button @click="closeMoveModal()">&times;</button>
+              </div>
+              <div class="modal__body">
+                <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
+                  Arquivo: <strong x-text="arquivos.moveFileTarget?.nome_original"></strong>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px">
+                  <div style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px"
+                    @click="moveFileToFolder(null)"
+                    @mouseenter="$el.style.background='var(--hover-bg, #f3f4f6)'" @mouseleave="$el.style.background=''">
+                    <span style="color:var(--text-muted)">&#10060;</span>
+                    <span>Sem pasta</span>
+                  </div>
+                  <template x-for="p in arquivos.customFolders" :key="p.id">
+                    <div style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px"
+                      :style="arquivos.moveFileTarget?.pasta_id === p.id ? 'background:var(--primary-bg, rgba(16,185,129,0.08));border-color:var(--primary)' : ''"
+                      @click="moveFileToFolder(p.id)"
+                      @mouseenter="$el.style.background='var(--hover-bg, #f3f4f6)'" @mouseleave="$el.style.background = arquivos.moveFileTarget?.pasta_id === p.id ? 'var(--primary-bg)' : ''">
+                      <span style="width:12px;height:12px;border-radius:50%;flex-shrink:0" :style="'background:' + p.cor"></span>
+                      <span style="font-weight:500" x-text="p.nome"></span>
+                      <span style="color:var(--text-muted);font-size:11px;margin-left:auto" x-text="(p.total_arquivos || 0) + ' arq.'"></span>
+                    </div>
+                  </template>
+                </div>
               </div>
             </div>
           </div>
@@ -3711,8 +3856,42 @@
               </div>
             </template>
 
-            <!-- Geral folder + Mentorado folders -->
+            <!-- Custom Folders + Geral + Mentorado folders -->
             <div class="op-grid op-grid-cols-3" style="gap:12px">
+              <!-- 5.6 — Custom folders -->
+              <template x-for="cf in arquivos.customFolders" :key="cf.id">
+                <div class="op-card arquivos-folder-card arquivos-custom-folder-card" style="cursor:pointer;padding:16px;transition:all 0.15s;position:relative"
+                  :style="'border-left:4px solid ' + (cf.cor || '#6b7280')"
+                  @click="openCustomFolder(cf)"
+                  @mouseenter="$el.style.borderColor=cf.cor || '#6b7280';$el.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'"
+                  @mouseleave="$el.style.boxShadow=''">
+                  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+                    <div style="display:flex;align-items:center;justify-content:center;font-size:20px;border-radius:10px;width:44px;height:44px;flex-shrink:0"
+                      :style="'background:' + (cf.cor || '#6b7280') + '20'">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" :stroke="cf.cor || '#6b7280'" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    </div>
+                    <div style="flex:1;min-width:0">
+                      <div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="cf.nome"></div>
+                      <div x-show="cf.descricao" style="font-size:11px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="cf.descricao"></div>
+                      <div x-show="cf.mentorado_nome" style="font-size:11px;color:var(--text-muted)" x-text="cf.mentorado_nome"></div>
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                    <span class="badge badge--sm badge--neutral" x-text="(cf.total_arquivos || 0) + ' arquivos'"></span>
+                    <span class="badge badge--sm" x-show="cf.total_mb > 0" x-text="(cf.total_mb || 0).toFixed(1) + ' MB'"></span>
+                  </div>
+                  <!-- Edit/Delete on hover -->
+                  <div class="arquivos-custom-folder-actions" style="position:absolute;top:8px;right:8px;display:none;gap:2px">
+                    <button class="op-btn op-btn--ghost op-btn--sm" @click.stop="openEditFolderForm(cf)" title="Editar" style="font-size:11px;padding:2px 4px">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                    <button class="op-btn op-btn--ghost op-btn--sm op-btn--danger" @click.stop="deleteFolder(cf.id)" title="Excluir" style="font-size:11px;padding:2px 4px">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </template>
+
               <!-- Geral folder -->
               <div class="op-card arquivos-folder-card" style="cursor:pointer;padding:16px;transition:all 0.15s"
                 @click="openFolder(null)"
@@ -3795,6 +3974,10 @@
                         <span x-text="_formatBytes(a.tamanho_bytes)"></span>
                         <span x-text="new Date(a.created_at).toLocaleDateString('pt-BR')"></span>
                         <span x-show="a.descricao" x-text="a.descricao" style="font-style:italic"></span>
+                        <span x-show="a.pasta_id && _folderNameById(a.pasta_id)" class="badge badge--sm" style="font-size:10px;display:inline-flex;align-items:center;gap:3px">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                          <span x-text="_folderNameById(a.pasta_id)"></span>
+                        </span>
                       </div>
                     </div>
                     <!-- 5.4 — Animated status icon for processing -->
@@ -3803,6 +3986,10 @@
                     <!-- Reprocess button for errors -->
                     <button x-show="a.status_processamento === 'erro'" class="op-btn op-btn--ghost op-btn--sm" @click="reprocessArquivo(a.id)" title="Reprocessar"
                       style="font-size:11px;color:var(--warning)">Reprocessar</button>
+                    <!-- Move to folder -->
+                    <button class="op-btn op-btn--ghost op-btn--sm" @click.stop="openMoveModal(a)" title="Mover para pasta">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><polyline points="12 11 12 17"/><polyline points="9 14 12 17 15 14"/></svg>
+                    </button>
                     <button class="op-btn op-btn--ghost op-btn--sm" @click="togglePinArquivo(a.id, a.pinned)" :title="a.pinned ? 'Desafixar' : 'Fixar'">
                       <span x-text="a.pinned ? '&#128204;' : '&#128392;'"></span>
                     </button>
@@ -3835,16 +4022,24 @@
                       <a href="#" @click.prevent="openViewer(a)" style="font-weight:500;font-size:13px;text-decoration:none;color:var(--text)" x-text="a.nome_original"></a>
                       <span x-show="a.pinned" style="font-size:12px" title="Pinned">&#128204;</span>
                     </div>
-                    <div style="font-size:11px;color:var(--text-muted);display:flex;gap:8px">
+                    <div style="font-size:11px;color:var(--text-muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
                       <span x-text="a.entidade_tipo"></span>
                       <span x-text="_formatBytes(a.tamanho_bytes)"></span>
                       <span x-text="new Date(a.created_at).toLocaleDateString('pt-BR')"></span>
+                      <span x-show="a.pasta_id && _folderNameById(a.pasta_id)" class="badge badge--sm" style="font-size:10px;display:inline-flex;align-items:center;gap:3px">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        <span x-text="_folderNameById(a.pasta_id)"></span>
+                      </span>
                     </div>
                   </div>
                   <span style="font-size:16px" :class="{ 'arquivos-status-pulse': _isProcessing(a.status_processamento) }"
                     x-text="_statusIcon(a.status_processamento)" :title="a.status_processamento"></span>
                   <button x-show="a.status_processamento === 'erro'" class="op-btn op-btn--ghost op-btn--sm" @click="reprocessArquivo(a.id)" title="Reprocessar"
                     style="font-size:11px;color:var(--warning)">Reprocessar</button>
+                  <!-- Move to folder -->
+                  <button class="op-btn op-btn--ghost op-btn--sm" @click.stop="openMoveModal(a)" title="Mover para pasta">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><polyline points="12 11 12 17"/><polyline points="9 14 12 17 15 14"/></svg>
+                  </button>
                   <button class="op-btn op-btn--ghost op-btn--sm" @click="togglePinArquivo(a.id, a.pinned)" :title="a.pinned ? 'Desafixar' : 'Fixar'">
                     <span x-text="a.pinned ? '&#128204;' : '&#128392;'"></span>
                   </button>
@@ -4621,7 +4816,7 @@
   <script src="12-APP-data.js?v=72"></script>
   <script src="13-APP-photos.js?v=72"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=80"></script>
+  <script src="11-APP-app.js?v=81"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {
