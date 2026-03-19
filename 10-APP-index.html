@@ -150,6 +150,10 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
             <span x-show="ui.sidebarOpen">Google Docs</span>
           </a>
+          <a class="op-nav-item" :class="{ active: ui.page === 'arquivos' }" @click="navigate('arquivos'); loadArquivos()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span x-show="ui.sidebarOpen">Arquivos</span>
+          </a>
 
           <div class="op-sidebar__section" x-show="ui.sidebarOpen">Mentorado</div>
           <a class="op-nav-item" href="/jornada" target="_blank">
@@ -3366,6 +3370,148 @@
           </div>
         </div>
 
+        <!-- ===== PAGE: ARQUIVOS (Storage + Semantic Search) ===== -->
+        <div class="page-content" x-show="ui.page === 'arquivos'" x-transition>
+          <div class="page-header">
+            <h2>Arquivos &amp; Busca Semantica</h2>
+            <div style="display:flex;gap:8px">
+              <label class="op-btn op-btn--primary" style="cursor:pointer" :class="{ 'op-btn--loading': arquivos.uploadLoading }">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Upload
+                <input type="file" multiple hidden @change="uploadArquivo($event)" accept=".pdf,.docx,.xlsx,.csv,.md,.txt,.mp3,.wav,.ogg,.mp4,.mov,.webm,.png,.jpg,.jpeg,.webp">
+              </label>
+            </div>
+          </div>
+
+          <!-- Search Bar -->
+          <div class="op-card" style="margin-bottom:16px;padding:16px">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <input type="text" class="op-input" style="flex:1;min-width:250px"
+                placeholder="Buscar: 'depoimento da Rosalie sobre vendas', 'plano de acao do Joao'..."
+                x-model="arquivos.searchQuery"
+                @keydown.enter="searchArquivos()">
+              <select class="op-select" style="width:120px" x-model="arquivos.searchMode">
+                <option value="hybrid">Hibrida</option>
+                <option value="semantic">Semantica</option>
+                <option value="keyword">Keyword</option>
+              </select>
+              <select class="op-select" style="width:130px" x-model="arquivos.filterCategoria">
+                <option value="">Todas categorias</option>
+                <option value="documento">Documentos</option>
+                <option value="audio">Audio</option>
+                <option value="video">Video</option>
+                <option value="imagem">Imagens</option>
+                <option value="planilha">Planilhas</option>
+              </select>
+              <button class="op-btn op-btn--primary" @click="searchArquivos()" :disabled="arquivos.searchLoading">
+                <template x-if="!arquivos.searchLoading">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </template>
+                <template x-if="arquivos.searchLoading"><span>...</span></template>
+                Buscar
+              </button>
+            </div>
+          </div>
+
+          <!-- Search Results -->
+          <template x-if="arquivos.searchResults.length > 0">
+            <div class="op-card" style="margin-bottom:16px">
+              <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-weight:600">
+                Resultados da Busca
+                <span class="badge badge--sm badge--info" x-text="arquivos.searchResults.length + ' encontrados'"></span>
+              </div>
+              <template x-for="r in arquivos.searchResults" :key="r.chunk_id">
+                <div style="padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer" @click="getArquivoUrl(r.storage_path)">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <span x-text="_categoriaIcon(r.categoria)"></span>
+                      <strong x-text="r.arquivo_nome" style="font-size:13px"></strong>
+                      <span class="badge badge--sm" x-show="r.mentorado_nome" x-text="r.mentorado_nome"></span>
+                    </div>
+                    <div style="display:flex;gap:6px;align-items:center">
+                      <span class="badge badge--sm badge--success" x-show="r.rerank_score" x-text="Math.round((r.rerank_score || r.score_final || r.similaridade) * 100) + '%'"></span>
+                      <span class="badge badge--sm" x-text="r.categoria"></span>
+                    </div>
+                  </div>
+                  <div style="font-size:12px;color:var(--text-muted);line-height:1.5;max-height:80px;overflow:hidden" x-text="r.chunk_texto?.substring(0, 300) + (r.chunk_texto?.length > 300 ? '...' : '')"></div>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <!-- Storage Overview -->
+          <template x-if="arquivos.storageOverview.length > 0">
+            <div class="op-grid op-grid-cols-4" style="gap:12px;margin-bottom:16px">
+              <template x-for="o in arquivos.storageOverview" :key="o.entidade_tipo">
+                <div class="op-card" style="padding:12px;text-align:center">
+                  <div style="font-size:20px;font-weight:700" x-text="o.total_arquivos"></div>
+                  <div style="font-size:11px;color:var(--text-muted)" x-text="o.entidade_tipo"></div>
+                  <div style="font-size:11px" x-text="o.total_mb + ' MB'"></div>
+                  <div style="font-size:11px">
+                    <span style="color:var(--success)" x-text="o.indexados + ' indexados'"></span>
+                    <span style="color:var(--warning)" x-show="o.pendentes > 0" x-text="' / ' + o.pendentes + ' pendentes'"></span>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <!-- File List -->
+          <div class="op-card">
+            <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:600">Todos os Arquivos</span>
+              <span class="badge badge--sm" x-text="arquivos.list.length + ' arquivos'"></span>
+            </div>
+            <template x-if="arquivos.list.length === 0">
+              <div style="padding:32px;text-align:center;color:var(--text-muted)">
+                Nenhum arquivo ainda. Use o botao Upload para enviar.
+              </div>
+            </template>
+            <template x-for="a in arquivos.list" :key="a.id">
+              <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px">
+                <span style="font-size:20px" x-text="_categoriaIcon(a.categoria)"></span>
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <a href="#" @click.prevent="getArquivoUrl(a.storage_path)" style="font-weight:500;font-size:13px;text-decoration:none;color:var(--text)" x-text="a.nome_original"></a>
+                    <span x-show="a.pinned" style="font-size:12px" title="Pinned">&#128204;</span>
+                  </div>
+                  <div style="font-size:11px;color:var(--text-muted);display:flex;gap:8px">
+                    <span x-text="a.entidade_tipo"></span>
+                    <span x-text="_formatBytes(a.tamanho_bytes)"></span>
+                    <span x-text="new Date(a.created_at).toLocaleDateString('pt-BR')"></span>
+                  </div>
+                </div>
+                <span style="font-size:16px" x-text="_statusIcon(a.status_processamento)" :title="a.status_processamento"></span>
+                <button class="op-btn op-btn--ghost op-btn--sm" @click="togglePinArquivo(a.id, a.pinned)" :title="a.pinned ? 'Desafixar' : 'Fixar'">
+                  <span x-text="a.pinned ? '&#128204;' : '&#128392;'"></span>
+                </button>
+                <button class="op-btn op-btn--ghost op-btn--sm op-btn--danger" @click="deleteArquivo(a.id)" title="Excluir">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+              </div>
+            </template>
+          </div>
+
+          <!-- Processing Queue -->
+          <template x-if="arquivos.queue.length > 0">
+            <div class="op-card" style="margin-top:16px">
+              <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-weight:600">
+                Fila de Processamento
+              </div>
+              <template x-for="q in arquivos.queue" :key="q.id">
+                <div style="padding:8px 16px;border-bottom:1px solid var(--border);font-size:12px;display:flex;justify-content:space-between">
+                  <span x-text="q.nome_original"></span>
+                  <span>
+                    <span x-text="_statusIcon(q.status_processamento)"></span>
+                    <span x-text="q.status_processamento"></span>
+                    <span style="color:var(--text-muted)" x-text="Math.round(q.minutos_na_fila) + ' min na fila'"></span>
+                  </span>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+
         <!-- ===== PAGE: DOCS ===== -->
         <div class="page-content" x-show="ui.page === 'docs'" x-transition>
           <div class="page-header"><h2>Documentos Google Drive</h2></div>
@@ -4011,7 +4157,7 @@
   <script src="12-APP-data.js?v=72"></script>
   <script src="13-APP-photos.js?v=72"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=74"></script>
+  <script src="11-APP-app.js?v=75"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {

@@ -330,6 +330,21 @@ function operon() {
     // --- Schedule Form ---
     scheduleForm: { mentorado: '', mentorado_id: '', tipo: 'acompanhamento', data: '', horario: '10:00', duracao: 60, email: '', notas: '' },
 
+    // --- Arquivos (Storage + Semantic Search) ---
+    arquivos: {
+      list: [],
+      searchResults: [],
+      searchQuery: '',
+      searchMode: 'hybrid',
+      searchLoading: false,
+      uploadLoading: false,
+      storageOverview: [],
+      queue: [],
+      filterCategoria: '',
+      filterEntidade: '',
+      voyageConfigured: false,
+    },
+
     // --- API Integration State ---
     _menteesWithEmail: [],
     _integrations: {},
@@ -1676,6 +1691,7 @@ function operon() {
       'planos-acao': 'planos_acao',
       'onboarding': 'onboarding',
       'docs': 'docs',
+      'arquivos': 'arquivos',
       'settings': 'settings',
     },
 
@@ -1684,6 +1700,157 @@ function operon() {
         if (p === page) return route;
       }
       return page.replace(/_/g, '-');
+    },
+
+    // ===================== ARQUIVOS (Storage + Search) =====================
+
+    async loadArquivos() {
+      const { data } = await CONFIG.supabase.from('sp_arquivos')
+        .select('*')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+      this.arquivos.list = data || [];
+      // Load storage status
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/storage/status`);
+        const status = await res.json();
+        this.arquivos.storageOverview = status.overview || [];
+        this.arquivos.queue = status.queue || [];
+        this.arquivos.voyageConfigured = status.voyage_configured;
+      } catch(e) { console.error('Storage status error:', e); }
+    },
+
+    async uploadArquivo(event) {
+      const files = event.target.files;
+      if (!files || !files.length) return;
+      this.arquivos.uploadLoading = true;
+
+      for (const file of files) {
+        try {
+          const ext = file.name.split('.').pop().toLowerCase();
+          const nomeStorage = crypto.randomUUID() + '.' + ext;
+          const entidadeTipo = 'geral';
+          const entidadeId = null;
+          const path = `${entidadeTipo}/${nomeStorage}`;
+
+          // 1. Upload to Supabase Storage
+          const { error: uploadError } = await CONFIG.supabase.storage
+            .from('spalla-arquivos')
+            .upload(path, file);
+          if (uploadError) throw uploadError;
+
+          // 2. Insert metadata
+          const categoria = this._detectCategoria(file.type, ext);
+          const { data: inserted, error: insertError } = await CONFIG.supabase
+            .from('sp_arquivos')
+            .insert({
+              nome_original: file.name,
+              nome_storage: nomeStorage,
+              storage_path: path,
+              mime_type: file.type,
+              tamanho_bytes: file.size,
+              extensao: ext,
+              entidade_tipo: entidadeTipo,
+              entidade_id: entidadeId,
+              categoria,
+            })
+            .select()
+            .single();
+          if (insertError) throw insertError;
+
+          // 3. Trigger processing
+          await fetch(`${CONFIG.API_BASE}/api/storage/process`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ arquivo_id: inserted.id }),
+          });
+
+          this.arquivos.list.unshift(inserted);
+        } catch(e) {
+          console.error('Upload failed:', e);
+          alert(`Erro ao enviar ${file.name}: ${e.message || e}`);
+        }
+      }
+      this.arquivos.uploadLoading = false;
+      event.target.value = '';
+    },
+
+    async searchArquivos() {
+      const q = this.arquivos.searchQuery.trim();
+      if (!q) { this.arquivos.searchResults = []; return; }
+      this.arquivos.searchLoading = true;
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/storage/search`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: q,
+            mode: this.arquivos.searchMode,
+            limit: 20,
+            filters: {
+              categoria: this.arquivos.filterCategoria || null,
+              entidade_tipo: this.arquivos.filterEntidade || null,
+            },
+          }),
+        });
+        const data = await res.json();
+        this.arquivos.searchResults = data.results || [];
+        if (data.error) alert(data.error);
+      } catch(e) {
+        console.error('Search failed:', e);
+        alert('Erro na busca: ' + e.message);
+      }
+      this.arquivos.searchLoading = false;
+    },
+
+    async deleteArquivo(id) {
+      if (!confirm('Excluir este arquivo?')) return;
+      await CONFIG.supabase.from('sp_arquivos')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id);
+      this.arquivos.list = this.arquivos.list.filter(a => a.id !== id);
+    },
+
+    async togglePinArquivo(id, currentPinned) {
+      await CONFIG.supabase.from('sp_arquivos')
+        .update({ pinned: !currentPinned })
+        .eq('id', id);
+      const item = this.arquivos.list.find(a => a.id === id);
+      if (item) item.pinned = !currentPinned;
+    },
+
+    async getArquivoUrl(storagePath) {
+      const { data } = await CONFIG.supabase.storage
+        .from('spalla-arquivos')
+        .createSignedUrl(storagePath, 3600);
+      if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+    },
+
+    _detectCategoria(mimeType, ext) {
+      if (mimeType.startsWith('image/')) return 'imagem';
+      if (mimeType.startsWith('audio/')) return 'audio';
+      if (mimeType.startsWith('video/')) return 'video';
+      if (['xlsx', 'xls', 'csv'].includes(ext)) return 'planilha';
+      if (['pdf', 'docx', 'doc', 'md', 'txt'].includes(ext)) return 'documento';
+      return 'outro';
+    },
+
+    _formatBytes(bytes) {
+      if (!bytes) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    },
+
+    _statusIcon(status) {
+      const map = { pendente: '⏳', extraindo: '📄', chunking: '✂️', embedding: '🧠', concluido: '✅', erro: '❌', ignorado: '⏭️' };
+      return map[status] || '❓';
+    },
+
+    _categoriaIcon(cat) {
+      const map = { documento: '📄', imagem: '🖼️', audio: '🎵', video: '🎬', planilha: '📊', outro: '📎' };
+      return map[cat] || '📎';
     },
 
     navigate(page) {
