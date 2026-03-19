@@ -355,6 +355,7 @@ function operon() {
       // 5.6 — Custom folders
       customFolders: [],         // from vw_pastas_overview
       showNewFolderForm: false,
+      creatingFolder: false,
       newFolderForm: { nome: '', descricao: '', cor: '#6b7280', mentoradoId: null, mentoradoSearch: '', showMentoradoDropdown: false },
       editingFolder: null,       // folder object being edited, or null
       showEditFolderForm: false,
@@ -1130,6 +1131,10 @@ function operon() {
           // Load WhatsApp per-user session + start health check
           this.loadWaSession();
           this.waStartHealthCheck();
+          // Lazy-load Arquivos data if page is already on arquivos (deep-link or localStorage restore)
+          if (this.ui.page === 'arquivos') {
+            this.loadArquivos();
+          }
         }
       } catch (e) {
         console.error('[Spalla] INIT ERROR:', e);
@@ -1852,6 +1857,13 @@ function operon() {
     async createFolder() {
       const f = this.arquivos.newFolderForm;
       if (!f.nome.trim()) return alert('Nome da pasta e obrigatorio.');
+      // Prevent duplicate names
+      const nameNorm = f.nome.trim().toLowerCase();
+      const exists = this.arquivos.customFolders.some(cf => cf.nome?.toLowerCase() === nameNorm);
+      if (exists) return alert('Ja existe uma pasta com esse nome.');
+      // Prevent double-click
+      if (this.arquivos.creatingFolder) return;
+      this.arquivos.creatingFolder = true;
       try {
         const insertData = {
           nome: f.nome.trim(),
@@ -1867,6 +1879,8 @@ function operon() {
       } catch(e) {
         console.error('[Arquivos] createFolder failed:', e);
         alert('Erro ao criar pasta: ' + (e.message || e));
+      } finally {
+        this.arquivos.creatingFolder = false;
       }
     },
 
