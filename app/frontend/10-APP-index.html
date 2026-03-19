@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="16-APP-operon-molecules.css?v=3">
   <link rel="stylesheet" href="17-APP-operon-utilities.css?v=2">
   <link rel="stylesheet" href="18-APP-operon-bridge.css?v=1">
-  <link rel="stylesheet" href="13-APP-styles.css?v=72">
+  <link rel="stylesheet" href="13-APP-styles.css?v=73">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1c1910,#35301d,#1c1910);font-family:'Open Sauce Sans',system-ui,sans-serif;color:var(--brand-500,#8a7d52);font-size:24px;font-weight:700;letter-spacing:0.05em; }
@@ -3538,7 +3538,7 @@
                 <span class="badge badge--sm badge--info" x-text="arquivos.searchResults.length + ' encontrados'"></span>
               </div>
               <template x-for="r in arquivos.searchResults" :key="r.chunk_id">
-                <div style="padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer" @click="getArquivoUrl(r.storage_path)">
+                <div style="padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer" @click="openViewer({id: r.arquivo_id, nome_original: r.arquivo_nome, storage_path: r.storage_path, mime_type: r.mime_type, categoria: r.categoria, extensao: (r.arquivo_nome||'').split('.').pop()})">
                   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
                     <div style="display:flex;align-items:center;gap:8px">
                       <span x-text="_categoriaIcon(r.categoria)"></span>
@@ -3589,7 +3589,7 @@
                 <span style="font-size:20px" x-text="_categoriaIcon(a.categoria)"></span>
                 <div style="flex:1;min-width:0">
                   <div style="display:flex;align-items:center;gap:6px">
-                    <a href="#" @click.prevent="getArquivoUrl(a.storage_path)" style="font-weight:500;font-size:13px;text-decoration:none;color:var(--text)" x-text="a.nome_original"></a>
+                    <a href="#" @click.prevent="openViewer(a)" style="font-weight:500;font-size:13px;text-decoration:none;color:var(--text)" x-text="a.nome_original"></a>
                     <span x-show="a.pinned" style="font-size:12px" title="Pinned">&#128204;</span>
                   </div>
                   <div style="font-size:11px;color:var(--text-muted);display:flex;gap:8px">
@@ -3625,6 +3625,106 @@
                   </span>
                 </div>
               </template>
+            </div>
+          </template>
+
+          <!-- ===== DOCUMENT VIEWER MODAL ===== -->
+          <template x-if="viewer.open">
+            <div class="modal-overlay" @click.self="closeViewer()" style="z-index:1000">
+              <div style="background:var(--surface);border-radius:12px;width:90vw;max-width:960px;height:85vh;display:flex;flex-direction:column;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);overflow:hidden">
+                <!-- Header -->
+                <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
+                  <span style="font-size:24px" x-text="_categoriaIcon(viewer.arquivo?.categoria)"></span>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="viewer.arquivo?.nome_original"></div>
+                    <div style="font-size:11px;color:var(--text-muted);display:flex;gap:8px">
+                      <span x-text="viewer.arquivo?.entidade_tipo"></span>
+                      <span x-text="_formatBytes(viewer.arquivo?.tamanho_bytes)"></span>
+                      <span x-text="viewer.arquivo?.extensao?.toUpperCase()"></span>
+                    </div>
+                  </div>
+                  <a :href="viewer.signedUrl" target="_blank" class="op-btn op-btn--ghost op-btn--sm" x-show="viewer.signedUrl" title="Abrir em nova aba">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  </a>
+                  <a :href="viewer.signedUrl" download class="op-btn op-btn--ghost op-btn--sm" x-show="viewer.signedUrl" title="Download">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  </a>
+                  <button class="op-btn op-btn--ghost op-btn--sm" @click="closeViewer()" title="Fechar">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+
+                <!-- Content -->
+                <div style="flex:1;overflow:auto;padding:0">
+                  <!-- Loading -->
+                  <template x-if="viewer.loading">
+                    <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted)">Carregando...</div>
+                  </template>
+
+                  <!-- Text / Markdown -->
+                  <template x-if="!viewer.loading && viewer.mode === 'text'">
+                    <div style="padding:24px 32px;max-width:800px;margin:0 auto">
+                      <template x-if="viewer.contentHtml">
+                        <div class="viewer-markdown" x-html="viewer.contentHtml"></div>
+                      </template>
+                      <template x-if="!viewer.contentHtml && viewer.content">
+                        <pre style="white-space:pre-wrap;word-wrap:break-word;font-family:inherit;font-size:13px;line-height:1.7;margin:0;color:var(--text)" x-text="viewer.content"></pre>
+                      </template>
+                      <template x-if="!viewer.content && !viewer.contentHtml">
+                        <div style="text-align:center;color:var(--text-muted);padding:40px">Conteudo nao disponivel. <a :href="viewer.signedUrl" target="_blank">Abrir arquivo</a></div>
+                      </template>
+                    </div>
+                  </template>
+
+                  <!-- PDF -->
+                  <template x-if="!viewer.loading && viewer.mode === 'pdf'">
+                    <iframe :src="viewer.signedUrl" style="width:100%;height:100%;border:none"></iframe>
+                  </template>
+
+                  <!-- Image -->
+                  <template x-if="!viewer.loading && viewer.mode === 'image'">
+                    <div style="display:flex;align-items:center;justify-content:center;height:100%;padding:20px;background:#1a1a1a">
+                      <img :src="viewer.signedUrl" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:4px">
+                    </div>
+                  </template>
+
+                  <!-- Audio -->
+                  <template x-if="!viewer.loading && viewer.mode === 'audio'">
+                    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:24px;padding:40px">
+                      <div style="font-size:64px">🎵</div>
+                      <audio controls :src="viewer.signedUrl" style="width:100%;max-width:500px"></audio>
+                      <template x-if="viewer.content">
+                        <div style="max-width:700px;width:100%;max-height:300px;overflow:auto;padding:16px;background:var(--surface-alt,#f5f5f5);border-radius:8px;font-size:13px;line-height:1.7">
+                          <div style="font-weight:600;margin-bottom:8px;font-size:12px;color:var(--text-muted)">TRANSCRICAO</div>
+                          <div x-text="viewer.content"></div>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+
+                  <!-- Video -->
+                  <template x-if="!viewer.loading && viewer.mode === 'video'">
+                    <div style="display:flex;flex-direction:column;align-items:center;height:100%;padding:20px;background:#1a1a1a">
+                      <video controls :src="viewer.signedUrl" style="max-width:100%;max-height:70%;border-radius:4px"></video>
+                      <template x-if="viewer.content">
+                        <div style="max-width:700px;width:100%;max-height:200px;overflow:auto;margin-top:16px;padding:16px;background:var(--surface);border-radius:8px;font-size:13px;line-height:1.7">
+                          <div style="font-weight:600;margin-bottom:8px;font-size:12px;color:var(--text-muted)">TRANSCRICAO</div>
+                          <div x-text="viewer.content"></div>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+
+                  <!-- Raw / Unknown -->
+                  <template x-if="!viewer.loading && viewer.mode === 'raw'">
+                    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px">
+                      <div style="font-size:48px">📎</div>
+                      <div style="color:var(--text-muted)">Visualizacao nao disponivel para este tipo de arquivo</div>
+                      <a :href="viewer.signedUrl" download class="op-btn op-btn--primary">Download</a>
+                    </div>
+                  </template>
+                </div>
+              </div>
             </div>
           </template>
         </div>
@@ -4274,7 +4374,7 @@
   <script src="12-APP-data.js?v=72"></script>
   <script src="13-APP-photos.js?v=72"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=78"></script>
+  <script src="11-APP-app.js?v=79"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {

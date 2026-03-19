@@ -1294,6 +1294,18 @@ img { max-width: 100%; display: block; }
 /* ===== MODALS ===== */
 .modal-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: var(--sp-4); }
 .modal { background: #fff; border-radius: var(--r-xl); width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-xl); }
+/* Document Viewer Markdown */
+.viewer-markdown { font-size: 14px; line-height: 1.8; color: var(--neutral-800, #1a1a1a); }
+.viewer-markdown h1 { font-size: 1.8em; font-weight: 700; margin: 1.2em 0 0.6em; padding-bottom: 0.3em; border-bottom: 1px solid var(--neutral-200, #e5e5e5); }
+.viewer-markdown h2 { font-size: 1.4em; font-weight: 600; margin: 1em 0 0.5em; padding-bottom: 0.2em; border-bottom: 1px solid var(--neutral-100, #f0f0f0); }
+.viewer-markdown h3 { font-size: 1.15em; font-weight: 600; margin: 0.8em 0 0.4em; }
+.viewer-markdown h4, .viewer-markdown h5, .viewer-markdown h6 { font-size: 1em; font-weight: 600; margin: 0.6em 0 0.3em; }
+.viewer-markdown p { margin: 0.5em 0; }
+.viewer-markdown ul { padding-left: 1.5em; margin: 0.5em 0; }
+.viewer-markdown li { margin: 0.25em 0; }
+.viewer-markdown strong { font-weight: 700; }
+.viewer-markdown em { font-style: italic; }
+.viewer-markdown hr { border: none; border-top: 1px solid var(--neutral-200, #e5e5e5); margin: 1.5em 0; }
 .modal__header { display: flex; justify-content: space-between; align-items: center; padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--neutral-200); }
 .modal__header h3 { margin: 0; font-size: var(--text-lg); font-weight: 700; }
 .modal__header button { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--neutral-400); padding: 0; line-height: 1; }

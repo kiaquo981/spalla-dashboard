@@ -1962,6 +1962,141 @@ function operon() {
       if (data?.signedUrl) window.open(data.signedUrl, '_blank');
     },
 
+    // ===== DOCUMENT VIEWER =====
+    viewer: {
+      open: false,
+      loading: false,
+      arquivo: null,
+      content: '',
+      contentHtml: '',
+      signedUrl: '',
+      mode: 'text', // 'text' | 'pdf' | 'image' | 'audio' | 'video' | 'raw'
+    },
+
+    async openViewer(arquivo) {
+      this.viewer.open = true;
+      this.viewer.loading = true;
+      this.viewer.arquivo = arquivo;
+      this.viewer.content = '';
+      this.viewer.contentHtml = '';
+      this.viewer.signedUrl = '';
+
+      const cat = arquivo.categoria;
+      const ext = (arquivo.extensao || '').toLowerCase();
+      const mime = arquivo.mime_type || '';
+
+      // Get signed URL for binary files
+      const { data: urlData } = await this.supabase.storage
+        .from('spalla-arquivos')
+        .createSignedUrl(arquivo.storage_path, 3600);
+      this.viewer.signedUrl = urlData?.signedUrl || '';
+
+      if (cat === 'imagem') {
+        this.viewer.mode = 'image';
+        this.viewer.loading = false;
+      } else if (cat === 'audio') {
+        this.viewer.mode = 'audio';
+        // Load transcription if available
+        try {
+          const { data: c } = await this.supabase.from('sp_conteudo_extraido')
+            .select('conteudo_texto').eq('arquivo_id', arquivo.id).order('created_at', { ascending: false }).limit(1).single();
+          if (c?.conteudo_texto) this.viewer.content = c.conteudo_texto;
+        } catch(e) {}
+        this.viewer.loading = false;
+      } else if (cat === 'video') {
+        this.viewer.mode = 'video';
+        try {
+          const { data: c } = await this.supabase.from('sp_conteudo_extraido')
+            .select('conteudo_texto').eq('arquivo_id', arquivo.id).order('created_at', { ascending: false }).limit(1).single();
+          if (c?.conteudo_texto) this.viewer.content = c.conteudo_texto;
+        } catch(e) {}
+        this.viewer.loading = false;
+      } else if (ext === 'pdf' || mime === 'application/pdf') {
+        this.viewer.mode = 'pdf';
+        this.viewer.loading = false;
+      } else if (['md', 'txt', 'csv', 'docx', 'xlsx'].includes(ext) || mime.startsWith('text/')) {
+        // For text-based: load extracted content from sp_conteudo_extraido
+        this.viewer.mode = 'text';
+        try {
+          const { data: conteudo } = await this.supabase
+            .from('sp_conteudo_extraido')
+            .select('conteudo_texto, metodo_extracao, word_count')
+            .eq('arquivo_id', arquivo.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (conteudo?.conteudo_texto) {
+            this.viewer.content = conteudo.conteudo_texto;
+            // Render markdown if .md
+            if (ext === 'md' || mime === 'text/markdown') {
+              this.viewer.contentHtml = this._renderMarkdown(conteudo.conteudo_texto);
+            }
+          } else {
+            // Fallback: download raw file
+            const { data: blob } = await this.supabase.storage
+              .from('spalla-arquivos')
+              .download(arquivo.storage_path);
+            if (blob) this.viewer.content = await blob.text();
+          }
+        } catch(e) {
+          console.error('[Viewer] Load error:', e);
+          // Fallback: download raw
+          try {
+            const { data: blob } = await this.supabase.storage
+              .from('spalla-arquivos')
+              .download(arquivo.storage_path);
+            if (blob) this.viewer.content = await blob.text();
+          } catch(e2) { this.viewer.content = 'Erro ao carregar conteúdo.'; }
+        }
+        this.viewer.loading = false;
+      } else {
+        // Unknown type — offer download
+        this.viewer.mode = 'raw';
+        this.viewer.loading = false;
+      }
+    },
+
+    closeViewer() {
+      this.viewer.open = false;
+      this.viewer.arquivo = null;
+      this.viewer.content = '';
+      this.viewer.contentHtml = '';
+      this.viewer.signedUrl = '';
+    },
+
+    _renderMarkdown(text) {
+      // Lightweight markdown to HTML (no external deps)
+      let html = text
+        // Escape HTML
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        // Headers
+        .replace(/^######\s+(.+)$/gm, '<h6>$1</h6>')
+        .replace(/^#####\s+(.+)$/gm, '<h5>$1</h5>')
+        .replace(/^####\s+(.+)$/gm, '<h4>$1</h4>')
+        .replace(/^###\s+(.+)$/gm, '<h3>$1</h3>')
+        .replace(/^##\s+(.+)$/gm, '<h2>$1</h2>')
+        .replace(/^#\s+(.+)$/gm, '<h1>$1</h1>')
+        // Bold + italic
+        .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        // Lists
+        .replace(/^-\s+(.+)$/gm, '<li>$1</li>')
+        .replace(/^(\d+)\.\s+(.+)$/gm, '<li>$2</li>')
+        // Horizontal rule
+        .replace(/^---+$/gm, '<hr>')
+        // Line breaks
+        .replace(/\n\n/g, '</p><p>')
+        .replace(/\n/g, '<br>');
+      // Wrap in paragraphs
+      html = '<p>' + html + '</p>';
+      // Clean up list items into proper lists
+      html = html.replace(/(<li>.*?<\/li>)/gs, '<ul>$1</ul>');
+      html = html.replace(/<\/ul>\s*<ul>/g, '');
+      return html;
+    },
+
     _detectCategoria(mimeType, ext) {
       if (mimeType.startsWith('image/')) return 'imagem';
       if (mimeType.startsWith('audio/')) return 'audio';
