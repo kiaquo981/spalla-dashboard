@@ -342,7 +342,18 @@ function operon() {
       queue: [],
       filterCategoria: '',
       filterEntidade: '',
+      filterMentoradoId: '',
+      filterDateFrom: '',
+      filterDateTo: '',
       voyageConfigured: false,
+      // 5.2 — Folder view
+      viewMode: 'folders',       // 'folders' | 'folder_detail' | 'all'
+      folders: [],               // from vw_arquivos_por_mentorado
+      currentFolder: null,       // { mentorado_id, mentorado_nome } or null='geral'
+      folderFiles: [],           // files for current folder
+      folderFilesLoading: false,
+      // 5.4 — Realtime
+      processingCount: 0,
       uploadForm: {
         mentoradoId: null,
         mentoradoNome: '',
@@ -354,6 +365,12 @@ function operon() {
         showMentoradoDropdown: false,
       },
     },
+    // 5.4 — Realtime channel ref
+    _arquivosChannel: null,
+    // 5.5 — Detail mentorado arquivos
+    _detailArquivos: [],
+    _detailArquivosLoading: false,
+    _detailArquivosSearch: '',
 
     // --- API Integration State ---
     _menteesWithEmail: [],
@@ -1727,6 +1744,10 @@ function operon() {
         if (error) console.error('[Arquivos] Load error:', error);
         this.arquivos.list = data || [];
         console.log('[Arquivos] Loaded', this.arquivos.list.length, 'files');
+        // Count processing files
+        this.arquivos.processingCount = this.arquivos.list.filter(a =>
+          ['pendente', 'extraindo', 'chunking', 'embedding'].includes(a.status_processamento)
+        ).length;
       } catch(e) {
         console.error('[Arquivos] loadArquivos failed:', e);
       }
@@ -1738,6 +1759,93 @@ function operon() {
         this.arquivos.queue = status.queue || [];
         this.arquivos.voyageConfigured = status.voyage_configured;
       } catch(e) { console.error('[Arquivos] Storage status error:', e); }
+      // 5.2 — Load folder data
+      await this._loadArquivosFolders();
+      // 5.4 — Subscribe to realtime
+      this._subscribeArquivosRealtime();
+    },
+
+    // ===== 5.2 — FOLDER VIEW =====
+
+    async _loadArquivosFolders() {
+      try {
+        const { data, error } = await this.supabase
+          .from('vw_arquivos_por_mentorado')
+          .select('*')
+          .order('mentorado_nome', { ascending: true });
+        if (error) console.error('[Arquivos] Folders error:', error);
+        this.arquivos.folders = data || [];
+      } catch(e) {
+        console.error('[Arquivos] _loadArquivosFolders failed:', e);
+      }
+    },
+
+    get arquivosGeralCount() {
+      return this.arquivos.list.filter(a => !a.entidade_id || a.entidade_tipo === 'geral').length;
+    },
+
+    get arquivosGeralSize() {
+      return this.arquivos.list
+        .filter(a => !a.entidade_id || a.entidade_tipo === 'geral')
+        .reduce((sum, a) => sum + (a.tamanho_bytes || 0), 0);
+    },
+
+    async openFolder(folder) {
+      this.arquivos.viewMode = 'folder_detail';
+      this.arquivos.currentFolder = folder; // { mentorado_id, mentorado_nome } or null for geral
+      this.arquivos.folderFilesLoading = true;
+      try {
+        let query = this.supabase.from('sp_arquivos')
+          .select('*')
+          .is('deleted_at', null)
+          .order('categoria', { ascending: true })
+          .order('created_at', { ascending: false });
+
+        if (folder && folder.mentorado_id) {
+          query = query.eq('entidade_id', folder.mentorado_id);
+        } else {
+          // Geral — no entidade_id
+          query = query.or('entidade_id.is.null,entidade_tipo.eq.geral');
+        }
+        const { data, error } = await query;
+        if (error) console.error('[Arquivos] Folder files error:', error);
+        this.arquivos.folderFiles = data || [];
+      } catch(e) {
+        console.error('[Arquivos] openFolder failed:', e);
+      }
+      this.arquivos.folderFilesLoading = false;
+    },
+
+    closeFolderView() {
+      this.arquivos.viewMode = 'folders';
+      this.arquivos.currentFolder = null;
+      this.arquivos.folderFiles = [];
+      this.arquivos.searchResults = [];
+      this.arquivos.searchQuery = '';
+    },
+
+    get folderFilesByCategoria() {
+      const groups = {};
+      const order = ['documento', 'audio', 'video', 'imagem', 'planilha', 'outro'];
+      for (const f of this.arquivos.folderFiles) {
+        const cat = f.categoria || 'outro';
+        if (!groups[cat]) groups[cat] = [];
+        groups[cat].push(f);
+      }
+      return order.filter(c => groups[c]).map(c => ({ categoria: c, files: groups[c] }));
+    },
+
+    _categoriaLabel(cat) {
+      const map = { documento: 'Documentos', audio: 'Audios', video: 'Videos', imagem: 'Imagens', planilha: 'Planilhas', outro: 'Outros' };
+      return map[cat] || cat;
+    },
+
+    openUploadForFolder() {
+      this.openUploadModal();
+      if (this.arquivos.currentFolder && this.arquivos.currentFolder.mentorado_id) {
+        const m = (this.data.mentees || []).find(m => m.id === this.arquivos.currentFolder.mentorado_id);
+        if (m) this.selectUploadMentorado(m);
+      }
     },
 
     // --- Upload Form Helpers ---
@@ -1916,6 +2024,18 @@ function operon() {
       if (!q) { this.arquivos.searchResults = []; return; }
       this.arquivos.searchLoading = true;
       try {
+        // 5.3 — Build filters including mentorado, date range, and folder context
+        const filters = {
+          categoria: this.arquivos.filterCategoria || null,
+          entidade_tipo: this.arquivos.filterEntidade || null,
+        };
+        // Mentorado filter: from dropdown OR from current folder
+        const mentoradoFilter = this.arquivos.filterMentoradoId ||
+          (this.arquivos.viewMode === 'folder_detail' && this.arquivos.currentFolder?.mentorado_id) || null;
+        if (mentoradoFilter) filters.mentorado_id = mentoradoFilter;
+        if (this.arquivos.filterDateFrom) filters.date_from = this.arquivos.filterDateFrom;
+        if (this.arquivos.filterDateTo) filters.date_to = this.arquivos.filterDateTo;
+
         const res = await fetch(`${CONFIG.API_BASE}/api/storage/search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1923,10 +2043,7 @@ function operon() {
             query: q,
             mode: this.arquivos.searchMode,
             limit: 20,
-            filters: {
-              categoria: this.arquivos.filterCategoria || null,
-              entidade_tipo: this.arquivos.filterEntidade || null,
-            },
+            filters,
           }),
         });
         const data = await res.json();
@@ -2124,10 +2241,144 @@ function operon() {
       return map[cat] || '📎';
     },
 
+    // ===== 5.4 — REALTIME SUBSCRIPTION =====
+
+    _subscribeArquivosRealtime() {
+      if (this._arquivosChannel) return; // already subscribed
+      if (!this.supabase) return;
+      this._arquivosChannel = this.supabase
+        .channel('arquivos-realtime')
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'sp_arquivos'
+        }, (payload) => {
+          const updated = payload.new;
+          // Update in main list
+          const idx = this.arquivos.list.findIndex(a => a.id === updated.id);
+          if (idx >= 0) {
+            const oldStatus = this.arquivos.list[idx].status_processamento;
+            this.arquivos.list[idx] = { ...this.arquivos.list[idx], ...updated };
+            // Toast when processing completes
+            if (oldStatus !== 'concluido' && updated.status_processamento === 'concluido') {
+              this.toast(`Arquivo processado: ${updated.nome_original}`, 'success');
+            }
+            if (oldStatus !== 'erro' && updated.status_processamento === 'erro') {
+              this.toast(`Erro no processamento: ${updated.nome_original}`, 'error');
+            }
+          }
+          // Update in folder files
+          const fidx = this.arquivos.folderFiles.findIndex(a => a.id === updated.id);
+          if (fidx >= 0) {
+            this.arquivos.folderFiles[fidx] = { ...this.arquivos.folderFiles[fidx], ...updated };
+          }
+          // Update in detail arquivos
+          const didx = this._detailArquivos.findIndex(a => a.id === updated.id);
+          if (didx >= 0) {
+            this._detailArquivos[didx] = { ...this._detailArquivos[didx], ...updated };
+          }
+          // Recount processing
+          this.arquivos.processingCount = this.arquivos.list.filter(a =>
+            ['pendente', 'extraindo', 'chunking', 'embedding'].includes(a.status_processamento)
+          ).length;
+        })
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'sp_arquivos'
+        }, (payload) => {
+          // Add new file to list if not already present
+          if (!this.arquivos.list.find(a => a.id === payload.new.id)) {
+            this.arquivos.list.unshift(payload.new);
+          }
+          this.arquivos.processingCount = this.arquivos.list.filter(a =>
+            ['pendente', 'extraindo', 'chunking', 'embedding'].includes(a.status_processamento)
+          ).length;
+        })
+        .subscribe();
+    },
+
+    _unsubscribeArquivosRealtime() {
+      if (this._arquivosChannel) {
+        this.supabase.removeChannel(this._arquivosChannel);
+        this._arquivosChannel = null;
+      }
+    },
+
+    async reprocessArquivo(id) {
+      try {
+        await fetch(`${CONFIG.API_BASE}/api/storage/process`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ arquivo_id: id }),
+        });
+        // Update local status
+        const item = this.arquivos.list.find(a => a.id === id);
+        if (item) item.status_processamento = 'pendente';
+        this.toast('Reprocessamento iniciado', 'info');
+      } catch(e) {
+        this.toast('Erro ao reprocessar: ' + e.message, 'error');
+      }
+    },
+
+    _isProcessing(status) {
+      return ['pendente', 'extraindo', 'chunking', 'embedding'].includes(status);
+    },
+
+    // ===== 5.5 — DETAIL MENTORADO ARQUIVOS =====
+
+    async loadDetailArquivos(mentoradoId) {
+      const mid = mentoradoId || this.ui.selectedMenteeId;
+      if (!mid || !this.supabase) return;
+      this._detailArquivosLoading = true;
+      try {
+        const { data, error } = await this.supabase.from('sp_arquivos')
+          .select('*')
+          .eq('entidade_id', mid)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false });
+        if (error) console.error('[Arquivos] Detail load error:', error);
+        this._detailArquivos = data || [];
+      } catch(e) {
+        console.error('[Arquivos] loadDetailArquivos failed:', e);
+      }
+      this._detailArquivosLoading = false;
+    },
+
+    get filteredDetailArquivos() {
+      if (!this._detailArquivosSearch) return this._detailArquivos;
+      const q = this._detailArquivosSearch.toLowerCase();
+      return this._detailArquivos.filter(a =>
+        a.nome_original?.toLowerCase().includes(q) ||
+        a.categoria?.toLowerCase().includes(q) ||
+        a.descricao?.toLowerCase().includes(q)
+      );
+    },
+
+    openUploadForDetail() {
+      this.openUploadModal();
+      const mid = this.ui.selectedMenteeId;
+      if (mid) {
+        const m = (this.data.mentees || []).find(m => m.id === mid);
+        if (m) this.selectUploadMentorado(m);
+      }
+    },
+
+    goToMentoradoFolder(mentoradoId, mentoradoNome) {
+      this.navigate('arquivos');
+      this.loadArquivos().then(() => {
+        this.openFolder({ mentorado_id: mentoradoId, mentorado_nome: mentoradoNome });
+      });
+    },
+
     navigate(page) {
       // Stop WhatsApp polling when leaving WhatsApp page
       if (this.ui.page === 'whatsapp' && page !== 'whatsapp') {
         this.stopWhatsAppPolling();
+      }
+      // 5.4 — Unsubscribe from realtime when leaving arquivos
+      if (this.ui.page === 'arquivos' && page !== 'arquivos') {
+        this._unsubscribeArquivosRealtime();
       }
       this.ui.page = page;
       this.ui.mobileMenuOpen = false;
