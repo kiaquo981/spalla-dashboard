@@ -1809,9 +1809,15 @@ function operon() {
           .select('*')
           .order('total_arquivos', { ascending: false });
         if (error) console.error('[Arquivos] Folders error:', error);
-        // Show all mentorados (even with 0 files) but sort by file count desc
-        this.arquivos.folders = (data || []).filter(f => f.mentorado_nome);
-        console.log('[Arquivos] Loaded', this.arquivos.folders.length, 'mentorado folders');
+        // Filter out TESE mentorados — only show CASE (cohort N1, N2, or null)
+        const teseIds = new Set(
+          (this.data.mentees || [])
+            .filter(m => m.cohort === 'tese')
+            .map(m => m.id)
+        );
+        this.arquivos.folders = (data || [])
+          .filter(f => f.mentorado_nome && !teseIds.has(f.mentorado_id));
+        console.log('[Arquivos] Loaded', this.arquivos.folders.length, 'CASE mentorado folders (excluded', teseIds.size, 'tese)');
       } catch(e) {
         console.error('[Arquivos] _loadArquivosFolders failed:', e);
       }
