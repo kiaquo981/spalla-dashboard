@@ -1472,6 +1472,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_storage_process()
         elif self.path == '/api/storage/search':
             self._handle_storage_search()
+        elif self.path == '/api/storage/test':
+            self._handle_storage_test()
         elif self.path == '/api/storage/reprocess':
             self._handle_storage_reprocess()
         else:
@@ -2146,8 +2148,32 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         self._send_json({
             'overview': overview if isinstance(overview, list) else [],
             'queue': queue if isinstance(queue, list) else [],
+            'embedding_provider': EMBEDDING_PROVIDER,
+            'embedding_dims': EMBEDDING_DIMS,
+            'voyage_configured': bool(VOYAGE_API_KEY),
             'openai_configured': bool(OPENAI_API_KEY),
         })
+
+    def _handle_storage_test(self):
+        """POST /api/storage/test — Test embedding + chunk insert (debug endpoint)."""
+        try:
+            test_text = 'Teste de embedding para busca semântica no Spalla Dashboard'
+            log_info('Storage', f'[TEST] Embedding provider: {EMBEDDING_PROVIDER}, key set: {bool(VOYAGE_API_KEY)}')
+
+            embedding = embed_query(test_text)
+            log_info('Storage', f'[TEST] Got embedding: dims={len(embedding)}, first3={embedding[:3]}')
+
+            self._send_json({
+                'status': 'ok',
+                'provider': EMBEDDING_PROVIDER,
+                'dims': len(embedding),
+                'first_values': embedding[:5],
+                'voyage_key_set': bool(VOYAGE_API_KEY),
+                'openai_key_set': bool(OPENAI_API_KEY),
+            })
+        except Exception as e:
+            log_error('Storage', f'[TEST] Failed: {e}')
+            self._send_json({'error': str(e)}, 500)
 
     def _handle_storage_reprocess(self):
         """POST /api/storage/reprocess — Reprocess all files with status 'pendente' or 'erro'."""
