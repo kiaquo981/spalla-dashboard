@@ -60,15 +60,22 @@ S3_BUCKET     = os.environ.get('S3_BUCKET', 'case-evolution-media')
 S3_ENDPOINT   = os.environ.get('S3_ENDPOINT', 'hel1.your-objectstorage.com')
 S3_REGION     = os.environ.get('S3_REGION', 'eu-central')
 
-# ===== OPENAI CONFIG (Semantic Search) =====
+# ===== AI CONFIG (Semantic Search + Processing) =====
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
-EMBEDDING_MODEL = 'text-embedding-3-small'
+VOYAGE_API_KEY = os.environ.get('VOYAGE_API_KEY', '')
 WHISPER_MODEL = 'whisper-1'
 VISION_MODEL = 'gpt-4o'
+
+# Embedding config — Voyage AI (1024 dims, $0.02/1M tokens, 200M free)
+EMBEDDING_PROVIDER = os.environ.get('EMBEDDING_PROVIDER', 'voyage')  # 'voyage' or 'openai'
+VOYAGE_EMBED_MODEL = 'voyage-3-lite'
+OPENAI_EMBED_MODEL = 'text-embedding-3-small'
+EMBEDDING_DIMS = 1024 if EMBEDDING_PROVIDER == 'voyage' else 1536
 
 # Chunking config
 CHUNK_SIZE_TOKENS = 800
 CHUNK_OVERLAP_TOKENS = 200
+CHUNK_CONTEXT_SIZE_TOKENS = 2000   # for multi-pass context chunks
 MIN_CHUNK_TOKENS = 50
 
 # ===== JWT AUTH CONFIG =====
@@ -801,13 +808,86 @@ def _openai_request(endpoint, method='POST', body=None, files=None, timeout=120)
     return json.loads(data)
 
 
-def openai_embed(texts):
-    """Generate embeddings for a list of texts. Returns list of 1536-dim vectors."""
-    result = _openai_request('embeddings', body={
-        'model': EMBEDDING_MODEL,
-        'input': texts,
-    })
-    return [item['embedding'] for item in result['data']]
+def _voyage_request(endpoint, body, timeout=60):
+    """Make request to Voyage AI API."""
+    if not VOYAGE_API_KEY:
+        raise ValueError('VOYAGE_API_KEY not configured')
+    conn = http.client.HTTPSConnection('api.voyageai.com', timeout=timeout)
+    conn.request('POST', f'/v1/{endpoint}',
+                 body=json.dumps(body).encode(),
+                 headers={
+                     'Authorization': f'Bearer {VOYAGE_API_KEY}',
+                     'Content-Type': 'application/json',
+                 })
+    resp = conn.getresponse()
+    data = resp.read()
+    conn.close()
+    if resp.status >= 400:
+        raise ValueError(f'Voyage API error {resp.status}: {data.decode()[:500]}')
+    return json.loads(data)
+
+
+def embed_texts(texts):
+    """Generate embeddings. Uses Voyage AI (1024 dims) or OpenAI (1536 dims) based on config."""
+    if EMBEDDING_PROVIDER == 'voyage':
+        result = _voyage_request('embeddings', {
+            'model': VOYAGE_EMBED_MODEL,
+            'input': texts,
+            'input_type': 'document',
+        })
+        return [item['embedding'] for item in result['data']]
+    else:
+        result = _openai_request('embeddings', body={
+            'model': OPENAI_EMBED_MODEL,
+            'input': texts,
+        })
+        return [item['embedding'] for item in result['data']]
+
+
+def embed_query(text):
+    """Embed a search query (uses input_type='query' for Voyage AI)."""
+    if EMBEDDING_PROVIDER == 'voyage':
+        result = _voyage_request('embeddings', {
+            'model': VOYAGE_EMBED_MODEL,
+            'input': [text],
+            'input_type': 'query',
+        })
+        return result['data'][0]['embedding']
+    else:
+        result = _openai_request('embeddings', body={
+            'model': OPENAI_EMBED_MODEL,
+            'input': [text],
+        })
+        return result['data'][0]['embedding']
+
+
+def rerank_results(query, results, top_n=10):
+    """Rerank search results using Voyage AI reranker or cross-encoder."""
+    if not results:
+        return results
+
+    if EMBEDDING_PROVIDER == 'voyage' and VOYAGE_API_KEY:
+        try:
+            documents = [r.get('chunk_texto', '') for r in results]
+            resp = _voyage_request('rerank', {
+                'model': 'rerank-2-lite',
+                'query': query,
+                'documents': documents,
+                'top_k': min(top_n, len(documents)),
+            })
+            reranked = []
+            for item in resp.get('data', []):
+                idx = item['index']
+                r = dict(results[idx])
+                r['rerank_score'] = item['relevance_score']
+                reranked.append(r)
+            return reranked
+        except Exception as e:
+            log_info('Storage', f'Rerank fallback (Voyage failed): {e}')
+            return results[:top_n]
+
+    # Fallback: return as-is (cross-encoder local can be added later via flashrank)
+    return results[:top_n]
 
 
 def openai_whisper(audio_bytes, filename, mime_type):
@@ -936,10 +1016,14 @@ def _simple_token_count(text):
     return len(text) // 4
 
 
+def _content_hash(text):
+    """SHA-256 hash of text content — for dedup (Notion pattern)."""
+    return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
+
 def _chunk_text(text, chunk_size=CHUNK_SIZE_TOKENS, overlap=CHUNK_OVERLAP_TOKENS, min_size=MIN_CHUNK_TOKENS):
     """Split text into overlapping chunks by approximate token count."""
     words = text.split()
-    # ~1.3 words per token for Portuguese
     words_per_chunk = int(chunk_size * 1.3)
     words_overlap = int(overlap * 1.3)
 
@@ -952,6 +1036,62 @@ def _chunk_text(text, chunk_size=CHUNK_SIZE_TOKENS, overlap=CHUNK_OVERLAP_TOKENS
             chunks.append(chunk_text)
         start += words_per_chunk - words_overlap
     return chunks
+
+
+def _chunk_by_heading(text, max_chunk=CHUNK_SIZE_TOKENS, min_size=MIN_CHUNK_TOKENS):
+    """Split markdown/structured text by headings (Unstructured.io pattern).
+    Preserves section context. Falls back to regular chunking for non-headed text."""
+    lines = text.split('\n')
+    sections = []
+    current_heading = ''
+    current_lines = []
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith('#') or (stripped.startswith('---') and len(stripped) >= 3 and current_lines):
+            # New section
+            if current_lines:
+                section_text = current_heading + '\n' + '\n'.join(current_lines) if current_heading else '\n'.join(current_lines)
+                sections.append(section_text.strip())
+            current_heading = stripped
+            current_lines = []
+        else:
+            current_lines.append(line)
+
+    # Last section
+    if current_lines:
+        section_text = current_heading + '\n' + '\n'.join(current_lines) if current_heading else '\n'.join(current_lines)
+        sections.append(section_text.strip())
+
+    # Now split oversized sections with regular chunking
+    chunks = []
+    for section in sections:
+        if not section.strip():
+            continue
+        tokens = _simple_token_count(section)
+        if tokens <= max_chunk:
+            if tokens >= min_size:
+                chunks.append(section)
+        else:
+            # Section too big — sub-chunk it
+            sub_chunks = _chunk_text(section, chunk_size=max_chunk)
+            chunks.extend(sub_chunks)
+
+    return chunks if chunks else _chunk_text(text)
+
+
+def _chunk_multipass(text, is_structured=False):
+    """Multi-pass chunking (Onyx/Danswer pattern): standard chunks + broad context chunks."""
+    # Pass 1: standard chunks (heading-based for structured, regular for others)
+    if is_structured:
+        standard = _chunk_by_heading(text)
+    else:
+        standard = _chunk_text(text)
+
+    # Pass 2: broad context chunks (2x size, for capturing wider meaning)
+    context = _chunk_text(text, chunk_size=CHUNK_CONTEXT_SIZE_TOKENS, overlap=CHUNK_OVERLAP_TOKENS * 2)
+
+    return standard, context
 
 
 def _resolve_mentorado_from_entity(entidade_tipo, entidade_id):
@@ -1063,7 +1203,16 @@ def process_file_pipeline(arquivo_id):
             return
 
         word_count = len(texto.split())
+        text_hash = _content_hash(texto)
         log_info('Storage', f'Extracted {word_count} words via {metodo}')
+
+        # Content hash dedup (Notion pattern) — skip re-embedding if content unchanged
+        if arquivo.get('content_hash') == text_hash:
+            log_info('Storage', f'Content unchanged (hash match) — skipping re-embedding')
+            supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
+                            {'status_processamento': 'concluido',
+                             'processado_em': datetime.now(timezone.utc).isoformat()})
+            return
 
         # Save extracted content
         conteudo_row = supabase_request('POST', 'sp_conteudo_extraido', {
@@ -1088,13 +1237,16 @@ def process_file_pipeline(arquivo_id):
         supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
                         {'status_processamento': 'chunking'})
 
-        # Chunk text
-        chunks = _chunk_text(texto)
-        log_info('Storage', f'Created {len(chunks)} chunks')
+        # Multi-pass chunking (Onyx/Danswer pattern)
+        is_structured = ext in ('md', 'docx', 'html') or mime in ('text/markdown',)
+        standard_chunks, context_chunks = _chunk_multipass(texto, is_structured=is_structured)
+        total_chunks = len(standard_chunks) + len(context_chunks)
+        log_info('Storage', f'Created {len(standard_chunks)} standard + {len(context_chunks)} context chunks')
 
-        if not chunks:
+        if total_chunks == 0:
             supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
                             {'status_processamento': 'concluido',
+                             'content_hash': text_hash,
                              'processado_em': datetime.now(timezone.utc).isoformat()})
             return
 
@@ -1102,28 +1254,36 @@ def process_file_pipeline(arquivo_id):
         supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
                         {'status_processamento': 'embedding'})
 
-        # Generate embeddings (batch, max 2048 per request)
+        # Prepare all texts for embedding (standard + context in one batch)
+        all_texts = standard_chunks + context_chunks
+        chunk_tipos = ['standard'] * len(standard_chunks) + ['context'] * len(context_chunks)
+
+        # Generate embeddings (batch)
         BATCH_SIZE = 100
         all_embeddings = []
-        for i in range(0, len(chunks), BATCH_SIZE):
-            batch = chunks[i:i + BATCH_SIZE]
-            embeddings = openai_embed(batch)
+        for i in range(0, len(all_texts), BATCH_SIZE):
+            batch = all_texts[i:i + BATCH_SIZE]
+            embeddings = embed_texts(batch)
             all_embeddings.extend(embeddings)
-        log_info('Storage', f'Generated {len(all_embeddings)} embeddings')
+        log_info('Storage', f'Generated {len(all_embeddings)} embeddings via {EMBEDDING_PROVIDER}')
 
         # Resolve mentorado
         mentorado_id, mentorado_nome = _resolve_mentorado_from_entity(
             arquivo['entidade_tipo'], arquivo.get('entidade_id'))
 
+        # Delete old chunks if reprocessing
+        supabase_request('DELETE', f'sp_chunks?arquivo_id=eq.{arquivo_id}')
+
         # Insert chunks with embeddings
-        for idx, (chunk_text, embedding) in enumerate(zip(chunks, all_embeddings)):
+        for idx, (chunk_text, embedding, chunk_tipo) in enumerate(zip(all_texts, all_embeddings, chunk_tipos)):
             chunk_row = {
                 'arquivo_id': arquivo_id,
                 'conteudo_id': conteudo_id,
                 'texto': chunk_text,
                 'chunk_index': idx,
                 'token_count': _simple_token_count(chunk_text),
-                'embedding': str(embedding),  # pgvector accepts string format
+                'embedding': str(embedding),
+                'chunk_tipo': chunk_tipo,
                 'arquivo_nome': nome,
                 'entidade_tipo': arquivo['entidade_tipo'],
                 'entidade_id': arquivo.get('entidade_id'),
@@ -1133,12 +1293,13 @@ def process_file_pipeline(arquivo_id):
             }
             supabase_request('POST', 'sp_chunks', chunk_row)
 
-        # Done!
+        # Done! Save content hash
         supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
                         {'status_processamento': 'concluido',
+                         'content_hash': text_hash,
                          'processado_em': datetime.now(timezone.utc).isoformat()})
 
-        log_info('Storage', f'✓ File {nome} processed: {len(chunks)} chunks indexed')
+        log_info('Storage', f'✓ File {nome} processed: {len(standard_chunks)} standard + {len(context_chunks)} context chunks indexed')
 
     except Exception as e:
         log_error('Storage', f'Processing failed for {nome}', e)
@@ -1149,47 +1310,49 @@ def process_file_pipeline(arquivo_id):
 
 def search_semantic(query_text, mode='hybrid', filters=None, limit=10):
     """
-    Execute semantic/keyword/hybrid search.
-    Returns list of results with file info and matching chunks.
+    Execute semantic/keyword/hybrid search with reranking.
+    Uses Voyage AI or OpenAI based on EMBEDDING_PROVIDER config.
     """
     filters = filters or {}
 
     if mode == 'keyword':
-        # Keyword-only via RPC
         params = {
             'p_query': query_text,
-            'p_limit': limit,
+            'p_limit': limit * 2,  # fetch more for reranking
             'p_entidade_tipo': filters.get('entidade_tipo'),
             'p_categoria': filters.get('categoria'),
             'p_mentorado_id': filters.get('mentorado_id'),
         }
         result = supabase_request('POST', 'rpc/fn_busca_keyword', params)
-        return result if isinstance(result, list) else []
+        results = result if isinstance(result, list) else []
+        return rerank_results(query_text, results, top_n=limit)
 
     # Need embedding for semantic/hybrid
-    if not OPENAI_API_KEY:
-        raise ValueError('OPENAI_API_KEY required for semantic search')
+    api_key = VOYAGE_API_KEY if EMBEDDING_PROVIDER == 'voyage' else OPENAI_API_KEY
+    if not api_key:
+        raise ValueError(f'{EMBEDDING_PROVIDER.upper()}_API_KEY required for semantic search')
 
-    embeddings = openai_embed([query_text])
-    query_embedding = embeddings[0]
+    query_embedding = embed_query(query_text)
+    fetch_limit = limit * 3  # over-fetch for reranking
 
     if mode == 'semantic':
         params = {
             'p_query_embedding': str(query_embedding),
-            'p_limit': limit,
+            'p_limit': fetch_limit,
             'p_entidade_tipo': filters.get('entidade_tipo'),
             'p_categoria': filters.get('categoria'),
             'p_mentorado_id': filters.get('mentorado_id'),
             'p_threshold': filters.get('threshold', 0.3),
         }
         result = supabase_request('POST', 'rpc/fn_busca_semantica', params)
-        return result if isinstance(result, list) else []
+        results = result if isinstance(result, list) else []
+        return rerank_results(query_text, results, top_n=limit)
 
     else:  # hybrid (default)
         params = {
             'p_query_embedding': str(query_embedding),
             'p_query_text': query_text,
-            'p_limit': limit,
+            'p_limit': fetch_limit,
             'p_entidade_tipo': filters.get('entidade_tipo'),
             'p_categoria': filters.get('categoria'),
             'p_mentorado_id': filters.get('mentorado_id'),
@@ -1197,7 +1360,8 @@ def search_semantic(query_text, mode='hybrid', filters=None, limit=10):
             'p_threshold': filters.get('threshold', 0.25),
         }
         result = supabase_request('POST', 'rpc/fn_busca_hibrida', params)
-        return result if isinstance(result, list) else []
+        results = result if isinstance(result, list) else []
+        return rerank_results(query_text, results, top_n=limit)
 
 
 # ===== CUSTOM HTTP SERVER (fix SO_REUSEADDR) =====
@@ -2030,7 +2194,8 @@ if __name__ == '__main__':
     print(f'[Spalla] Bcrypt:   {"✓ installed" if _bcrypt else "⚠ not installed (using SHA-256)"}')
     print(f'[Spalla] Proxy:    /api/evolution/*')
     print(f'[Spalla] Sheets:   {"✓ service account found" if os.path.exists(GOOGLE_SA_PATH) else "✗ no service account"}')
-    print(f'[Spalla] OpenAI:   {"✓ configured" if OPENAI_API_KEY else "✗ set OPENAI_API_KEY for semantic search"}')
+    print(f'[Spalla] Embeddings: {EMBEDDING_PROVIDER} ({"✓ " + VOYAGE_EMBED_MODEL if VOYAGE_API_KEY else "✗ set VOYAGE_API_KEY"})')
+    print(f'[Spalla] OpenAI:   {"✓ Whisper+Vision" if OPENAI_API_KEY else "✗ set OPENAI_API_KEY for audio/video/image"}')
     print(f'[Spalla] Endpoints:')
     print(f'  POST /api/schedule-call    — Full scheduling (Zoom + Calendar + DB)')
     print(f'  POST /api/zoom/create-meeting')
