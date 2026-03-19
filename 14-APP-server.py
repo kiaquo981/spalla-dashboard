@@ -1263,9 +1263,11 @@ def process_file_pipeline(arquivo_id):
         all_embeddings = []
         for i in range(0, len(all_texts), BATCH_SIZE):
             batch = all_texts[i:i + BATCH_SIZE]
+            log_info('Storage', f'Embedding batch {i//BATCH_SIZE + 1}: {len(batch)} texts via {EMBEDDING_PROVIDER}')
             embeddings = embed_texts(batch)
+            log_info('Storage', f'Got {len(embeddings)} embeddings, dims={len(embeddings[0]) if embeddings else 0}')
             all_embeddings.extend(embeddings)
-        log_info('Storage', f'Generated {len(all_embeddings)} embeddings via {EMBEDDING_PROVIDER}')
+        log_info('Storage', f'Total: {len(all_embeddings)} embeddings via {EMBEDDING_PROVIDER}')
 
         # Resolve mentorado
         mentorado_id, mentorado_nome = _resolve_mentorado_from_entity(
@@ -1275,14 +1277,17 @@ def process_file_pipeline(arquivo_id):
         supabase_request('DELETE', f'sp_chunks?arquivo_id=eq.{arquivo_id}')
 
         # Insert chunks with embeddings
+        inserted = 0
         for idx, (chunk_text, embedding, chunk_tipo) in enumerate(zip(all_texts, all_embeddings, chunk_tipos)):
+            # Format embedding as pgvector string
+            emb_str = '[' + ','.join(str(v) for v in embedding) + ']'
             chunk_row = {
                 'arquivo_id': arquivo_id,
                 'conteudo_id': conteudo_id,
                 'texto': chunk_text,
                 'chunk_index': idx,
                 'token_count': _simple_token_count(chunk_text),
-                'embedding': str(embedding),
+                'embedding': emb_str,
                 'chunk_tipo': chunk_tipo,
                 'arquivo_nome': nome,
                 'entidade_tipo': arquivo['entidade_tipo'],
@@ -1291,7 +1296,12 @@ def process_file_pipeline(arquivo_id):
                 'mentorado_id': mentorado_id,
                 'mentorado_nome': mentorado_nome,
             }
-            supabase_request('POST', 'sp_chunks', chunk_row)
+            result = supabase_request('POST', 'sp_chunks', chunk_row)
+            if isinstance(result, dict) and result.get('error'):
+                log_error('Storage', f'Chunk {idx} insert failed: {result["error"][:200]}')
+            else:
+                inserted += 1
+        log_info('Storage', f'Inserted {inserted}/{len(all_texts)} chunks')
 
         # Done! Save content hash
         supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
