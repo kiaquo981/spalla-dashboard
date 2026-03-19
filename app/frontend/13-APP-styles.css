@@ -6312,3 +6312,54 @@ img { max-width: 100%; display: block; }
   .fin-kpis { grid-template-columns: repeat(2, 1fr); }
   .fin-table-wrap { font-size: var(--text-xs); }
 }
+
+/* ===== ARQUIVOS — Stories 5.2-5.5 ===== */
+
+/* 5.2 — Folder card hover */
+.arquivos-folder-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  transform: translateY(-1px);
+}
+
+/* 5.4 — Processing spinner */
+.arquivos-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--warning, #eab308);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* 5.4 — Status pulse for processing files */
+.arquivos-status-pulse {
+  animation: arquivos-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes arquivos-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* 5.4 — Processing banner */
+.arquivos-processing-banner {
+  border-radius: var(--r-lg, 8px);
+}
+
+/* 5.2 — Responsive folder grid */
+@media (max-width: 768px) {
+  .arquivos-folder-card { min-width: 0; }
+}
+
+@media (max-width: 640px) {
+  .page-content[x-show*="arquivos"] .op-grid-cols-3 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-content[x-show*="arquivos"] .op-grid-cols-3 {
+    grid-template-columns: 1fr;
+  }
+}
