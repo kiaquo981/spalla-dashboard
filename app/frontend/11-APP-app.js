@@ -5,11 +5,10 @@
    ================================================================ */
 
 // ===== CONFIG =====
-const _env = window.__SPALLA_ENV__ || {};
 const CONFIG = {
-  API_BASE: _env.API_BASE || 'https://web-production-2cde5.up.railway.app',
-  SUPABASE_URL: _env.SUPABASE_URL || '',
-  SUPABASE_ANON_KEY: _env.SUPABASE_ANON_KEY || '',
+  API_BASE: 'https://web-production-2cde5.up.railway.app',  // Production server (Railway HTTPS proxy)
+  SUPABASE_URL: 'https://knusqfbvhsqworzyhvip.supabase.co',
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtudXNxZmJ2aHNxd29yenlodmlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4NTg3MjcsImV4cCI6MjA3MDQzNDcyN30.f-m7TlmCoccBpUxLZhA4P5kr2lWBGtRIv6inzInAKCo',
   AUTH_STORAGE_KEY: 'spalla_auth',
   TASKS_STORAGE_KEY: 'spalla_tasks',
   REMINDERS_STORAGE_KEY: 'spalla_reminders',
@@ -32,9 +31,7 @@ const TEAM_MEMBERS = [
 const EVOLUTION_INSTANCE = typeof EVOLUTION_CONFIG !== 'undefined' ? EVOLUTION_CONFIG.INSTANCE : null;
 
 // ===== SUPABASE CLIENT =====
-const _SPALLA_DEBUG = (window.location.search || '').includes('debug=true');
 let sb = null;
-let _sbInitPromise = null;
 
 async function initSupabase() {
   if (!CONFIG.SUPABASE_ANON_KEY) {
@@ -44,21 +41,6 @@ async function initSupabase() {
 
   // Reuse existing instance if already initialized
   if (sb) return sb;
-
-  // Prevent parallel initialization (race condition guard)
-  if (_sbInitPromise) return _sbInitPromise;
-  _sbInitPromise = (async () => {
-    try {
-      return await _doInitSupabase();
-    } finally {
-      // Allow retry when init fails or returns null
-      if (!sb) _sbInitPromise = null;
-    }
-  })();
-  return _sbInitPromise;
-}
-
-async function _doInitSupabase() {
 
   // Wait for Supabase JS to load (with timeout)
   let attempts = 0;
@@ -74,7 +56,6 @@ async function _doInitSupabase() {
 
   try {
     const client = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
-    sb = client;
     return client;
   } catch (e) {
     console.error('[Spalla] Failed to init Supabase:', e);
@@ -149,7 +130,7 @@ function operon() {
       sidebarOpen: true,
       mobileMenuOpen: false,
       search: '',
-      filters: { fase: '', risco: '', cohort: '', status: '', financeiro: '', carteira: '' },
+      filters: { fase: '', risco: '', cohort: '', status: '', financeiro: '' },
       sort: 'nome',
       sortDir: 'asc',
       loading: true,
@@ -213,7 +194,6 @@ function operon() {
       paModal: false,           // create plan modal
       paExpandedFases: {},      // { faseId: true } for accordion
       paLoading: false,         // loading state for PA detail
-      finDetailLoading: false,  // loading state for financial detail logs
       paSearchQuery: '',        // busca por nome do mentorado
       // Perfil Comportamental
       perfilLoading: false,
@@ -260,7 +240,6 @@ function operon() {
       pendencias: [],
       paPlanos: [],       // vw_pa_pipeline data
       paMenteePa: null,   // full PA for current mentee detail
-      finDetailLogs: [],  // financial logs for mentee detail tab
       paAllFases: [],     // lightweight fases for sentinel calcs
       paAllAcoes: [],     // lightweight acoes for sentinel calcs
       // Onboarding CS
@@ -290,8 +269,7 @@ function operon() {
 
     // Task organization: 2 Spaces — Jornada (mentee-owned) + Gestão (team-owned)
     spaces: [
-      {
-        id: 'space_jornada', name: 'Jornada Mentorados', icon: '◎', color: '#6366f1',
+      { id: 'space_jornada', name: 'Jornada Mentorados', icon: '◎', color: '#6366f1',
         lists: [
           { id: 'list_onboarding', name: 'Onboarding', icon: '▸' },
           { id: 'list_concepcao', name: 'Concepção', icon: '◇' },
@@ -300,8 +278,7 @@ function operon() {
           { id: 'list_escala', name: 'Escala', icon: '▲' },
         ]
       },
-      {
-        id: 'space_gestao', name: 'Gestão CASE', icon: '◈', color: '#f59e0b',
+      { id: 'space_gestao', name: 'Gestão CASE', icon: '◈', color: '#f59e0b',
         lists: [
           { id: 'list_direcionamentos', name: 'Direcionamentos Queila', icon: '★' },
           { id: 'list_operacional', name: 'Operacional', icon: '✦' },
@@ -353,6 +330,21 @@ function operon() {
     // --- Schedule Form ---
     scheduleForm: { mentorado: '', mentorado_id: '', tipo: 'acompanhamento', data: '', horario: '10:00', duracao: 60, email: '', notas: '' },
 
+    // --- Arquivos (Storage + Semantic Search) ---
+    arquivos: {
+      list: [],
+      searchResults: [],
+      searchQuery: '',
+      searchMode: 'hybrid',
+      searchLoading: false,
+      uploadLoading: false,
+      storageOverview: [],
+      queue: [],
+      filterCategoria: '',
+      filterEntidade: '',
+      voyageConfigured: false,
+    },
+
     // --- API Integration State ---
     _menteesWithEmail: [],
     _integrations: {},
@@ -389,9 +381,6 @@ function operon() {
         list = list.filter(m => m.status_financeiro === 'em_dia');
       } else if (this.ui.filters.financeiro === 'quitado') {
         list = list.filter(m => m.status_financeiro === 'quitado');
-      }
-      if (this.ui.filters.carteira) {
-        list = list.filter(m => m.consultor_responsavel === this.ui.filters.carteira);
       }
       list.sort((a, b) => {
         let va = a[this.ui.sort], vb = b[this.ui.sort];
@@ -609,14 +598,7 @@ function operon() {
     // ===================== SHARED HELPERS =====================
 
     get currentUserName() {
-      return this.auth.currentUser?.full_name || this.auth.currentUser?.email || 'Anônimo';
-    },
-
-    get myCarteira() {
-      const name = (this.auth.currentUser?.full_name || '').toLowerCase();
-      if (name.includes('lara')) return 'Lara';
-      if (name.includes('heitor')) return 'Heitor';
-      return null;
+      return this.auth.currentUser?.full_name || this.auth.currentUser?.email || 'Sistema';
     },
 
     todayStr() { return new Date().toISOString().split('T')[0]; },
@@ -763,10 +745,7 @@ function operon() {
 
     // Kanban: group mentees by phase
     menteesByPhase(fase) {
-      const base = this.ui.filters.carteira
-        ? this.data.mentees.filter(m => m.consultor_responsavel === this.ui.filters.carteira)
-        : this.data.mentees;
-      return base.filter(m => m.fase_jornada === fase);
+      return this.data.mentees.filter(m => m.fase_jornada === fase);
     },
 
     // Kanban drag-and-drop: move mentorado between phases
@@ -973,8 +952,18 @@ function operon() {
       };
     },
 
-    // Dossiers: DEPRECATED — data now from ds_producoes/ds_documentos via Supabase
-    get filteredDossiers() { return []; },
+    // Dossiers: filtered
+    get filteredDossiers() {
+      if (this.ui.dossierFilter === 'all') return DOSSIER_PIPELINE;
+      const statusMap = {
+        enviado: ['enviado'],
+        em_revisao: ['em_revisao', 'ajustar', 'ajustando', 'aprovado_enviar', 'revisao_kaique', 'revisao_mariza', 'revisao_queila'],
+        producao_ia: ['producao_ia'],
+        nao_iniciado: ['nao_iniciado', 'onboarding', 'pausado'],
+      };
+      const statuses = statusMap[this.ui.dossierFilter] || [this.ui.dossierFilter];
+      return DOSSIER_PIPELINE.filter(d => statuses.includes(d.status));
+    },
 
     // Reminders: filtered
     get filteredReminders() {
@@ -997,6 +986,22 @@ function operon() {
 
     async init() {
       try {
+        // Deep-link: resolve URL pathname to page
+        const pathname = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
+        if (pathname && this._routeMap[pathname]) {
+          this.ui.page = this._routeMap[pathname];
+          localStorage.setItem('spalla_page', this._routeMap[pathname]);
+        }
+        // Handle browser back/forward
+        window.addEventListener('popstate', (e) => {
+          const p = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
+          if (p && this._routeMap[p]) {
+            this.ui.page = this._routeMap[p];
+          } else if (!p || p === '') {
+            this.ui.page = 'dashboard';
+          }
+        });
+
         // Restore JWT session from localStorage + validate with server
         const accessToken = localStorage.getItem('spalla_access_token');
         const refreshToken = localStorage.getItem('spalla_refresh_token');
@@ -1023,7 +1028,7 @@ function operon() {
                 body: JSON.stringify({ refresh_token: refreshToken })
               });
               if (refreshResp.ok) {
-                const data = await refreshResp.json().catch(() => ({}));
+                const data = await refreshResp.json();
                 this.auth.authenticated = true;
                 this.auth.currentUser = data.user || JSON.parse(userStr);
                 this.auth.accessToken = data.access_token;
@@ -1065,7 +1070,7 @@ function operon() {
         sb = await initSupabase();
 
         await this.loadTasks();
-        this.loadTaskTags().catch(e => console.warn('[Spalla] loadTaskTags:', e.message)); // non-blocking
+        this.loadTaskTags(); // non-blocking
 
         if (this.auth.authenticated) {
           await this.loadReminders(); // Load from Supabase
@@ -1073,9 +1078,9 @@ function operon() {
           // Pre-fetch WhatsApp profile pics in background
           this._loadWaProfilePics();
           // Fetch schedule-related data from backend API
-          this.fetchUpcomingCalls().catch(e => console.warn('[Spalla] fetchUpcomingCalls:', e.message));
+          this.fetchUpcomingCalls();
           // Fetch Instagram profiles from Apify (background, non-blocking)
-          this.updateInstagramProfiles().catch(e => console.warn('[Spalla] updateInstagramProfiles:', e.message));
+          this.updateInstagramProfiles();
           // Load WhatsApp per-user session + start health check
           this.loadWaSession();
           this.waStartHealthCheck();
@@ -1163,6 +1168,16 @@ function operon() {
         await this.loadDashboard();
         this.loadWaSession();
         this.waStartHealthCheck();
+
+        // Restore deep-link route AFTER all loads complete
+        const pendingRoute = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
+        console.log('[Spalla] Login done. pathname:', JSON.stringify(pendingRoute), 'routeMap hit:', this._routeMap[pendingRoute], 'current ui.page:', this.ui.page);
+        if (pendingRoute && this._routeMap[pendingRoute]) {
+          const target = this._routeMap[pendingRoute];
+          this.ui.page = target;
+          localStorage.setItem('spalla_page', target);
+          console.log('[Spalla] Deep-link restored to:', target);
+        }
       } catch (e) {
         this.auth.error = 'Erro ao fazer login: ' + e.message;
         console.error('[Spalla] Login error:', e);
@@ -1331,7 +1346,7 @@ function operon() {
             return;
           }
           if (res.ok) {
-            const data = await res.json().catch(() => ({}));
+            const data = await res.json();
             const msgs = data.messages?.records || data.messages || data || [];
             const newMsgs = (Array.isArray(msgs) ? msgs : []).reverse();
             // Compare last message ID to detect changes (length alone is unreliable)
@@ -1414,23 +1429,12 @@ function operon() {
           if (paFasesRes.data) this.data.paAllFases = paFasesRes.data;
           if (paAcoesRes.data) this.data.paAllAcoes = paAcoesRes.data;
           // Load DS pipeline data
-          this.loadDsData().catch(e => console.warn('[Spalla] loadDsData:', e.message));
+          this.loadDsData();
           // Load OB onboarding data
-          this.loadObData().catch(e => console.warn('[Spalla] loadObData:', e.message));
+          this.loadObData();
 
           if (mentees.data?.length) {
             this.data.mentees = mentees.data;
-            // Load emails for schedule form auto-fill via backend API
-            // (vw_god_overview doesn't expose email; direct table access blocked by RLS)
-            try {
-              const emailResp = await fetch(`${CONFIG.API_BASE}/api/mentees`);
-              if (emailResp.ok) {
-                const emailData = await emailResp.json();
-                if (Array.isArray(emailData)) this._menteesWithEmail = emailData;
-              }
-            } catch (e) {
-              console.warn('[Spalla] Failed to load mentee emails:', e);
-            }
           } else {
             console.warn('[Spalla] Supabase mentees empty, using demo');
             this.loadDemoData();
@@ -1537,14 +1541,7 @@ function operon() {
             sb.from('calls_mentoria').select('*,mentorados(id,nome)').eq('mentorado_id', id).order('data_call', { ascending: false }),
           ]);
           if (detailRes.data) {
-            const detail = (() => {
-          try {
-            return typeof detailRes.data === 'string' ? JSON.parse(detailRes.data) : detailRes.data;
-          } catch (e) {
-            console.error('[Spalla] Failed to parse detail data:', e.message);
-            return detailRes.data || {};
-          }
-        })();
+            const detail = typeof detailRes.data === 'string' ? JSON.parse(detailRes.data) : detailRes.data;
             // Enrich with real calls from vw_god_calls
             if (callsRes.data?.length) {
               detail.last_calls = callsRes.data.map(c => ({
@@ -1640,7 +1637,7 @@ function operon() {
           body: JSON.stringify({ where: { key: { remoteJid } }, limit: 10 }),
         });
         if (!res.ok) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
-        const data = await res.json().catch(() => ({}));
+        const data = await res.json();
         const msgs = data.messages?.records || data.messages || data || [];
         const interactions = (Array.isArray(msgs) ? msgs : []).reverse().map(msg => ({
           sender: msg.key?.fromMe ? 'Equipe CASE' : (msg.pushName || nome),
@@ -1670,7 +1667,7 @@ function operon() {
           const jid = chat.remoteJid || chat.id;
           const fullChat = this.data.whatsappChats.find(c => (c.remoteJid || c.id) === jid);
           this.selectWhatsAppChat(fullChat || chat);
-        }).catch(e => { console.error("[Spalla] Error loading WA chats:", e); this.toast("Erro ao carregar chats", "error"); });
+        });
       } else {
         this.navigate('whatsapp');
         this.fetchWhatsAppChats();
@@ -1678,6 +1675,183 @@ function operon() {
     },
 
     // ===================== NAVIGATION =====================
+
+    // Deep-link route map (pathname → page name)
+    _routeMap: {
+      'welcome-flow': 'welcome_flow',
+      'dashboard': 'dashboard',
+      'kanban': 'kanban',
+      'tasks': 'tasks',
+      'agenda': 'agenda',
+      'equipe': 'equipe',
+      'whatsapp': 'whatsapp',
+      'wa-topics': 'wa_topics',
+      'reminders': 'reminders',
+      'dossies': 'dossies',
+      'planos-acao': 'planos_acao',
+      'onboarding': 'onboarding',
+      'docs': 'docs',
+      'arquivos': 'arquivos',
+      'settings': 'settings',
+    },
+
+    _pageToRoute(page) {
+      for (const [route, p] of Object.entries(this._routeMap)) {
+        if (p === page) return route;
+      }
+      return page.replace(/_/g, '-');
+    },
+
+    // ===================== ARQUIVOS (Storage + Search) =====================
+
+    async loadArquivos() {
+      const { data } = await CONFIG.supabase.from('sp_arquivos')
+        .select('*')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+      this.arquivos.list = data || [];
+      // Load storage status
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/storage/status`);
+        const status = await res.json();
+        this.arquivos.storageOverview = status.overview || [];
+        this.arquivos.queue = status.queue || [];
+        this.arquivos.voyageConfigured = status.voyage_configured;
+      } catch(e) { console.error('Storage status error:', e); }
+    },
+
+    async uploadArquivo(event) {
+      const files = event.target.files;
+      if (!files || !files.length) return;
+      this.arquivos.uploadLoading = true;
+
+      for (const file of files) {
+        try {
+          const ext = file.name.split('.').pop().toLowerCase();
+          const nomeStorage = crypto.randomUUID() + '.' + ext;
+          const entidadeTipo = 'geral';
+          const entidadeId = null;
+          const path = `${entidadeTipo}/${nomeStorage}`;
+
+          // 1. Upload to Supabase Storage
+          const { error: uploadError } = await CONFIG.supabase.storage
+            .from('spalla-arquivos')
+            .upload(path, file);
+          if (uploadError) throw uploadError;
+
+          // 2. Insert metadata
+          const categoria = this._detectCategoria(file.type, ext);
+          const { data: inserted, error: insertError } = await CONFIG.supabase
+            .from('sp_arquivos')
+            .insert({
+              nome_original: file.name,
+              nome_storage: nomeStorage,
+              storage_path: path,
+              mime_type: file.type,
+              tamanho_bytes: file.size,
+              extensao: ext,
+              entidade_tipo: entidadeTipo,
+              entidade_id: entidadeId,
+              categoria,
+            })
+            .select()
+            .single();
+          if (insertError) throw insertError;
+
+          // 3. Trigger processing
+          await fetch(`${CONFIG.API_BASE}/api/storage/process`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ arquivo_id: inserted.id }),
+          });
+
+          this.arquivos.list.unshift(inserted);
+        } catch(e) {
+          console.error('Upload failed:', e);
+          alert(`Erro ao enviar ${file.name}: ${e.message || e}`);
+        }
+      }
+      this.arquivos.uploadLoading = false;
+      event.target.value = '';
+    },
+
+    async searchArquivos() {
+      const q = this.arquivos.searchQuery.trim();
+      if (!q) { this.arquivos.searchResults = []; return; }
+      this.arquivos.searchLoading = true;
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/storage/search`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: q,
+            mode: this.arquivos.searchMode,
+            limit: 20,
+            filters: {
+              categoria: this.arquivos.filterCategoria || null,
+              entidade_tipo: this.arquivos.filterEntidade || null,
+            },
+          }),
+        });
+        const data = await res.json();
+        this.arquivos.searchResults = data.results || [];
+        if (data.error) alert(data.error);
+      } catch(e) {
+        console.error('Search failed:', e);
+        alert('Erro na busca: ' + e.message);
+      }
+      this.arquivos.searchLoading = false;
+    },
+
+    async deleteArquivo(id) {
+      if (!confirm('Excluir este arquivo?')) return;
+      await CONFIG.supabase.from('sp_arquivos')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id);
+      this.arquivos.list = this.arquivos.list.filter(a => a.id !== id);
+    },
+
+    async togglePinArquivo(id, currentPinned) {
+      await CONFIG.supabase.from('sp_arquivos')
+        .update({ pinned: !currentPinned })
+        .eq('id', id);
+      const item = this.arquivos.list.find(a => a.id === id);
+      if (item) item.pinned = !currentPinned;
+    },
+
+    async getArquivoUrl(storagePath) {
+      const { data } = await CONFIG.supabase.storage
+        .from('spalla-arquivos')
+        .createSignedUrl(storagePath, 3600);
+      if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+    },
+
+    _detectCategoria(mimeType, ext) {
+      if (mimeType.startsWith('image/')) return 'imagem';
+      if (mimeType.startsWith('audio/')) return 'audio';
+      if (mimeType.startsWith('video/')) return 'video';
+      if (['xlsx', 'xls', 'csv'].includes(ext)) return 'planilha';
+      if (['pdf', 'docx', 'doc', 'md', 'txt'].includes(ext)) return 'documento';
+      return 'outro';
+    },
+
+    _formatBytes(bytes) {
+      if (!bytes) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    },
+
+    _statusIcon(status) {
+      const map = { pendente: '⏳', extraindo: '📄', chunking: '✂️', embedding: '🧠', concluido: '✅', erro: '❌', ignorado: '⏭️' };
+      return map[status] || '❓';
+    },
+
+    _categoriaIcon(cat) {
+      const map = { documento: '📄', imagem: '🖼️', audio: '🎵', video: '🎬', planilha: '📊', outro: '📎' };
+      return map[cat] || '📎';
+    },
 
     navigate(page) {
       // Stop WhatsApp polling when leaving WhatsApp page
@@ -1687,9 +1861,12 @@ function operon() {
       this.ui.page = page;
       this.ui.mobileMenuOpen = false;
       localStorage.setItem('spalla_page', page);
+      // Update URL without reload
+      const route = this._pageToRoute(page);
+      if (route && window.location.pathname !== '/' + route) {
+        history.pushState({ page }, '', '/' + route);
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
-      // Auto-load financial data when navigating to financeiro
-      if (page === 'financeiro') this.loadFinanceiro();
     },
 
     goBack() {
@@ -1697,166 +1874,6 @@ function operon() {
       localStorage.setItem('spalla_page', 'dashboard');
       this.data.detail = null;
       this.ui.selectedMenteeId = null;
-    },
-
-    // ===================== FINANCEIRO (CFO Payments View) =====================
-
-    CFO_ALLOWED_USERS: ['kaique', 'heitor', 'hugo', 'queila', 'lara'],
-
-    get isCfoUser() {
-      const name = (this.auth.currentUser?.full_name || '').toLowerCase();
-      return this.CFO_ALLOWED_USERS.some(u => name.startsWith(u));
-    },
-
-    // Financeiro data state
-    financeiro: null,
-    finFilter: '',
-    finNoteModal: { open: false, menteeId: null, menteeNome: '', text: '' },
-    finActionDropdown: null, // mentorado id with open dropdown
-
-    // Financeiro detail (logs for mentee detail tab)
-    // data.finDetailLogs is set on the data object
-
-    get financialMentees() {
-      if (!this.financeiro?.mentorados) return [];
-      let list = this.financeiro.mentorados;
-      if (this.finFilter) {
-        if (this.finFilter === 'sem_contrato') {
-          list = list.filter(m => m.contrato_assinado === false);
-        } else if (this.finFilter === 'acao_pendente') {
-          list = list.filter(m => m.acao_pendente === true);
-        } else {
-          list = list.filter(m => m.status_financeiro === this.finFilter);
-        }
-      }
-      return list;
-    },
-
-    async loadFinanceiro() {
-      if (!sb) { sb = await initSupabase(); }
-      if (!sb) return;
-      try {
-        const [mentoradosRes, snapshotsRes, logsRes] = await Promise.all([
-          sb.from('vw_god_financeiro').select('*'),
-          sb.from('god_financial_snapshots').select('*').order('snapshot_date', { ascending: false }).limit(12),
-          sb.from('god_financial_logs').select('*').order('created_at', { ascending: false }).limit(20),
-        ]);
-
-        const mentorados = mentoradosRes.data || [];
-        const snapshots = (snapshotsRes.data || []).reverse(); // chronological order
-        const logs = logsRes.data || [];
-
-        // Calculate KPIs
-        const kpis = {
-          em_dia: mentorados.filter(m => ['em_dia', 'pago'].includes(m.status_financeiro)).length,
-          atrasado: mentorados.filter(m => m.status_financeiro === 'atrasado').length,
-          quitado: mentorados.filter(m => m.status_financeiro === 'quitado').length,
-          sem_contrato: mentorados.filter(m => m.contrato_assinado === false).length,
-          total: mentorados.length,
-          acao_pendente: mentorados.filter(m => m.acao_pendente === true).length,
-        };
-
-        this.financeiro = { mentorados, snapshots, logs, kpis };
-      } catch (e) {
-        console.error('[Spalla] loadFinanceiro error:', e);
-      }
-    },
-
-    async changeFinStatus(menteeId, newStatus, observacao) {
-      try {
-        const resp = await fetch(`${CONFIG.API_BASE}/api/financial/update-status`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.auth.accessToken}`,
-          },
-          body: JSON.stringify({ mentorado_id: menteeId, new_status: newStatus, observacao: observacao || '' }),
-        });
-        const data = await resp.json();
-        if (data.success) {
-          await this.loadFinanceiro();
-          this.finActionDropdown = null;
-        } else {
-          this.toast(data.error || 'Erro ao atualizar status', 'error');
-        }
-      } catch (e) {
-        console.error('[Spalla] changeFinStatus error:', e);
-        this.toast('Erro ao atualizar status financeiro', 'error');
-      }
-    },
-
-    async addFinNote() {
-      if (!this.finNoteModal.menteeId || !this.finNoteModal.text.trim()) return;
-      try {
-        const resp = await fetch(`${CONFIG.API_BASE}/api/financial/add-note`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.auth.accessToken}`,
-          },
-          body: JSON.stringify({ mentorado_id: this.finNoteModal.menteeId, observacao: this.finNoteModal.text.trim() }),
-        });
-        const data = await resp.json();
-        if (data.success) {
-          this.finNoteModal = { open: false, menteeId: null, menteeNome: '', text: '' };
-          await this.loadFinanceiro();
-        } else {
-          this.toast(data.error || 'Erro ao adicionar observacao', 'error');
-        }
-      } catch (e) {
-        console.error('[Spalla] addFinNote error:', e);
-        this.toast('Erro ao adicionar observacao', 'error');
-      }
-    },
-
-    finStatusLabel(status) {
-      const labels = { em_dia: 'Em Dia', atrasado: 'Atrasado', quitado: 'Quitado', pago: 'Pago', sem_contrato: 'Sem Contrato', pendente: 'Pendente' };
-      return labels[status] || status;
-    },
-
-    finStatusColor(status) {
-      const colors = { em_dia: '#22c55e', atrasado: '#ef4444', quitado: '#3b82f6', pago: '#22c55e', sem_contrato: '#f59e0b', pendente: '#a855f7' };
-      return colors[status] || '#6b7280';
-    },
-
-    finTimeAgo(dateStr) {
-      if (!dateStr) return '';
-      const diff = Date.now() - new Date(dateStr).getTime();
-      const mins = Math.floor(diff / 60000);
-      if (mins < 60) return `${mins}min atras`;
-      const hours = Math.floor(mins / 60);
-      if (hours < 24) return `${hours}h atras`;
-      const days = Math.floor(hours / 24);
-      return `${days}d atras`;
-    },
-
-    // Load mentee detail and jump directly to Financeiro tab
-    async loadMenteeFinDetail(id) {
-      await this.loadMenteeDetail(id);
-      this.ui.activeDetailTab = 'financeiro';
-      await this.loadFinDetailLogs();
-    },
-
-    // Fetch financial logs for the currently selected mentee
-    async loadFinDetailLogs() {
-      const id = this.ui.selectedMenteeId;
-      if (!id) return;
-      this.ui.finDetailLoading = true;
-      this.data.finDetailLogs = [];
-      try {
-        const resp = await fetch(`${CONFIG.API_BASE}/api/financial/logs/${id}`, {
-          headers: { 'Authorization': `Bearer ${this.auth.accessToken}` },
-        });
-        const result = await resp.json();
-        if (result.success && Array.isArray(result.logs)) {
-          this.data.finDetailLogs = result.logs;
-        } else if (Array.isArray(result)) {
-          this.data.finDetailLogs = result;
-        }
-      } catch (e) {
-        console.error('[Spalla] loadFinDetailLogs error:', e);
-      }
-      this.ui.finDetailLoading = false;
     },
 
     // ===================== PLANO DE AÇÃO (PA) =====================
@@ -2344,7 +2361,7 @@ function operon() {
     },
 
     clearFilters() {
-      this.ui.filters = { fase: '', risco: '', cohort: '', status: '', financeiro: '', carteira: '' };
+      this.ui.filters = { fase: '', risco: '', cohort: '', status: '', financeiro: '' };
       this.ui.search = '';
     },
 
@@ -2380,7 +2397,7 @@ function operon() {
       try {
         const raw = localStorage.getItem(CONFIG.TASKS_STORAGE_KEY);
         if (raw) { const parsed = JSON.parse(raw); if (parsed.length > 0) { this.data.tasks = parsed; this._autoCategorize(); return; } }
-      } catch (e) { }
+      } catch (e) {}
       this.data.tasks = DEMO_TASKS;
       this._cacheTasksLocal();
     },
@@ -2394,7 +2411,7 @@ function operon() {
         if (fase === 'escala') return 'list_escala';
         return 'list_concepcao';
       };
-      (this.data.tasks || []).forEach(t => {
+      this.data.tasks.forEach(t => {
         // Migrate old space IDs to new ones
         if (t.space_id === 'space_mentorados' || t.space_id === 'space_equipe' || t.space_id === 'space_queila') {
           t.space_id = null; t.list_id = null;
@@ -2448,12 +2465,12 @@ function operon() {
     },
 
     _cacheTasksLocal() {
-      try { localStorage.setItem(CONFIG.TASKS_STORAGE_KEY, JSON.stringify(this.data.tasks)); } catch (e) { }
+      try { localStorage.setItem(CONFIG.TASKS_STORAGE_KEY, JSON.stringify(this.data.tasks)); } catch (e) {}
     },
 
     async _sbUpsertTask(task, isNew = false) {
       if (!sb) return { ok: false };
-      const VALID_COLS = ['id', 'titulo', 'descricao', 'status', 'prioridade', 'responsavel', 'acompanhante', 'mentorado_id', 'mentorado_nome', 'data_inicio', 'data_fim', 'space_id', 'list_id', 'parent_task_id', 'tags', 'fonte', 'doc_link', 'created_at', 'updated_at', 'created_by', 'recorrencia', 'dia_recorrencia', 'recorrencia_ativa', 'recorrencia_origem_id'];
+      const VALID_COLS = ['id','titulo','descricao','status','prioridade','responsavel','acompanhante','mentorado_id','mentorado_nome','data_inicio','data_fim','space_id','list_id','parent_task_id','tags','fonte','doc_link','created_at','updated_at','created_by','recorrencia','dia_recorrencia','recorrencia_ativa','recorrencia_origem_id'];
       const row = {};
       for (const k of VALID_COLS) { if (task[k] !== undefined) row[k] = task[k]; }
       if (row.mentorado_id) row.mentorado_id = parseInt(row.mentorado_id) || null;
@@ -3847,7 +3864,7 @@ function operon() {
       void this.photoTick;
 
       const isHandle = !handleOrName.includes(' ');
-      const clean = handleOrName.replace('@', '').toLowerCase();
+      const clean = handleOrName.replace('@','').toLowerCase();
 
       // First: try embedded data URLs (PHOTO_DATA_URLS — base64, never expire)
       if (typeof PHOTO_DATA_URLS !== 'undefined' && PHOTO_DATA_URLS[clean]) {
@@ -3879,8 +3896,8 @@ function operon() {
       if (!call) return null;
       // Match by ID first (reliable), then name fallback
       const m = (call.mentorado_id && this.data.mentees.find(x => String(x.id) === String(call.mentorado_id)))
-        || this.data.mentees.find(x => x.nome === call.mentorado)
-        || this.data.mentees.find(x => x.nome?.toLowerCase().trim() === call.mentorado?.toLowerCase().trim());
+             || this.data.mentees.find(x => x.nome === call.mentorado)
+             || this.data.mentees.find(x => x.nome?.toLowerCase().trim() === call.mentorado?.toLowerCase().trim());
       return this.igPhoto(m?.instagram || call.mentorado);
     },
 
@@ -4034,7 +4051,7 @@ function operon() {
     // ===================== CALENDAR METHODS =====================
 
     calendarTitle() {
-      const months = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+      const months = ['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
       return months[this.ui.calendarMonth] + ' ' + this.ui.calendarYear;
     },
 
@@ -4079,12 +4096,12 @@ function operon() {
         const d = prevLastDay - i;
         const m2 = month === 0 ? 11 : month - 1;
         const y2 = month === 0 ? year - 1 : year;
-        const ds = `${y2}-${String(m2 + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const ds = `${y2}-${String(m2+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
         days.push({ key: ds, num: d, currentMonth: false, isToday: ds === todayStr, dateStr: ds, calls: callMap[ds] || 0 });
       }
       // Current month days
       for (let d = 1; d <= lastDay.getDate(); d++) {
-        const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
         days.push({ key: ds, num: d, currentMonth: true, isToday: ds === todayStr, dateStr: ds, calls: callMap[ds] || 0 });
       }
       // Next month days to fill grid (6 rows)
@@ -4092,7 +4109,7 @@ function operon() {
       for (let d = 1; d <= remaining; d++) {
         const m2 = month === 11 ? 0 : month + 1;
         const y2 = month === 11 ? year + 1 : year;
-        const ds = `${y2}-${String(m2 + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const ds = `${y2}-${String(m2+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
         days.push({ key: ds, num: d, currentMonth: false, isToday: ds === todayStr, dateStr: ds, calls: callMap[ds] || 0 });
       }
       return days;
@@ -4162,7 +4179,7 @@ function operon() {
               invitees: f.email ? [f.email] : [],
             }),
           });
-          const zoomData = await zoomRes.json().catch(() => ({}));
+          const zoomData = await zoomRes.json();
           if (zoomData.join_url) zoomUrl = zoomData.join_url;
         } catch (e) {
           console.warn('[Schedule] Zoom creation warning:', e.message);
@@ -4183,7 +4200,7 @@ function operon() {
               location: zoomUrl || '',
             }),
           });
-          const calData = await calRes.json().catch(() => ({}));
+          const calData = await calRes.json();
           if (calData.html_link) calendarUrl = calData.html_link;
         } catch (e) {
           console.warn('[Schedule] Calendar creation warning:', e.message);
@@ -4229,7 +4246,7 @@ function operon() {
         this.scheduleForm = { mentorado: '', mentorado_id: '', tipo: 'acompanhamento', data: '', horario: '10:00', duracao: 60, email: '', notas: '' };
 
         // Refresh upcoming calls
-        this.fetchUpcomingCalls().catch(e => console.warn('[Spalla] fetchUpcomingCalls:', e.message));
+        this.fetchUpcomingCalls();
 
       } catch (err) {
         console.error('[Schedule]', err);
@@ -4343,14 +4360,12 @@ function operon() {
       return DOSSIER_STATUS_CONFIG[status] || DOSSIER_STATUS_CONFIG.nao_iniciado;
     },
 
-    // DEPRECATED: stats now computed from dsProducoes (Supabase data)
     dossierStats() {
-      const prods = this.data.dsProducoes;
-      const total = prods.length;
-      const enviados = prods.filter(p => p.status === 'enviado' || p.status === 'finalizado').length;
-      const emRevisao = prods.filter(p => p.status === 'revisao').length;
-      const producaoIa = prods.filter(p => p.status === 'producao').length;
-      const naoIniciado = prods.filter(p => ['nao_iniciado', 'call_estrategia', 'pausado'].includes(p.status)).length;
+      const total = DOSSIER_PIPELINE.length;
+      const enviados = DOSSIER_PIPELINE.filter(d => d.status === 'enviado').length;
+      const emRevisao = DOSSIER_PIPELINE.filter(d => ['em_revisao', 'ajustar', 'ajustando', 'aprovado_enviar', 'revisao_kaique', 'revisao_mariza', 'revisao_queila'].includes(d.status)).length;
+      const producaoIa = DOSSIER_PIPELINE.filter(d => d.status === 'producao_ia').length;
+      const naoIniciado = DOSSIER_PIPELINE.filter(d => ['nao_iniciado', 'onboarding', 'pausado'].includes(d.status)).length;
       return { total, enviados, emRevisao, producaoIa, naoIniciado };
     },
 
@@ -4545,7 +4560,7 @@ function operon() {
 
       // Refresh
       await this.loadDsMenteeDetail(doc.producao_id);
-      await this.loadDsData().catch(e => console.warn('[Spalla] loadDsData:', e.message));
+      await this.loadDsData();
       this.toast(`Avançou para ${nextEstagio.label}`, 'success');
     },
 
@@ -4570,7 +4585,7 @@ function operon() {
       await this._logDsEvento(doc.producao_id, docId, 'estagio_change', doc.estagio_atual, prevEstagio.id, user, motivo || `Retornou para ${prevEstagio.label}`);
       await this._updateDsProducaoStatus(doc.producao_id);
       await this.loadDsMenteeDetail(doc.producao_id);
-      await this.loadDsData().catch(e => console.warn('[Spalla] loadDsData:', e.message));
+      await this.loadDsData();
       this.toast(`Retornou para ${prevEstagio.label}`, 'info');
     },
 
@@ -4597,7 +4612,7 @@ function operon() {
       if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
       const user = this.currentUserName;
       await this._logDsEvento(producaoId, null, 'nota', null, valor, user, `Contrato: ${valor}`);
-      await this.loadDsData().catch(e => console.warn('[Spalla] loadDsData:', e.message));
+      await this.loadDsData();
       this.toast('Contrato atualizado', 'success');
     },
 
@@ -4610,7 +4625,7 @@ function operon() {
       else {
         const user = this.currentUserName;
         await this._logDsEvento(producaoId, null, 'nota', null, data, user, `${campo} definido: ${data}`);
-        await this.loadDsData().catch(e => console.warn('[Spalla] loadDsData:', e.message));
+        await this.loadDsData();
         this.toast('Data atualizada', 'success');
       }
     },
@@ -4870,7 +4885,7 @@ function operon() {
             await this._logDsEvento(producaoId, doc.id, 'estagio_change', doc.estagio_atual, targetStage.id, user, `Pipeline: ${doc.tipo} → ${targetStage.label}`);
           }
           await this._updateDsProducaoStatus(producaoId);
-          await this.loadDsData().catch(e => console.warn('[Spalla] loadDsData:', e.message));
+          await this.loadDsData();
           this.toast(`Movido para ${targetStage.label}`, 'success');
         },
       };
@@ -4972,7 +4987,7 @@ function operon() {
         });
         if (error) { this.toast('Erro ao criar trilha: ' + error.message, 'error'); return; }
         this.toast('Trilha de onboarding criada!', 'success');
-        await this.loadObData().catch(e => console.warn('[Spalla] loadObData:', e.message));
+        await this.loadObData();
         this.ui.obNewTrilhaModal = false;
         return data;
       } catch (e) {
@@ -5013,7 +5028,7 @@ function operon() {
         }
         await this.loadObDetail(this.ui.obDetailTrilhaId);
       }
-      await this.loadObData().catch(e => console.warn('[Spalla] loadObData:', e.message));
+      await this.loadObData();
     },
 
     async _recalcObEtapaStatus(etapaId) {
@@ -5063,7 +5078,7 @@ function operon() {
       // Log event
       const statusLabels = { em_andamento: 'Em Andamento', concluido: 'Concluído', pausado: 'Pausado' };
       await this._logObEvento(trilhaId, null, null, 'trilha_status', oldStatus, status, 'Status: ' + (statusLabels[oldStatus] || oldStatus || '-') + ' → ' + (statusLabels[status] || status));
-      await this.loadObData().catch(e => console.warn('[Spalla] loadObData:', e.message));
+      await this.loadObData();
       if (this.ui.obDetailTrilhaId === trilhaId) await this.loadObDetail(trilhaId);
       this.toast('Status atualizado', 'success');
     },
@@ -5075,7 +5090,7 @@ function operon() {
       this.data.obTrilhaDetail = null;
       this.ui.obDetailTrilhaId = null;
       this.ui.obExpandedTrilha = null;
-      await this.loadObData().catch(e => console.warn('[Spalla] loadObData:', e.message));
+      await this.loadObData();
       this.toast('Trilha excluída', 'success');
     },
 
@@ -5413,7 +5428,7 @@ function operon() {
       const r = (size - stroke) / 2;
       const c = 2 * Math.PI * r;
       const offset = c - (pct / 100) * c;
-      return `<svg class="progress-ring" width="${size}" height="${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#e2e8f0" stroke-width="${stroke}"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-dasharray="${c}" stroke-dashoffset="${offset}" stroke-linecap="round"/></svg>`;
+      return `<svg class="progress-ring" width="${size}" height="${size}"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="#e2e8f0" stroke-width="${stroke}"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-dasharray="${c}" stroke-dashoffset="${offset}" stroke-linecap="round"/></svg>`;
     },
 
     statBoxClass(value, warnThreshold, dangerThreshold, inverse = false) {
@@ -5639,7 +5654,7 @@ function operon() {
           body: JSON.stringify({ mentorado_id: mid }),
         });
 
-        const data = await resp.json().catch(() => ({}));
+        const data = await resp.json();
         if (!resp.ok || data.error) throw new Error(data.error || 'Erro na Edge Function');
 
         // Salva localmente caso o upsert da Edge Function tenha falhado
@@ -5668,7 +5683,7 @@ function operon() {
     },
 
     destroyPerfilCharts() {
-      Object.values(this._perfilCharts).forEach(c => { try { c.destroy(); } catch (e) { } });
+      Object.values(this._perfilCharts).forEach(c => { try { c.destroy(); } catch(e) {} });
       this._perfilCharts = {};
     },
 
@@ -5689,7 +5704,7 @@ function operon() {
               labels: ['Abert.', 'Consc.', 'Extrov.', 'Amabil.', 'Neurot.'],
               datasets: [{
                 label: 'Score',
-                data: [bf.abertura || 0, bf.conscienciosidade || 0, bf.extroversao || 0, bf.amabilidade || 0, bf.neuroticismo || 0],
+                data: [bf.abertura||0, bf.conscienciosidade||0, bf.extroversao||0, bf.amabilidade||0, bf.neuroticismo||0],
                 backgroundColor: 'rgba(245,158,11,0.2)',
                 borderColor: 'rgb(245,158,11)',
                 borderWidth: 2,
@@ -5712,7 +5727,7 @@ function operon() {
               labels: ['Domin.', 'Influen.', 'Estabil.', 'Conform.'],
               datasets: [{
                 label: 'Score',
-                data: [d.dominancia || 0, d.influencia || 0, d.estabilidade || 0, d.conformidade || d.consciencia || 0],
+                data: [d.dominancia||0, d.influencia||0, d.estabilidade||0, d.conformidade||d.consciencia||0],
                 backgroundColor: 'rgba(99,102,241,0.2)',
                 borderColor: 'rgb(99,102,241)',
                 borderWidth: 2,
@@ -5729,7 +5744,7 @@ function operon() {
         const ctx = document.getElementById('chart-zonas');
         if (ctx) {
           const z = dim.quatro_zonas;
-          const getVal = (v) => typeof v === 'object' ? (v?.score || 0) : (v || 0);
+          const getVal = (v) => typeof v === 'object' ? (v?.score||0) : (v||0);
           this._perfilCharts.zonas = new Chart(ctx, {
             type: 'radar',
             data: {
@@ -5793,7 +5808,7 @@ function operon() {
           legend: { display: false },
           tooltip: {
             callbacks: {
-              label: function (ctx) { return ctx.raw + '/100'; }
+              label: function(ctx) { return ctx.raw + '/100'; }
             }
           }
         },

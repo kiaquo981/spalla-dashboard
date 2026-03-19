@@ -31,19 +31,6 @@ try:
 except ImportError:
     _bcrypt = None  # Falls back to SHA-256 if not installed
 
-# ===== SENTRY ERROR MONITORING =====
-try:
-    import sentry_sdk
-    _sentry_dsn = os.environ.get('SENTRY_DSN', '')
-    if _sentry_dsn:
-        sentry_sdk.init(dsn=_sentry_dsn, traces_sample_rate=0.1)
-        print('[Sentry] Initialized successfully')
-    else:
-        print('[Sentry] SENTRY_DSN not set — error monitoring disabled')
-except ImportError:
-    print('[Sentry] sentry-sdk not installed — pip install sentry-sdk')
-
-
 PORT = int(os.environ.get('PORT', 8888))
 
 # ===== CONFIG =====
@@ -73,16 +60,30 @@ S3_BUCKET     = os.environ.get('S3_BUCKET', 'case-evolution-media')
 S3_ENDPOINT   = os.environ.get('S3_ENDPOINT', 'hel1.your-objectstorage.com')
 S3_REGION     = os.environ.get('S3_REGION', 'eu-central')
 
+# ===== AI CONFIG (Semantic Search + Processing) =====
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+VOYAGE_API_KEY = os.environ.get('VOYAGE_API_KEY', '')
+WHISPER_MODEL = 'whisper-1'
+VISION_MODEL = 'gpt-4o'
+
+# Embedding config — Voyage AI (512 dims via voyage-3-lite, $0.02/1M tokens, 200M free)
+EMBEDDING_PROVIDER = os.environ.get('EMBEDDING_PROVIDER', 'voyage')  # 'voyage' or 'openai'
+VOYAGE_EMBED_MODEL = 'voyage-3-lite'
+OPENAI_EMBED_MODEL = 'text-embedding-3-small'
+EMBEDDING_DIMS = 512 if EMBEDDING_PROVIDER == 'voyage' else 1536
+
+# Chunking config
+CHUNK_SIZE_TOKENS = 800
+CHUNK_OVERLAP_TOKENS = 200
+CHUNK_CONTEXT_SIZE_TOKENS = 2000   # for multi-pass context chunks
+MIN_CHUNK_TOKENS = 50
+
 # ===== JWT AUTH CONFIG =====
 JWT_SECRET = os.environ.get('JWT_SECRET')
 if not JWT_SECRET:
-    _is_production = os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('RAILWAY_SERVICE_ID')
-    if _is_production:
-        print('[FATAL] JWT_SECRET environment variable is required in production')
-        print('[FATAL] Set it in Railway: railway variables set JWT_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")')
-        sys.exit(1)
-    JWT_SECRET = secrets.token_hex(32)
-    print('[WARNING] JWT_SECRET not set — generated ephemeral key (dev only, tokens will not survive restarts)')
+    import secrets as _s
+    JWT_SECRET = _s.token_hex(32)
+    print(f'[WARNING] JWT_SECRET not set — generated ephemeral key (tokens will not survive restarts)')
 JWT_ALGORITHM = 'HS256'
 ACCESS_TOKEN_EXPIRY_MINUTES = 60
 REFRESH_TOKEN_EXPIRY_DAYS = 7
@@ -110,14 +111,14 @@ def verify_password(password, stored_hash):
             return False
     return hashlib.sha256(password.encode()).hexdigest() == stored_hash
 
-def create_jwt_token(email, user_id, expiry_minutes=ACCESS_TOKEN_EXPIRY_MINUTES):
+def create_jwt_token(email, user_id, role='equipe', expiry_minutes=ACCESS_TOKEN_EXPIRY_MINUTES):
     """Create JWT access token"""
     if not jwt:
         return None
     payload = {
         'email': email,
         'user_id': user_id,
-        'role': 'team',
+        'role': role,
         'exp': datetime.now(timezone.utc) + timedelta(minutes=expiry_minutes),
         'iat': datetime.now(timezone.utc)
     }
@@ -762,6 +763,617 @@ def insert_scheduled_call(data):
     return supabase_request('POST', 'calls_mentoria', data)
 
 
+# ===== STORAGE PROCESSING PIPELINE =====
+
+def _openai_request(endpoint, method='POST', body=None, files=None, timeout=120):
+    """Make request to OpenAI API. Returns parsed JSON or raises."""
+    if not OPENAI_API_KEY:
+        raise ValueError('OPENAI_API_KEY not configured')
+
+    if files:
+        # Multipart upload (for Whisper)
+        import io
+        boundary = f'----FormBoundary{secrets.token_hex(8)}'
+        parts = []
+        for key, val in (body or {}).items():
+            parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{key}"\r\n\r\n{val}\r\n')
+        for key, (filename, filedata, content_type) in files.items():
+            parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{key}"; filename="{filename}"\r\nContent-Type: {content_type}\r\n\r\n')
+            parts.append(filedata)
+            parts.append('\r\n')
+        parts.append(f'--{boundary}--\r\n')
+
+        raw_body = b''
+        for p in parts:
+            raw_body += p.encode() if isinstance(p, str) else p
+
+        conn = http.client.HTTPSConnection('api.openai.com', timeout=timeout)
+        conn.request(method, f'/v1/{endpoint}', body=raw_body, headers={
+            'Authorization': f'Bearer {OPENAI_API_KEY}',
+            'Content-Type': f'multipart/form-data; boundary={boundary}',
+        })
+    else:
+        conn = http.client.HTTPSConnection('api.openai.com', timeout=timeout)
+        conn.request(method, f'/v1/{endpoint}',
+                     body=json.dumps(body).encode() if body else None,
+                     headers={
+                         'Authorization': f'Bearer {OPENAI_API_KEY}',
+                         'Content-Type': 'application/json',
+                     })
+    resp = conn.getresponse()
+    data = resp.read()
+    conn.close()
+    if resp.status >= 400:
+        raise ValueError(f'OpenAI API error {resp.status}: {data.decode()[:500]}')
+    return json.loads(data)
+
+
+def _voyage_request(endpoint, body, timeout=60):
+    """Make request to Voyage AI API."""
+    if not VOYAGE_API_KEY:
+        raise ValueError('VOYAGE_API_KEY not configured')
+    conn = http.client.HTTPSConnection('api.voyageai.com', timeout=timeout)
+    conn.request('POST', f'/v1/{endpoint}',
+                 body=json.dumps(body).encode(),
+                 headers={
+                     'Authorization': f'Bearer {VOYAGE_API_KEY}',
+                     'Content-Type': 'application/json',
+                 })
+    resp = conn.getresponse()
+    data = resp.read()
+    conn.close()
+    if resp.status >= 400:
+        raise ValueError(f'Voyage API error {resp.status}: {data.decode()[:500]}')
+    return json.loads(data)
+
+
+def embed_texts(texts):
+    """Generate embeddings. Uses Voyage AI (1024 dims) or OpenAI (1536 dims) based on config."""
+    if EMBEDDING_PROVIDER == 'voyage':
+        result = _voyage_request('embeddings', {
+            'model': VOYAGE_EMBED_MODEL,
+            'input': texts,
+            'input_type': 'document',
+        })
+        return [item['embedding'] for item in result['data']]
+    else:
+        result = _openai_request('embeddings', body={
+            'model': OPENAI_EMBED_MODEL,
+            'input': texts,
+        })
+        return [item['embedding'] for item in result['data']]
+
+
+def embed_query(text):
+    """Embed a search query (uses input_type='query' for Voyage AI)."""
+    if EMBEDDING_PROVIDER == 'voyage':
+        result = _voyage_request('embeddings', {
+            'model': VOYAGE_EMBED_MODEL,
+            'input': [text],
+            'input_type': 'query',
+        })
+        return result['data'][0]['embedding']
+    else:
+        result = _openai_request('embeddings', body={
+            'model': OPENAI_EMBED_MODEL,
+            'input': [text],
+        })
+        return result['data'][0]['embedding']
+
+
+def rerank_results(query, results, top_n=10):
+    """Rerank search results using Voyage AI reranker or cross-encoder."""
+    if not results:
+        return results
+
+    if EMBEDDING_PROVIDER == 'voyage' and VOYAGE_API_KEY:
+        try:
+            documents = [r.get('chunk_texto', '') for r in results]
+            resp = _voyage_request('rerank', {
+                'model': 'rerank-2-lite',
+                'query': query,
+                'documents': documents,
+                'top_k': min(top_n, len(documents)),
+            })
+            reranked = []
+            for item in resp.get('data', []):
+                idx = item['index']
+                r = dict(results[idx])
+                r['rerank_score'] = item['relevance_score']
+                reranked.append(r)
+            return reranked
+        except Exception as e:
+            log_info('Storage', f'Rerank fallback (Voyage failed): {e}')
+            return results[:top_n]
+
+    # Fallback: return as-is (cross-encoder local can be added later via flashrank)
+    return results[:top_n]
+
+
+def openai_whisper(audio_bytes, filename, mime_type):
+    """Transcribe audio/video via Whisper API. Returns text."""
+    result = _openai_request('audio/transcriptions',
+        body={'model': WHISPER_MODEL, 'language': 'pt', 'response_format': 'text'},
+        files={'file': (filename, audio_bytes, mime_type)},
+        timeout=300)
+    # When response_format=text, result is plain text not JSON
+    if isinstance(result, dict) and 'text' in result:
+        return result['text']
+    return str(result)
+
+
+def openai_vision_describe(image_bytes, mime_type):
+    """Describe image content using GPT-4o vision. Returns text description."""
+    b64 = base64.b64encode(image_bytes).decode()
+    result = _openai_request('chat/completions', body={
+        'model': VISION_MODEL,
+        'max_tokens': 1000,
+        'messages': [{
+            'role': 'user',
+            'content': [
+                {'type': 'text', 'text': 'Descreva detalhadamente o conteúdo desta imagem em português. Se houver texto, transcreva-o. Se for um screenshot, descreva o contexto.'},
+                {'type': 'image_url', 'image_url': {'url': f'data:{mime_type};base64,{b64}'}}
+            ]
+        }]
+    })
+    return result['choices'][0]['message']['content']
+
+
+def _download_from_supabase_storage(storage_path):
+    """Download file bytes from Supabase Storage bucket."""
+    key = SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY
+    encoded_path = urllib.parse.quote(storage_path, safe='/')
+    url = f'/storage/v1/object/spalla-arquivos/{encoded_path}'
+
+    conn = http.client.HTTPSConnection('knusqfbvhsqworzyhvip.supabase.co', timeout=60)
+    conn.request('GET', url, headers={
+        'apikey': key,
+        'Authorization': f'Bearer {key}',
+    })
+    resp = conn.getresponse()
+    data = resp.read()
+    conn.close()
+    if resp.status >= 400:
+        raise ValueError(f'Storage download failed {resp.status}: {data.decode()[:200]}')
+    return data
+
+
+def _extract_text_pdf(file_bytes):
+    """Extract text from PDF using pdfplumber."""
+    try:
+        import pdfplumber
+        import io
+        text_parts = []
+        with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+            for i, page in enumerate(pdf.pages):
+                page_text = page.extract_text() or ''
+                if page_text.strip():
+                    text_parts.append(f'--- Página {i+1} ---\n{page_text}')
+        return '\n\n'.join(text_parts), {'pages': len(pdf.pages)}, 'pdf_extract'
+    except ImportError:
+        # Fallback: try pymupdf
+        try:
+            import fitz
+            import io
+            doc = fitz.open(stream=file_bytes, filetype='pdf')
+            text_parts = []
+            for i, page in enumerate(doc):
+                page_text = page.get_text()
+                if page_text.strip():
+                    text_parts.append(f'--- Página {i+1} ---\n{page_text}')
+            return '\n\n'.join(text_parts), {'pages': len(doc)}, 'pdf_extract'
+        except ImportError:
+            raise ValueError('Neither pdfplumber nor pymupdf installed. Run: pip install pdfplumber')
+
+
+def _extract_text_docx(file_bytes):
+    """Extract text from DOCX."""
+    try:
+        import docx
+        import io
+        doc = docx.Document(io.BytesIO(file_bytes))
+        text_parts = [p.text for p in doc.paragraphs if p.text.strip()]
+        return '\n\n'.join(text_parts), {'paragraphs': len(text_parts)}, 'docx_extract'
+    except ImportError:
+        raise ValueError('python-docx not installed. Run: pip install python-docx')
+
+
+def _extract_text_xlsx(file_bytes):
+    """Extract text from XLSX — each sheet as structured text."""
+    try:
+        import openpyxl
+        import io
+        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
+        text_parts = []
+        structured = {}
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            rows = []
+            for row in ws.iter_rows(values_only=True):
+                row_text = ' | '.join(str(c) if c is not None else '' for c in row)
+                if row_text.strip(' |'):
+                    rows.append(row_text)
+            if rows:
+                sheet_text = f'=== Planilha: {sheet_name} ===\n' + '\n'.join(rows)
+                text_parts.append(sheet_text)
+                structured[sheet_name] = rows
+        return '\n\n'.join(text_parts), {'sheets': list(wb.sheetnames)}, 'xlsx_extract'
+    except ImportError:
+        raise ValueError('openpyxl not installed. Run: pip install openpyxl')
+
+
+def _extract_text_csv(file_bytes):
+    """Extract text from CSV."""
+    import csv, io
+    text = file_bytes.decode('utf-8', errors='replace')
+    reader = csv.reader(io.StringIO(text))
+    rows = [' | '.join(row) for row in reader if any(c.strip() for c in row)]
+    return '\n'.join(rows), {'rows': len(rows)}, 'text_direct'
+
+
+def _simple_token_count(text):
+    """Approximate token count (4 chars per token heuristic for Portuguese)."""
+    return len(text) // 4
+
+
+def _content_hash(text):
+    """SHA-256 hash of text content — for dedup (Notion pattern)."""
+    return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
+
+def _chunk_text(text, chunk_size=CHUNK_SIZE_TOKENS, overlap=CHUNK_OVERLAP_TOKENS, min_size=MIN_CHUNK_TOKENS):
+    """Split text into overlapping chunks by approximate token count."""
+    words = text.split()
+    words_per_chunk = int(chunk_size * 1.3)
+    words_overlap = int(overlap * 1.3)
+
+    chunks = []
+    start = 0
+    while start < len(words):
+        end = min(start + words_per_chunk, len(words))
+        chunk_text = ' '.join(words[start:end])
+        if _simple_token_count(chunk_text) >= min_size:
+            chunks.append(chunk_text)
+        start += words_per_chunk - words_overlap
+    return chunks
+
+
+def _chunk_by_heading(text, max_chunk=CHUNK_SIZE_TOKENS, min_size=MIN_CHUNK_TOKENS):
+    """Split markdown/structured text by headings (Unstructured.io pattern).
+    Preserves section context. Falls back to regular chunking for non-headed text."""
+    lines = text.split('\n')
+    sections = []
+    current_heading = ''
+    current_lines = []
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith('#') or (stripped.startswith('---') and len(stripped) >= 3 and current_lines):
+            # New section
+            if current_lines:
+                section_text = current_heading + '\n' + '\n'.join(current_lines) if current_heading else '\n'.join(current_lines)
+                sections.append(section_text.strip())
+            current_heading = stripped
+            current_lines = []
+        else:
+            current_lines.append(line)
+
+    # Last section
+    if current_lines:
+        section_text = current_heading + '\n' + '\n'.join(current_lines) if current_heading else '\n'.join(current_lines)
+        sections.append(section_text.strip())
+
+    # Now split oversized sections with regular chunking
+    chunks = []
+    for section in sections:
+        if not section.strip():
+            continue
+        tokens = _simple_token_count(section)
+        if tokens <= max_chunk:
+            if tokens >= min_size:
+                chunks.append(section)
+        else:
+            # Section too big — sub-chunk it
+            sub_chunks = _chunk_text(section, chunk_size=max_chunk)
+            chunks.extend(sub_chunks)
+
+    return chunks if chunks else _chunk_text(text)
+
+
+def _chunk_multipass(text, is_structured=False):
+    """Multi-pass chunking (Onyx/Danswer pattern): standard chunks + broad context chunks."""
+    # Pass 1: standard chunks (heading-based for structured, regular for others)
+    if is_structured:
+        standard = _chunk_by_heading(text)
+    else:
+        standard = _chunk_text(text)
+
+    # Pass 2: broad context chunks (2x size, for capturing wider meaning)
+    context = _chunk_text(text, chunk_size=CHUNK_CONTEXT_SIZE_TOKENS, overlap=CHUNK_OVERLAP_TOKENS * 2)
+
+    return standard, context
+
+
+def _resolve_mentorado_from_entity(entidade_tipo, entidade_id):
+    """Resolve mentorado_id and mentorado_nome from entity reference."""
+    if entidade_tipo == 'mentorado' and entidade_id:
+        result = supabase_request('GET', f'mentorados?select=id,nome&id=eq.{entidade_id}')
+        if isinstance(result, list) and result:
+            return int(result[0]['id']), result[0]['nome']
+    elif entidade_tipo == 'task' and entidade_id:
+        result = supabase_request('GET', f'god_tasks?select=mentorado_id,mentorado_nome&id=eq.{entidade_id}')
+        if isinstance(result, list) and result and result[0].get('mentorado_id'):
+            return int(result[0]['mentorado_id']), result[0].get('mentorado_nome', '')
+    elif entidade_tipo in ('dossie_doc', 'dossie_producao') and entidade_id:
+        table = 'ds_documentos' if entidade_tipo == 'dossie_doc' else 'ds_producoes'
+        result = supabase_request('GET', f'{table}?select=mentorado_id&id=eq.{entidade_id}')
+        if isinstance(result, list) and result and result[0].get('mentorado_id'):
+            mid = int(result[0]['mentorado_id'])
+            m = supabase_request('GET', f'mentorados?select=nome&id=eq.{mid}')
+            nome = m[0]['nome'] if isinstance(m, list) and m else ''
+            return mid, nome
+    return None, None
+
+
+def process_file_pipeline(arquivo_id):
+    """
+    Full processing pipeline for a file:
+    1. Download from Supabase Storage
+    2. Extract text based on mime_type
+    3. Chunk text
+    4. Generate embeddings
+    5. Store in sp_conteudo_extraido + sp_chunks
+    """
+    log_info('Storage', f'Processing file {arquivo_id}...')
+
+    # Get file metadata
+    result = supabase_request('GET', f'sp_arquivos?select=*&id=eq.{arquivo_id}')
+    if not isinstance(result, list) or not result:
+        log_error('Storage', f'File {arquivo_id} not found')
+        return
+
+    arquivo = result[0]
+    mime = arquivo['mime_type']
+    ext = (arquivo.get('extensao') or '').lower()
+    storage_path = arquivo['storage_path']
+    nome = arquivo['nome_original']
+
+    try:
+        # Update status
+        supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
+                        {'status_processamento': 'extraindo'})
+
+        # Download file
+        file_bytes = _download_from_supabase_storage(storage_path)
+        log_info('Storage', f'Downloaded {nome} ({len(file_bytes)} bytes)')
+
+        # Extract content based on type
+        texto = ''
+        metadados = {}
+        metodo = 'text_direct'
+        duracao_seg = None
+
+        if mime in ('text/plain', 'text/markdown') or ext in ('txt', 'md'):
+            texto = file_bytes.decode('utf-8', errors='replace')
+            metodo = 'text_direct'
+
+        elif mime == 'application/pdf' or ext == 'pdf':
+            texto, metadados, metodo = _extract_text_pdf(file_bytes)
+
+        elif mime == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' or ext == 'docx':
+            texto, metadados, metodo = _extract_text_docx(file_bytes)
+
+        elif mime in ('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel') or ext in ('xlsx', 'xls'):
+            texto, metadados, metodo = _extract_text_xlsx(file_bytes)
+
+        elif mime == 'text/csv' or ext == 'csv':
+            texto, metadados, metodo = _extract_text_csv(file_bytes)
+
+        elif mime.startswith('audio/') or ext in ('mp3', 'wav', 'ogg', 'm4a'):
+            if not OPENAI_API_KEY:
+                raise ValueError('OPENAI_API_KEY required for audio transcription')
+            texto = openai_whisper(file_bytes, nome, mime)
+            metodo = 'whisper_stt'
+
+        elif mime.startswith('video/') or ext in ('mp4', 'mov', 'webm'):
+            if not OPENAI_API_KEY:
+                raise ValueError('OPENAI_API_KEY required for video transcription')
+            # Whisper API accepts video files directly (mp4, webm, etc)
+            texto = openai_whisper(file_bytes, nome, mime)
+            metodo = 'whisper_video'
+
+        elif mime.startswith('image/') or ext in ('png', 'jpg', 'jpeg', 'webp'):
+            if not OPENAI_API_KEY:
+                raise ValueError('OPENAI_API_KEY required for image description')
+            texto = openai_vision_describe(file_bytes, mime)
+            metodo = 'ocr_vision'
+
+        else:
+            # Unsupported type — mark as ignored
+            supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
+                            {'status_processamento': 'ignorado',
+                             'erro_processamento': f'Tipo não suportado: {mime}'})
+            log_info('Storage', f'Skipped unsupported type: {mime}')
+            return
+
+        if not texto or not texto.strip():
+            supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
+                            {'status_processamento': 'ignorado',
+                             'erro_processamento': 'Nenhum conteúdo extraído'})
+            return
+
+        word_count = len(texto.split())
+        text_hash = _content_hash(texto)
+        log_info('Storage', f'Extracted {word_count} words via {metodo}')
+
+        # Content hash dedup (Notion pattern) — skip re-embedding if content unchanged
+        if arquivo.get('content_hash') == text_hash:
+            log_info('Storage', f'Content unchanged (hash match) — skipping re-embedding')
+            supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
+                            {'status_processamento': 'concluido',
+                             'processado_em': datetime.now(timezone.utc).isoformat()})
+            return
+
+        # Save extracted content
+        conteudo_row = supabase_request('POST', 'sp_conteudo_extraido', {
+            'arquivo_id': arquivo_id,
+            'conteudo_texto': texto,
+            'conteudo_estruturado': metadados if metadados else None,
+            'metadados_extracao': {
+                'word_count': word_count,
+                'method': metodo,
+                'file_size': len(file_bytes),
+            },
+            'metodo_extracao': metodo,
+            'word_count': word_count,
+            'duracao_segundos': duracao_seg,
+        })
+
+        conteudo_id = conteudo_row[0]['id'] if isinstance(conteudo_row, list) and conteudo_row else conteudo_row.get('id')
+        if not conteudo_id:
+            raise ValueError(f'Failed to insert sp_conteudo_extraido: {conteudo_row}')
+
+        # Update status
+        supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
+                        {'status_processamento': 'chunking'})
+
+        # Multi-pass chunking (Onyx/Danswer pattern)
+        is_structured = ext in ('md', 'docx', 'html') or mime in ('text/markdown',)
+        standard_chunks, context_chunks = _chunk_multipass(texto, is_structured=is_structured)
+        total_chunks = len(standard_chunks) + len(context_chunks)
+        log_info('Storage', f'Created {len(standard_chunks)} standard + {len(context_chunks)} context chunks')
+
+        if total_chunks == 0:
+            supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
+                            {'status_processamento': 'concluido',
+                             'content_hash': text_hash,
+                             'processado_em': datetime.now(timezone.utc).isoformat()})
+            return
+
+        # Update status
+        supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
+                        {'status_processamento': 'embedding'})
+
+        # Prepare all texts for embedding (standard + context in one batch)
+        all_texts = standard_chunks + context_chunks
+        chunk_tipos = ['standard'] * len(standard_chunks) + ['context'] * len(context_chunks)
+
+        # Generate embeddings (batch)
+        BATCH_SIZE = 100
+        all_embeddings = []
+        for i in range(0, len(all_texts), BATCH_SIZE):
+            batch = all_texts[i:i + BATCH_SIZE]
+            log_info('Storage', f'Embedding batch {i//BATCH_SIZE + 1}: {len(batch)} texts via {EMBEDDING_PROVIDER}')
+            embeddings = embed_texts(batch)
+            log_info('Storage', f'Got {len(embeddings)} embeddings, dims={len(embeddings[0]) if embeddings else 0}')
+            all_embeddings.extend(embeddings)
+        log_info('Storage', f'Total: {len(all_embeddings)} embeddings via {EMBEDDING_PROVIDER}')
+
+        # Resolve mentorado
+        mentorado_id, mentorado_nome = _resolve_mentorado_from_entity(
+            arquivo['entidade_tipo'], arquivo.get('entidade_id'))
+
+        # Delete old chunks if reprocessing
+        supabase_request('DELETE', f'sp_chunks?arquivo_id=eq.{arquivo_id}')
+
+        # Insert chunks with embeddings
+        inserted = 0
+        for idx, (chunk_text, embedding, chunk_tipo) in enumerate(zip(all_texts, all_embeddings, chunk_tipos)):
+            # Format embedding as pgvector string
+            emb_str = '[' + ','.join(str(v) for v in embedding) + ']'
+            chunk_row = {
+                'arquivo_id': arquivo_id,
+                'conteudo_id': conteudo_id,
+                'texto': chunk_text,
+                'chunk_index': idx,
+                'token_count': _simple_token_count(chunk_text),
+                'embedding': emb_str,
+                'chunk_tipo': chunk_tipo,
+                'arquivo_nome': nome,
+                'entidade_tipo': arquivo['entidade_tipo'],
+                'entidade_id': arquivo.get('entidade_id'),
+                'categoria': arquivo.get('categoria'),
+                'mentorado_id': mentorado_id,
+                'mentorado_nome': mentorado_nome,
+            }
+            result = supabase_request('POST', 'sp_chunks', chunk_row)
+            if isinstance(result, dict) and result.get('error'):
+                log_error('Storage', f'Chunk {idx} insert failed: {result["error"][:200]}')
+            else:
+                inserted += 1
+        log_info('Storage', f'Inserted {inserted}/{len(all_texts)} chunks')
+
+        # Done! Save content hash
+        supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
+                        {'status_processamento': 'concluido',
+                         'content_hash': text_hash,
+                         'processado_em': datetime.now(timezone.utc).isoformat()})
+
+        log_info('Storage', f'✓ File {nome} processed: {len(standard_chunks)} standard + {len(context_chunks)} context chunks indexed')
+
+    except Exception as e:
+        log_error('Storage', f'Processing failed for {nome}', e)
+        supabase_request('PATCH', f'sp_arquivos?id=eq.{arquivo_id}',
+                        {'status_processamento': 'erro',
+                         'erro_processamento': str(e)[:500]})
+
+
+def search_semantic(query_text, mode='hybrid', filters=None, limit=10):
+    """
+    Execute semantic/keyword/hybrid search with reranking.
+    Uses Voyage AI or OpenAI based on EMBEDDING_PROVIDER config.
+    """
+    filters = filters or {}
+
+    if mode == 'keyword':
+        params = {
+            'p_query': query_text,
+            'p_limit': limit * 2,  # fetch more for reranking
+            'p_entidade_tipo': filters.get('entidade_tipo'),
+            'p_categoria': filters.get('categoria'),
+            'p_mentorado_id': filters.get('mentorado_id'),
+        }
+        result = supabase_request('POST', 'rpc/fn_busca_keyword', params)
+        results = result if isinstance(result, list) else []
+        return rerank_results(query_text, results, top_n=limit)
+
+    # Need embedding for semantic/hybrid
+    api_key = VOYAGE_API_KEY if EMBEDDING_PROVIDER == 'voyage' else OPENAI_API_KEY
+    if not api_key:
+        raise ValueError(f'{EMBEDDING_PROVIDER.upper()}_API_KEY required for semantic search')
+
+    query_embedding = embed_query(query_text)
+    fetch_limit = limit * 3  # over-fetch for reranking
+
+    if mode == 'semantic':
+        params = {
+            'p_query_embedding': str(query_embedding),
+            'p_limit': fetch_limit,
+            'p_entidade_tipo': filters.get('entidade_tipo'),
+            'p_categoria': filters.get('categoria'),
+            'p_mentorado_id': filters.get('mentorado_id'),
+            'p_threshold': filters.get('threshold', 0.3),
+        }
+        result = supabase_request('POST', 'rpc/fn_busca_semantica', params)
+        results = result if isinstance(result, list) else []
+        return rerank_results(query_text, results, top_n=limit)
+
+    else:  # hybrid (default)
+        params = {
+            'p_query_embedding': str(query_embedding),
+            'p_query_text': query_text,
+            'p_limit': fetch_limit,
+            'p_entidade_tipo': filters.get('entidade_tipo'),
+            'p_categoria': filters.get('categoria'),
+            'p_mentorado_id': filters.get('mentorado_id'),
+            'p_semantic_weight': filters.get('semantic_weight', 0.7),
+            'p_threshold': filters.get('threshold', 0.25),
+        }
+        result = supabase_request('POST', 'rpc/fn_busca_hibrida', params)
+        results = result if isinstance(result, list) else []
+        return rerank_results(query_text, results, top_n=limit)
+
+
 # ===== CUSTOM HTTP SERVER (fix SO_REUSEADDR) =====
 class ReuseAddrHTTPServer(http.server.HTTPServer):
     allow_reuse_address = True
@@ -810,8 +1422,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_instance_uuid()
         elif self.path == '/api/sheets/status':
             self._handle_sheets_status()
-        elif self.path.startswith('/api/financial/logs/'):
-            self._handle_financial_get_logs()
+        elif self.path.startswith('/api/storage/files'):
+            self._handle_storage_list_files()
+        elif self.path.startswith('/api/storage/status'):
+            self._handle_storage_status()
         elif self.path == '/api/health':
             self._send_json({
                 'status': 'ok',
@@ -819,6 +1433,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'gcal_configured': os.path.exists(GOOGLE_SA_PATH),
                 'supabase_configured': bool(SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY),
                 'sheets_configured': get_sheets_service() is not None,
+                'openai_configured': bool(OPENAI_API_KEY),
+                'storage_search': bool(OPENAI_API_KEY),
             })
         else:
             super().do_GET()
@@ -840,8 +1456,6 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_auth_refresh()
         elif self.path == '/api/auth/reset-password':
             self._handle_auth_reset_password()
-        elif self.path == '/api/auth/change-password':
-            self._handle_auth_change_password()
         elif self.path.startswith('/api/evolution/'):
             self._proxy_evolution('POST')
         elif self.path == '/api/schedule-call':
@@ -852,12 +1466,16 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_create_calendar_event()
         elif self.path == '/api/sheets/sync':
             self._handle_sheets_sync()
-        elif self.path == '/api/ds/update-stage':
-            self._handle_ds_update_stage()
-        elif self.path == '/api/financial/update-status':
-            self._handle_financial_update_status()
-        elif self.path == '/api/financial/add-note':
-            self._handle_financial_add_note()
+        elif self.path == '/api/welcome-flow/register':
+            self._handle_welcome_flow_register()
+        elif self.path == '/api/storage/process':
+            self._handle_storage_process()
+        elif self.path == '/api/storage/search':
+            self._handle_storage_search()
+        elif self.path == '/api/storage/test':
+            self._handle_storage_test()
+        elif self.path == '/api/storage/reprocess':
+            self._handle_storage_reprocess()
         else:
             self._send_json({'error': 'Not found'}, 404)
 
@@ -1177,167 +1795,6 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             'contracts_sheet': CONTRACTS_SHEET_ID,
         })
 
-    # ===== DOSSIÊ PRODUCTION SYSTEM =====
-
-    # CR-C1: Role-based auth — only team members can mutate pipeline
-    DS_ALLOWED_ROLES = ('admin', 'team')
-
-    def _ds_check_auth(self):
-        """Verify JWT token + role for DS endpoints. Returns payload or None (sends 401/403)."""
-        auth_header = self.headers.get('Authorization', '')
-        if not auth_header.startswith('Bearer '):
-            self._send_json({'error': 'Missing or invalid token'}, 401)
-            return None
-        payload = verify_jwt_token(auth_header[7:])
-        if not payload or payload.get('type') == 'refresh':
-            self._send_json({'error': 'Invalid or expired token'}, 401)
-            return None
-        # Check role — require explicit role in JWT, no fallback
-        role = payload.get('role')
-        if not role or role not in self.DS_ALLOWED_ROLES:
-            self._send_json({'error': 'Insufficient permissions — JWT must contain role (admin or team)'}, 403)
-            return None
-        return payload
-
-    # CR-M1: State machine — valid stage transitions
-    DS_VALID_TRANSITIONS = {
-        'pendente': ('producao_ia',),
-        'producao_ia': ('revisao_mariza',),
-        'revisao_mariza': ('revisao_kaique', 'producao_ia'),  # can send back
-        'revisao_kaique': ('revisao_queila', 'revisao_mariza'),  # can send back
-        'revisao_queila': ('aprovado', 'revisao_kaique'),  # can send back
-        'aprovado': ('enviado',),
-        'enviado': ('finalizado', 'ajustes'),
-        'finalizado': (),
-        'ajustes': ('revisao_mariza',),
-    }
-
-    def _handle_ds_update_stage(self):
-        """Update ds_documentos stage and create ds_eventos audit trail.
-        POST /api/ds/update-stage
-        Body: { mentorado_slug: str, dossie_tipo: str, estagio: str }
-        Requires: Bearer JWT token with role in DS_ALLOWED_ROLES
-        Returns: 200 {ok, mentorado, tipo, estagio, responsavel}
-        Errors: 400 (validation), 401 (auth), 403 (role), 404 (not found), 409 (invalid transition), 500 (server)
-        """
-        auth = self._ds_check_auth()
-        if not auth:
-            return
-
-        try:
-            body = json.loads(self._read_body())
-        except Exception:
-            self._send_json({'error': 'Invalid JSON'}, 400)
-            return
-
-        slug = body.get('mentorado_slug', '')
-        tipo = body.get('dossie_tipo', '')
-        estagio = body.get('estagio', '')
-
-        if not slug or not tipo or not estagio:
-            self._send_json({'error': 'mentorado_slug, dossie_tipo, and estagio are required'}, 400)
-            return
-
-        valid_tipos = ('oferta', 'funil', 'conteudo')
-        if tipo not in valid_tipos:
-            self._send_json({'error': f'dossie_tipo must be one of {valid_tipos}'}, 400)
-            return
-
-        valid_estagios = tuple(self.DS_VALID_TRANSITIONS.keys())
-        if estagio not in valid_estagios:
-            self._send_json({'error': f'estagio must be one of {valid_estagios}'}, 400)
-            return
-
-        # Sanitize slug: only allow alphanumeric, spaces, hyphens, accented chars
-        safe_slug = re.sub(r'[^a-zA-ZÀ-ÿ0-9\s\-]', '', slug).strip()
-        if not safe_slug or len(safe_slug) < 2:
-            self._send_json({'error': 'Invalid mentorado_slug'}, 400)
-            return
-
-        # Find mentorado (slug is sanitized, safe for ILIKE)
-        mentee = supabase_request('GET',
-            f'mentorados?nome=ilike.*{urllib.parse.quote(safe_slug)}*&select=id,nome&limit=5')
-        if isinstance(mentee, dict) and mentee.get('error'):
-            self._send_json({'error': f'Database error looking up mentorado: {mentee["error"]}'}, 500)
-            return
-        if not mentee:
-            self._send_json({'error': f'Mentorado not found: {safe_slug}'}, 404)
-            return
-        if len(mentee) > 1:
-            names = [m['nome'] for m in mentee]
-            self._send_json({'error': f'Ambiguous slug — {len(mentee)} matches: {names}. Be more specific.'}, 400)
-            return
-        mentorado_id = mentee[0]['id']
-        mentorado_nome = mentee[0]['nome']
-
-        # CR-M2: Find document via active producao (not cancelled/finalizado)
-        docs = supabase_request('GET',
-            f'ds_documentos?mentorado_id=eq.{mentorado_id}&tipo=eq.{tipo}'
-            f'&producao_id=not.is.null&select=id,producao_id,estagio_atual'
-            f'&order=created_at.desc&limit=1')
-        if isinstance(docs, dict) and docs.get('error'):
-            self._send_json({'error': f'Database error looking up document: {docs["error"]}'}, 500)
-            return
-        if not docs:
-            self._send_json({'error': f'Document not found: {mentorado_nome} / {tipo}'}, 404)
-            return
-        doc = docs[0]
-
-        # CR-M1: Validate state transition
-        current_stage = doc['estagio_atual']
-        allowed_next = self.DS_VALID_TRANSITIONS.get(current_stage, ())
-        if estagio not in allowed_next:
-            self._send_json({
-                'error': f'Invalid transition: {current_stage} → {estagio}',
-                'allowed': list(allowed_next),
-            }, 409)
-            return
-
-        # Determine next responsavel
-        responsavel_map = {
-            'producao_ia': 'Mariza',
-            'revisao_mariza': 'Mariza',
-            'revisao_kaique': 'Kaique',
-            'revisao_queila': 'Queila',
-        }
-        responsavel = responsavel_map.get(estagio)
-
-        # Update document stage
-        update = {'estagio_atual': estagio, 'estagio_desde': datetime.now(timezone.utc).isoformat()}
-        if estagio == 'producao_ia':
-            update['data_producao_ia'] = datetime.now(timezone.utc).isoformat()
-        if responsavel:
-            update['responsavel_atual'] = responsavel
-
-        result = supabase_request('PATCH', f'ds_documentos?id=eq.{doc["id"]}', update)
-        if isinstance(result, dict) and result.get('error'):
-            self._send_json({'error': f'Failed to update document: {result["error"]}'}, 500)
-            return
-
-        # Create audit event
-        evt_result = supabase_request('POST', 'ds_eventos', {
-            'producao_id': doc['producao_id'],
-            'documento_id': doc['id'],
-            'mentorado_id': mentorado_id,
-            'tipo_evento': 'estagio_change',
-            'de_valor': current_stage,
-            'para_valor': estagio,
-            'responsavel': responsavel or 'pipeline-auto',
-            'descricao': f'{tipo} → {estagio} (via API)',
-        })
-        audit_ok = not (isinstance(evt_result, dict) and evt_result.get('error'))
-        if not audit_ok:
-            log_error('DS', 'Failed to create audit event', evt_result['error'])
-
-        self._send_json({
-            'ok': True,
-            'mentorado': mentorado_nome,
-            'tipo': tipo,
-            'estagio': estagio,
-            'responsavel': responsavel,
-            'audit_event': audit_ok,
-        })
-
     def _handle_sheets_sync(self):
         try:
             result = sync_sheets_to_supabase()
@@ -1369,11 +1826,16 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': 'Email already exists'}, 409)
                 return
 
+            role = body.get('role', 'equipe').strip().lower()
+            if role not in ('equipe', 'mentorado', 'admin'):
+                role = 'equipe'
+
             password_hash = hash_password(password)
             result = supabase_request('POST', 'auth_users', {
                 'email': email,
                 'password_hash': password_hash,
                 'full_name': full_name,
+                'role': role,
             })
 
             if isinstance(result, dict) and result.get('error'):
@@ -1383,12 +1845,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             user = result[0] if isinstance(result, list) else result
             user_id = user.get('id')
 
-            access_token = create_jwt_token(email, user_id)
+            access_token = create_jwt_token(email, user_id, role=role)
             refresh_token = create_refresh_token(email, user_id)
 
             self._send_json({
                 'success': True,
-                'user': {'id': user_id, 'email': email, 'full_name': full_name},
+                'user': {'id': user_id, 'email': email, 'full_name': full_name, 'role': role},
                 'access_token': access_token,
                 'refresh_token': refresh_token,
                 'expires_in': ACCESS_TOKEN_EXPIRY_MINUTES * 60
@@ -1415,7 +1877,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             email = payload.get('email')
 
             # Fetch fresh user data from DB
-            result = supabase_request('GET', f'auth_users?id=eq.{user_id}&select=id,email,full_name')
+            result = supabase_request('GET', f'auth_users?id=eq.{user_id}&select=id,email,full_name,role')
             if isinstance(result, list) and len(result) > 0:
                 self._send_json({'user': result[0]})
             else:
@@ -1435,7 +1897,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': 'Email and password required'}, 400)
                 return
 
-            result = supabase_request('GET', f'auth_users?email=eq.{email}&select=id,email,full_name,password_hash')
+            result = supabase_request('GET', f'auth_users?email=eq.{email}&select=id,email,full_name,password_hash,role')
             if not isinstance(result, list) or len(result) == 0:
                 self._send_json({'error': 'Invalid email or password'}, 401)
                 return
@@ -1455,13 +1917,14 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 supabase_request('PATCH', f'auth_users?id=eq.{user_id}', {'password_hash': new_hash})
                 print(f'[AUTH] Migrated password hash for user {user_id} to bcrypt')
             full_name = row.get('full_name', '')
+            role = row.get('role', 'equipe')
 
-            access_token = create_jwt_token(db_email, user_id)
+            access_token = create_jwt_token(db_email, user_id, role=role)
             refresh_token = create_refresh_token(db_email, user_id)
 
             self._send_json({
                 'success': True,
-                'user': {'id': user_id, 'email': db_email, 'full_name': full_name},
+                'user': {'id': user_id, 'email': db_email, 'full_name': full_name, 'role': role},
                 'access_token': access_token,
                 'refresh_token': refresh_token,
                 'expires_in': ACCESS_TOKEN_EXPIRY_MINUTES * 60
@@ -1488,12 +1951,13 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             email = payload.get('email')
             user_id = payload.get('user_id')
 
-            new_access_token = create_jwt_token(email, user_id)
-            new_refresh_token = create_refresh_token(email, user_id)
-
             # Fetch fresh user data
-            user_data = supabase_request('GET', f'auth_users?id=eq.{user_id}&select=id,email,full_name')
+            user_data = supabase_request('GET', f'auth_users?id=eq.{user_id}&select=id,email,full_name,role')
             user = user_data[0] if isinstance(user_data, list) and len(user_data) > 0 else {'id': user_id, 'email': email}
+            role = user.get('role', 'equipe')
+
+            new_access_token = create_jwt_token(email, user_id, role=role)
+            new_refresh_token = create_refresh_token(email, user_id)
 
             self._send_json({
                 'success': True,
@@ -1505,55 +1969,6 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             log_error('AUTH', f'Token refresh failed: {e}')
             self._send_json({'error': 'Token refresh failed'}, 500)
-
-    def _handle_auth_change_password(self):
-        """Handle password change for logged-in users"""
-        try:
-            # Verify JWT token
-            auth_header = self.headers.get('Authorization', '')
-            if not auth_header.startswith('Bearer '):
-                self._send_json({'error': 'Token obrigatorio'}, 401)
-                return
-
-            token = auth_header[7:]
-            payload = verify_jwt_token(token)
-            if not payload:
-                self._send_json({'error': 'Token invalido ou expirado'}, 401)
-                return
-
-            user_id = payload.get('user_id')
-            body = json.loads(self._read_body())
-            current_password = body.get('current_password', '')
-            new_password = body.get('new_password', '')
-
-            if not current_password or not new_password:
-                self._send_json({'error': 'Senha atual e nova senha obrigatorias'}, 400)
-                return
-
-            if len(new_password) < 6:
-                self._send_json({'error': 'Nova senha deve ter no minimo 6 caracteres'}, 400)
-                return
-
-            # Get current hash
-            result = supabase_request('GET', f'auth_users?id=eq.{user_id}&select=id,password_hash')
-            if not isinstance(result, list) or len(result) == 0:
-                self._send_json({'error': 'Usuario nao encontrado'}, 404)
-                return
-
-            stored_hash = result[0]['password_hash']
-            pw_check = verify_password(current_password, stored_hash)
-            if not pw_check:
-                self._send_json({'error': 'Senha atual incorreta'}, 401)
-                return
-
-            # Hash new password with bcrypt
-            new_hash = hash_password(new_password)
-            supabase_request('PATCH', f'auth_users?id=eq.{user_id}', {'password_hash': new_hash})
-
-            self._send_json({'success': True, 'message': 'Senha alterada com sucesso'}, 200)
-        except Exception as e:
-            log_error('AUTH', f'Change password error: {e}')
-            self._send_json({'error': 'Erro ao alterar senha'}, 500)
 
     def _handle_auth_reset_password(self):
         """Handle password reset request — returns generic message to prevent email enumeration"""
@@ -1582,144 +1997,219 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             log_error('AUTH', f'Reset password error: {e}')
             self._send_json({'error': 'Erro ao processar solicitacao'}, 500)
 
-    # ===== FINANCIAL ENDPOINTS (CFO Payments View) =====
-
-    CFO_ALLOWED_USERS = ['kaique', 'heitor', 'hugo', 'queila', 'lara']
-    VALID_FINANCIAL_STATUSES = ['em_dia', 'atrasado', 'quitado', 'pago', 'sem_contrato', 'pendente']
-
-    def _verify_cfo_access(self):
-        """Verify JWT and check if user is in CFO allowed list. Returns (user_id, full_name) or None."""
-        auth_header = self.headers.get('Authorization', '')
-        if not auth_header.startswith('Bearer '):
-            self._send_json({'error': 'Missing or invalid token'}, 401)
-            return None
-        token = auth_header[7:]
-        payload = verify_jwt_token(token)
-        if not payload:
-            self._send_json({'error': 'Invalid or expired token'}, 401)
-            return None
-        user_id = payload.get('user_id')
-        # Fetch user full_name to check permission
-        result = supabase_request('GET', f'auth_users?id=eq.{user_id}&select=id,full_name')
-        if not isinstance(result, list) or len(result) == 0:
-            self._send_json({'error': 'User not found'}, 404)
-            return None
-        full_name = result[0].get('full_name', '')
-        if not any(full_name.lower().startswith(u) for u in self.CFO_ALLOWED_USERS):
-            self._send_json({'error': 'Access denied: not authorized for financial operations'}, 403)
-            return None
-        return (user_id, full_name)
-
-    def _handle_financial_update_status(self):
-        """POST /api/financial/update-status — Change mentorado payment status"""
+    def _handle_welcome_flow_register(self):
+        """Register mentorado from welcome-flow wizard (public endpoint, no auth required)"""
         try:
-            cfo_user = self._verify_cfo_access()
-            if not cfo_user:
-                return
-            user_id, full_name = cfo_user
-
             body = json.loads(self._read_body())
-            mentorado_id = body.get('mentorado_id')
-            new_status = body.get('new_status', '').strip()
-            observacao = body.get('observacao', '').strip()
+            email = body.get('email', '').strip().lower()
+            nome = body.get('nome', '').strip()
+            whatsapp = body.get('whatsapp', '').strip()
 
-            if not mentorado_id or not new_status:
-                self._send_json({'error': 'mentorado_id and new_status required'}, 400)
-                return
-            if new_status not in self.VALID_FINANCIAL_STATUSES:
-                self._send_json({'error': f'Invalid status. Must be one of: {", ".join(self.VALID_FINANCIAL_STATUSES)}'}, 400)
+            if not email or not nome:
+                self._send_json({'error': 'Nome and email are required'}, 400)
                 return
 
-            # Get current status
-            current = supabase_request('GET', f'mentorados?id=eq.{mentorado_id}&select=id,status_financeiro,contrato_assinado')
-            if not isinstance(current, list) or len(current) == 0:
-                self._send_json({'error': 'Mentorado not found'}, 404)
+            # Generate temp password: first name lowercase + last 4 digits of whatsapp
+            first_name = nome.split()[0].lower()
+            # Remove non-digit chars and get last 4 digits
+            digits = ''.join(filter(str.isdigit, whatsapp))
+            last4 = digits[-4:] if len(digits) >= 4 else digits
+            temp_password = f"{first_name}{last4}"
+
+            if len(temp_password) < 4:
+                self._send_json({'error': 'Could not generate valid password — check nome and whatsapp'}, 400)
                 return
-            old_status = current[0].get('status_financeiro', 'em_dia')
 
-            # Update mentorados table
-            update_data = {'status_financeiro': new_status}
-            if new_status == 'sem_contrato':
-                update_data['contrato_assinado'] = False
-            elif new_status in ('em_dia', 'quitado', 'pago') and not current[0].get('contrato_assinado'):
-                update_data['contrato_assinado'] = True
+            # Check if auth_users already exists
+            existing = supabase_request('GET', f'auth_users?email=eq.{email}&select=id,email,full_name,role')
+            if isinstance(existing, list) and len(existing) > 0:
+                self._send_json({
+                    'success': True,
+                    'already_exists': True,
+                    'user_id': existing[0].get('id'),
+                    'message': 'User already exists with this email'
+                })
+                return
 
-            result = supabase_request('PATCH', f'mentorados?id=eq.{mentorado_id}', update_data)
+            # Create auth_users entry with role=mentorado
+            password_hash = hash_password(temp_password)
+            result = supabase_request('POST', 'auth_users', {
+                'email': email,
+                'password_hash': password_hash,
+                'full_name': nome,
+                'role': 'mentorado',
+            })
+
             if isinstance(result, dict) and result.get('error'):
-                self._send_json({'error': f'Failed to update: {result["error"]}'}, 500)
+                log_error('WELCOME', f'Failed to create auth user: {result}')
+                self._send_json({'error': 'Registration failed'}, 500)
                 return
 
-            # Insert audit log
-            log_entry = {
-                'mentorado_id': mentorado_id,
-                'old_status': old_status,
-                'new_status': new_status,
-                'action_type': 'status_change',
-                'observacao': observacao or None,
-                'changed_by': full_name,
-            }
-            supabase_request('POST', 'god_financial_logs', log_entry)
+            user = result[0] if isinstance(result, list) else result
+            user_id = user.get('id')
 
-            self._send_json({'success': True, 'old_status': old_status, 'new_status': new_status})
+            self._send_json({
+                'success': True,
+                'user_id': user_id,
+                'credentials': {
+                    'email': email,
+                    'temp_password': temp_password,
+                }
+            }, 201)
         except Exception as e:
-            log_error('FINANCIAL', f'Update status failed: {e}')
-            self._send_json({'error': 'Update status failed'}, 500)
+            log_error('WELCOME', f'Welcome flow registration failed: {e}')
+            self._send_json({'error': 'Registration failed'}, 500)
 
-    def _handle_financial_add_note(self):
-        """POST /api/financial/add-note — Add financial observation for a mentorado"""
+    # ===== STORAGE HANDLERS =====
+
+    def _handle_storage_process(self):
+        """POST /api/storage/process — Trigger file processing pipeline."""
         try:
-            cfo_user = self._verify_cfo_access()
-            if not cfo_user:
-                return
-            user_id, full_name = cfo_user
-
             body = json.loads(self._read_body())
-            mentorado_id = body.get('mentorado_id')
-            observacao = body.get('observacao', '').strip()
+        except Exception:
+            self._send_json({'error': 'Invalid JSON'}, 400)
+            return
 
-            if not mentorado_id or not observacao:
-                self._send_json({'error': 'mentorado_id and observacao required'}, 400)
-                return
+        arquivo_id = body.get('arquivo_id')
+        if not arquivo_id:
+            self._send_json({'error': 'arquivo_id is required'}, 400)
+            return
 
-            log_entry = {
-                'mentorado_id': mentorado_id,
-                'action_type': 'note',
-                'observacao': observacao,
-                'changed_by': full_name,
-            }
-            result = supabase_request('POST', 'god_financial_logs', log_entry)
-            if isinstance(result, dict) and result.get('error'):
-                self._send_json({'error': f'Failed to add note: {result["error"]}'}, 500)
-                return
+        # Process in background thread
+        def _bg():
+            try:
+                process_file_pipeline(arquivo_id)
+            except Exception as e:
+                log_error('Storage', f'Background processing failed: {e}')
 
-            self._send_json({'success': True})
-        except Exception as e:
-            log_error('FINANCIAL', f'Add note failed: {e}')
-            self._send_json({'error': 'Add note failed'}, 500)
+        t = threading.Thread(target=_bg, daemon=True)
+        t.start()
 
-    def _handle_financial_get_logs(self):
-        """GET /api/financial/logs/<mentorado_id> — Get financial action logs"""
+        self._send_json({'status': 'processing', 'arquivo_id': arquivo_id})
+
+    def _handle_storage_search(self):
+        """POST /api/storage/search — Semantic/keyword/hybrid search."""
         try:
-            cfo_user = self._verify_cfo_access()
-            if not cfo_user:
-                return
+            body = json.loads(self._read_body())
+        except Exception:
+            self._send_json({'error': 'Invalid JSON'}, 400)
+            return
 
-            # Extract mentorado_id from path: /api/financial/logs/123
-            parts = self.path.split('/')
-            if len(parts) < 5:
-                self._send_json({'error': 'mentorado_id required in path'}, 400)
-                return
-            mentorado_id = parts[4].split('?')[0]  # strip query params
+        query = body.get('query', '').strip()
+        if not query:
+            self._send_json({'error': 'query is required'}, 400)
+            return
 
-            result = supabase_request('GET', f'god_financial_logs?mentorado_id=eq.{mentorado_id}&order=created_at.desc&limit=50')
-            if isinstance(result, dict) and result.get('error'):
-                self._send_json({'error': result['error']}, 500)
-                return
+        mode = body.get('mode', 'hybrid')
+        if mode not in ('semantic', 'keyword', 'hybrid'):
+            mode = 'hybrid'
 
-            self._send_json({'logs': result if isinstance(result, list) else []})
+        filters = body.get('filters', {})
+        limit = min(body.get('limit', 10), 50)
+
+        try:
+            start_time = time.time()
+            results = search_semantic(query, mode=mode, filters=filters, limit=limit)
+            elapsed_ms = int((time.time() - start_time) * 1000)
+
+            self._send_json({
+                'results': results,
+                'total': len(results),
+                'query': query,
+                'mode': mode,
+                'query_time_ms': elapsed_ms,
+            })
+        except ValueError as e:
+            self._send_json({'error': str(e)}, 400)
         except Exception as e:
-            log_error('FINANCIAL', f'Get logs failed: {e}')
-            self._send_json({'error': 'Get logs failed'}, 500)
+            log_error('Storage', 'Search failed', e)
+            self._send_json({'error': f'Search failed: {str(e)}'}, 500)
+
+    def _handle_storage_list_files(self):
+        """GET /api/storage/files?entidade_tipo=X&entidade_id=Y — List files for entity."""
+        qs = urllib.parse.urlparse(self.path).query
+        params = urllib.parse.parse_qs(qs)
+        entidade_tipo = params.get('entidade_tipo', [None])[0]
+        entidade_id = params.get('entidade_id', [None])[0]
+
+        query = 'sp_arquivos?select=*&deleted_at=is.null&order=created_at.desc'
+        if entidade_tipo:
+            query += f'&entidade_tipo=eq.{entidade_tipo}'
+        if entidade_id:
+            query += f'&entidade_id=eq.{entidade_id}'
+
+        result = supabase_request('GET', query)
+        self._send_json(result if isinstance(result, list) else [])
+
+    def _handle_storage_status(self):
+        """GET /api/storage/status — Storage overview (files, sizes, processing queue)."""
+        overview = supabase_request('GET', 'vw_storage_overview?select=*')
+        queue = supabase_request('GET', 'vw_processamento_fila?select=*&limit=20')
+        self._send_json({
+            'overview': overview if isinstance(overview, list) else [],
+            'queue': queue if isinstance(queue, list) else [],
+            'embedding_provider': EMBEDDING_PROVIDER,
+            'embedding_dims': EMBEDDING_DIMS,
+            'voyage_configured': bool(VOYAGE_API_KEY),
+            'openai_configured': bool(OPENAI_API_KEY),
+        })
+
+    def _handle_storage_test(self):
+        """POST /api/storage/test — Test embedding + chunk insert (debug endpoint)."""
+        try:
+            test_text = 'Teste de embedding para busca semântica no Spalla Dashboard'
+            log_info('Storage', f'[TEST] Embedding provider: {EMBEDDING_PROVIDER}, key set: {bool(VOYAGE_API_KEY)}')
+
+            embedding = embed_query(test_text)
+            log_info('Storage', f'[TEST] Got embedding: dims={len(embedding)}, first3={embedding[:3]}')
+
+            self._send_json({
+                'status': 'ok',
+                'provider': EMBEDDING_PROVIDER,
+                'dims': len(embedding),
+                'first_values': embedding[:5],
+                'voyage_key_set': bool(VOYAGE_API_KEY),
+                'openai_key_set': bool(OPENAI_API_KEY),
+            })
+        except Exception as e:
+            log_error('Storage', f'[TEST] Failed: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_storage_reprocess(self):
+        """POST /api/storage/reprocess — Reprocess all files with status 'pendente' or 'erro'."""
+        try:
+            body = json.loads(self._read_body()) if int(self.headers.get('Content-Length', 0)) > 0 else {}
+        except Exception:
+            body = {}
+
+        status_filter = body.get('status', 'pendente')  # 'pendente', 'erro', or 'all'
+
+        query = 'sp_arquivos?select=id&deleted_at=is.null'
+        if status_filter == 'all':
+            query += '&status_processamento=in.(pendente,erro)'
+        else:
+            query += f'&status_processamento=eq.{status_filter}'
+
+        result = supabase_request('GET', query)
+        if not isinstance(result, list):
+            self._send_json({'error': 'Failed to query files'}, 500)
+            return
+
+        count = 0
+        for row in result:
+            def _bg(aid=row['id']):
+                try:
+                    process_file_pipeline(aid)
+                except Exception as e:
+                    log_error('Storage', f'Reprocess failed for {aid}: {e}')
+            t = threading.Thread(target=_bg, daemon=True)
+            t.start()
+            count += 1
+            # Stagger to avoid overwhelming OpenAI API
+            if count % 5 == 0:
+                time.sleep(1)
+
+        self._send_json({'queued': count, 'status_filter': status_filter})
 
     def log_message(self, format, *args):
         path = str(args[0]) if args else ''
@@ -1740,6 +2230,8 @@ if __name__ == '__main__':
     print(f'[Spalla] Bcrypt:   {"✓ installed" if _bcrypt else "⚠ not installed (using SHA-256)"}')
     print(f'[Spalla] Proxy:    /api/evolution/*')
     print(f'[Spalla] Sheets:   {"✓ service account found" if os.path.exists(GOOGLE_SA_PATH) else "✗ no service account"}')
+    print(f'[Spalla] Embeddings: {EMBEDDING_PROVIDER} ({"✓ " + VOYAGE_EMBED_MODEL if VOYAGE_API_KEY else "✗ set VOYAGE_API_KEY"})')
+    print(f'[Spalla] OpenAI:   {"✓ Whisper+Vision" if OPENAI_API_KEY else "✗ set OPENAI_API_KEY for audio/video/image"}')
     print(f'[Spalla] Endpoints:')
     print(f'  POST /api/schedule-call    — Full scheduling (Zoom + Calendar + DB)')
     print(f'  POST /api/zoom/create-meeting')
@@ -1749,6 +2241,11 @@ if __name__ == '__main__':
     print(f'  GET  /api/mentees          — Mentorados with email')
     print(f'  GET  /api/calendar/events   — Upcoming calendar events')
     print(f'  GET  /api/calls/upcoming    — Scheduled calls from DB')
+    print(f'  POST /api/storage/process   — Process uploaded file (extract+embed)')
+    print(f'  POST /api/storage/search    — Semantic/keyword/hybrid search')
+    print(f'  GET  /api/storage/files     — List files by entity')
+    print(f'  GET  /api/storage/status    — Storage overview & queue')
+    print(f'  POST /api/storage/reprocess — Reprocess pending/failed files')
     print(f'  GET  /api/health')
 
     # Start sheets sync background thread
