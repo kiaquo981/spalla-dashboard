@@ -22,7 +22,7 @@
 <body>
   <div id="loading-fallback"><span>Operon</span></div>
 
-  <div id="app" x-data="operon()" x-init="init()" style="display:none">
+  <div id="app" x-data="operon()" style="display:none">
 
     <!-- ======= AUTH GATE ======= -->
     <div class="auth-overlay" x-show="!auth.authenticated" x-transition.opacity>
@@ -150,11 +150,15 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
             <span x-show="ui.sidebarOpen">Google Docs</span>
           </a>
+          <a class="op-nav-item" :class="{ active: ui.page === 'arquivos' }" @click="navigate('arquivos'); loadArquivos()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span x-show="ui.sidebarOpen">Arquivos</span>
+          </a>
 
-          <div class="op-sidebar__section" x-show="ui.sidebarOpen && isCfoUser">Gestao</div>
-          <a class="op-nav-item" :class="{ active: ui.page === 'financeiro' }" @click="navigate('financeiro')" x-show="isCfoUser">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-            <span x-show="ui.sidebarOpen">Financeiro</span>
+          <div class="op-sidebar__section" x-show="ui.sidebarOpen">Mentorado</div>
+          <a class="op-nav-item" href="/jornada" target="_blank">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+            <span x-show="ui.sidebarOpen">Jornada</span>
           </a>
 
           <div class="op-sidebar__section" x-show="ui.sidebarOpen">Sistema</div>
@@ -330,9 +334,7 @@
             <select class="ln-select" x-model="ui.filters.cohort"><option value="">Cohort</option><option value="N1">N1</option><option value="N2">N2</option></select>
             <select class="ln-select" x-model="ui.filters.status"><option value="">Status</option><option value="em_dia">Em Dia</option><option value="com_pendencia">Pendencia</option><option value="sem_call">Sem Call 21d+</option></select>
             <select class="ln-select" x-model="ui.filters.financeiro"><option value="">Financeiro</option><option value="sem_contrato">Sem Contrato</option><option value="atrasado">Pgto Atrasado</option><option value="em_dia">Em Dia</option><option value="quitado">Quitado</option></select>
-            <button class="ln-phase-pill" :class="{ 'ln-phase-pill--active': ui.filters.carteira === myCarteira }" @click="ui.filters.carteira = ui.filters.carteira === myCarteira ? '' : myCarteira" x-show="myCarteira" style="white-space:nowrap;font-size:12px;padding:4px 10px" title="Filtrar mentorados da minha carteira">Minha Carteira <span style="font-weight:700" x-text="'(' + data.mentees.filter(m => m.consultor_responsavel === myCarteira).length + ')'"></span></button>
-            <select class="ln-select" x-model="ui.filters.carteira"><option value="">Consultor</option><option value="Lara">Lara</option><option value="Heitor">Heitor</option></select>
-            <button class="ln-clear" @click="clearFilters()" x-show="ui.filters.fase || ui.filters.risco || ui.filters.cohort || ui.filters.status || ui.filters.financeiro || ui.filters.carteira">Limpar</button>
+            <button class="ln-clear" @click="clearFilters()" x-show="ui.filters.fase || ui.filters.risco || ui.filters.cohort || ui.filters.status || ui.filters.financeiro">Limpar</button>
             <span class="ln-count" x-text="filteredMentees.length"></span>
           </div>
 
@@ -391,7 +393,6 @@
                   </div>
                   <div class="mc-card__identity">
                     <span class="mc-card__name" x-text="m.nome"></span>
-                    <span class="badge badge--sm" :class="m.consultor_responsavel === 'Lara' ? 'badge--info' : 'badge--neutral'" x-text="m.consultor_responsavel" x-show="m.consultor_responsavel" style="font-size:10px;padding:1px 6px;margin-left:4px"></span>
                     <template x-if="m.instagram">
                       <a :href="'https://instagram.com/' + (m.instagram || '').replace(/^@/, '')" target="_blank" rel="noopener noreferrer" class="mc-card__handle" style="text-decoration:none;color:inherit" @click.stop>
                         <span x-text="'@' + (m.instagram || '').replace(/^@/, '')"></span>
@@ -492,7 +493,6 @@
                   <span class="badge" :class="'badge--' + riskClass(data.detail?.phase?.risco_churn)" x-text="riskLabel(data.detail?.phase?.risco_churn)"></span>
                   <span class="badge badge--neutral" x-text="data.detail?.profile?.cohort"></span>
                   <span class="badge badge--neutral" x-text="data.detail?.phase?.marco_atual"></span>
-                  <span class="badge badge--info" x-text="'Consultor: ' + data.detail?.profile?.consultor_responsavel" x-show="data.detail?.profile?.consultor_responsavel" style="font-size:11px"></span>
                 </div>
                 <div class="detail-hero__meta" x-show="data.detail?.profile?.instagram">
                   <a :href="'https://instagram.com/' + (data.detail?.profile?.instagram || '').replace(/^@/, '')" target="_blank" rel="noopener noreferrer" style="text-decoration:none;color:inherit" @click.stop>
@@ -551,10 +551,6 @@
                 <template x-if="getPaForMentee(data.detail?.profile?.id)">
                   <span class="op-tab__count" x-text="(getPaForMentee(data.detail?.profile?.id)?.pct_concluido || 0) + '%'"></span>
                 </template>
-              </button>
-              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'financeiro' }" @click="ui.activeDetailTab = 'financeiro'; loadFinDetailLogs()" x-show="isCfoUser">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                Financeiro
               </button>
             </div>
 
@@ -1227,111 +1223,6 @@
                   </div>
                 </div>
               </template>
-            </div>
-
-            <!-- ===== TAB: FINANCEIRO (CFO Detail) ===== -->
-            <div class="op-tab-content" x-show="ui.activeDetailTab === 'financeiro'" x-cloak>
-
-              <!-- Loading -->
-              <div x-show="ui.finDetailLoading" class="empty-state" style="padding:32px">
-                <div class="spinner" style="margin:0 auto 12px"></div>
-                <p style="color:var(--text-secondary)">Carregando historico financeiro...</p>
-              </div>
-
-              <!-- Status Card -->
-              <div class="fin-detail-status" x-show="!ui.finDetailLoading">
-                <div class="fin-detail-status__header">
-                  <h3 style="margin:0;font-size:var(--text-lg)">Status Financeiro</h3>
-                  <span class="badge" :style="`background:${finStatusColor(data.detail?.profile?.status_financeiro)};color:#fff`"
-                        x-text="finStatusLabel(data.detail?.profile?.status_financeiro)"></span>
-                </div>
-                <div class="fin-detail-status__grid">
-                  <div class="fin-detail-status__item">
-                    <span class="fin-detail-status__label">Contrato</span>
-                    <span class="fin-detail-status__val" :style="`color:${data.detail?.profile?.contrato_assinado ? 'var(--success)' : 'var(--danger)'}`"
-                          x-text="data.detail?.profile?.contrato_assinado ? 'Assinado' : 'Nao assinado'"></span>
-                  </div>
-                  <div class="fin-detail-status__item">
-                    <span class="fin-detail-status__label">Dia de Pagamento</span>
-                    <span class="fin-detail-status__val" x-text="data.detail?.profile?.dia_pagamento ? `Dia ${data.detail.profile.dia_pagamento}` : 'Nao definido'"></span>
-                  </div>
-                  <div class="fin-detail-status__item">
-                    <span class="fin-detail-status__label">Fase</span>
-                    <span class="fin-detail-status__val" x-text="data.detail?.profile?.fase_jornada || '—'"></span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Quick Actions -->
-              <div class="fin-detail-actions" x-show="!ui.finDetailLoading" x-data="{ statusOpen: false }">
-                <div style="position:relative">
-                  <button class="btn btn--sm btn--ghost" @click="statusOpen = !statusOpen">
-                    Alterar Status <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-                  </button>
-                  <div class="fin-dropdown" x-show="statusOpen" @click.outside="statusOpen = false" x-transition style="position:absolute;top:100%;left:0;z-index:10">
-                    <button class="fin-dropdown__item fin-dropdown__item--green" @click="changeFinStatus(ui.selectedMenteeId, 'em_dia', ''); statusOpen = false">Em Dia</button>
-                    <button class="fin-dropdown__item fin-dropdown__item--blue" @click="changeFinStatus(ui.selectedMenteeId, 'quitado', ''); statusOpen = false">Quitado</button>
-                    <button class="fin-dropdown__item fin-dropdown__item--red" @click="changeFinStatus(ui.selectedMenteeId, 'atrasado', ''); statusOpen = false">Atrasado</button>
-                  </div>
-                </div>
-                <button class="btn btn--sm btn--ghost" @click="finNoteModal = { open: true, menteeId: ui.selectedMenteeId, menteeNome: data.detail?.profile?.nome || '', text: '' }">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                  Adicionar Observacao
-                </button>
-              </div>
-
-              <!-- Payment History Timeline -->
-              <div class="fin-detail-timeline" x-show="!ui.finDetailLoading">
-                <h3 style="margin:0 0 var(--sp-3) 0;font-size:var(--text-base);color:var(--text-primary)">
-                  Historico
-                  <span style="color:var(--text-muted);font-weight:400" x-text="'(' + (data.finDetailLogs?.length || 0) + ')'"></span>
-                </h3>
-                <div class="empty-state" x-show="!data.finDetailLogs?.length" style="padding:24px">
-                  <p style="color:var(--text-secondary)">Nenhum registro financeiro encontrado.</p>
-                </div>
-                <template x-for="log in (data.finDetailLogs || [])" :key="log.id">
-                  <div class="fin-detail-entry"
-                       :class="{
-                         'fin-detail-entry--status': log.tipo_acao === 'status_change',
-                         'fin-detail-entry--note': log.tipo_acao === 'observacao',
-                         'fin-detail-entry--system': log.tipo_acao !== 'status_change' && log.tipo_acao !== 'observacao'
-                       }">
-                    <div class="fin-detail-entry__icon">
-                      <template x-if="log.tipo_acao === 'status_change'">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-                      </template>
-                      <template x-if="log.tipo_acao === 'observacao'">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                      </template>
-                      <template x-if="log.tipo_acao !== 'status_change' && log.tipo_acao !== 'observacao'">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                      </template>
-                    </div>
-                    <div class="fin-detail-entry__body">
-                      <div class="fin-detail-entry__meta">
-                        <span class="fin-detail-entry__time" x-text="finTimeAgo(log.created_at)"></span>
-                        <span class="fin-detail-entry__user" x-show="log.changed_by" x-text="'por ' + log.changed_by"></span>
-                      </div>
-                      <!-- Status change -->
-                      <template x-if="log.tipo_acao === 'status_change'">
-                        <div class="fin-detail-entry__text">
-                          <span class="badge badge--sm" :style="`background:${finStatusColor(log.status_anterior)};color:#fff;font-size:11px`" x-text="finStatusLabel(log.status_anterior)"></span>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" style="margin:0 4px"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-                          <span class="badge badge--sm" :style="`background:${finStatusColor(log.status_novo)};color:#fff;font-size:11px`" x-text="finStatusLabel(log.status_novo)"></span>
-                        </div>
-                      </template>
-                      <!-- Note -->
-                      <template x-if="log.tipo_acao === 'observacao'">
-                        <div class="fin-detail-entry__text" x-text="log.observacao" style="font-style:italic"></div>
-                      </template>
-                      <!-- Other -->
-                      <template x-if="log.tipo_acao !== 'status_change' && log.tipo_acao !== 'observacao'">
-                        <div class="fin-detail-entry__text" x-text="log.observacao || log.tipo_acao"></div>
-                      </template>
-                    </div>
-                  </div>
-                </template>
-              </div>
             </div>
 
             <!-- ===== TAB: PERFIL COMPORTAMENTAL ===== -->
@@ -2067,11 +1958,11 @@
                 <label>Mentorado *</label>
                 <select x-model="scheduleForm.mentorado" class="modal__select" @change="
                   let found = data.mentees?.find(m => m.nome === scheduleForm.mentorado);
-                  let emailRecord = _menteesWithEmail?.find(m => m.nome === scheduleForm.mentorado);
-                  if (found || emailRecord) {
-                    scheduleForm.email = emailRecord?.email || emailRecord?.contato_email || found?.email || found?.contato_email || '';
-                    scheduleForm.mentorado_id = found?.id || emailRecord?.id || '';
-                    console.log('[Schedule] Mentee selected:', scheduleForm.mentorado, 'Email:', scheduleForm.email);
+                  if (!found) found = _menteesWithEmail?.find(m => m.nome === scheduleForm.mentorado);
+                  if (found) {
+                    scheduleForm.email = found.email || found.contato_email || '';
+                    scheduleForm.mentorado_id = found.id || '';
+                    console.log('[Schedule] Mentee selected:', found.nome, 'Email:', scheduleForm.email);
                   }
                 ">
                   <option value="">-- Selecione --</option>
@@ -3479,6 +3370,148 @@
           </div>
         </div>
 
+        <!-- ===== PAGE: ARQUIVOS (Storage + Semantic Search) ===== -->
+        <div class="page-content" x-show="ui.page === 'arquivos'" x-transition>
+          <div class="page-header">
+            <h2>Arquivos &amp; Busca Semantica</h2>
+            <div style="display:flex;gap:8px">
+              <label class="op-btn op-btn--primary" style="cursor:pointer" :class="{ 'op-btn--loading': arquivos.uploadLoading }">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Upload
+                <input type="file" multiple hidden @change="uploadArquivo($event)" accept=".pdf,.docx,.xlsx,.csv,.md,.txt,.mp3,.wav,.ogg,.mp4,.mov,.webm,.png,.jpg,.jpeg,.webp">
+              </label>
+            </div>
+          </div>
+
+          <!-- Search Bar -->
+          <div class="op-card" style="margin-bottom:16px;padding:16px">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <input type="text" class="op-input" style="flex:1;min-width:250px"
+                placeholder="Buscar: 'depoimento da Rosalie sobre vendas', 'plano de acao do Joao'..."
+                x-model="arquivos.searchQuery"
+                @keydown.enter="searchArquivos()">
+              <select class="op-select" style="width:120px" x-model="arquivos.searchMode">
+                <option value="hybrid">Hibrida</option>
+                <option value="semantic">Semantica</option>
+                <option value="keyword">Keyword</option>
+              </select>
+              <select class="op-select" style="width:130px" x-model="arquivos.filterCategoria">
+                <option value="">Todas categorias</option>
+                <option value="documento">Documentos</option>
+                <option value="audio">Audio</option>
+                <option value="video">Video</option>
+                <option value="imagem">Imagens</option>
+                <option value="planilha">Planilhas</option>
+              </select>
+              <button class="op-btn op-btn--primary" @click="searchArquivos()" :disabled="arquivos.searchLoading">
+                <template x-if="!arquivos.searchLoading">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </template>
+                <template x-if="arquivos.searchLoading"><span>...</span></template>
+                Buscar
+              </button>
+            </div>
+          </div>
+
+          <!-- Search Results -->
+          <template x-if="arquivos.searchResults.length > 0">
+            <div class="op-card" style="margin-bottom:16px">
+              <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-weight:600">
+                Resultados da Busca
+                <span class="badge badge--sm badge--info" x-text="arquivos.searchResults.length + ' encontrados'"></span>
+              </div>
+              <template x-for="r in arquivos.searchResults" :key="r.chunk_id">
+                <div style="padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer" @click="getArquivoUrl(r.storage_path)">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <span x-text="_categoriaIcon(r.categoria)"></span>
+                      <strong x-text="r.arquivo_nome" style="font-size:13px"></strong>
+                      <span class="badge badge--sm" x-show="r.mentorado_nome" x-text="r.mentorado_nome"></span>
+                    </div>
+                    <div style="display:flex;gap:6px;align-items:center">
+                      <span class="badge badge--sm badge--success" x-show="r.rerank_score" x-text="Math.round((r.rerank_score || r.score_final || r.similaridade) * 100) + '%'"></span>
+                      <span class="badge badge--sm" x-text="r.categoria"></span>
+                    </div>
+                  </div>
+                  <div style="font-size:12px;color:var(--text-muted);line-height:1.5;max-height:80px;overflow:hidden" x-text="r.chunk_texto?.substring(0, 300) + (r.chunk_texto?.length > 300 ? '...' : '')"></div>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <!-- Storage Overview -->
+          <template x-if="arquivos.storageOverview.length > 0">
+            <div class="op-grid op-grid-cols-4" style="gap:12px;margin-bottom:16px">
+              <template x-for="o in arquivos.storageOverview" :key="o.entidade_tipo">
+                <div class="op-card" style="padding:12px;text-align:center">
+                  <div style="font-size:20px;font-weight:700" x-text="o.total_arquivos"></div>
+                  <div style="font-size:11px;color:var(--text-muted)" x-text="o.entidade_tipo"></div>
+                  <div style="font-size:11px" x-text="o.total_mb + ' MB'"></div>
+                  <div style="font-size:11px">
+                    <span style="color:var(--success)" x-text="o.indexados + ' indexados'"></span>
+                    <span style="color:var(--warning)" x-show="o.pendentes > 0" x-text="' / ' + o.pendentes + ' pendentes'"></span>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <!-- File List -->
+          <div class="op-card">
+            <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:600">Todos os Arquivos</span>
+              <span class="badge badge--sm" x-text="arquivos.list.length + ' arquivos'"></span>
+            </div>
+            <template x-if="arquivos.list.length === 0">
+              <div style="padding:32px;text-align:center;color:var(--text-muted)">
+                Nenhum arquivo ainda. Use o botao Upload para enviar.
+              </div>
+            </template>
+            <template x-for="a in arquivos.list" :key="a.id">
+              <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px">
+                <span style="font-size:20px" x-text="_categoriaIcon(a.categoria)"></span>
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <a href="#" @click.prevent="getArquivoUrl(a.storage_path)" style="font-weight:500;font-size:13px;text-decoration:none;color:var(--text)" x-text="a.nome_original"></a>
+                    <span x-show="a.pinned" style="font-size:12px" title="Pinned">&#128204;</span>
+                  </div>
+                  <div style="font-size:11px;color:var(--text-muted);display:flex;gap:8px">
+                    <span x-text="a.entidade_tipo"></span>
+                    <span x-text="_formatBytes(a.tamanho_bytes)"></span>
+                    <span x-text="new Date(a.created_at).toLocaleDateString('pt-BR')"></span>
+                  </div>
+                </div>
+                <span style="font-size:16px" x-text="_statusIcon(a.status_processamento)" :title="a.status_processamento"></span>
+                <button class="op-btn op-btn--ghost op-btn--sm" @click="togglePinArquivo(a.id, a.pinned)" :title="a.pinned ? 'Desafixar' : 'Fixar'">
+                  <span x-text="a.pinned ? '&#128204;' : '&#128392;'"></span>
+                </button>
+                <button class="op-btn op-btn--ghost op-btn--sm op-btn--danger" @click="deleteArquivo(a.id)" title="Excluir">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+              </div>
+            </template>
+          </div>
+
+          <!-- Processing Queue -->
+          <template x-if="arquivos.queue.length > 0">
+            <div class="op-card" style="margin-top:16px">
+              <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-weight:600">
+                Fila de Processamento
+              </div>
+              <template x-for="q in arquivos.queue" :key="q.id">
+                <div style="padding:8px 16px;border-bottom:1px solid var(--border);font-size:12px;display:flex;justify-content:space-between">
+                  <span x-text="q.nome_original"></span>
+                  <span>
+                    <span x-text="_statusIcon(q.status_processamento)"></span>
+                    <span x-text="q.status_processamento"></span>
+                    <span style="color:var(--text-muted)" x-text="Math.round(q.minutos_na_fila) + ' min na fila'"></span>
+                  </span>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+
         <!-- ===== PAGE: DOCS ===== -->
         <div class="page-content" x-show="ui.page === 'docs'" x-transition>
           <div class="page-header"><h2>Documentos Google Drive</h2></div>
@@ -3498,17 +3531,17 @@
 
           <h3 class="docs-section-title">Dossies por Mentorado</h3>
           <div class="docs-grid">
-            <!-- Data now from ds_producoes/ds_documentos via Supabase — see page "Produção de Dossiês" -->
-            <template x-for="p in data.dsProducoes.filter(x => x.mentorado_nome)" :key="p.producao_id">
+            <template x-for="d in DOSSIER_PIPELINE.filter(x => x.titulo || x.docs?.length)" :key="d.nome">
               <div class="doc-card">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                <div class="doc-card__title" x-text="p.mentorado_nome"></div>
+                <div class="doc-card__title" x-text="d.nome"></div>
                 <div class="doc-card__desc">
-                  <template x-if="p.oferta_estagio"><div class="doc-card__sub">Oferta: <span x-text="p.oferta_estagio"></span></div></template>
-                  <template x-if="p.funil_estagio"><div class="doc-card__sub">Funil: <span x-text="p.funil_estagio"></span></div></template>
-                  <template x-if="p.conteudo_estagio"><div class="doc-card__sub">Conteúdo: <span x-text="p.conteudo_estagio"></span></div></template>
+                  <template x-if="d.titulo"><a :href="dossierSearchUrl(d.titulo)" target="_blank" rel="noopener" class="dossier-row__doc-link" x-text="d.titulo"></a></template>
+                  <template x-if="d.docs?.length">
+                    <template x-for="doc in d.docs" :key="doc.titulo"><div class="doc-card__sub"><a :href="dossierSearchUrl(doc.titulo)" target="_blank" rel="noopener" class="dossier-row__doc-link" x-text="doc.titulo"></a></div></template>
+                  </template>
                 </div>
-                <span class="badge badge--sm" :class="'badge--' + dossierStatusConfig(p.status).color" x-text="dossierStatusConfig(p.status).label"></span>
+                <span class="badge badge--sm" :class="'badge--' + dossierStatusConfig(d.status).color" x-text="dossierStatusConfig(d.status).label"></span>
               </div>
             </template>
           </div>
@@ -3560,204 +3593,6 @@
                 </div>
               </div>
             </template>
-          </div>
-        </div>
-
-        <!-- ===== PAGE: FINANCEIRO (CFO Payments View) ===== -->
-        <div class="page-content fin-page" x-show="ui.page === 'financeiro' && isCfoUser" x-transition>
-          <div class="page-header">
-            <div>
-              <h2>Financeiro</h2>
-              <p class="page-header__sub">Gestao de pagamentos e contratos dos mentorados</p>
-            </div>
-            <button class="btn btn--sm btn--ghost" @click="loadFinanceiro()" title="Atualizar">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-            </button>
-          </div>
-
-          <!-- Loading state -->
-          <div class="fin-loading" x-show="!financeiro" style="text-align:center;padding:3rem;color:#6b7280">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin:0 auto 1rem;display:block;animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-            Carregando dados financeiros...
-          </div>
-
-          <div x-show="financeiro">
-
-            <!-- KPI CARDS -->
-            <div class="fin-kpis">
-              <div class="fin-kpi fin-kpi--green" @click="finFilter = finFilter === 'em_dia' ? '' : 'em_dia'" :class="{ 'fin-kpi--active': finFilter === 'em_dia' }">
-                <div class="fin-kpi__val" x-text="financeiro?.kpis?.em_dia || 0"></div>
-                <div class="fin-kpi__label">Em Dia</div>
-              </div>
-              <div class="fin-kpi fin-kpi--red" @click="finFilter = finFilter === 'atrasado' ? '' : 'atrasado'" :class="{ 'fin-kpi--active': finFilter === 'atrasado' }">
-                <div class="fin-kpi__val" x-text="financeiro?.kpis?.atrasado || 0"></div>
-                <div class="fin-kpi__label">Inadimplentes</div>
-              </div>
-              <div class="fin-kpi fin-kpi--blue" @click="finFilter = finFilter === 'quitado' ? '' : 'quitado'" :class="{ 'fin-kpi--active': finFilter === 'quitado' }">
-                <div class="fin-kpi__val" x-text="financeiro?.kpis?.quitado || 0"></div>
-                <div class="fin-kpi__label">Quitados</div>
-              </div>
-              <div class="fin-kpi fin-kpi--amber" @click="finFilter = finFilter === 'sem_contrato' ? '' : 'sem_contrato'" :class="{ 'fin-kpi--active': finFilter === 'sem_contrato' }">
-                <div class="fin-kpi__val" x-text="financeiro?.kpis?.sem_contrato || 0"></div>
-                <div class="fin-kpi__label">Sem Contrato</div>
-              </div>
-            </div>
-
-            <!-- CHART: Evolucao de Inadimplencias -->
-            <div class="fin-chart-box" x-show="financeiro?.snapshots?.length >= 2">
-              <div class="fin-section-title">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                Evolucao de Inadimplencias
-              </div>
-              <svg id="fin-chart-svg" class="fin-chart-svg" viewBox="0 0 560 120" preserveAspectRatio="xMidYMid meet"
-                x-effect="if (financeiro?.snapshots) renderFinChart(financeiro.snapshots)"></svg>
-            </div>
-            <div class="fin-chart-empty" x-show="financeiro && (!financeiro?.snapshots || financeiro?.snapshots?.length < 2)">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-              Dados insuficientes para grafico (minimo 2 snapshots)
-            </div>
-
-            <!-- TABELA: Mentorados com Acao Pendente -->
-            <div class="fin-table-box">
-              <div class="fin-section-header">
-                <div class="fin-section-title">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                  Mentorados
-                  <span class="fin-count" x-text="`(${financialMentees.length})`"></span>
-                </div>
-                <div class="fin-filters">
-                  <button class="fin-filter-btn" :class="{ active: finFilter === '' }" @click="finFilter = ''">Todos</button>
-                  <button class="fin-filter-btn fin-filter-btn--red" :class="{ active: finFilter === 'atrasado' }" @click="finFilter = finFilter === 'atrasado' ? '' : 'atrasado'">Atrasados</button>
-                  <button class="fin-filter-btn fin-filter-btn--amber" :class="{ active: finFilter === 'sem_contrato' }" @click="finFilter = finFilter === 'sem_contrato' ? '' : 'sem_contrato'">Sem Contrato</button>
-                  <button class="fin-filter-btn fin-filter-btn--green" :class="{ active: finFilter === 'em_dia' }" @click="finFilter = finFilter === 'em_dia' ? '' : 'em_dia'">Em Dia</button>
-                  <button class="fin-filter-btn fin-filter-btn--blue" :class="{ active: finFilter === 'quitado' }" @click="finFilter = finFilter === 'quitado' ? '' : 'quitado'">Quitados</button>
-                </div>
-              </div>
-
-              <div class="fin-table-wrap">
-                <table class="fin-table">
-                  <thead>
-                    <tr>
-                      <th>Mentorado</th>
-                      <th>Fase</th>
-                      <th>Status</th>
-                      <th>Dia Pgto</th>
-                      <th>Contrato</th>
-                      <th>Ultima Acao</th>
-                      <th>Acoes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <template x-for="m in financialMentees" :key="m.id">
-                      <tr :class="{ 'fin-row--alert': m.acao_pendente }">
-                        <td>
-                          <div class="fin-mentee">
-                            <div class="fin-avatar" :style="`background-image:url(${getPhoto(m.instagram || m.nome)})`" x-show="getPhoto(m.instagram || m.nome)"></div>
-                            <div class="fin-avatar fin-avatar--initials" x-show="!getPhoto(m.instagram || m.nome)" x-text="m.nome?.charAt(0) || '?'"></div>
-                            <span class="fin-mentee__name" x-text="m.nome" @click="loadMenteeFinDetail(m.id)" style="cursor:pointer"></span>
-                          </div>
-                        </td>
-                        <td><span class="fin-fase" x-text="phaseLabel(m.fase_jornada)"></span></td>
-                        <td>
-                          <span class="mc-card__fin-badge"
-                            :class="{
-                              'mc-card__fin-badge--danger': m.status_financeiro === 'atrasado' || !m.contrato_assinado,
-                              'mc-card__fin-badge--success': m.status_financeiro === 'quitado' || m.status_financeiro === 'pago',
-                              'mc-card__fin-badge--warning': m.status_financeiro === 'em_dia',
-                            }"
-                            x-text="!m.contrato_assinado ? 'SEM CONTRATO' : finStatusLabel(m.status_financeiro)">
-                          </span>
-                        </td>
-                        <td x-text="m.dia_pagamento ? `Dia ${m.dia_pagamento}` : '—'"></td>
-                        <td>
-                          <span x-show="m.contrato_assinado" style="color:#22c55e;font-size:18px">✓</span>
-                          <span x-show="!m.contrato_assinado" style="color:#ef4444;font-size:18px">✗</span>
-                        </td>
-                        <td>
-                          <span class="fin-log-preview" x-show="m.ultimo_log_obs" x-text="m.ultimo_log_obs" :title="m.ultimo_log_data ? finTimeAgo(m.ultimo_log_data) : ''"></span>
-                          <span x-show="!m.ultimo_log_obs" style="color:#6b7280">—</span>
-                        </td>
-                        <td>
-                          <div class="fin-actions" x-data="{ open: false }">
-                            <button class="fin-action-btn" @click="open = !open; $event.stopPropagation()">
-                              Acoes <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-                            </button>
-                            <div class="fin-dropdown" x-show="open" @click.outside="open = false" x-transition>
-                              <button class="fin-dropdown__item fin-dropdown__item--green" @click="changeFinStatus(m.id, 'em_dia', ''); open = false">
-                                Marcar Em Dia
-                              </button>
-                              <button class="fin-dropdown__item fin-dropdown__item--blue" @click="changeFinStatus(m.id, 'quitado', ''); open = false">
-                                Marcar Quitado
-                              </button>
-                              <button class="fin-dropdown__item fin-dropdown__item--red" @click="changeFinStatus(m.id, 'atrasado', ''); open = false">
-                                Marcar Atrasado
-                              </button>
-                              <div class="fin-dropdown__divider"></div>
-                              <button class="fin-dropdown__item" @click="finNoteModal = { open: true, menteeId: m.id, menteeNome: m.nome, text: '' }; open = false">
-                                Registrar Observacao
-                              </button>
-                              <button class="fin-dropdown__item" @click="loadMenteeFinDetail(m.id); open = false">
-                                Ver Detalhes →
-                              </button>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    </template>
-                    <tr x-show="financialMentees.length === 0">
-                      <td colspan="7" style="text-align:center;color:#6b7280;padding:2rem">Nenhum mentorado encontrado</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <!-- LOG DE ACOES RECENTES -->
-            <div class="fin-log-box" x-show="financeiro?.logs?.length > 0">
-              <div class="fin-section-title">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                Acoes Recentes
-              </div>
-              <div class="fin-log-list">
-                <template x-for="log in (financeiro?.logs || [])" :key="log.id">
-                  <div class="fin-log-item">
-                    <div class="fin-log-icon"
-                      :class="{
-                        'fin-log-icon--change': log.action_type === 'status_change',
-                        'fin-log-icon--note': log.action_type === 'note',
-                      }">
-                      <svg x-show="log.action_type === 'status_change'" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-                      <svg x-show="log.action_type === 'note'" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                    </div>
-                    <div class="fin-log-body">
-                      <span class="fin-log-who" x-text="log.changed_by"></span>
-                      <span x-show="log.action_type === 'status_change'">
-                        alterou status de <strong x-text="finStatusLabel(log.old_status)"></strong> para <strong x-text="finStatusLabel(log.new_status)"></strong>
-                      </span>
-                      <span x-show="log.action_type === 'note'">registrou observacao</span>
-                      <span x-show="log.observacao"> — <em x-text="log.observacao"></em></span>
-                    </div>
-                    <div class="fin-log-time" x-text="finTimeAgo(log.created_at)"></div>
-                  </div>
-                </template>
-              </div>
-            </div>
-
-          </div><!-- /x-show financeiro -->
-        </div>
-
-        <!-- Modal: Registrar Observacao -->
-        <div class="fin-modal-overlay" x-show="finNoteModal.open" @click.self="finNoteModal.open = false" x-transition>
-          <div class="fin-modal">
-            <div class="fin-modal__header">
-              <h3>Observacao Financeira</h3>
-              <span x-text="finNoteModal.menteeNome" style="color:#6b7280;font-size:0.875rem"></span>
-            </div>
-            <textarea class="fin-modal__textarea" x-model="finNoteModal.text" placeholder="Ex: Mentorado pediu prazo ate dia 20..." rows="4" @keydown.escape="finNoteModal.open = false"></textarea>
-            <div class="fin-modal__footer">
-              <button class="btn btn--ghost" @click="finNoteModal.open = false">Cancelar</button>
-              <button class="btn btn--primary" @click="addFinNote()" :disabled="!finNoteModal.text.trim()">Salvar</button>
-            </div>
           </div>
         </div>
 
@@ -3870,50 +3705,239 @@
               </div>
             </div>
           </div>
+        </div>
 
-          <!-- Password Change Section -->
-          <div class="settings-section" style="margin-top:24px">
-            <div class="settings-section__header">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              <div>
-                <h3>Alterar Senha</h3>
-                <p class="settings-section__desc">Troque sua senha de acesso ao sistema</p>
+        <!-- ===== WELCOME FLOW ===== -->
+        <div class="page-content" x-show="ui.page === 'welcome_flow'" x-transition>
+          <div class="page-header">
+            <h2>Welcome Flow</h2>
+            <p class="page-header__sub">Cadastro de novos mentorados no sistema</p>
+          </div>
+
+          <div x-data="welcomeFlowStore()" style="max-width: 640px; margin: 0 auto;">
+
+            <!-- Progress bar -->
+            <div x-show="step > 0 && step < 5" style="display: flex; gap: var(--sp-2); margin-bottom: var(--sp-6);">
+              <template x-for="i in 4" :key="i">
+                <div style="flex: 1; height: 4px; border-radius: var(--r-full); transition: background var(--t-base);"
+                     :style="{ background: step >= i ? 'var(--brand-500)' : 'var(--neutral-200)' }"></div>
+              </template>
+            </div>
+
+            <!-- Step 0: Welcome -->
+            <div x-show="step === 0" class="card">
+              <div class="card__body" style="text-align: center; padding: var(--sp-12) var(--sp-8);">
+                <div style="width: 64px; height: 64px; border-radius: var(--r-full); background: var(--brand-100); display: flex; align-items: center; justify-content: center; margin: 0 auto var(--sp-6);">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--brand-600)" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </div>
+                <h2 style="font-family: var(--font-display); font-size: var(--text-2xl); font-weight: 600; color: var(--text-primary); margin-bottom: var(--sp-3);">Bem-vindo ao CASE</h2>
+                <p style="color: var(--text-secondary); font-size: var(--text-base); margin-bottom: var(--sp-8); max-width: 400px; margin-left: auto; margin-right: auto;">Vamos configurar seu perfil e preparar tudo para sua jornada na mentoria.</p>
+                <button class="btn btn--brand" style="padding: var(--sp-3) var(--sp-8); font-size: var(--text-md);" @click="step = 1">Comecar</button>
               </div>
             </div>
-            <div class="settings-password" x-data="{ pwCurrent: '', pwNew: '', pwConfirm: '', pwLoading: false, pwMsg: '', pwSuccess: false }">
-              <div class="settings-password__field">
-                <label>Senha atual</label>
-                <input type="password" x-model="pwCurrent" placeholder="Digite sua senha atual">
+
+            <!-- Step 1: Dados Pessoais -->
+            <div x-show="step === 1" class="card">
+              <div class="card__header"><h3 class="card__title">Dados Pessoais</h3></div>
+              <div class="card__body" style="display: flex; flex-direction: column; gap: var(--sp-4);">
+                <div>
+                  <label style="display: block; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-bottom: var(--sp-1);">Nome completo *</label>
+                  <input class="input" type="text" placeholder="Seu nome completo" x-model="data.nome" @blur="touched.nome = true"
+                         :style="touched.nome && !isValidName(data.nome) ? 'border-color: var(--danger)' : ''" style="width: 100%;">
+                  <p x-show="touched.nome && !isValidName(data.nome)" style="font-size: var(--text-xs); color: var(--danger); margin-top: var(--sp-1);">Nome deve ter pelo menos 3 caracteres</p>
+                </div>
+                <div>
+                  <label style="display: block; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-bottom: var(--sp-1);">E-mail *</label>
+                  <input class="input" type="email" placeholder="seu@email.com" x-model="data.email" @blur="touched.email = true"
+                         :style="touched.email && !isValidEmail(data.email) ? 'border-color: var(--danger)' : ''" style="width: 100%;">
+                  <p x-show="touched.email && !isValidEmail(data.email)" style="font-size: var(--text-xs); color: var(--danger); margin-top: var(--sp-1);">E-mail invalido</p>
+                </div>
+                <div>
+                  <label style="display: block; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-bottom: var(--sp-1);">WhatsApp *</label>
+                  <input class="input" type="tel" placeholder="(00) 00000-0000" x-model="data.whatsapp" @blur="touched.whatsapp = true"
+                         @input="data.whatsapp = formatPhone($event.target.value)"
+                         :style="touched.whatsapp && !isValidPhone(data.whatsapp) ? 'border-color: var(--danger)' : ''" style="width: 100%;">
+                  <p x-show="touched.whatsapp && !isValidPhone(data.whatsapp)" style="font-size: var(--text-xs); color: var(--danger); margin-top: var(--sp-1);">WhatsApp deve ter pelo menos 10 digitos</p>
+                </div>
               </div>
-              <div class="settings-password__field">
-                <label>Nova senha</label>
-                <input type="password" x-model="pwNew" placeholder="Minimo 6 caracteres">
+              <div class="card__footer" style="display: flex; justify-content: space-between;">
+                <button class="btn btn--ghost" @click="prevStep()">Voltar</button>
+                <button class="btn btn--brand" @click="nextStep()" :disabled="!canAdvance()" :style="!canAdvance() ? 'opacity: 0.5; cursor: not-allowed' : ''">Continuar</button>
               </div>
-              <div class="settings-password__field">
-                <label>Confirmar nova senha</label>
-                <input type="password" x-model="pwConfirm" placeholder="Repita a nova senha">
-              </div>
-              <div x-show="pwMsg" class="settings-password__msg" :class="pwSuccess ? 'settings-password__msg--success' : 'settings-password__msg--error'" x-text="pwMsg" x-transition></div>
-              <button class="btn btn--primary settings-password__btn" :disabled="pwLoading || !pwCurrent || !pwNew || !pwConfirm"
-                @click="
-                  pwSuccess = false;
-                  if (pwNew !== pwConfirm) { pwMsg = 'As senhas nao conferem'; return; }
-                  if (pwNew.length < 6) { pwMsg = 'A nova senha deve ter no minimo 6 caracteres'; return; }
-                  pwLoading = true; pwMsg = '';
-                  fetch(CONFIG.API_BASE + '/api/auth/change-password', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('spalla_access_token') || '') },
-                    body: JSON.stringify({ current_password: pwCurrent, new_password: pwNew })
-                  }).then(r => r.json()).then(d => {
-                    if (d.success) { pwSuccess = true; pwMsg = 'Senha alterada com sucesso!'; pwCurrent = ''; pwNew = ''; pwConfirm = ''; }
-                    else { pwMsg = d.error || 'Erro ao alterar senha'; }
-                  }).catch(() => { pwMsg = 'Erro de conexao com o servidor'; }).finally(() => { pwLoading = false; });
-                ">
-                <span x-text="pwLoading ? 'Alterando...' : 'Alterar Senha'"></span>
-              </button>
             </div>
+
+            <!-- Step 2: Redes Sociais -->
+            <div x-show="step === 2" class="card">
+              <div class="card__header"><h3 class="card__title">Redes Sociais</h3></div>
+              <div class="card__body" style="display: flex; flex-direction: column; gap: var(--sp-4);">
+                <div>
+                  <label style="display: block; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-bottom: var(--sp-1);">Instagram</label>
+                  <input class="input" type="text" placeholder="@seuinstagram" x-model="data.instagram" style="width: 100%;">
+                </div>
+                <div>
+                  <label style="display: block; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-bottom: var(--sp-1);">LinkedIn</label>
+                  <input class="input" type="text" placeholder="URL do LinkedIn" x-model="data.linkedin" style="width: 100%;">
+                </div>
+                <div>
+                  <label style="display: block; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-bottom: var(--sp-1);">Outra rede</label>
+                  <input class="input" type="text" placeholder="YouTube, TikTok..." x-model="data.outra_rede" style="width: 100%;">
+                </div>
+              </div>
+              <div class="card__footer" style="display: flex; justify-content: space-between;">
+                <button class="btn btn--ghost" @click="prevStep()">Voltar</button>
+                <button class="btn btn--brand" @click="nextStep()">Continuar</button>
+              </div>
+            </div>
+
+            <!-- Step 3: Voz & Conteudo -->
+            <div x-show="step === 3" class="card">
+              <div class="card__header"><h3 class="card__title">Voz & Conteudo</h3></div>
+              <div class="card__body" style="display: flex; flex-direction: column; gap: var(--sp-5);">
+                <div>
+                  <label style="display: block; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-bottom: var(--sp-2);">Tom de voz *</label>
+                  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--sp-2);">
+                    <template x-for="tom in ['profissional','acolhedor','energetico','descontraido','educativo']" :key="tom">
+                      <button class="btn" :class="data.tom_de_voz === tom ? 'btn--brand' : 'btn--outline'"
+                              @click="data.tom_de_voz = tom" style="text-transform: capitalize;" x-text="tom"></button>
+                    </template>
+                  </div>
+                </div>
+                <div>
+                  <label style="display: block; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-bottom: var(--sp-1);">Como chama sua audiencia?</label>
+                  <input class="input" type="text" placeholder="Ex: alunas, mentoradas, pacientes..." x-model="data.como_chama_audiencia" style="width: 100%;">
+                </div>
+                <div>
+                  <label style="display: block; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-bottom: var(--sp-2);">Usa emojis? *</label>
+                  <div style="display: flex; gap: var(--sp-2);">
+                    <template x-for="opt in ['frequente','moderado','nao']" :key="opt">
+                      <button class="btn" :class="data.usa_emojis === opt ? 'btn--brand' : 'btn--outline'"
+                              @click="data.usa_emojis = opt" x-text="opt === 'nao' ? 'Nao uso' : opt.charAt(0).toUpperCase() + opt.slice(1)"></button>
+                    </template>
+                  </div>
+                </div>
+                <div>
+                  <label style="display: block; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-bottom: var(--sp-1);">Expressoes e bordoes</label>
+                  <input class="input" type="text" placeholder="Separadas por virgula" x-model="data.expressoes" style="width: 100%;">
+                </div>
+                <div>
+                  <label style="display: block; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-bottom: var(--sp-2);">Tipos de conteudo</label>
+                  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: var(--sp-2);">
+                    <template x-for="tipo in ['Carrossel','Reels','Stories','Lives','Posts','Artigos','Podcasts','Video longo']" :key="tipo">
+                      <button class="btn" :class="data.tipos_conteudo.includes(tipo) ? 'btn--brand' : 'btn--outline'"
+                              @click="data.tipos_conteudo.includes(tipo) ? data.tipos_conteudo = data.tipos_conteudo.filter(t => t !== tipo) : data.tipos_conteudo.push(tipo)"
+                              x-text="tipo"></button>
+                    </template>
+                  </div>
+                </div>
+              </div>
+              <div class="card__footer" style="display: flex; justify-content: space-between;">
+                <button class="btn btn--ghost" @click="prevStep()">Voltar</button>
+                <button class="btn btn--brand" @click="nextStep()" :disabled="!canAdvance()" :style="!canAdvance() ? 'opacity: 0.5; cursor: not-allowed' : ''">Continuar</button>
+              </div>
+            </div>
+
+            <!-- Step 4: Membros Extras -->
+            <div x-show="step === 4" class="card">
+              <div class="card__header"><h3 class="card__title">Equipe / Membros Extras</h3></div>
+              <div class="card__body" style="display: flex; flex-direction: column; gap: var(--sp-4);">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <span style="font-size: var(--text-sm); color: var(--text-primary);">Incluir membros da equipe?</span>
+                  <label style="position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer;">
+                    <input type="checkbox" x-model="data.incluir_membros_extras" style="opacity: 0; width: 0; height: 0;">
+                    <span style="position: absolute; inset: 0; border-radius: var(--r-full); transition: background var(--t-fast);"
+                          :style="data.incluir_membros_extras ? 'background: var(--brand-500)' : 'background: var(--neutral-300)'">
+                      <span style="position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background: white; border-radius: var(--r-full); transition: transform var(--t-fast);"
+                            :style="data.incluir_membros_extras ? 'transform: translateX(20px)' : ''"></span>
+                    </span>
+                  </label>
+                </div>
+
+                <template x-if="data.incluir_membros_extras">
+                  <div style="display: flex; flex-direction: column; gap: var(--sp-4);">
+                    <template x-for="(membro, idx) in data.membros_extras" :key="membro.id">
+                      <div class="card" style="border: 1px solid var(--neutral-200);">
+                        <div class="card__header" style="padding: var(--sp-3) var(--sp-4); display: flex; justify-content: space-between; align-items: center;">
+                          <span style="font-size: var(--text-sm); font-weight: 500;" x-text="'Membro ' + (idx + 1)"></span>
+                          <button class="btn btn--ghost btn--xs" style="color: var(--danger);" @click="removeMembro(membro.id)">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/></svg>
+                          </button>
+                        </div>
+                        <div class="card__body" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4);">
+                          <input class="input" type="text" placeholder="Nome completo" x-model="membro.nome_completo" style="width: 100%;">
+                          <input class="input" type="tel" placeholder="WhatsApp" x-model="membro.whatsapp" style="width: 100%;">
+                          <input class="input" type="email" placeholder="E-mail" x-model="membro.email" style="width: 100%;">
+                          <input class="input" type="text" placeholder="Funcao" x-model="membro.funcao" style="width: 100%;">
+                        </div>
+                      </div>
+                    </template>
+                    <button class="btn btn--outline" @click="addMembro()" x-show="data.membros_extras.length < 10" style="align-self: flex-start;">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      Adicionar membro
+                    </button>
+                  </div>
+                </template>
+              </div>
+              <div class="card__footer" style="display: flex; justify-content: space-between;">
+                <button class="btn btn--ghost" @click="prevStep()">Voltar</button>
+                <button class="btn btn--brand" @click="submitWizard()">Finalizar cadastro</button>
+              </div>
+            </div>
+
+            <!-- Step 5: Processing -->
+            <div x-show="step === 5 && !error" style="text-align: center; padding: var(--sp-16) 0;">
+              <div class="op-spinner" style="margin: 0 auto var(--sp-6);"></div>
+              <p style="font-size: var(--text-lg); color: var(--text-primary);">Processando cadastro...</p>
+              <p style="font-size: var(--text-sm); color: var(--text-secondary); margin-top: var(--sp-2);">Configurando perfil e preparando acesso</p>
+            </div>
+
+            <!-- Step 5: Error -->
+            <div x-show="error" class="card">
+              <div class="card__body" style="text-align: center; padding: var(--sp-8);">
+                <div style="width: 48px; height: 48px; border-radius: var(--r-full); background: var(--danger-light, #fde8e8); display: flex; align-items: center; justify-content: center; margin: 0 auto var(--sp-4);">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                </div>
+                <p style="font-size: var(--text-md); font-weight: 600; color: var(--text-primary); margin-bottom: var(--sp-2);">Erro no processamento</p>
+                <p style="font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--sp-6);" x-text="error"></p>
+                <button class="btn btn--brand" @click="retrySubmit()">Tentar novamente</button>
+              </div>
+            </div>
+
+            <!-- Step 6: Success -->
+            <div x-show="step === 6" class="card">
+              <div class="card__body" style="text-align: center; padding: var(--sp-8);">
+                <div style="width: 56px; height: 56px; border-radius: var(--r-full); background: var(--success-light, #e6f9ed); display: flex; align-items: center; justify-content: center; margin: 0 auto var(--sp-4);">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+                <h2 style="font-family: var(--font-display); font-size: var(--text-xl); font-weight: 600; color: var(--text-primary); margin-bottom: var(--sp-2);">Cadastro realizado!</h2>
+                <p style="font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--sp-6);">O mentorado foi cadastrado e ja possui acesso ao Spalla.</p>
+
+                <template x-if="credentials">
+                  <div style="background: var(--cream-100); border: 1px solid var(--neutral-200); border-radius: var(--r-lg); padding: var(--sp-5); text-align: left; margin-bottom: var(--sp-6);">
+                    <p style="font-size: var(--text-xs); font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: var(--tracking-wider, 0.05em); margin-bottom: var(--sp-3);">Credenciais de acesso</p>
+                    <div style="display: flex; flex-direction: column; gap: var(--sp-2);">
+                      <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: var(--text-sm); color: var(--text-secondary);">E-mail:</span>
+                        <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); font-family: monospace;" x-text="credentials.email"></span>
+                      </div>
+                      <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: var(--text-sm); color: var(--text-secondary);">Senha temporaria:</span>
+                        <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); font-family: monospace;" x-text="credentials.temp_password"></span>
+                      </div>
+                    </div>
+                    <p style="font-size: var(--text-xs); color: var(--warning); margin-top: var(--sp-3);">O mentorado deve alterar a senha no primeiro acesso.</p>
+                  </div>
+                </template>
+
+                <div style="display: flex; gap: var(--sp-3); justify-content: center;">
+                  <button class="btn btn--outline" @click="resetWizard()">Novo cadastro</button>
+                  <button class="btn btn--brand" @click="window.location.href = '/dashboard'">Ir ao Dashboard</button>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
+
 
       </main>
 
@@ -4130,10 +4154,10 @@
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js" integrity="sha384-Sm2s7OXxsAMTyJ4iIyRBgVpeGUvMPk2lRQnnZhE78Wej7oggIoolKt+SCt0XJbUB" crossorigin="anonymous"></script>
-  <script src="00-config-env.js?v=73"></script>
   <script src="12-APP-data.js?v=72"></script>
   <script src="13-APP-photos.js?v=72"></script>
-  <script src="11-APP-app.js?v=72"></script>
+  <script src="19-APP-welcome-flow.js?v=20260314b"></script>
+  <script src="11-APP-app.js?v=75"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {
@@ -4141,37 +4165,6 @@
       document.getElementById('loading-fallback')?.remove();
       document.getElementById('app').style.display = '';
     });
-
-    // ===== CFO PAYMENTS SVG CHART =====
-    function renderFinChart(snapshots) {
-      if (!snapshots || snapshots.length < 2) return;
-      const el = document.getElementById('fin-chart-svg');
-      if (!el) return;
-      const W = el.clientWidth || 560, H = 120, pad = 30;
-      const max = Math.max(...snapshots.map(s => s.atrasado_count), 1);
-      const pts = snapshots.map((s, i) => {
-        const x = pad + (i / (snapshots.length - 1)) * (W - pad * 2);
-        const y = H - pad - ((s.atrasado_count / max) * (H - pad * 2));
-        return { x, y, s };
-      });
-      const pathD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-      const areaD = pathD + ` L${pts[pts.length-1].x.toFixed(1)},${H-pad} L${pts[0].x.toFixed(1)},${H-pad} Z`;
-      el.innerHTML = `
-        <defs><linearGradient id="fin-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ef4444" stop-opacity="0.3"/><stop offset="100%" stop-color="#ef4444" stop-opacity="0.02"/></linearGradient></defs>
-        <path d="${areaD}" fill="url(#fin-grad)"/>
-        <path d="${pathD}" fill="none" stroke="#ef4444" stroke-width="2" stroke-linejoin="round"/>
-        ${pts.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="#ef4444"/>`).join('')}
-        ${pts.filter((_, i) => i === 0 || i === pts.length - 1 || i % 3 === 0).map(p => {
-          const d = new Date(p.s.snapshot_date);
-          const label = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
-          return `<text x="${p.x.toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="9" fill="#9ca3af">${label}</text>`;
-        }).join('')}
-        <text x="${pad}" y="${H-pad+4}" text-anchor="middle" font-size="9" fill="#9ca3af">${snapshots[0]?.atrasado_count || 0}</text>
-        <text x="${W-pad}" y="${H-pad+4}" text-anchor="middle" font-size="9" fill="#9ca3af">${snapshots[snapshots.length-1]?.atrasado_count || 0}</text>
-        <text x="${pad}" y="${pad-6}" text-anchor="start" font-size="9" fill="#9ca3af">${max}</text>
-      `;
-    }
-
     document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => {
         if (document.getElementById('loading-fallback')) {
