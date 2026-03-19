@@ -1705,11 +1705,21 @@ function operon() {
     // ===================== ARQUIVOS (Storage + Search) =====================
 
     async loadArquivos() {
-      const { data } = await this.supabase.from('sp_arquivos')
-        .select('*')
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false });
-      this.arquivos.list = data || [];
+      try {
+        if (!this.supabase) {
+          console.error('[Arquivos] Supabase client not ready');
+          sb = await initSupabase();
+        }
+        const { data, error } = await this.supabase.from('sp_arquivos')
+          .select('*')
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false });
+        if (error) console.error('[Arquivos] Load error:', error);
+        this.arquivos.list = data || [];
+        console.log('[Arquivos] Loaded', this.arquivos.list.length, 'files');
+      } catch(e) {
+        console.error('[Arquivos] loadArquivos failed:', e);
+      }
       // Load storage status
       try {
         const res = await fetch(`${CONFIG.API_BASE}/api/storage/status`);
@@ -1717,7 +1727,7 @@ function operon() {
         this.arquivos.storageOverview = status.overview || [];
         this.arquivos.queue = status.queue || [];
         this.arquivos.voyageConfigured = status.voyage_configured;
-      } catch(e) { console.error('Storage status error:', e); }
+      } catch(e) { console.error('[Arquivos] Storage status error:', e); }
     },
 
     async uploadArquivo(event) {
@@ -1765,14 +1775,16 @@ function operon() {
             body: JSON.stringify({ arquivo_id: inserted.id }),
           });
 
-          this.arquivos.list.unshift(inserted);
+          console.log('[Arquivos] Uploaded:', inserted.nome_original, inserted.id);
         } catch(e) {
-          console.error('Upload failed:', e);
+          console.error('[Arquivos] Upload failed:', e);
           alert(`Erro ao enviar ${file.name}: ${e.message || e}`);
         }
       }
       this.arquivos.uploadLoading = false;
       event.target.value = '';
+      // Reload full list to ensure consistency
+      await this.loadArquivos();
     },
 
     async searchArquivos() {
