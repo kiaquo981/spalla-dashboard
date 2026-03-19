@@ -333,6 +333,7 @@ function operon() {
     // --- Arquivos (Storage + Semantic Search) ---
     arquivos: {
       list: [],
+      loading: false,            // Fix 3 — file list loading state
       searchResults: [],
       searchQuery: '',
       searchMode: 'hybrid',
@@ -384,6 +385,11 @@ function operon() {
         showModal: false,
         showMentoradoDropdown: false,
       },
+      // Fix 9 — Pagination
+      page: 1,
+      pageSize: 50,
+      // Fix 16 — Bulk select
+      selectedIds: [],
     },
     // 5.4 — Realtime channel ref
     _arquivosChannel: null,
@@ -1754,8 +1760,11 @@ function operon() {
     },
 
     // ===================== ARQUIVOS (Storage + Search) =====================
+    // TODO (Fix 18): Folder nesting — too complex for this PR, requires schema changes
+    // TODO (Fix 20): Saved searches — requires backend persistence or localStorage with more UI
 
     async loadArquivos() {
+      this.arquivos.loading = true; // Fix 3
       try {
         if (!this.supabase) {
           console.error('[Arquivos] Supabase client not ready');
@@ -1767,7 +1776,6 @@ function operon() {
           .order('created_at', { ascending: false });
         if (error) console.error('[Arquivos] Load error:', error);
         this.arquivos.list = data || [];
-        console.log('[Arquivos] Loaded', this.arquivos.list.length, 'files');
         // Count processing files
         this.arquivos.processingCount = this.arquivos.list.filter(a =>
           ['pendente', 'extraindo', 'chunking', 'embedding'].includes(a.status_processamento)
@@ -1775,6 +1783,7 @@ function operon() {
       } catch(e) {
         console.error('[Arquivos] loadArquivos failed:', e);
       }
+      this.arquivos.loading = false; // Fix 3
       // Load storage status
       try {
         const res = await fetch(`${CONFIG.API_BASE}/api/storage/status`);
@@ -1856,11 +1865,11 @@ function operon() {
 
     async createFolder() {
       const f = this.arquivos.newFolderForm;
-      if (!f.nome.trim()) return alert('Nome da pasta e obrigatorio.');
+      if (!f.nome.trim()) { this.toast('Nome da pasta e obrigatorio.', 'warning'); return; }
       // Prevent duplicate names
       const nameNorm = f.nome.trim().toLowerCase();
       const exists = this.arquivos.customFolders.some(cf => cf.nome?.toLowerCase() === nameNorm);
-      if (exists) return alert('Ja existe uma pasta com esse nome.');
+      if (exists) { this.toast('Ja existe uma pasta com esse nome.', 'warning'); return; }
       // Prevent double-click
       if (this.arquivos.creatingFolder) return;
       this.arquivos.creatingFolder = true;
@@ -1875,10 +1884,10 @@ function operon() {
         if (error) throw error;
         this.closeNewFolderForm();
         await this.loadCustomFolders();
-        console.log('[Arquivos] Folder created:', f.nome);
+        this.toast('Pasta "' + f.nome.trim() + '" criada', 'success');
       } catch(e) {
         console.error('[Arquivos] createFolder failed:', e);
-        alert('Erro ao criar pasta: ' + (e.message || e));
+        this.toast('Erro ao criar pasta: ' + (e.message || e), 'error');
       } finally {
         this.arquivos.creatingFolder = false;
       }
@@ -1896,10 +1905,10 @@ function operon() {
           this.closeFolderView();
         }
         await this.loadCustomFolders();
-        console.log('[Arquivos] Folder deleted:', folderId);
+        this.toast('Pasta excluida', 'info');
       } catch(e) {
         console.error('[Arquivos] deleteFolder failed:', e);
-        alert('Erro ao excluir pasta: ' + (e.message || e));
+        this.toast('Erro ao excluir pasta: ' + (e.message || e), 'error');
       }
     },
 
@@ -1928,10 +1937,10 @@ function operon() {
           this.arquivos.currentFolder.nome = f.nome.trim();
           this.arquivos.currentFolder.cor = f.cor;
         }
-        console.log('[Arquivos] Folder updated:', f.id);
+        this.toast('Pasta atualizada', 'success');
       } catch(e) {
         console.error('[Arquivos] editFolder failed:', e);
-        alert('Erro ao editar pasta: ' + (e.message || e));
+        this.toast('Erro ao editar pasta: ' + (e.message || e), 'error');
       }
     },
 
@@ -1992,10 +2001,10 @@ function operon() {
         if (folderItem) folderItem.pasta_id = pastaId || null;
         this.closeMoveModal();
         await this.loadCustomFolders(); // refresh counts
-        console.log('[Arquivos] Moved file', arquivo.id, 'to folder', pastaId);
+        this.toast('Arquivo movido', 'success');
       } catch(e) {
         console.error('[Arquivos] moveFileToFolder failed:', e);
-        alert('Erro ao mover arquivo: ' + (e.message || e));
+        this.toast('Erro ao mover arquivo: ' + (e.message || e), 'error');
       }
     },
 
@@ -2051,6 +2060,8 @@ function operon() {
       this.arquivos.folderFiles = [];
       this.arquivos.searchResults = [];
       this.arquivos.searchQuery = '';
+      this.arquivos.page = 1;
+      this.arquivos.selectedIds = [];
     },
 
     get folderFilesByCategoria() {
@@ -2239,10 +2250,17 @@ function operon() {
       this.arquivos.uploadLoading = false;
 
       // If all done, close modal and reload
-      const allDone = form.files.every(f => f.status === 'done');
-      if (allDone) {
+      const doneCount = form.files.filter(f => f.status === 'done').length;
+      const errorCount = form.files.filter(f => f.status === 'error').length;
+      if (doneCount > 0 && errorCount === 0) {
+        this.toast(doneCount + ' arquivo(s) enviado(s) com sucesso', 'success');
         this.closeUploadModal();
         await this.loadArquivos();
+      } else if (doneCount > 0 && errorCount > 0) {
+        this.toast(doneCount + ' enviado(s), ' + errorCount + ' com erro', 'warning');
+        await this.loadArquivos();
+      } else if (errorCount > 0 && doneCount === 0) {
+        this.toast('Erro no upload de todos os arquivos', 'error');
       }
     },
 
@@ -2258,6 +2276,7 @@ function operon() {
       const q = this.arquivos.searchQuery.trim();
       if (!q) { this.arquivos.searchResults = []; return; }
       this.arquivos.searchLoading = true;
+      this._saveSearchHistory(q); // Fix 17
       try {
         // 5.3 — Build filters including mentorado, date range, and folder context
         const filters = {
@@ -2282,11 +2301,19 @@ function operon() {
           }),
         });
         const data = await res.json();
-        this.arquivos.searchResults = data.results || [];
-        if (data.error) alert(data.error);
+        // Fix 4 — Deduplicate by arquivo_id, keep highest score
+        const rawResults = data.results || [];
+        const grouped = {};
+        for (const r of rawResults) {
+          if (!grouped[r.arquivo_id] || (r.score_final || 0) > (grouped[r.arquivo_id].score_final || 0)) {
+            grouped[r.arquivo_id] = r;
+          }
+        }
+        this.arquivos.searchResults = Object.values(grouped).sort((a, b) => (b.score_final || 0) - (a.score_final || 0));
+        if (data.error) this.toast(data.error, 'warning');
       } catch(e) {
         console.error('Search failed:', e);
-        alert('Erro na busca: ' + e.message);
+        this.toast('Erro na busca: ' + e.message, 'error');
       }
       this.arquivos.searchLoading = false;
     },
@@ -2297,6 +2324,9 @@ function operon() {
         .update({ deleted_at: new Date().toISOString() })
         .eq('id', id);
       this.arquivos.list = this.arquivos.list.filter(a => a.id !== id);
+      this.arquivos.folderFiles = this.arquivos.folderFiles.filter(a => a.id !== id);
+      this.arquivos.selectedIds = this.arquivos.selectedIds.filter(sid => sid !== id);
+      this.toast('Arquivo excluido', 'info');
     },
 
     async togglePinArquivo(id, currentPinned) {
@@ -2469,6 +2499,116 @@ function operon() {
     _statusIcon(status) {
       const map = { pendente: '⏳', extraindo: '📄', chunking: '✂️', embedding: '🧠', concluido: '✅', erro: '❌', ignorado: '⏭️' };
       return map[status] || '❓';
+    },
+
+    // Fix 15 — Status text label
+    _statusLabel(status) {
+      const map = {
+        pendente: 'Pendente',
+        extraindo: 'Extraindo...',
+        chunking: 'Processando...',
+        embedding: 'Indexando...',
+        concluido: 'Indexado',
+        erro: 'Erro',
+        ignorado: 'Ignorado'
+      };
+      return map[status] || status;
+    },
+
+    // Fix 9 — Paginated files
+    get paginatedFiles() {
+      const start = (this.arquivos.page - 1) * this.arquivos.pageSize;
+      return this.arquivos.list.slice(start, start + this.arquivos.pageSize);
+    },
+
+    get totalPages() {
+      return Math.max(1, Math.ceil(this.arquivos.list.length / this.arquivos.pageSize));
+    },
+
+    nextPage() {
+      if (this.arquivos.page < this.totalPages) this.arquivos.page++;
+    },
+
+    prevPage() {
+      if (this.arquivos.page > 1) this.arquivos.page--;
+    },
+
+    // Fix 16 — Bulk select
+    toggleSelectFile(id) {
+      const idx = this.arquivos.selectedIds.indexOf(id);
+      if (idx >= 0) this.arquivos.selectedIds.splice(idx, 1);
+      else this.arquivos.selectedIds.push(id);
+    },
+
+    selectAllFiles() {
+      const visible = this.paginatedFiles;
+      const allSelected = visible.every(f => this.arquivos.selectedIds.includes(f.id));
+      if (allSelected) {
+        this.arquivos.selectedIds = [];
+      } else {
+        this.arquivos.selectedIds = visible.map(f => f.id);
+      }
+    },
+
+    clearSelection() {
+      this.arquivos.selectedIds = [];
+    },
+
+    async bulkDeleteFiles() {
+      const ids = this.arquivos.selectedIds;
+      if (!ids.length) return;
+      if (!confirm('Excluir ' + ids.length + ' arquivo(s) selecionado(s)?')) return;
+      const now = new Date().toISOString();
+      for (const id of ids) {
+        await this.supabase.from('sp_arquivos').update({ deleted_at: now }).eq('id', id);
+      }
+      this.arquivos.list = this.arquivos.list.filter(a => !ids.includes(a.id));
+      this.arquivos.folderFiles = this.arquivos.folderFiles.filter(a => !ids.includes(a.id));
+      this.toast(ids.length + ' arquivo(s) excluido(s)', 'info');
+      this.arquivos.selectedIds = [];
+    },
+
+    async bulkMoveFiles(pastaId) {
+      const ids = this.arquivos.selectedIds;
+      if (!ids.length) return;
+      for (const id of ids) {
+        await this.supabase.from('sp_arquivos').update({ pasta_id: pastaId || null }).eq('id', id);
+        const item = this.arquivos.list.find(a => a.id === id);
+        if (item) item.pasta_id = pastaId || null;
+      }
+      await this.loadCustomFolders();
+      this.toast(ids.length + ' arquivo(s) movido(s)', 'success');
+      this.arquivos.selectedIds = [];
+    },
+
+    // Fix 17 — Search history
+    get searchHistory() {
+      try {
+        return JSON.parse(localStorage.getItem('spalla_search_history') || '[]');
+      } catch { return []; }
+    },
+
+    _saveSearchHistory(query) {
+      if (!query) return;
+      let history = this.searchHistory.filter(h => h !== query);
+      history.unshift(query);
+      if (history.length > 5) history = history.slice(0, 5);
+      localStorage.setItem('spalla_search_history', JSON.stringify(history));
+    },
+
+    clearSearchHistory() {
+      localStorage.removeItem('spalla_search_history');
+    },
+
+    // Fix 19 — Storage quota
+    get storageUsedMb() {
+      return (this.arquivos.storageOverview || []).reduce((sum, o) => sum + (parseFloat(o.total_mb) || 0), 0);
+    },
+
+    get storageQuotaMb() { return 500; }, // bucket limit
+
+    get storagePercent() {
+      return Math.min(100, Math.round((this.storageUsedMb / this.storageQuotaMb) * 100));
     },
 
     _categoriaIcon(cat) {

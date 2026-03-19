@@ -6384,3 +6384,49 @@ img { max-width: 100%; display: block; }
   border-color: var(--primary, #10b981);
   color: var(--primary, #10b981);
 }
+
+/* Fix 3 — Skeleton loading animation */
+.arquivos-skeleton {
+  background: linear-gradient(90deg, var(--border, #e5e7eb) 25%, var(--hover-bg, #f3f4f6) 50%, var(--border, #e5e7eb) 75%);
+  background-size: 200% 100%;
+  animation: arquivos-skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes arquivos-skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Fix 13 — Empty state styling */
+.arquivos-empty-state {
+  color: var(--text, #374151);
+}
+
+/* Fix 8 — Mobile responsiveness */
+@media (max-width: 640px) {
+  /* Search bar stacks on mobile */
+  .arquivos-search-bar { flex-wrap: wrap; }
+  .arquivos-search-bar .op-input { width: 100%; min-width: 0; }
+  .arquivos-search-bar .op-select { flex: 1; min-width: 0; }
+
+  /* File actions collapse */
+  .arquivos-file-actions { gap: 2px; }
+  .arquivos-file-actions .op-btn { padding: 4px 6px; font-size: 11px; }
+
+  /* Modal full screen on mobile */
+  .modal-overlay .modal { max-width: 100%; margin: 0; border-radius: 0; max-height: 100vh; }
+
+  /* Viewer full screen */
+  .arquivos-viewer { width: 100vw !important; max-width: 100vw !important; height: 100vh !important; border-radius: 0 !important; }
+
+  /* Storage overview grid */
+  .page-content[x-show*="arquivos"] .op-grid-cols-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .page-content[x-show*="arquivos"] .op-grid-cols-4 {
+    grid-template-columns: 1fr;
+  }
+}
