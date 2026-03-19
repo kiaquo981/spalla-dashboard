@@ -349,9 +349,27 @@ function operon() {
       // 5.2 — Folder view
       viewMode: 'folders',       // 'folders' | 'folder_detail' | 'all'
       folders: [],               // from vw_arquivos_por_mentorado
-      currentFolder: null,       // { mentorado_id, mentorado_nome } or null='geral'
+      currentFolder: null,       // { mentorado_id, mentorado_nome } or null='geral' or { pasta_id, ... } for custom
       folderFiles: [],           // files for current folder
       folderFilesLoading: false,
+      // 5.6 — Custom folders
+      customFolders: [],         // from vw_pastas_overview
+      showNewFolderForm: false,
+      newFolderForm: { nome: '', descricao: '', cor: '#6b7280', mentoradoId: null, mentoradoSearch: '', showMentoradoDropdown: false },
+      editingFolder: null,       // folder object being edited, or null
+      showEditFolderForm: false,
+      moveFileTarget: null,      // file being moved, or null
+      showMoveModal: false,
+      folderColors: [
+        { name: 'Cinza', hex: '#6b7280' },
+        { name: 'Vermelho', hex: '#ef4444' },
+        { name: 'Laranja', hex: '#f97316' },
+        { name: 'Amarelo', hex: '#eab308' },
+        { name: 'Verde', hex: '#22c55e' },
+        { name: 'Azul', hex: '#3b82f6' },
+        { name: 'Roxo', hex: '#8b5cf6' },
+        { name: 'Rosa', hex: '#ec4899' },
+      ],
       // 5.4 — Realtime
       processingCount: 0,
       uploadForm: {
@@ -360,6 +378,7 @@ function operon() {
         mentoradoSearch: '',
         entidadeTipo: 'geral',
         descricao: '',
+        pastaId: null,
         files: [],
         showModal: false,
         showMentoradoDropdown: false,
@@ -1761,6 +1780,8 @@ function operon() {
       } catch(e) { console.error('[Arquivos] Storage status error:', e); }
       // 5.2 — Load folder data
       await this._loadArquivosFolders();
+      // 5.6 — Load custom folders
+      await this.loadCustomFolders();
       // 5.4 — Subscribe to realtime
       this._subscribeArquivosRealtime();
     },
@@ -1780,6 +1801,194 @@ function operon() {
       }
     },
 
+    // ===== 5.6 — CUSTOM FOLDERS =====
+
+    async loadCustomFolders() {
+      try {
+        const { data, error } = await this.supabase
+          .from('vw_pastas_overview')
+          .select('*')
+          .order('sort_order', { ascending: true })
+          .order('nome', { ascending: true });
+        if (error) console.error('[Arquivos] Custom folders error:', error);
+        this.arquivos.customFolders = data || [];
+        console.log('[Arquivos] Loaded', this.arquivos.customFolders.length, 'custom folders');
+      } catch(e) {
+        console.error('[Arquivos] loadCustomFolders failed:', e);
+      }
+    },
+
+    openNewFolderForm() {
+      this.arquivos.showNewFolderForm = true;
+      this.arquivos.newFolderForm = { nome: '', descricao: '', cor: '#6b7280', mentoradoId: null, mentoradoSearch: '', showMentoradoDropdown: false };
+    },
+
+    closeNewFolderForm() {
+      this.arquivos.showNewFolderForm = false;
+    },
+
+    get newFolderFilteredMentees() {
+      const q = (this.arquivos.newFolderForm.mentoradoSearch || '').toLowerCase().trim();
+      if (!q) return (this.data.mentees || []).slice(0, 15);
+      return (this.data.mentees || []).filter(m =>
+        m.nome?.toLowerCase().includes(q) || m.instagram?.toLowerCase().includes(q)
+      ).slice(0, 15);
+    },
+
+    selectNewFolderMentorado(mentee) {
+      this.arquivos.newFolderForm.mentoradoId = mentee.id;
+      this.arquivos.newFolderForm.mentoradoSearch = mentee.nome;
+      this.arquivos.newFolderForm.showMentoradoDropdown = false;
+    },
+
+    clearNewFolderMentorado() {
+      this.arquivos.newFolderForm.mentoradoId = null;
+      this.arquivos.newFolderForm.mentoradoSearch = '';
+      this.arquivos.newFolderForm.showMentoradoDropdown = false;
+    },
+
+    async createFolder() {
+      const f = this.arquivos.newFolderForm;
+      if (!f.nome.trim()) return alert('Nome da pasta e obrigatorio.');
+      try {
+        const insertData = {
+          nome: f.nome.trim(),
+          cor: f.cor,
+        };
+        if (f.descricao.trim()) insertData.descricao = f.descricao.trim();
+        if (f.mentoradoId) insertData.mentorado_id = f.mentoradoId;
+        const { error } = await this.supabase.from('sp_pastas').insert(insertData);
+        if (error) throw error;
+        this.closeNewFolderForm();
+        await this.loadCustomFolders();
+        console.log('[Arquivos] Folder created:', f.nome);
+      } catch(e) {
+        console.error('[Arquivos] createFolder failed:', e);
+        alert('Erro ao criar pasta: ' + (e.message || e));
+      }
+    },
+
+    async deleteFolder(folderId) {
+      if (!confirm('Excluir esta pasta? Os arquivos dentro dela ficarao sem pasta.')) return;
+      try {
+        // Unassign files first
+        await this.supabase.from('sp_arquivos').update({ pasta_id: null }).eq('pasta_id', folderId);
+        const { error } = await this.supabase.from('sp_pastas').delete().eq('id', folderId);
+        if (error) throw error;
+        // If viewing this folder, go back
+        if (this.arquivos.currentFolder?.pasta_id === folderId) {
+          this.closeFolderView();
+        }
+        await this.loadCustomFolders();
+        console.log('[Arquivos] Folder deleted:', folderId);
+      } catch(e) {
+        console.error('[Arquivos] deleteFolder failed:', e);
+        alert('Erro ao excluir pasta: ' + (e.message || e));
+      }
+    },
+
+    openEditFolderForm(folder) {
+      this.arquivos.editingFolder = { ...folder };
+      this.arquivos.showEditFolderForm = true;
+    },
+
+    closeEditFolderForm() {
+      this.arquivos.showEditFolderForm = false;
+      this.arquivos.editingFolder = null;
+    },
+
+    async editFolder() {
+      const f = this.arquivos.editingFolder;
+      if (!f || !f.nome?.trim()) return;
+      try {
+        const { error } = await this.supabase.from('sp_pastas')
+          .update({ nome: f.nome.trim(), descricao: f.descricao || null, cor: f.cor })
+          .eq('id', f.id);
+        if (error) throw error;
+        this.closeEditFolderForm();
+        await this.loadCustomFolders();
+        // Update current folder header if viewing it
+        if (this.arquivos.currentFolder?.pasta_id === f.id) {
+          this.arquivos.currentFolder.nome = f.nome.trim();
+          this.arquivos.currentFolder.cor = f.cor;
+        }
+        console.log('[Arquivos] Folder updated:', f.id);
+      } catch(e) {
+        console.error('[Arquivos] editFolder failed:', e);
+        alert('Erro ao editar pasta: ' + (e.message || e));
+      }
+    },
+
+    openCustomFolder(folder) {
+      this.arquivos.viewMode = 'folder_detail';
+      this.arquivos.currentFolder = {
+        pasta_id: folder.id,
+        nome: folder.nome,
+        cor: folder.cor,
+        icone: folder.icone,
+        descricao: folder.descricao,
+        mentorado_id: folder.mentorado_id,
+        mentorado_nome: folder.mentorado_nome,
+      };
+      this.arquivos.folderFilesLoading = true;
+      this._loadCustomFolderFiles(folder.id);
+    },
+
+    async _loadCustomFolderFiles(pastaId) {
+      try {
+        const { data, error } = await this.supabase.from('sp_arquivos')
+          .select('*')
+          .eq('pasta_id', pastaId)
+          .is('deleted_at', null)
+          .order('categoria', { ascending: true })
+          .order('created_at', { ascending: false });
+        if (error) console.error('[Arquivos] Custom folder files error:', error);
+        this.arquivos.folderFiles = data || [];
+      } catch(e) {
+        console.error('[Arquivos] _loadCustomFolderFiles failed:', e);
+      }
+      this.arquivos.folderFilesLoading = false;
+    },
+
+    // Move file to folder
+    openMoveModal(arquivo) {
+      this.arquivos.moveFileTarget = arquivo;
+      this.arquivos.showMoveModal = true;
+    },
+
+    closeMoveModal() {
+      this.arquivos.moveFileTarget = null;
+      this.arquivos.showMoveModal = false;
+    },
+
+    async moveFileToFolder(pastaId) {
+      const arquivo = this.arquivos.moveFileTarget;
+      if (!arquivo) return;
+      try {
+        const { error } = await this.supabase.from('sp_arquivos')
+          .update({ pasta_id: pastaId || null })
+          .eq('id', arquivo.id);
+        if (error) throw error;
+        // Update local state
+        const item = this.arquivos.list.find(a => a.id === arquivo.id);
+        if (item) item.pasta_id = pastaId || null;
+        const folderItem = this.arquivos.folderFiles.find(a => a.id === arquivo.id);
+        if (folderItem) folderItem.pasta_id = pastaId || null;
+        this.closeMoveModal();
+        await this.loadCustomFolders(); // refresh counts
+        console.log('[Arquivos] Moved file', arquivo.id, 'to folder', pastaId);
+      } catch(e) {
+        console.error('[Arquivos] moveFileToFolder failed:', e);
+        alert('Erro ao mover arquivo: ' + (e.message || e));
+      }
+    },
+
+    _folderNameById(pastaId) {
+      if (!pastaId) return null;
+      const f = this.arquivos.customFolders.find(f => f.id === pastaId);
+      return f ? f.nome : null;
+    },
+
     get arquivosGeralCount() {
       return this.arquivos.list.filter(a => !a.entidade_id || a.entidade_tipo === 'geral').length;
     },
@@ -1791,6 +2000,10 @@ function operon() {
     },
 
     async openFolder(folder) {
+      // If it's a custom folder (has pasta_id), use custom folder flow
+      if (folder && folder.pasta_id) {
+        return this.openCustomFolder(folder);
+      }
       this.arquivos.viewMode = 'folder_detail';
       this.arquivos.currentFolder = folder; // { mentorado_id, mentorado_nome } or null for geral
       this.arquivos.folderFilesLoading = true;
@@ -1842,6 +2055,10 @@ function operon() {
 
     openUploadForFolder() {
       this.openUploadModal();
+      if (this.arquivos.currentFolder && this.arquivos.currentFolder.pasta_id) {
+        // Custom folder — set pastaId
+        this.arquivos.uploadForm.pastaId = this.arquivos.currentFolder.pasta_id;
+      }
       if (this.arquivos.currentFolder && this.arquivos.currentFolder.mentorado_id) {
         const m = (this.data.mentees || []).find(m => m.id === this.arquivos.currentFolder.mentorado_id);
         if (m) this.selectUploadMentorado(m);
@@ -1857,6 +2074,7 @@ function operon() {
         mentoradoSearch: '',
         entidadeTipo: 'geral',
         descricao: '',
+        pastaId: null,
         files: [],
         showModal: true,
         showMentoradoDropdown: false,
@@ -1975,6 +2193,7 @@ function operon() {
             categoria,
           };
           if (form.descricao.trim()) insertData.descricao = form.descricao.trim();
+          if (form.pastaId) insertData.pasta_id = form.pastaId;
 
           const { data: inserted, error: insertError } = await this.supabase
             .from('sp_arquivos')
