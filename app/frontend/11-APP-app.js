@@ -343,6 +343,16 @@ function operon() {
       filterCategoria: '',
       filterEntidade: '',
       voyageConfigured: false,
+      uploadForm: {
+        mentoradoId: null,
+        mentoradoNome: '',
+        mentoradoSearch: '',
+        entidadeTipo: 'geral',
+        descricao: '',
+        files: [],
+        showModal: false,
+        showMentoradoDropdown: false,
+      },
     },
 
     // --- API Integration State ---
@@ -1730,43 +1740,141 @@ function operon() {
       } catch(e) { console.error('[Arquivos] Storage status error:', e); }
     },
 
-    async uploadArquivo(event) {
-      const files = event.target.files;
-      if (!files || !files.length) return;
-      this.arquivos.uploadLoading = true;
+    // --- Upload Form Helpers ---
 
-      for (const file of files) {
+    openUploadModal() {
+      this.arquivos.uploadForm = {
+        mentoradoId: null,
+        mentoradoNome: '',
+        mentoradoSearch: '',
+        entidadeTipo: 'geral',
+        descricao: '',
+        files: [],
+        showModal: true,
+        showMentoradoDropdown: false,
+      };
+    },
+
+    closeUploadModal() {
+      this.arquivos.uploadForm.showModal = false;
+    },
+
+    get uploadFilteredMentees() {
+      const q = (this.arquivos.uploadForm.mentoradoSearch || '').toLowerCase().trim();
+      if (!q) return (this.data.mentees || []).slice(0, 15);
+      return (this.data.mentees || []).filter(m =>
+        m.nome?.toLowerCase().includes(q) || m.instagram?.toLowerCase().includes(q)
+      ).slice(0, 15);
+    },
+
+    selectUploadMentorado(mentee) {
+      this.arquivos.uploadForm.mentoradoId = mentee.id;
+      this.arquivos.uploadForm.mentoradoNome = mentee.nome;
+      this.arquivos.uploadForm.mentoradoSearch = mentee.nome;
+      this.arquivos.uploadForm.entidadeTipo = 'mentorado';
+      this.arquivos.uploadForm.showMentoradoDropdown = false;
+    },
+
+    clearUploadMentorado() {
+      this.arquivos.uploadForm.mentoradoId = null;
+      this.arquivos.uploadForm.mentoradoNome = '';
+      this.arquivos.uploadForm.mentoradoSearch = '';
+      this.arquivos.uploadForm.entidadeTipo = 'geral';
+      this.arquivos.uploadForm.showMentoradoDropdown = false;
+    },
+
+    addUploadFiles(fileList) {
+      for (const file of fileList) {
+        // Avoid duplicates by name+size
+        const exists = this.arquivos.uploadForm.files.some(f => f.name === file.name && f.size === file.size);
+        if (!exists) {
+          this.arquivos.uploadForm.files.push({
+            file,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            status: 'waiting',
+            progress: 0,
+            error: null,
+          });
+        }
+      }
+    },
+
+    removeUploadFile(index) {
+      this.arquivos.uploadForm.files.splice(index, 1);
+    },
+
+    handleUploadDrop(event) {
+      event.preventDefault();
+      const files = event.dataTransfer?.files;
+      if (files?.length) this.addUploadFiles(files);
+    },
+
+    handleUploadFileInput(event) {
+      const files = event.target.files;
+      if (files?.length) this.addUploadFiles(files);
+      event.target.value = '';
+    },
+
+    _uploadFileIcon(type) {
+      if (type.startsWith('image/')) return '🖼️';
+      if (type.startsWith('audio/')) return '🎵';
+      if (type.startsWith('video/')) return '🎬';
+      if (type.includes('spreadsheet') || type.includes('csv') || type.includes('excel')) return '📊';
+      if (type.includes('pdf')) return '📕';
+      return '📄';
+    },
+
+    async uploadArquivos() {
+      const form = this.arquivos.uploadForm;
+      if (!form.files.length) return;
+
+      this.arquivos.uploadLoading = true;
+      const entidadeTipo = form.mentoradoId ? form.entidadeTipo : 'geral';
+      const entidadeId = form.mentoradoId || null;
+
+      for (const entry of form.files) {
+        if (entry.status === 'done') continue;
+        entry.status = 'uploading';
+        entry.progress = 10;
+
         try {
-          const ext = file.name.split('.').pop().toLowerCase();
+          const ext = entry.name.split('.').pop().toLowerCase();
           const nomeStorage = crypto.randomUUID() + '.' + ext;
-          const entidadeTipo = 'geral';
-          const entidadeId = null;
-          const path = `${entidadeTipo}/${nomeStorage}`;
+          const pathPrefix = entidadeId ? `${entidadeTipo}/${entidadeId}` : entidadeTipo;
+          const path = `${pathPrefix}/${nomeStorage}`;
 
           // 1. Upload to Supabase Storage
           const { error: uploadError } = await this.supabase.storage
             .from('spalla-arquivos')
-            .upload(path, file);
+            .upload(path, entry.file);
           if (uploadError) throw uploadError;
+          entry.progress = 50;
 
           // 2. Insert metadata
-          const categoria = this._detectCategoria(file.type, ext);
+          entry.status = 'processing';
+          const categoria = this._detectCategoria(entry.type, ext);
+          const insertData = {
+            nome_original: entry.name,
+            nome_storage: nomeStorage,
+            storage_path: path,
+            mime_type: entry.type,
+            tamanho_bytes: entry.size,
+            extensao: ext,
+            entidade_tipo: entidadeTipo,
+            entidade_id: entidadeId,
+            categoria,
+          };
+          if (form.descricao.trim()) insertData.descricao = form.descricao.trim();
+
           const { data: inserted, error: insertError } = await this.supabase
             .from('sp_arquivos')
-            .insert({
-              nome_original: file.name,
-              nome_storage: nomeStorage,
-              storage_path: path,
-              mime_type: file.type,
-              tamanho_bytes: file.size,
-              extensao: ext,
-              entidade_tipo: entidadeTipo,
-              entidade_id: entidadeId,
-              categoria,
-            })
+            .insert(insertData)
             .select()
             .single();
           if (insertError) throw insertError;
+          entry.progress = 75;
 
           // 3. Trigger processing
           await fetch(`${CONFIG.API_BASE}/api/storage/process`, {
@@ -1775,16 +1883,32 @@ function operon() {
             body: JSON.stringify({ arquivo_id: inserted.id }),
           });
 
+          entry.status = 'done';
+          entry.progress = 100;
           console.log('[Arquivos] Uploaded:', inserted.nome_original, inserted.id);
         } catch(e) {
           console.error('[Arquivos] Upload failed:', e);
-          alert(`Erro ao enviar ${file.name}: ${e.message || e}`);
+          entry.status = 'error';
+          entry.error = e.message || String(e);
         }
       }
+
       this.arquivos.uploadLoading = false;
-      event.target.value = '';
-      // Reload full list to ensure consistency
-      await this.loadArquivos();
+
+      // If all done, close modal and reload
+      const allDone = form.files.every(f => f.status === 'done');
+      if (allDone) {
+        this.closeUploadModal();
+        await this.loadArquivos();
+      }
+    },
+
+    // Legacy handler for backward compat (not used in new UI)
+    async uploadArquivo(event) {
+      const files = event.target.files;
+      if (!files || !files.length) return;
+      this.openUploadModal();
+      this.addUploadFiles(files);
     },
 
     async searchArquivos() {
