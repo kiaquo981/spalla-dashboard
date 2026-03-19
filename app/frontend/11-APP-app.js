@@ -1793,9 +1793,11 @@ function operon() {
         const { data, error } = await this.supabase
           .from('vw_arquivos_por_mentorado')
           .select('*')
-          .order('mentorado_nome', { ascending: true });
+          .order('total_arquivos', { ascending: false });
         if (error) console.error('[Arquivos] Folders error:', error);
-        this.arquivos.folders = data || [];
+        // Show all mentorados (even with 0 files) but sort by file count desc
+        this.arquivos.folders = (data || []).filter(f => f.mentorado_nome);
+        console.log('[Arquivos] Loaded', this.arquivos.folders.length, 'mentorado folders');
       } catch(e) {
         console.error('[Arquivos] _loadArquivosFolders failed:', e);
       }
