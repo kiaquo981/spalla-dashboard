@@ -66,11 +66,11 @@ VOYAGE_API_KEY = os.environ.get('VOYAGE_API_KEY', '')
 WHISPER_MODEL = 'whisper-1'
 VISION_MODEL = 'gpt-4o'
 
-# Embedding config — Voyage AI (1024 dims, $0.02/1M tokens, 200M free)
+# Embedding config — Voyage AI (512 dims via voyage-3-lite, $0.02/1M tokens, 200M free)
 EMBEDDING_PROVIDER = os.environ.get('EMBEDDING_PROVIDER', 'voyage')  # 'voyage' or 'openai'
 VOYAGE_EMBED_MODEL = 'voyage-3-lite'
 OPENAI_EMBED_MODEL = 'text-embedding-3-small'
-EMBEDDING_DIMS = 1024 if EMBEDDING_PROVIDER == 'voyage' else 1536
+EMBEDDING_DIMS = 512 if EMBEDDING_PROVIDER == 'voyage' else 1536
 
 # Chunking config
 CHUNK_SIZE_TOKENS = 800

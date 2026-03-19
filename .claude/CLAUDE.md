@@ -217,5 +217,41 @@ npm run trace -- workflow-name
 - Keep README synchronized with actual behavior
 - Document breaking changes prominently
 
+## Spalla Dashboard — Direct Access & Credentials
+
+### Supabase (Database)
+- **URL:** `https://knusqfbvhsqworzyhvip.supabase.co`
+- **Anon Key:** In `.env` and `11-APP-app.js` CONFIG object
+- **REST API:** Always use curl to query/update Supabase directly via REST API
+- **Pattern for SELECT:** `curl -s "$SUPABASE_URL/rest/v1/TABLE?select=COLS&FILTERS" -H "apikey: $KEY" -H "Authorization: Bearer $KEY"`
+- **Pattern for UPDATE:** `curl -s "$SUPABASE_URL/rest/v1/TABLE?id=eq.ID" -X PATCH -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d '{"col":"val"}'`
+- **Pattern for INSERT:** Same as UPDATE but use `-X POST` and body is the new row JSON
+- **Key Tables:** `mentorados`, `calls_mentoria`, `god_tasks`, `god_reminders`, `pa_planos`, `pa_fases`, `pa_acoes`, `ob_trilhas`, `ds_producoes`
+- **Key Views:** `vw_god_overview`, `vw_god_calls`, `vw_god_tarefas`, `vw_god_vendas`, `vw_god_timeline`
+- **ALWAYS query Supabase before generating UPDATE SQL** to verify current state and avoid overwriting existing data
+
+### Evolution API (WhatsApp)
+- **Base URL:** `https://evolution.manager01.feynmanproject.com`
+- **Instance:** `producao002`
+- **API Key:** In `12-APP-data.js` EVOLUTION_CONFIG
+- **Proxied via Railway:** `https://web-production-2cde5.up.railway.app/api/evolution/`
+
+### Railway (Backend Server)
+- **URL:** `https://web-production-2cde5.up.railway.app`
+- **Server:** `14-APP-server.py` (Python/Flask)
+- **Endpoints:** `/api/health`, `/api/auth/*`, `/api/evolution/*`, `/api/zoom/*`, `/api/sheets/*`
+- **Docker:** Dockerfile in repo root, auto-deploys on push to main
+
+### Vercel (Frontend)
+- **Auto-deploy:** Yes, triggers on push to main
+- **Build:** Static SPA (no build step)
+- **Config:** `vercel.json` with SPA rewrite
+
+### Key Behaviors
+- **When user asks to update data:** Query Supabase first, check what exists, then PATCH only missing fields
+- **When user asks to query data:** Use curl with Supabase REST API directly
+- **When deploying:** Push to main triggers both Vercel (frontend) and Railway (backend)
+- **Cache busting:** Bump `?v=XX` on script/style tags in `10-APP-index.html` after any JS/CSS change
+
 ---
-*Synkra AIOS Claude Code Configuration v2.0* 
+*Synkra AIOS Claude Code Configuration v2.0*
