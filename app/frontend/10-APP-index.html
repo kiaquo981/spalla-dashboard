@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="16-APP-operon-molecules.css?v=3">
   <link rel="stylesheet" href="17-APP-operon-utilities.css?v=2">
   <link rel="stylesheet" href="18-APP-operon-bridge.css?v=1">
-  <link rel="stylesheet" href="13-APP-styles.css?v=75">
+  <link rel="stylesheet" href="13-APP-styles.css?v=76">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1c1910,#35301d,#1c1910);font-family:'Open Sauce Sans',system-ui,sans-serif;color:var(--brand-500,#8a7d52);font-size:24px;font-weight:700;letter-spacing:0.05em; }
@@ -3543,7 +3543,7 @@
                 <div style="display:flex;gap:12px;margin-bottom:16px">
                   <div style="flex:1" x-show="arquivos.uploadForm.mentoradoId" x-transition>
                     <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px">Tipo</label>
-                    <select class="op-select" style="width:100%" x-model="arquivos.uploadForm.entidadeTipo">
+                    <select class="op-input op-select" style="width:100%" x-model="arquivos.uploadForm.entidadeTipo">
                       <option value="mentorado">Geral do Mentorado</option>
                       <option value="dossie_doc">Dossie</option>
                       <option value="plano_acao">Plano de Acao</option>
@@ -3552,7 +3552,7 @@
                   </div>
                   <div style="flex:1">
                     <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px">Pasta (opcional)</label>
-                    <select class="op-select" style="width:100%" x-model="arquivos.uploadForm.pastaId">
+                    <select class="op-input op-select" style="width:100%" x-model="arquivos.uploadForm.pastaId">
                       <option :value="null">Nenhuma pasta</option>
                       <template x-for="p in arquivos.customFolders" :key="p.id">
                         <option :value="p.id" x-text="p.nome"></option>
@@ -3666,7 +3666,7 @@
               </div>
               <div class="modal__footer">
                 <button class="btn" @click="closeNewFolderForm()">Cancelar</button>
-                <button class="btn btn--brand" @click="createFolder()" :disabled="!arquivos.newFolderForm.nome.trim()">Criar Pasta</button>
+                <button class="btn btn--brand" @click="createFolder()" :disabled="!arquivos.newFolderForm.nome.trim() || arquivos.creatingFolder">Criar Pasta</button>
               </div>
             </div>
           </div>
@@ -3736,18 +3736,18 @@
           </div>
 
           <!-- 5.3 — Enhanced Search Bar -->
-          <div class="op-card" style="margin-bottom:16px;padding:16px">
+          <div class="op-card" style="margin-bottom:16px;padding:12px 16px">
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <input type="text" class="op-input" style="flex:1;min-width:200px"
                 :placeholder="arquivos.viewMode === 'folder_detail' && arquivos.currentFolder ? 'Buscar nos arquivos de ' + (arquivos.currentFolder.mentorado_nome || 'Geral') + '...' : 'Buscar: depoimento da Rosalie sobre vendas, plano de acao do Joao...'"
                 x-model="arquivos.searchQuery"
                 @keydown.enter="searchArquivos()">
-              <select class="op-select" style="width:120px" x-model="arquivos.searchMode">
+              <select class="op-input op-select" style="width:120px;flex:none" x-model="arquivos.searchMode">
                 <option value="hybrid">Hibrida</option>
                 <option value="semantic">Semantica</option>
                 <option value="keyword">Keyword</option>
               </select>
-              <select class="op-select" style="width:130px" x-model="arquivos.filterCategoria">
+              <select class="op-input op-select" style="width:150px;flex:none" x-model="arquivos.filterCategoria">
                 <option value="">Todas categorias</option>
                 <option value="documento">Documentos</option>
                 <option value="audio">Audio</option>
@@ -3755,31 +3755,12 @@
                 <option value="imagem">Imagens</option>
                 <option value="planilha">Planilhas</option>
               </select>
-              <!-- 5.3 — Mentorado filter (hidden in folder_detail mode since auto-filtered) -->
-              <select x-show="arquivos.viewMode !== 'folder_detail'" class="op-select" style="width:160px" x-model="arquivos.filterMentoradoId">
-                <option value="">Todos mentorados</option>
-                <template x-for="m in data.mentees" :key="m.id">
-                  <option :value="m.id" x-text="m.nome"></option>
-                </template>
-              </select>
               <button class="op-btn op-btn--primary" @click="searchArquivos()" :disabled="arquivos.searchLoading">
                 <template x-if="!arquivos.searchLoading">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 </template>
                 <template x-if="arquivos.searchLoading"><span>...</span></template>
                 Buscar
-              </button>
-            </div>
-            <!-- 5.3 — Date range filters (collapsible row) -->
-            <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
-              <label style="font-size:12px;color:var(--text-muted);white-space:nowrap">De:</label>
-              <input type="date" class="op-input" style="width:140px;font-size:12px" x-model="arquivos.filterDateFrom">
-              <label style="font-size:12px;color:var(--text-muted);white-space:nowrap">Ate:</label>
-              <input type="date" class="op-input" style="width:140px;font-size:12px" x-model="arquivos.filterDateTo">
-              <button x-show="arquivos.filterDateFrom || arquivos.filterDateTo || arquivos.filterMentoradoId"
-                class="op-btn op-btn--ghost op-btn--sm"
-                @click="arquivos.filterDateFrom=''; arquivos.filterDateTo=''; arquivos.filterMentoradoId=''">
-                Limpar filtros
               </button>
             </div>
           </div>
@@ -3851,7 +3832,7 @@
             <div class="op-grid op-grid-cols-3" style="gap:12px">
               <!-- Custom folders -->
               <template x-for="cf in arquivos.customFolders" :key="cf.id">
-                <div class="op-card arquivos-folder-card" style="cursor:pointer;padding:16px;transition:all 0.15s;position:relative;border-left:4px solid"
+                <div class="op-card arquivos-folder-card arquivos-custom-folder-card" style="cursor:pointer;padding:16px;transition:all 0.15s;position:relative;border-left:4px solid"
                   :style="'border-left-color:' + (cf.cor || '#6b7280')"
                   @click="openCustomFolder(cf)">
                   <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
@@ -4803,7 +4784,7 @@
   <script src="12-APP-data.js?v=72"></script>
   <script src="13-APP-photos.js?v=72"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=83"></script>
+  <script src="11-APP-app.js?v=84"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {
