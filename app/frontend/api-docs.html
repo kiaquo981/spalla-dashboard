@@ -4,17 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Spalla API Reference</title>
-    <meta
-      name="description"
-      content="Interactive API reference for Spalla Dashboard — mentorship management, ClickUp integration, WhatsApp automation, and AI-powered search."
-    />
+    <meta name="description" content="Interactive API reference for Spalla Dashboard — mentorship management, ClickUp integration, WhatsApp automation, and AI-powered search." />
     <meta property="og:title" content="Spalla API Reference" />
-    <meta
-      property="og:description"
-      content="Interactive API documentation powered by Scalar."
-    />
+    <meta property="og:description" content="Interactive API documentation powered by Scalar." />
     <style>
-      /* Spalla brand: warm olive / terracotta / cream (Operon Design System) */
+      /* Operon Design System — warm olive / terracotta / cream */
       :root {
         --scalar-color-1: #1a1a14;
         --scalar-color-2: #4a4a38;
@@ -30,54 +24,37 @@
         --scalar-sidebar-color-active: #8b6f47;
         --scalar-sidebar-background-active: #ede9de;
       }
-
-      body {
-        margin: 0;
-        padding: 0;
-      }
+      body { margin: 0; padding: 0; }
     </style>
   </head>
   <body>
-    <script
-      id="api-reference"
-      data-url="/openapi.yaml"
-      data-configuration='{
-        "theme": "default",
-        "layout": "sidebar",
-        "defaultOpenAllTags": false,
-        "showSidebar": true,
-        "hideModels": false,
-        "hideDownloadButton": false,
-        "hideDarkModeToggle": false,
-        "searchHotKey": "k",
-        "metaData": {
-          "title": "Spalla API Reference",
-          "description": "Interactive API reference for Spalla Dashboard.",
-          "ogDescription": "Mentorship management, ClickUp integration, WhatsApp automation, and AI-powered search.",
-          "ogTitle": "Spalla API Reference",
-          "favicon": "https://spalla-dashboard.vercel.app/favicon.ico"
+    <script id="api-reference" data-url="/openapi.yaml"></script>
+    <script>
+      document.getElementById('api-reference').dataset.configuration = JSON.stringify({
+        theme: 'default',
+        layout: 'sidebar',
+        defaultOpenAllTags: false,
+        showSidebar: true,
+        hideModels: false,
+        hideDownloadButton: false,
+        hideDarkModeToggle: false,
+        searchHotKey: 'k',
+        metaData: {
+          title: 'Spalla API Reference',
+          description: 'Interactive API reference for Spalla Dashboard.',
+          ogDescription: 'Mentorship management, ClickUp integration, WhatsApp automation, and AI-powered search.',
+          ogTitle: 'Spalla API Reference'
         },
-        "servers": [
-          {
-            "url": "https://spalla.allinmarketing.com.br",
-            "description": "Production (Railway)"
-          },
-          {
-            "url": "http://localhost:9999",
-            "description": "Local development"
-          }
+        servers: [
+          { url: 'https://spalla.allinmarketing.com.br', description: 'Production (Railway)' },
+          { url: 'http://localhost:9999', description: 'Local development' }
         ],
-        "authentication": {
-          "preferredSecurityScheme": "BearerAuth",
-          "http": {
-            "bearer": {
-              "token": ""
-            }
-          }
-        },
-        "customCss": ":root { --scalar-color-accent: #8b6f47; } .sidebar { border-right: 1px solid var(--scalar-border-color); } .tag-section-title { font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; font-size: 0.7rem; } .endpoint-path { font-family: ''JetBrains Mono'', ''Fira Code'', monospace; }"
-      }'
-    ></script>
+        authentication: {
+          preferredSecurityScheme: 'BearerAuth',
+          http: { bearer: { token: '' } }
+        }
+      });
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
   </body>
 </html>
