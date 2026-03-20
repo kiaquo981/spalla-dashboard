@@ -5,11 +5,10 @@
    ================================================================ */
 
 // ===== CONFIG =====
-const _env = window.__SPALLA_ENV__ || {};
 const CONFIG = {
-  API_BASE: _env.API_BASE || 'https://web-production-2cde5.up.railway.app',
-  SUPABASE_URL: _env.SUPABASE_URL || '',
-  SUPABASE_ANON_KEY: _env.SUPABASE_ANON_KEY || '',
+  API_BASE: 'https://web-production-2cde5.up.railway.app',  // Production server (Railway HTTPS proxy)
+  SUPABASE_URL: 'https://knusqfbvhsqworzyhvip.supabase.co',
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtudXNxZmJ2aHNxd29yenlodmlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4NTg3MjcsImV4cCI6MjA3MDQzNDcyN30.f-m7TlmCoccBpUxLZhA4P5kr2lWBGtRIv6inzInAKCo',
   AUTH_STORAGE_KEY: 'spalla_auth',
   TASKS_STORAGE_KEY: 'spalla_tasks',
   REMINDERS_STORAGE_KEY: 'spalla_reminders',
@@ -32,9 +31,7 @@ const TEAM_MEMBERS = [
 const EVOLUTION_INSTANCE = typeof EVOLUTION_CONFIG !== 'undefined' ? EVOLUTION_CONFIG.INSTANCE : null;
 
 // ===== SUPABASE CLIENT =====
-const _SPALLA_DEBUG = (window.location.search || '').includes('debug=true');
 let sb = null;
-let _sbInitPromise = null;
 
 async function initSupabase() {
   if (!CONFIG.SUPABASE_ANON_KEY) {
@@ -44,21 +41,6 @@ async function initSupabase() {
 
   // Reuse existing instance if already initialized
   if (sb) return sb;
-
-  // Prevent parallel initialization (race condition guard)
-  if (_sbInitPromise) return _sbInitPromise;
-  _sbInitPromise = (async () => {
-    try {
-      return await _doInitSupabase();
-    } finally {
-      // Allow retry when init fails or returns null
-      if (!sb) _sbInitPromise = null;
-    }
-  })();
-  return _sbInitPromise;
-}
-
-async function _doInitSupabase() {
 
   // Wait for Supabase JS to load (with timeout)
   let attempts = 0;
@@ -74,7 +56,6 @@ async function _doInitSupabase() {
 
   try {
     const client = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
-    sb = client;
     return client;
   } catch (e) {
     console.error('[Spalla] Failed to init Supabase:', e);
@@ -155,6 +136,7 @@ function operon() {
       loading: true,
       sheetsSyncing: false,
       detailLoading: false,
+      finDetailLoading: false,  // loading state for financial detail logs
       selectedMenteeId: null,
       activeDetailTab: 'resumo',
       toasts: [],
@@ -213,7 +195,6 @@ function operon() {
       paModal: false,           // create plan modal
       paExpandedFases: {},      // { faseId: true } for accordion
       paLoading: false,         // loading state for PA detail
-      finDetailLoading: false,  // loading state for financial detail logs
       paSearchQuery: '',        // busca por nome do mentorado
       // Perfil Comportamental
       perfilLoading: false,
@@ -260,7 +241,6 @@ function operon() {
       pendencias: [],
       paPlanos: [],       // vw_pa_pipeline data
       paMenteePa: null,   // full PA for current mentee detail
-      finDetailLogs: [],  // financial logs for mentee detail tab
       paAllFases: [],     // lightweight fases for sentinel calcs
       paAllAcoes: [],     // lightweight acoes for sentinel calcs
       // Onboarding CS
@@ -279,7 +259,13 @@ function operon() {
       // Tags & Custom Fields
       taskTags: [],             // god_task_tags — all available tags
       fieldDefs: [],            // applicable god_task_field_defs for current modal
+      finDetailLogs: [],        // financial logs for mentee detail tab
     },
+
+    // --- Financeiro (CFO Payments View) ---
+    financeiro: null,
+    finFilter: '',
+    finNoteModal: { open: false, menteeId: null, menteeNome: '', text: '' },
 
     // --- Perfil Comportamental ---
     perfilForm: { json_raw: '', notas_texto: '', fonte: 'ai_claude', fonte_detalhes: '' },
@@ -290,8 +276,7 @@ function operon() {
 
     // Task organization: 2 Spaces — Jornada (mentee-owned) + Gestão (team-owned)
     spaces: [
-      {
-        id: 'space_jornada', name: 'Jornada Mentorados', icon: '◎', color: '#6366f1',
+      { id: 'space_jornada', name: 'Jornada Mentorados', icon: '◎', color: '#6366f1',
         lists: [
           { id: 'list_onboarding', name: 'Onboarding', icon: '▸' },
           { id: 'list_concepcao', name: 'Concepção', icon: '◇' },
@@ -300,8 +285,7 @@ function operon() {
           { id: 'list_escala', name: 'Escala', icon: '▲' },
         ]
       },
-      {
-        id: 'space_gestao', name: 'Gestão CASE', icon: '◈', color: '#f59e0b',
+      { id: 'space_gestao', name: 'Gestão CASE', icon: '◈', color: '#f59e0b',
         lists: [
           { id: 'list_direcionamentos', name: 'Direcionamentos Queila', icon: '★' },
           { id: 'list_operacional', name: 'Operacional', icon: '✦' },
@@ -352,6 +336,74 @@ function operon() {
 
     // --- Schedule Form ---
     scheduleForm: { mentorado: '', mentorado_id: '', tipo: 'acompanhamento', data: '', horario: '10:00', duracao: 60, email: '', notas: '' },
+
+    // --- Arquivos (Storage + Semantic Search) ---
+    arquivos: {
+      list: [],
+      loading: false,            // Fix 3 — file list loading state
+      searchResults: [],
+      searchQuery: '',
+      searchMode: 'hybrid',
+      searchLoading: false,
+      uploadLoading: false,
+      storageOverview: [],
+      queue: [],
+      filterCategoria: '',
+      filterEntidade: '',
+      filterMentoradoId: '',
+      filterDateFrom: '',
+      filterDateTo: '',
+      voyageConfigured: false,
+      // 5.2 — Folder view
+      viewMode: 'folders',       // 'folders' | 'folder_detail' | 'all'
+      folders: [],               // from vw_arquivos_por_mentorado
+      currentFolder: null,       // { mentorado_id, mentorado_nome } or null='geral' or { pasta_id, ... } for custom
+      folderFiles: [],           // files for current folder
+      folderFilesLoading: false,
+      // 5.6 — Custom folders
+      customFolders: [],         // from vw_pastas_overview
+      showNewFolderForm: false,
+      creatingFolder: false,
+      newFolderForm: { nome: '', descricao: '', cor: '#6b7280', mentoradoId: null, mentoradoSearch: '', showMentoradoDropdown: false },
+      editingFolder: null,       // folder object being edited, or null
+      showEditFolderForm: false,
+      moveFileTarget: null,      // file being moved, or null
+      showMoveModal: false,
+      folderColors: [
+        { name: 'Cinza', hex: '#6b7280' },
+        { name: 'Vermelho', hex: '#ef4444' },
+        { name: 'Laranja', hex: '#f97316' },
+        { name: 'Amarelo', hex: '#eab308' },
+        { name: 'Verde', hex: '#22c55e' },
+        { name: 'Azul', hex: '#3b82f6' },
+        { name: 'Roxo', hex: '#8b5cf6' },
+        { name: 'Rosa', hex: '#ec4899' },
+      ],
+      // 5.4 — Realtime
+      processingCount: 0,
+      uploadForm: {
+        mentoradoId: null,
+        mentoradoNome: '',
+        mentoradoSearch: '',
+        entidadeTipo: 'geral',
+        descricao: '',
+        pastaId: null,
+        files: [],
+        showModal: false,
+        showMentoradoDropdown: false,
+      },
+      // Fix 9 — Pagination
+      page: 1,
+      pageSize: 50,
+      // Fix 16 — Bulk select
+      selectedIds: [],
+    },
+    // 5.4 — Realtime channel ref
+    _arquivosChannel: null,
+    // 5.5 — Detail mentorado arquivos
+    _detailArquivos: [],
+    _detailArquivosLoading: false,
+    _detailArquivosSearch: '',
 
     // --- API Integration State ---
     _menteesWithEmail: [],
@@ -423,8 +475,8 @@ function operon() {
       }).length;
       // Calculate pending tasks from board (god_tasks)
       const tarefasPendentes = this.data.tasks.filter(t => t.status === 'pendente' || t.status === 'em_andamento').length;
-      // WhatsApp pending messages
-      const msgsPendentes = this.data.mentees.reduce((s, m) => s + (m.msgs_pendentes_resposta || 0), 0);
+      // WhatsApp pending messages — read from pendencias list (single source of truth, always in sync)
+      const msgsPendentes = this.data.pendencias.length;
       const mentoradosCriticos = this.data.mentees.filter(m => (m.horas_sem_resposta_equipe || 0) > 24).length;
       return {
         totalMentorados,
@@ -609,7 +661,7 @@ function operon() {
     // ===================== SHARED HELPERS =====================
 
     get currentUserName() {
-      return this.auth.currentUser?.full_name || this.auth.currentUser?.email || 'Anônimo';
+      return this.auth.currentUser?.full_name || this.auth.currentUser?.email || 'Sistema';
     },
 
     get myCarteira() {
@@ -617,6 +669,120 @@ function operon() {
       if (name.includes('lara')) return 'Lara';
       if (name.includes('heitor')) return 'Heitor';
       return null;
+    },
+
+    // ===================== FINANCEIRO (CFO Payments View) =====================
+    get isCfoUser() {
+      const email = (this.auth.currentUser?.email || '').toLowerCase();
+      const name = (this.auth.currentUser?.full_name || '').toLowerCase();
+      return email.includes('cfo') || name.includes('cfo') || email.includes('financeiro') || name.includes('kaique');
+    },
+
+    get filteredFinanceiro() {
+      if (!this.financeiro?.mentorados) return [];
+      let list = this.financeiro.mentorados;
+      if (this.finFilter) {
+        list = list.filter(m => m.status_financeiro === this.finFilter);
+      }
+      return list;
+    },
+
+    finStatusLabel(status) {
+      const map = { em_dia: 'Em Dia', atrasado: 'Inadimplente', quitado: 'Quitado', sem_contrato: 'Sem Contrato' };
+      return map[status] || status || '—';
+    },
+
+    finStatusColor(status) {
+      const map = { em_dia: '#22c55e', atrasado: '#ef4444', quitado: '#3b82f6', sem_contrato: '#f59e0b' };
+      return map[status] || '#9ca3af';
+    },
+
+    finTimeAgo(dateStr) {
+      if (!dateStr) return '—';
+      const diff = Date.now() - new Date(dateStr).getTime();
+      const days = Math.floor(diff / 86400000);
+      if (days === 0) return 'Hoje';
+      if (days === 1) return 'Ontem';
+      if (days < 30) return `${days}d atrás`;
+      return new Date(dateStr).toLocaleDateString('pt-BR');
+    },
+
+    async loadFinanceiro() {
+      try {
+        const sb = await initSupabase();
+        const [{ data: mentorados }, { data: snapshots }, { data: logs }] = await Promise.all([
+          sb.from('vw_god_financeiro').select('*'),
+          sb.from('vw_fin_snapshots').select('*').order('created_at', { ascending: false }).limit(90),
+          sb.from('fin_pagamento_logs').select('*').order('created_at', { ascending: false }).limit(200),
+        ]);
+        const kpis = {
+          em_dia: mentorados.filter(m => ['em_dia', 'pago'].includes(m.status_financeiro)).length,
+          atrasado: mentorados.filter(m => m.status_financeiro === 'atrasado').length,
+          quitado: mentorados.filter(m => m.status_financeiro === 'quitado').length,
+          sem_contrato: mentorados.filter(m => !m.contrato_assinado).length,
+        };
+        this.financeiro = { mentorados, snapshots, logs, kpis };
+      } catch (e) {
+        console.error('[Spalla] loadFinanceiro error:', e);
+      }
+    },
+
+    async changeFinStatus(menteeId, newStatus, observacao) {
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/financeiro/status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.token}` },
+          body: JSON.stringify({ mentorado_id: menteeId, status: newStatus, observacao }),
+        });
+        if (res.ok) {
+          this.toast('Status financeiro atualizado', 'success');
+          await this.loadFinanceiro();
+          await this.loadFinDetailLogs();
+        } else {
+          this.toast('Erro ao atualizar status financeiro', 'error');
+          await this.loadFinanceiro();
+        }
+      } catch (e) {
+        console.error('[Spalla] changeFinStatus error:', e);
+        this.toast('Erro ao atualizar status financeiro', 'error');
+      }
+    },
+
+    async addFinNote() {
+      if (!this.finNoteModal.menteeId || !this.finNoteModal.text.trim()) return;
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/financeiro/nota`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.token}` },
+          body: JSON.stringify({ mentorado_id: this.finNoteModal.menteeId, observacao: this.finNoteModal.text.trim() }),
+        });
+        if (res.ok) {
+          this.finNoteModal = { open: false, menteeId: null, menteeNome: '', text: '' };
+          this.toast('Observacao adicionada', 'success');
+          await this.loadFinDetailLogs();
+        } else {
+          this.toast('Erro ao salvar observacao', 'error');
+        }
+      } catch (e) {
+        console.error('[Spalla] addFinNote error:', e);
+      }
+    },
+
+    async loadFinDetailLogs() {
+      if (!this.ui.selectedMenteeId) return;
+      this.ui.finDetailLoading = true;
+      try {
+        const sb = await initSupabase();
+        const { data } = await sb.from('fin_pagamento_logs')
+          .select('*')
+          .eq('mentorado_id', this.ui.selectedMenteeId)
+          .order('created_at', { ascending: false });
+        this.data.finDetailLogs = data || [];
+      } catch (e) {
+        console.error('[Spalla] loadFinDetailLogs error:', e);
+      } finally {
+        this.ui.finDetailLoading = false;
+      }
     },
 
     todayStr() { return new Date().toISOString().split('T')[0]; },
@@ -973,8 +1139,18 @@ function operon() {
       };
     },
 
-    // Dossiers: DEPRECATED — data now from ds_producoes/ds_documentos via Supabase
-    get filteredDossiers() { return []; },
+    // Dossiers: filtered
+    get filteredDossiers() {
+      if (this.ui.dossierFilter === 'all') return DOSSIER_PIPELINE;
+      const statusMap = {
+        enviado: ['enviado'],
+        em_revisao: ['em_revisao', 'ajustar', 'ajustando', 'aprovado_enviar', 'revisao_kaique', 'revisao_mariza', 'revisao_queila'],
+        producao_ia: ['producao_ia'],
+        nao_iniciado: ['nao_iniciado', 'onboarding', 'pausado'],
+      };
+      const statuses = statusMap[this.ui.dossierFilter] || [this.ui.dossierFilter];
+      return DOSSIER_PIPELINE.filter(d => statuses.includes(d.status));
+    },
 
     // Reminders: filtered
     get filteredReminders() {
@@ -997,6 +1173,22 @@ function operon() {
 
     async init() {
       try {
+        // Deep-link: resolve URL pathname to page
+        const pathname = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
+        if (pathname && this._routeMap[pathname]) {
+          this.ui.page = this._routeMap[pathname];
+          localStorage.setItem('spalla_page', this._routeMap[pathname]);
+        }
+        // Handle browser back/forward
+        window.addEventListener('popstate', (e) => {
+          const p = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
+          if (p && this._routeMap[p]) {
+            this.ui.page = this._routeMap[p];
+          } else if (!p || p === '') {
+            this.ui.page = 'dashboard';
+          }
+        });
+
         // Restore JWT session from localStorage + validate with server
         const accessToken = localStorage.getItem('spalla_access_token');
         const refreshToken = localStorage.getItem('spalla_refresh_token');
@@ -1023,7 +1215,7 @@ function operon() {
                 body: JSON.stringify({ refresh_token: refreshToken })
               });
               if (refreshResp.ok) {
-                const data = await refreshResp.json().catch(() => ({}));
+                const data = await refreshResp.json();
                 this.auth.authenticated = true;
                 this.auth.currentUser = data.user || JSON.parse(userStr);
                 this.auth.accessToken = data.access_token;
@@ -1065,7 +1257,7 @@ function operon() {
         sb = await initSupabase();
 
         await this.loadTasks();
-        this.loadTaskTags().catch(e => console.warn('[Spalla] loadTaskTags:', e.message)); // non-blocking
+        this.loadTaskTags(); // non-blocking
 
         if (this.auth.authenticated) {
           await this.loadReminders(); // Load from Supabase
@@ -1073,12 +1265,16 @@ function operon() {
           // Pre-fetch WhatsApp profile pics in background
           this._loadWaProfilePics();
           // Fetch schedule-related data from backend API
-          this.fetchUpcomingCalls().catch(e => console.warn('[Spalla] fetchUpcomingCalls:', e.message));
+          this.fetchUpcomingCalls();
           // Fetch Instagram profiles from Apify (background, non-blocking)
-          this.updateInstagramProfiles().catch(e => console.warn('[Spalla] updateInstagramProfiles:', e.message));
+          this.updateInstagramProfiles();
           // Load WhatsApp per-user session + start health check
           this.loadWaSession();
           this.waStartHealthCheck();
+          // Lazy-load Arquivos data if page is already on arquivos (deep-link or localStorage restore)
+          if (this.ui.page === 'arquivos') {
+            this.loadArquivos();
+          }
         }
       } catch (e) {
         console.error('[Spalla] INIT ERROR:', e);
@@ -1163,6 +1359,16 @@ function operon() {
         await this.loadDashboard();
         this.loadWaSession();
         this.waStartHealthCheck();
+
+        // Restore deep-link route AFTER all loads complete
+        const pendingRoute = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
+        console.log('[Spalla] Login done. pathname:', JSON.stringify(pendingRoute), 'routeMap hit:', this._routeMap[pendingRoute], 'current ui.page:', this.ui.page);
+        if (pendingRoute && this._routeMap[pendingRoute]) {
+          const target = this._routeMap[pendingRoute];
+          this.ui.page = target;
+          localStorage.setItem('spalla_page', target);
+          console.log('[Spalla] Deep-link restored to:', target);
+        }
       } catch (e) {
         this.auth.error = 'Erro ao fazer login: ' + e.message;
         console.error('[Spalla] Login error:', e);
@@ -1331,7 +1537,7 @@ function operon() {
             return;
           }
           if (res.ok) {
-            const data = await res.json().catch(() => ({}));
+            const data = await res.json();
             const msgs = data.messages?.records || data.messages || data || [];
             const newMsgs = (Array.isArray(msgs) ? msgs : []).reverse();
             // Compare last message ID to detect changes (length alone is unreliable)
@@ -1414,9 +1620,9 @@ function operon() {
           if (paFasesRes.data) this.data.paAllFases = paFasesRes.data;
           if (paAcoesRes.data) this.data.paAllAcoes = paAcoesRes.data;
           // Load DS pipeline data
-          this.loadDsData().catch(e => console.warn('[Spalla] loadDsData:', e.message));
+          this.loadDsData();
           // Load OB onboarding data
-          this.loadObData().catch(e => console.warn('[Spalla] loadObData:', e.message));
+          this.loadObData();
 
           if (mentees.data?.length) {
             this.data.mentees = mentees.data;
@@ -1436,7 +1642,20 @@ function operon() {
             this.loadDemoData();
           }
           if (cohort.data?.length) this.data.cohort = cohort.data;
-          if (pendencias.data) this.data.pendencias = pendencias.data;
+          if (pendencias.data) {
+            this.data.pendencias = pendencias.data;
+            // Reconcile msgs_pendentes_resposta per mentee to match the actual pendencias list.
+            // vw_god_overview and vw_god_pendencias use different logic → counts never match.
+            // Single source of truth: always derive from pendencias.data.
+            const pendsByMentee = {};
+            pendencias.data.forEach(p => {
+              if (p.mentorado_id) pendsByMentee[p.mentorado_id] = (pendsByMentee[p.mentorado_id] || 0) + 1;
+            });
+            this.data.mentees = this.data.mentees.map(m => ({
+              ...m,
+              msgs_pendentes_resposta: pendsByMentee[m.id] || 0,
+            }));
+          }
           if (calls.data?.length) {
             // Normalize calls data (from calls_mentoria table directly)
             this._supabaseCalls = calls.data.map(c => ({
@@ -1537,14 +1756,7 @@ function operon() {
             sb.from('calls_mentoria').select('*,mentorados(id,nome)').eq('mentorado_id', id).order('data_call', { ascending: false }),
           ]);
           if (detailRes.data) {
-            const detail = (() => {
-          try {
-            return typeof detailRes.data === 'string' ? JSON.parse(detailRes.data) : detailRes.data;
-          } catch (e) {
-            console.error('[Spalla] Failed to parse detail data:', e.message);
-            return detailRes.data || {};
-          }
-        })();
+            const detail = typeof detailRes.data === 'string' ? JSON.parse(detailRes.data) : detailRes.data;
             // Enrich with real calls from vw_god_calls
             if (callsRes.data?.length) {
               detail.last_calls = callsRes.data.map(c => ({
@@ -1640,7 +1852,7 @@ function operon() {
           body: JSON.stringify({ where: { key: { remoteJid } }, limit: 10 }),
         });
         if (!res.ok) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
-        const data = await res.json().catch(() => ({}));
+        const data = await res.json();
         const msgs = data.messages?.records || data.messages || data || [];
         const interactions = (Array.isArray(msgs) ? msgs : []).reverse().map(msg => ({
           sender: msg.key?.fromMe ? 'Equipe CASE' : (msg.pushName || nome),
@@ -1670,7 +1882,7 @@ function operon() {
           const jid = chat.remoteJid || chat.id;
           const fullChat = this.data.whatsappChats.find(c => (c.remoteJid || c.id) === jid);
           this.selectWhatsAppChat(fullChat || chat);
-        }).catch(e => { console.error("[Spalla] Error loading WA chats:", e); this.toast("Erro ao carregar chats", "error"); });
+        });
       } else {
         this.navigate('whatsapp');
         this.fetchWhatsAppChats();
@@ -1679,17 +1891,1044 @@ function operon() {
 
     // ===================== NAVIGATION =====================
 
+    // Deep-link route map (pathname → page name)
+    _routeMap: {
+      'welcome-flow': 'welcome_flow',
+      'dashboard': 'dashboard',
+      'kanban': 'kanban',
+      'tasks': 'tasks',
+      'agenda': 'agenda',
+      'equipe': 'equipe',
+      'whatsapp': 'whatsapp',
+      'wa-topics': 'wa_topics',
+      'reminders': 'reminders',
+      'dossies': 'dossies',
+      'planos-acao': 'planos_acao',
+      'onboarding': 'onboarding',
+      'docs': 'docs',
+      'arquivos': 'arquivos',
+      'settings': 'settings',
+    },
+
+    _pageToRoute(page) {
+      for (const [route, p] of Object.entries(this._routeMap)) {
+        if (p === page) return route;
+      }
+      return page.replace(/_/g, '-');
+    },
+
+    // ===================== ARQUIVOS (Storage + Search) =====================
+    // TODO (Fix 18): Folder nesting — too complex for this PR, requires schema changes
+    // TODO (Fix 20): Saved searches — requires backend persistence or localStorage with more UI
+
+    async loadArquivos() {
+      this.arquivos.loading = true; // Fix 3
+      try {
+        if (!this.supabase) {
+          console.error('[Arquivos] Supabase client not ready');
+          sb = await initSupabase();
+        }
+        const { data, error } = await this.supabase.from('sp_arquivos')
+          .select('*')
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false });
+        if (error) console.error('[Arquivos] Load error:', error);
+        this.arquivos.list = data || [];
+        // Count processing files
+        this.arquivos.processingCount = this.arquivos.list.filter(a =>
+          ['pendente', 'extraindo', 'chunking', 'embedding'].includes(a.status_processamento)
+        ).length;
+      } catch(e) {
+        console.error('[Arquivos] loadArquivos failed:', e);
+      }
+      this.arquivos.loading = false; // Fix 3
+      // Load storage status
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/storage/status`);
+        const status = await res.json();
+        this.arquivos.storageOverview = status.overview || [];
+        this.arquivos.queue = status.queue || [];
+        this.arquivos.voyageConfigured = status.voyage_configured;
+      } catch(e) { console.error('[Arquivos] Storage status error:', e); }
+      // 5.2 — Load folder data
+      await this._loadArquivosFolders();
+      // 5.6 — Load custom folders
+      await this.loadCustomFolders();
+      // 5.4 — Subscribe to realtime
+      this._subscribeArquivosRealtime();
+    },
+
+    // ===== 5.2 — FOLDER VIEW =====
+
+    async _loadArquivosFolders() {
+      try {
+        const { data, error } = await this.supabase
+          .from('vw_arquivos_por_mentorado')
+          .select('*')
+          .order('total_arquivos', { ascending: false });
+        if (error) console.error('[Arquivos] Folders error:', error);
+        // Filter out TESE mentorados — only show CASE (cohort N1, N2, or null)
+        const teseIds = new Set(
+          (this.data.mentees || [])
+            .filter(m => m.cohort === 'tese')
+            .map(m => m.id)
+        );
+        this.arquivos.folders = (data || [])
+          .filter(f => f.mentorado_nome && !teseIds.has(f.mentorado_id));
+        console.log('[Arquivos] Loaded', this.arquivos.folders.length, 'CASE mentorado folders (excluded', teseIds.size, 'tese)');
+      } catch(e) {
+        console.error('[Arquivos] _loadArquivosFolders failed:', e);
+      }
+    },
+
+    // ===== 5.6 — CUSTOM FOLDERS =====
+
+    async loadCustomFolders() {
+      try {
+        const { data, error } = await this.supabase
+          .from('vw_pastas_overview')
+          .select('*')
+          .order('sort_order', { ascending: true })
+          .order('nome', { ascending: true });
+        if (error) console.error('[Arquivos] Custom folders error:', error);
+        this.arquivos.customFolders = data || [];
+        console.log('[Arquivos] Loaded', this.arquivos.customFolders.length, 'custom folders');
+      } catch(e) {
+        console.error('[Arquivos] loadCustomFolders failed:', e);
+      }
+    },
+
+    openNewFolderForm() {
+      this.arquivos.showNewFolderForm = true;
+      this.arquivos.newFolderForm = { nome: '', descricao: '', cor: '#6b7280', mentoradoId: null, mentoradoSearch: '', showMentoradoDropdown: false };
+    },
+
+    closeNewFolderForm() {
+      this.arquivos.showNewFolderForm = false;
+    },
+
+    get newFolderFilteredMentees() {
+      const q = (this.arquivos.newFolderForm.mentoradoSearch || '').toLowerCase().trim();
+      if (!q) return (this.data.mentees || []).slice(0, 15);
+      return (this.data.mentees || []).filter(m =>
+        m.nome?.toLowerCase().includes(q) || m.instagram?.toLowerCase().includes(q)
+      ).slice(0, 15);
+    },
+
+    selectNewFolderMentorado(mentee) {
+      this.arquivos.newFolderForm.mentoradoId = mentee.id;
+      this.arquivos.newFolderForm.mentoradoSearch = mentee.nome;
+      this.arquivos.newFolderForm.showMentoradoDropdown = false;
+    },
+
+    clearNewFolderMentorado() {
+      this.arquivos.newFolderForm.mentoradoId = null;
+      this.arquivos.newFolderForm.mentoradoSearch = '';
+      this.arquivos.newFolderForm.showMentoradoDropdown = false;
+    },
+
+    async createFolder() {
+      const f = this.arquivos.newFolderForm;
+      if (!f.nome.trim()) { this.toast('Nome da pasta e obrigatorio.', 'warning'); return; }
+      // Prevent duplicate names
+      const nameNorm = f.nome.trim().toLowerCase();
+      const exists = this.arquivos.customFolders.some(cf => cf.nome?.toLowerCase() === nameNorm);
+      if (exists) { this.toast('Ja existe uma pasta com esse nome.', 'warning'); return; }
+      // Prevent double-click
+      if (this.arquivos.creatingFolder) return;
+      this.arquivos.creatingFolder = true;
+      try {
+        const insertData = {
+          nome: f.nome.trim(),
+          cor: f.cor,
+        };
+        if (f.descricao.trim()) insertData.descricao = f.descricao.trim();
+        if (f.mentoradoId) insertData.mentorado_id = f.mentoradoId;
+        const { error } = await this.supabase.from('sp_pastas').insert(insertData);
+        if (error) throw error;
+        this.closeNewFolderForm();
+        await this.loadCustomFolders();
+        this.toast('Pasta "' + f.nome.trim() + '" criada', 'success');
+      } catch(e) {
+        console.error('[Arquivos] createFolder failed:', e);
+        this.toast('Erro ao criar pasta: ' + (e.message || e), 'error');
+      } finally {
+        this.arquivos.creatingFolder = false;
+      }
+    },
+
+    async deleteFolder(folderId) {
+      if (!confirm('Excluir esta pasta? Os arquivos dentro dela ficarao sem pasta.')) return;
+      try {
+        // Unassign files first
+        await this.supabase.from('sp_arquivos').update({ pasta_id: null }).eq('pasta_id', folderId);
+        const { error } = await this.supabase.from('sp_pastas').delete().eq('id', folderId);
+        if (error) throw error;
+        // If viewing this folder, go back
+        if (this.arquivos.currentFolder?.pasta_id === folderId) {
+          this.closeFolderView();
+        }
+        await this.loadCustomFolders();
+        this.toast('Pasta excluida', 'info');
+      } catch(e) {
+        console.error('[Arquivos] deleteFolder failed:', e);
+        this.toast('Erro ao excluir pasta: ' + (e.message || e), 'error');
+      }
+    },
+
+    openEditFolderForm(folder) {
+      this.arquivos.editingFolder = { ...folder };
+      this.arquivos.showEditFolderForm = true;
+    },
+
+    closeEditFolderForm() {
+      this.arquivos.showEditFolderForm = false;
+      this.arquivos.editingFolder = null;
+    },
+
+    async editFolder() {
+      const f = this.arquivos.editingFolder;
+      if (!f || !f.nome?.trim()) return;
+      try {
+        const { error } = await this.supabase.from('sp_pastas')
+          .update({ nome: f.nome.trim(), descricao: f.descricao || null, cor: f.cor })
+          .eq('id', f.id);
+        if (error) throw error;
+        this.closeEditFolderForm();
+        await this.loadCustomFolders();
+        // Update current folder header if viewing it
+        if (this.arquivos.currentFolder?.pasta_id === f.id) {
+          this.arquivos.currentFolder.nome = f.nome.trim();
+          this.arquivos.currentFolder.cor = f.cor;
+        }
+        this.toast('Pasta atualizada', 'success');
+      } catch(e) {
+        console.error('[Arquivos] editFolder failed:', e);
+        this.toast('Erro ao editar pasta: ' + (e.message || e), 'error');
+      }
+    },
+
+    openCustomFolder(folder) {
+      this.arquivos.viewMode = 'folder_detail';
+      this.arquivos.currentFolder = {
+        pasta_id: folder.id,
+        nome: folder.nome,
+        cor: folder.cor,
+        icone: folder.icone,
+        descricao: folder.descricao,
+        mentorado_id: folder.mentorado_id,
+        mentorado_nome: folder.mentorado_nome,
+      };
+      this.arquivos.folderFilesLoading = true;
+      this._loadCustomFolderFiles(folder.id);
+    },
+
+    async _loadCustomFolderFiles(pastaId) {
+      try {
+        const { data, error } = await this.supabase.from('sp_arquivos')
+          .select('*')
+          .eq('pasta_id', pastaId)
+          .is('deleted_at', null)
+          .order('categoria', { ascending: true })
+          .order('created_at', { ascending: false });
+        if (error) console.error('[Arquivos] Custom folder files error:', error);
+        this.arquivos.folderFiles = data || [];
+      } catch(e) {
+        console.error('[Arquivos] _loadCustomFolderFiles failed:', e);
+      }
+      this.arquivos.folderFilesLoading = false;
+    },
+
+    // Move file to folder
+    openMoveModal(arquivo) {
+      this.arquivos.moveFileTarget = arquivo;
+      this.arquivos.showMoveModal = true;
+    },
+
+    closeMoveModal() {
+      this.arquivos.moveFileTarget = null;
+      this.arquivos.showMoveModal = false;
+    },
+
+    async moveFileToFolder(pastaId) {
+      const arquivo = this.arquivos.moveFileTarget;
+      if (!arquivo) return;
+      try {
+        const { error } = await this.supabase.from('sp_arquivos')
+          .update({ pasta_id: pastaId || null })
+          .eq('id', arquivo.id);
+        if (error) throw error;
+        // Update local state
+        const item = this.arquivos.list.find(a => a.id === arquivo.id);
+        if (item) item.pasta_id = pastaId || null;
+        const folderItem = this.arquivos.folderFiles.find(a => a.id === arquivo.id);
+        if (folderItem) folderItem.pasta_id = pastaId || null;
+        this.closeMoveModal();
+        await this.loadCustomFolders(); // refresh counts
+        this.toast('Arquivo movido', 'success');
+      } catch(e) {
+        console.error('[Arquivos] moveFileToFolder failed:', e);
+        this.toast('Erro ao mover arquivo: ' + (e.message || e), 'error');
+      }
+    },
+
+    _folderNameById(pastaId) {
+      if (!pastaId) return null;
+      const f = this.arquivos.customFolders.find(f => f.id === pastaId);
+      return f ? f.nome : null;
+    },
+
+    get arquivosGeralCount() {
+      return this.arquivos.list.filter(a => !a.entidade_id || a.entidade_tipo === 'geral').length;
+    },
+
+    get arquivosGeralSize() {
+      return this.arquivos.list
+        .filter(a => !a.entidade_id || a.entidade_tipo === 'geral')
+        .reduce((sum, a) => sum + (a.tamanho_bytes || 0), 0);
+    },
+
+    async openFolder(folder) {
+      // If it's a custom folder (has pasta_id), use custom folder flow
+      if (folder && folder.pasta_id) {
+        return this.openCustomFolder(folder);
+      }
+      this.arquivos.viewMode = 'folder_detail';
+      this.arquivos.currentFolder = folder; // { mentorado_id, mentorado_nome } or null for geral
+      this.arquivos.folderFilesLoading = true;
+      try {
+        let query = this.supabase.from('sp_arquivos')
+          .select('*')
+          .is('deleted_at', null)
+          .order('categoria', { ascending: true })
+          .order('created_at', { ascending: false });
+
+        if (folder && folder.mentorado_id) {
+          query = query.eq('entidade_id', folder.mentorado_id);
+        } else {
+          // Geral — no entidade_id
+          query = query.or('entidade_id.is.null,entidade_tipo.eq.geral');
+        }
+        const { data, error } = await query;
+        if (error) console.error('[Arquivos] Folder files error:', error);
+        this.arquivos.folderFiles = data || [];
+      } catch(e) {
+        console.error('[Arquivos] openFolder failed:', e);
+      }
+      this.arquivos.folderFilesLoading = false;
+    },
+
+    closeFolderView() {
+      this.arquivos.viewMode = 'folders';
+      this.arquivos.currentFolder = null;
+      this.arquivos.folderFiles = [];
+      this.arquivos.searchResults = [];
+      this.arquivos.searchQuery = '';
+      this.arquivos.page = 1;
+      this.arquivos.selectedIds = [];
+    },
+
+    get folderFilesByCategoria() {
+      const groups = {};
+      const order = ['documento', 'audio', 'video', 'imagem', 'planilha', 'outro'];
+      for (const f of this.arquivos.folderFiles) {
+        const cat = f.categoria || 'outro';
+        if (!groups[cat]) groups[cat] = [];
+        groups[cat].push(f);
+      }
+      return order.filter(c => groups[c]).map(c => ({ categoria: c, files: groups[c] }));
+    },
+
+    _categoriaLabel(cat) {
+      const map = { documento: 'Documentos', audio: 'Audios', video: 'Videos', imagem: 'Imagens', planilha: 'Planilhas', outro: 'Outros' };
+      return map[cat] || cat;
+    },
+
+    openUploadForFolder() {
+      this.openUploadModal();
+      if (this.arquivos.currentFolder && this.arquivos.currentFolder.pasta_id) {
+        // Custom folder — set pastaId
+        this.arquivos.uploadForm.pastaId = this.arquivos.currentFolder.pasta_id;
+      }
+      if (this.arquivos.currentFolder && this.arquivos.currentFolder.mentorado_id) {
+        const m = (this.data.mentees || []).find(m => m.id === this.arquivos.currentFolder.mentorado_id);
+        if (m) this.selectUploadMentorado(m);
+      }
+    },
+
+    // --- Upload Form Helpers ---
+
+    openUploadModal() {
+      this.arquivos.uploadForm = {
+        mentoradoId: null,
+        mentoradoNome: '',
+        mentoradoSearch: '',
+        entidadeTipo: 'geral',
+        descricao: '',
+        pastaId: null,
+        files: [],
+        showModal: true,
+        showMentoradoDropdown: false,
+      };
+    },
+
+    closeUploadModal() {
+      this.arquivos.uploadForm.showModal = false;
+    },
+
+    get uploadFilteredMentees() {
+      const q = (this.arquivos.uploadForm.mentoradoSearch || '').toLowerCase().trim();
+      if (!q) return (this.data.mentees || []).slice(0, 15);
+      return (this.data.mentees || []).filter(m =>
+        m.nome?.toLowerCase().includes(q) || m.instagram?.toLowerCase().includes(q)
+      ).slice(0, 15);
+    },
+
+    selectUploadMentorado(mentee) {
+      this.arquivos.uploadForm.mentoradoId = mentee.id;
+      this.arquivos.uploadForm.mentoradoNome = mentee.nome;
+      this.arquivos.uploadForm.mentoradoSearch = mentee.nome;
+      this.arquivos.uploadForm.entidadeTipo = 'mentorado';
+      this.arquivos.uploadForm.showMentoradoDropdown = false;
+    },
+
+    clearUploadMentorado() {
+      this.arquivos.uploadForm.mentoradoId = null;
+      this.arquivos.uploadForm.mentoradoNome = '';
+      this.arquivos.uploadForm.mentoradoSearch = '';
+      this.arquivos.uploadForm.entidadeTipo = 'geral';
+      this.arquivos.uploadForm.showMentoradoDropdown = false;
+    },
+
+    addUploadFiles(fileList) {
+      for (const file of fileList) {
+        // Avoid duplicates by name+size
+        const exists = this.arquivos.uploadForm.files.some(f => f.name === file.name && f.size === file.size);
+        if (!exists) {
+          this.arquivos.uploadForm.files.push({
+            file,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            status: 'waiting',
+            progress: 0,
+            error: null,
+          });
+        }
+      }
+    },
+
+    removeUploadFile(index) {
+      this.arquivos.uploadForm.files.splice(index, 1);
+    },
+
+    handleUploadDrop(event) {
+      event.preventDefault();
+      const files = event.dataTransfer?.files;
+      if (files?.length) this.addUploadFiles(files);
+    },
+
+    handleUploadFileInput(event) {
+      const files = event.target.files;
+      if (files?.length) this.addUploadFiles(files);
+      event.target.value = '';
+    },
+
+    _uploadFileIcon(type) {
+      if (type.startsWith('image/')) return '🖼️';
+      if (type.startsWith('audio/')) return '🎵';
+      if (type.startsWith('video/')) return '🎬';
+      if (type.includes('spreadsheet') || type.includes('csv') || type.includes('excel')) return '📊';
+      if (type.includes('pdf')) return '📕';
+      return '📄';
+    },
+
+    async uploadArquivos() {
+      const form = this.arquivos.uploadForm;
+      if (!form.files.length) return;
+
+      this.arquivos.uploadLoading = true;
+      const entidadeTipo = form.mentoradoId ? form.entidadeTipo : 'geral';
+      const entidadeId = form.mentoradoId || null;
+
+      for (const entry of form.files) {
+        if (entry.status === 'done') continue;
+        entry.status = 'uploading';
+        entry.progress = 10;
+
+        try {
+          const ext = entry.name.split('.').pop().toLowerCase();
+          const nomeStorage = crypto.randomUUID() + '.' + ext;
+          const pathPrefix = entidadeId ? `${entidadeTipo}/${entidadeId}` : entidadeTipo;
+          const path = `${pathPrefix}/${nomeStorage}`;
+
+          // 1. Upload to Supabase Storage
+          const { error: uploadError } = await this.supabase.storage
+            .from('spalla-arquivos')
+            .upload(path, entry.file);
+          if (uploadError) throw uploadError;
+          entry.progress = 50;
+
+          // 2. Insert metadata
+          entry.status = 'processing';
+          const categoria = this._detectCategoria(entry.type, ext);
+          const insertData = {
+            nome_original: entry.name,
+            nome_storage: nomeStorage,
+            storage_path: path,
+            mime_type: entry.type,
+            tamanho_bytes: entry.size,
+            extensao: ext,
+            entidade_tipo: entidadeTipo,
+            entidade_id: entidadeId,
+            categoria,
+          };
+          if (form.descricao.trim()) insertData.descricao = form.descricao.trim();
+          if (form.pastaId) insertData.pasta_id = form.pastaId;
+
+          const { data: inserted, error: insertError } = await this.supabase
+            .from('sp_arquivos')
+            .insert(insertData)
+            .select()
+            .single();
+          if (insertError) throw insertError;
+          entry.progress = 75;
+
+          // 3. Trigger processing
+          await fetch(`${CONFIG.API_BASE}/api/storage/process`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ arquivo_id: inserted.id }),
+          });
+
+          entry.status = 'done';
+          entry.progress = 100;
+          console.log('[Arquivos] Uploaded:', inserted.nome_original, inserted.id);
+        } catch(e) {
+          console.error('[Arquivos] Upload failed:', e);
+          entry.status = 'error';
+          entry.error = e.message || String(e);
+        }
+      }
+
+      this.arquivos.uploadLoading = false;
+
+      // If all done, close modal and reload
+      const doneCount = form.files.filter(f => f.status === 'done').length;
+      const errorCount = form.files.filter(f => f.status === 'error').length;
+      if (doneCount > 0 && errorCount === 0) {
+        this.toast(doneCount + ' arquivo(s) enviado(s) com sucesso', 'success');
+        this.closeUploadModal();
+        await this.loadArquivos();
+      } else if (doneCount > 0 && errorCount > 0) {
+        this.toast(doneCount + ' enviado(s), ' + errorCount + ' com erro', 'warning');
+        await this.loadArquivos();
+      } else if (errorCount > 0 && doneCount === 0) {
+        this.toast('Erro no upload de todos os arquivos', 'error');
+      }
+    },
+
+    // Legacy handler for backward compat (not used in new UI)
+    async uploadArquivo(event) {
+      const files = event.target.files;
+      if (!files || !files.length) return;
+      this.openUploadModal();
+      this.addUploadFiles(files);
+    },
+
+    async searchArquivos() {
+      const q = this.arquivos.searchQuery.trim();
+      if (!q) { this.arquivos.searchResults = []; return; }
+      this.arquivos.searchLoading = true;
+      this._saveSearchHistory(q); // Fix 17
+      try {
+        // 5.3 — Build filters including mentorado, date range, and folder context
+        const filters = {
+          categoria: this.arquivos.filterCategoria || null,
+          entidade_tipo: this.arquivos.filterEntidade || null,
+        };
+        // Mentorado filter: from dropdown OR from current folder
+        const mentoradoFilter = this.arquivos.filterMentoradoId ||
+          (this.arquivos.viewMode === 'folder_detail' && this.arquivos.currentFolder?.mentorado_id) || null;
+        if (mentoradoFilter) filters.mentorado_id = mentoradoFilter;
+        if (this.arquivos.filterDateFrom) filters.date_from = this.arquivos.filterDateFrom;
+        if (this.arquivos.filterDateTo) filters.date_to = this.arquivos.filterDateTo;
+
+        const res = await fetch(`${CONFIG.API_BASE}/api/storage/search`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: q,
+            mode: this.arquivos.searchMode,
+            limit: 20,
+            filters,
+          }),
+        });
+        const data = await res.json();
+        // Fix 4 — Deduplicate by arquivo_id, keep highest score
+        const rawResults = data.results || [];
+        const grouped = {};
+        for (const r of rawResults) {
+          if (!grouped[r.arquivo_id] || (r.score_final || 0) > (grouped[r.arquivo_id].score_final || 0)) {
+            grouped[r.arquivo_id] = r;
+          }
+        }
+        this.arquivos.searchResults = Object.values(grouped).sort((a, b) => (b.score_final || 0) - (a.score_final || 0));
+        if (data.error) this.toast(data.error, 'warning');
+      } catch(e) {
+        console.error('Search failed:', e);
+        this.toast('Erro na busca: ' + e.message, 'error');
+      }
+      this.arquivos.searchLoading = false;
+    },
+
+    async deleteArquivo(id) {
+      if (!confirm('Excluir este arquivo?')) return;
+      await this.supabase.from('sp_arquivos')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id);
+      this.arquivos.list = this.arquivos.list.filter(a => a.id !== id);
+      this.arquivos.folderFiles = this.arquivos.folderFiles.filter(a => a.id !== id);
+      this.arquivos.selectedIds = this.arquivos.selectedIds.filter(sid => sid !== id);
+      this.toast('Arquivo excluido', 'info');
+    },
+
+    async togglePinArquivo(id, currentPinned) {
+      await this.supabase.from('sp_arquivos')
+        .update({ pinned: !currentPinned })
+        .eq('id', id);
+      const item = this.arquivos.list.find(a => a.id === id);
+      if (item) item.pinned = !currentPinned;
+    },
+
+    async getArquivoUrl(storagePath) {
+      const { data } = await this.supabase.storage
+        .from('spalla-arquivos')
+        .createSignedUrl(storagePath, 3600);
+      if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+    },
+
+    // ===== DOCUMENT VIEWER =====
+    viewer: {
+      open: false,
+      loading: false,
+      arquivo: null,
+      content: '',
+      contentHtml: '',
+      signedUrl: '',
+      mode: 'text', // 'text' | 'pdf' | 'image' | 'audio' | 'video' | 'raw'
+    },
+
+    async openViewer(arquivo) {
+      this.viewer.open = true;
+      this.viewer.loading = true;
+      this.viewer.arquivo = arquivo;
+      this.viewer.content = '';
+      this.viewer.contentHtml = '';
+      this.viewer.signedUrl = '';
+
+      const cat = arquivo.categoria;
+      const ext = (arquivo.extensao || '').toLowerCase();
+      const mime = arquivo.mime_type || '';
+
+      // Get signed URL for binary files
+      const { data: urlData } = await this.supabase.storage
+        .from('spalla-arquivos')
+        .createSignedUrl(arquivo.storage_path, 3600);
+      this.viewer.signedUrl = urlData?.signedUrl || '';
+
+      if (cat === 'imagem') {
+        this.viewer.mode = 'image';
+        this.viewer.loading = false;
+      } else if (cat === 'audio') {
+        this.viewer.mode = 'audio';
+        // Load transcription if available
+        try {
+          const { data: c } = await this.supabase.from('sp_conteudo_extraido')
+            .select('conteudo_texto').eq('arquivo_id', arquivo.id).order('created_at', { ascending: false }).limit(1).single();
+          if (c?.conteudo_texto) this.viewer.content = c.conteudo_texto;
+        } catch(e) {}
+        this.viewer.loading = false;
+      } else if (cat === 'video') {
+        this.viewer.mode = 'video';
+        try {
+          const { data: c } = await this.supabase.from('sp_conteudo_extraido')
+            .select('conteudo_texto').eq('arquivo_id', arquivo.id).order('created_at', { ascending: false }).limit(1).single();
+          if (c?.conteudo_texto) this.viewer.content = c.conteudo_texto;
+        } catch(e) {}
+        this.viewer.loading = false;
+      } else if (ext === 'pdf' || mime === 'application/pdf') {
+        this.viewer.mode = 'pdf';
+        this.viewer.loading = false;
+      } else if (['md', 'txt', 'csv', 'docx', 'xlsx'].includes(ext) || mime.startsWith('text/')) {
+        // For text-based: load extracted content from sp_conteudo_extraido
+        this.viewer.mode = 'text';
+        try {
+          const { data: conteudo } = await this.supabase
+            .from('sp_conteudo_extraido')
+            .select('conteudo_texto, metodo_extracao, word_count')
+            .eq('arquivo_id', arquivo.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (conteudo?.conteudo_texto) {
+            this.viewer.content = conteudo.conteudo_texto;
+            // Render markdown if .md
+            if (ext === 'md' || mime === 'text/markdown') {
+              this.viewer.contentHtml = this._renderMarkdown(conteudo.conteudo_texto);
+            }
+          } else {
+            // Fallback: download raw file
+            const { data: blob } = await this.supabase.storage
+              .from('spalla-arquivos')
+              .download(arquivo.storage_path);
+            if (blob) this.viewer.content = await blob.text();
+          }
+        } catch(e) {
+          console.error('[Viewer] Load error:', e);
+          // Fallback: download raw
+          try {
+            const { data: blob } = await this.supabase.storage
+              .from('spalla-arquivos')
+              .download(arquivo.storage_path);
+            if (blob) this.viewer.content = await blob.text();
+          } catch(e2) { this.viewer.content = 'Erro ao carregar conteúdo.'; }
+        }
+        this.viewer.loading = false;
+      } else {
+        // Unknown type — offer download
+        this.viewer.mode = 'raw';
+        this.viewer.loading = false;
+      }
+    },
+
+    closeViewer() {
+      this.viewer.open = false;
+      this.viewer.arquivo = null;
+      this.viewer.content = '';
+      this.viewer.contentHtml = '';
+      this.viewer.signedUrl = '';
+    },
+
+    _renderMarkdown(text) {
+      // Lightweight markdown to HTML (no external deps)
+      let html = text
+        // Escape HTML
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        // Headers
+        .replace(/^######\s+(.+)$/gm, '<h6>$1</h6>')
+        .replace(/^#####\s+(.+)$/gm, '<h5>$1</h5>')
+        .replace(/^####\s+(.+)$/gm, '<h4>$1</h4>')
+        .replace(/^###\s+(.+)$/gm, '<h3>$1</h3>')
+        .replace(/^##\s+(.+)$/gm, '<h2>$1</h2>')
+        .replace(/^#\s+(.+)$/gm, '<h1>$1</h1>')
+        // Bold + italic
+        .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        // Lists
+        .replace(/^-\s+(.+)$/gm, '<li>$1</li>')
+        .replace(/^(\d+)\.\s+(.+)$/gm, '<li>$2</li>')
+        // Horizontal rule
+        .replace(/^---+$/gm, '<hr>')
+        // Line breaks
+        .replace(/\n\n/g, '</p><p>')
+        .replace(/\n/g, '<br>');
+      // Wrap in paragraphs
+      html = '<p>' + html + '</p>';
+      // Clean up list items into proper lists
+      html = html.replace(/(<li>.*?<\/li>)/gs, '<ul>$1</ul>');
+      html = html.replace(/<\/ul>\s*<ul>/g, '');
+      return html;
+    },
+
+    _detectCategoria(mimeType, ext) {
+      if (mimeType.startsWith('image/')) return 'imagem';
+      if (mimeType.startsWith('audio/')) return 'audio';
+      if (mimeType.startsWith('video/')) return 'video';
+      if (['xlsx', 'xls', 'csv'].includes(ext)) return 'planilha';
+      if (['pdf', 'docx', 'doc', 'md', 'txt'].includes(ext)) return 'documento';
+      return 'outro';
+    },
+
+    _formatBytes(bytes) {
+      if (!bytes) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    },
+
+    _statusIcon(status) {
+      const map = { pendente: '⏳', extraindo: '📄', chunking: '✂️', embedding: '🧠', concluido: '✅', erro: '❌', ignorado: '⏭️' };
+      return map[status] || '❓';
+    },
+
+    // Fix 15 — Status text label
+    _statusLabel(status) {
+      const map = {
+        pendente: 'Pendente',
+        extraindo: 'Extraindo...',
+        chunking: 'Processando...',
+        embedding: 'Indexando...',
+        concluido: 'Indexado',
+        erro: 'Erro',
+        ignorado: 'Ignorado'
+      };
+      return map[status] || status;
+    },
+
+    // Fix 9 — Paginated files
+    get paginatedFiles() {
+      const start = (this.arquivos.page - 1) * this.arquivos.pageSize;
+      return this.arquivos.list.slice(start, start + this.arquivos.pageSize);
+    },
+
+    get totalPages() {
+      return Math.max(1, Math.ceil(this.arquivos.list.length / this.arquivos.pageSize));
+    },
+
+    nextPage() {
+      if (this.arquivos.page < this.totalPages) this.arquivos.page++;
+    },
+
+    prevPage() {
+      if (this.arquivos.page > 1) this.arquivos.page--;
+    },
+
+    // Fix 16 — Bulk select
+    toggleSelectFile(id) {
+      const idx = this.arquivos.selectedIds.indexOf(id);
+      if (idx >= 0) this.arquivos.selectedIds.splice(idx, 1);
+      else this.arquivos.selectedIds.push(id);
+    },
+
+    selectAllFiles() {
+      const visible = this.paginatedFiles;
+      const allSelected = visible.every(f => this.arquivos.selectedIds.includes(f.id));
+      if (allSelected) {
+        this.arquivos.selectedIds = [];
+      } else {
+        this.arquivos.selectedIds = visible.map(f => f.id);
+      }
+    },
+
+    clearSelection() {
+      this.arquivos.selectedIds = [];
+    },
+
+    async bulkDeleteFiles() {
+      const ids = this.arquivos.selectedIds;
+      if (!ids.length) return;
+      if (!confirm('Excluir ' + ids.length + ' arquivo(s) selecionado(s)?')) return;
+      const now = new Date().toISOString();
+      for (const id of ids) {
+        await this.supabase.from('sp_arquivos').update({ deleted_at: now }).eq('id', id);
+      }
+      this.arquivos.list = this.arquivos.list.filter(a => !ids.includes(a.id));
+      this.arquivos.folderFiles = this.arquivos.folderFiles.filter(a => !ids.includes(a.id));
+      this.toast(ids.length + ' arquivo(s) excluido(s)', 'info');
+      this.arquivos.selectedIds = [];
+    },
+
+    async bulkMoveFiles(pastaId) {
+      const ids = this.arquivos.selectedIds;
+      if (!ids.length) return;
+      for (const id of ids) {
+        await this.supabase.from('sp_arquivos').update({ pasta_id: pastaId || null }).eq('id', id);
+        const item = this.arquivos.list.find(a => a.id === id);
+        if (item) item.pasta_id = pastaId || null;
+      }
+      await this.loadCustomFolders();
+      this.toast(ids.length + ' arquivo(s) movido(s)', 'success');
+      this.arquivos.selectedIds = [];
+    },
+
+    // Fix 17 — Search history
+    get searchHistory() {
+      try {
+        return JSON.parse(localStorage.getItem('spalla_search_history') || '[]');
+      } catch { return []; }
+    },
+
+    _saveSearchHistory(query) {
+      if (!query) return;
+      let history = this.searchHistory.filter(h => h !== query);
+      history.unshift(query);
+      if (history.length > 5) history = history.slice(0, 5);
+      localStorage.setItem('spalla_search_history', JSON.stringify(history));
+    },
+
+    clearSearchHistory() {
+      localStorage.removeItem('spalla_search_history');
+    },
+
+    // Fix 19 — Storage quota
+    get storageUsedMb() {
+      return (this.arquivos.storageOverview || []).reduce((sum, o) => sum + (parseFloat(o.total_mb) || 0), 0);
+    },
+
+    get storageQuotaMb() { return 500; }, // bucket limit
+
+    get storagePercent() {
+      return Math.min(100, Math.round((this.storageUsedMb / this.storageQuotaMb) * 100));
+    },
+
+    _categoriaIcon(cat) {
+      const map = { documento: '📄', imagem: '🖼️', audio: '🎵', video: '🎬', planilha: '📊', outro: '📎' };
+      return map[cat] || '📎';
+    },
+
+    // ===== 5.4 — REALTIME SUBSCRIPTION =====
+
+    _subscribeArquivosRealtime() {
+      if (this._arquivosChannel) return; // already subscribed
+      if (!this.supabase) return;
+      this._arquivosChannel = this.supabase
+        .channel('arquivos-realtime')
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'sp_arquivos'
+        }, (payload) => {
+          const updated = payload.new;
+          // Update in main list
+          const idx = this.arquivos.list.findIndex(a => a.id === updated.id);
+          if (idx >= 0) {
+            const oldStatus = this.arquivos.list[idx].status_processamento;
+            this.arquivos.list[idx] = { ...this.arquivos.list[idx], ...updated };
+            // Toast when processing completes
+            if (oldStatus !== 'concluido' && updated.status_processamento === 'concluido') {
+              this.toast(`Arquivo processado: ${updated.nome_original}`, 'success');
+            }
+            if (oldStatus !== 'erro' && updated.status_processamento === 'erro') {
+              this.toast(`Erro no processamento: ${updated.nome_original}`, 'error');
+            }
+          }
+          // Update in folder files
+          const fidx = this.arquivos.folderFiles.findIndex(a => a.id === updated.id);
+          if (fidx >= 0) {
+            this.arquivos.folderFiles[fidx] = { ...this.arquivos.folderFiles[fidx], ...updated };
+          }
+          // Update in detail arquivos
+          const didx = this._detailArquivos.findIndex(a => a.id === updated.id);
+          if (didx >= 0) {
+            this._detailArquivos[didx] = { ...this._detailArquivos[didx], ...updated };
+          }
+          // Recount processing
+          this.arquivos.processingCount = this.arquivos.list.filter(a =>
+            ['pendente', 'extraindo', 'chunking', 'embedding'].includes(a.status_processamento)
+          ).length;
+        })
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'sp_arquivos'
+        }, (payload) => {
+          // Add new file to list if not already present
+          if (!this.arquivos.list.find(a => a.id === payload.new.id)) {
+            this.arquivos.list.unshift(payload.new);
+          }
+          this.arquivos.processingCount = this.arquivos.list.filter(a =>
+            ['pendente', 'extraindo', 'chunking', 'embedding'].includes(a.status_processamento)
+          ).length;
+        })
+        .subscribe();
+    },
+
+    _unsubscribeArquivosRealtime() {
+      if (this._arquivosChannel) {
+        this.supabase.removeChannel(this._arquivosChannel);
+        this._arquivosChannel = null;
+      }
+    },
+
+    async reprocessArquivo(id) {
+      try {
+        await fetch(`${CONFIG.API_BASE}/api/storage/process`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ arquivo_id: id }),
+        });
+        // Update local status
+        const item = this.arquivos.list.find(a => a.id === id);
+        if (item) item.status_processamento = 'pendente';
+        this.toast('Reprocessamento iniciado', 'info');
+      } catch(e) {
+        this.toast('Erro ao reprocessar: ' + e.message, 'error');
+      }
+    },
+
+    _isProcessing(status) {
+      return ['pendente', 'extraindo', 'chunking', 'embedding'].includes(status);
+    },
+
+    // ===== 5.5 — DETAIL MENTORADO ARQUIVOS =====
+
+    async loadDetailArquivos(mentoradoId) {
+      const mid = mentoradoId || this.ui.selectedMenteeId;
+      if (!mid || !this.supabase) return;
+      this._detailArquivosLoading = true;
+      try {
+        const { data, error } = await this.supabase.from('sp_arquivos')
+          .select('*')
+          .eq('entidade_id', mid)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false });
+        if (error) console.error('[Arquivos] Detail load error:', error);
+        this._detailArquivos = data || [];
+      } catch(e) {
+        console.error('[Arquivos] loadDetailArquivos failed:', e);
+      }
+      this._detailArquivosLoading = false;
+    },
+
+    get filteredDetailArquivos() {
+      if (!this._detailArquivosSearch) return this._detailArquivos;
+      const q = this._detailArquivosSearch.toLowerCase();
+      return this._detailArquivos.filter(a =>
+        a.nome_original?.toLowerCase().includes(q) ||
+        a.categoria?.toLowerCase().includes(q) ||
+        a.descricao?.toLowerCase().includes(q)
+      );
+    },
+
+    openUploadForDetail() {
+      this.openUploadModal();
+      const mid = this.ui.selectedMenteeId;
+      if (mid) {
+        const m = (this.data.mentees || []).find(m => m.id === mid);
+        if (m) this.selectUploadMentorado(m);
+      }
+    },
+
+    goToMentoradoFolder(mentoradoId, mentoradoNome) {
+      this.navigate('arquivos');
+      this.loadArquivos().then(() => {
+        this.openFolder({ mentorado_id: mentoradoId, mentorado_nome: mentoradoNome });
+      });
+    },
+
     navigate(page) {
       // Stop WhatsApp polling when leaving WhatsApp page
       if (this.ui.page === 'whatsapp' && page !== 'whatsapp') {
         this.stopWhatsAppPolling();
       }
+      // 5.4 — Unsubscribe from realtime when leaving arquivos
+      if (this.ui.page === 'arquivos' && page !== 'arquivos') {
+        this._unsubscribeArquivosRealtime();
+      }
       this.ui.page = page;
       this.ui.mobileMenuOpen = false;
-      localStorage.setItem('spalla_page', page);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      // Auto-load financial data when navigating to financeiro
       if (page === 'financeiro') this.loadFinanceiro();
+      localStorage.setItem('spalla_page', page);
+      // Update URL without reload
+      const route = this._pageToRoute(page);
+      if (route && window.location.pathname !== '/' + route) {
+        history.pushState({ page }, '', '/' + route);
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     },
 
     goBack() {
@@ -1697,166 +2936,6 @@ function operon() {
       localStorage.setItem('spalla_page', 'dashboard');
       this.data.detail = null;
       this.ui.selectedMenteeId = null;
-    },
-
-    // ===================== FINANCEIRO (CFO Payments View) =====================
-
-    CFO_ALLOWED_USERS: ['kaique', 'heitor', 'hugo', 'queila', 'lara'],
-
-    get isCfoUser() {
-      const name = (this.auth.currentUser?.full_name || '').toLowerCase();
-      return this.CFO_ALLOWED_USERS.some(u => name.startsWith(u));
-    },
-
-    // Financeiro data state
-    financeiro: null,
-    finFilter: '',
-    finNoteModal: { open: false, menteeId: null, menteeNome: '', text: '' },
-    finActionDropdown: null, // mentorado id with open dropdown
-
-    // Financeiro detail (logs for mentee detail tab)
-    // data.finDetailLogs is set on the data object
-
-    get financialMentees() {
-      if (!this.financeiro?.mentorados) return [];
-      let list = this.financeiro.mentorados;
-      if (this.finFilter) {
-        if (this.finFilter === 'sem_contrato') {
-          list = list.filter(m => m.contrato_assinado === false);
-        } else if (this.finFilter === 'acao_pendente') {
-          list = list.filter(m => m.acao_pendente === true);
-        } else {
-          list = list.filter(m => m.status_financeiro === this.finFilter);
-        }
-      }
-      return list;
-    },
-
-    async loadFinanceiro() {
-      if (!sb) { sb = await initSupabase(); }
-      if (!sb) return;
-      try {
-        const [mentoradosRes, snapshotsRes, logsRes] = await Promise.all([
-          sb.from('vw_god_financeiro').select('*'),
-          sb.from('god_financial_snapshots').select('*').order('snapshot_date', { ascending: false }).limit(12),
-          sb.from('god_financial_logs').select('*').order('created_at', { ascending: false }).limit(20),
-        ]);
-
-        const mentorados = mentoradosRes.data || [];
-        const snapshots = (snapshotsRes.data || []).reverse(); // chronological order
-        const logs = logsRes.data || [];
-
-        // Calculate KPIs
-        const kpis = {
-          em_dia: mentorados.filter(m => ['em_dia', 'pago'].includes(m.status_financeiro)).length,
-          atrasado: mentorados.filter(m => m.status_financeiro === 'atrasado').length,
-          quitado: mentorados.filter(m => m.status_financeiro === 'quitado').length,
-          sem_contrato: mentorados.filter(m => m.contrato_assinado === false).length,
-          total: mentorados.length,
-          acao_pendente: mentorados.filter(m => m.acao_pendente === true).length,
-        };
-
-        this.financeiro = { mentorados, snapshots, logs, kpis };
-      } catch (e) {
-        console.error('[Spalla] loadFinanceiro error:', e);
-      }
-    },
-
-    async changeFinStatus(menteeId, newStatus, observacao) {
-      try {
-        const resp = await fetch(`${CONFIG.API_BASE}/api/financial/update-status`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.auth.accessToken}`,
-          },
-          body: JSON.stringify({ mentorado_id: menteeId, new_status: newStatus, observacao: observacao || '' }),
-        });
-        const data = await resp.json();
-        if (data.success) {
-          await this.loadFinanceiro();
-          this.finActionDropdown = null;
-        } else {
-          this.toast(data.error || 'Erro ao atualizar status', 'error');
-        }
-      } catch (e) {
-        console.error('[Spalla] changeFinStatus error:', e);
-        this.toast('Erro ao atualizar status financeiro', 'error');
-      }
-    },
-
-    async addFinNote() {
-      if (!this.finNoteModal.menteeId || !this.finNoteModal.text.trim()) return;
-      try {
-        const resp = await fetch(`${CONFIG.API_BASE}/api/financial/add-note`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.auth.accessToken}`,
-          },
-          body: JSON.stringify({ mentorado_id: this.finNoteModal.menteeId, observacao: this.finNoteModal.text.trim() }),
-        });
-        const data = await resp.json();
-        if (data.success) {
-          this.finNoteModal = { open: false, menteeId: null, menteeNome: '', text: '' };
-          await this.loadFinanceiro();
-        } else {
-          this.toast(data.error || 'Erro ao adicionar observacao', 'error');
-        }
-      } catch (e) {
-        console.error('[Spalla] addFinNote error:', e);
-        this.toast('Erro ao adicionar observacao', 'error');
-      }
-    },
-
-    finStatusLabel(status) {
-      const labels = { em_dia: 'Em Dia', atrasado: 'Atrasado', quitado: 'Quitado', pago: 'Pago', sem_contrato: 'Sem Contrato', pendente: 'Pendente' };
-      return labels[status] || status;
-    },
-
-    finStatusColor(status) {
-      const colors = { em_dia: '#22c55e', atrasado: '#ef4444', quitado: '#3b82f6', pago: '#22c55e', sem_contrato: '#f59e0b', pendente: '#a855f7' };
-      return colors[status] || '#6b7280';
-    },
-
-    finTimeAgo(dateStr) {
-      if (!dateStr) return '';
-      const diff = Date.now() - new Date(dateStr).getTime();
-      const mins = Math.floor(diff / 60000);
-      if (mins < 60) return `${mins}min atras`;
-      const hours = Math.floor(mins / 60);
-      if (hours < 24) return `${hours}h atras`;
-      const days = Math.floor(hours / 24);
-      return `${days}d atras`;
-    },
-
-    // Load mentee detail and jump directly to Financeiro tab
-    async loadMenteeFinDetail(id) {
-      await this.loadMenteeDetail(id);
-      this.ui.activeDetailTab = 'financeiro';
-      await this.loadFinDetailLogs();
-    },
-
-    // Fetch financial logs for the currently selected mentee
-    async loadFinDetailLogs() {
-      const id = this.ui.selectedMenteeId;
-      if (!id) return;
-      this.ui.finDetailLoading = true;
-      this.data.finDetailLogs = [];
-      try {
-        const resp = await fetch(`${CONFIG.API_BASE}/api/financial/logs/${id}`, {
-          headers: { 'Authorization': `Bearer ${this.auth.accessToken}` },
-        });
-        const result = await resp.json();
-        if (result.success && Array.isArray(result.logs)) {
-          this.data.finDetailLogs = result.logs;
-        } else if (Array.isArray(result)) {
-          this.data.finDetailLogs = result;
-        }
-      } catch (e) {
-        console.error('[Spalla] loadFinDetailLogs error:', e);
-      }
-      this.ui.finDetailLoading = false;
     },
 
     // ===================== PLANO DE AÇÃO (PA) =====================
@@ -2380,7 +3459,7 @@ function operon() {
       try {
         const raw = localStorage.getItem(CONFIG.TASKS_STORAGE_KEY);
         if (raw) { const parsed = JSON.parse(raw); if (parsed.length > 0) { this.data.tasks = parsed; this._autoCategorize(); return; } }
-      } catch (e) { }
+      } catch (e) {}
       this.data.tasks = DEMO_TASKS;
       this._cacheTasksLocal();
     },
@@ -2394,7 +3473,7 @@ function operon() {
         if (fase === 'escala') return 'list_escala';
         return 'list_concepcao';
       };
-      (this.data.tasks || []).forEach(t => {
+      this.data.tasks.forEach(t => {
         // Migrate old space IDs to new ones
         if (t.space_id === 'space_mentorados' || t.space_id === 'space_equipe' || t.space_id === 'space_queila') {
           t.space_id = null; t.list_id = null;
@@ -2448,12 +3527,12 @@ function operon() {
     },
 
     _cacheTasksLocal() {
-      try { localStorage.setItem(CONFIG.TASKS_STORAGE_KEY, JSON.stringify(this.data.tasks)); } catch (e) { }
+      try { localStorage.setItem(CONFIG.TASKS_STORAGE_KEY, JSON.stringify(this.data.tasks)); } catch (e) {}
     },
 
     async _sbUpsertTask(task, isNew = false) {
       if (!sb) return { ok: false };
-      const VALID_COLS = ['id', 'titulo', 'descricao', 'status', 'prioridade', 'responsavel', 'acompanhante', 'mentorado_id', 'mentorado_nome', 'data_inicio', 'data_fim', 'space_id', 'list_id', 'parent_task_id', 'tags', 'fonte', 'doc_link', 'created_at', 'updated_at', 'created_by', 'recorrencia', 'dia_recorrencia', 'recorrencia_ativa', 'recorrencia_origem_id'];
+      const VALID_COLS = ['id','titulo','descricao','status','prioridade','responsavel','acompanhante','mentorado_id','mentorado_nome','data_inicio','data_fim','space_id','list_id','parent_task_id','tags','fonte','doc_link','created_at','updated_at','created_by','recorrencia','dia_recorrencia','recorrencia_ativa','recorrencia_origem_id'];
       const row = {};
       for (const k of VALID_COLS) { if (task[k] !== undefined) row[k] = task[k]; }
       if (row.mentorado_id) row.mentorado_id = parseInt(row.mentorado_id) || null;
@@ -3102,10 +4181,36 @@ function operon() {
 
     // ===================== WHATSAPP PER-USER SESSION =====================
 
+    // Pre-linked Evolution instances per user (skip QR, always connected)
+    _waPrelinkedInstances: {
+      mariza: { instance_name: 'producao002', phone_number: '5511941936764' },
+    },
+
+    _isPrelinkedUser() {
+      const name = (this.auth.currentUser?.full_name || '').toLowerCase().trim();
+      return this._waPrelinkedInstances[name] || null;
+    },
+
     async loadWaSession() {
       if (!sb || !this.auth.currentUser) return;
       const userId = String(this.auth.currentUser.id);
       if (!userId) return;
+
+      // Check if user has a pre-linked instance (no QR needed)
+      const prelinked = this._isPrelinkedUser();
+      if (prelinked) {
+        this.data.waSession = {
+          id: 'prelinked',
+          user_id: userId,
+          instance_name: prelinked.instance_name,
+          status: 'connected',
+          phone_number: prelinked.phone_number,
+          connected_at: new Date().toISOString(),
+        };
+        this.waVerifyConnection(prelinked.instance_name);
+        return;
+      }
+
       try {
         const { data, error } = await sb.from('wa_sessions')
           .select('*')
@@ -3178,6 +4283,11 @@ function operon() {
     },
 
     async waStartConnection() {
+      // Pre-linked users are already connected, no need to scan QR
+      if (this._isPrelinkedUser()) {
+        this.toast('Seu WhatsApp já está vinculado automaticamente', 'info');
+        return;
+      }
       if (!sb || !this.auth.currentUser) {
         this.toast('Erro: servico indisponivel', 'error');
         return;
@@ -3331,6 +4441,11 @@ function operon() {
 
     async waDisconnect() {
       if (!this.data.waSession) return;
+      // Pre-linked users cannot disconnect (shared instance)
+      if (this._isPrelinkedUser()) {
+        this.toast('Esta instância é vinculada permanentemente à sua conta', 'warning');
+        return;
+      }
       const session = this.data.waSession;
       try {
         const logoutRes = await fetch(`${CONFIG.API_BASE}/api/evolution/instance/logout/${session.instance_name}`, {
@@ -3455,6 +4570,11 @@ function operon() {
 
     // Story 3.1: Dynamic send routing — uses user's instance if connected, fallback to producao002
     _waActiveInstance() {
+      // Pre-linked users always use their assigned instance
+      const prelinked = this._isPrelinkedUser();
+      if (prelinked) {
+        return { instance: prelinked.instance_name, isPersonal: true };
+      }
       const session = this.data.waSession;
       if (session?.status === 'connected' && session?.instance_name) {
         return { instance: session.instance_name, isPersonal: true };
@@ -3847,7 +4967,7 @@ function operon() {
       void this.photoTick;
 
       const isHandle = !handleOrName.includes(' ');
-      const clean = handleOrName.replace('@', '').toLowerCase();
+      const clean = handleOrName.replace('@','').toLowerCase();
 
       // First: try embedded data URLs (PHOTO_DATA_URLS — base64, never expire)
       if (typeof PHOTO_DATA_URLS !== 'undefined' && PHOTO_DATA_URLS[clean]) {
@@ -3879,8 +4999,8 @@ function operon() {
       if (!call) return null;
       // Match by ID first (reliable), then name fallback
       const m = (call.mentorado_id && this.data.mentees.find(x => String(x.id) === String(call.mentorado_id)))
-        || this.data.mentees.find(x => x.nome === call.mentorado)
-        || this.data.mentees.find(x => x.nome?.toLowerCase().trim() === call.mentorado?.toLowerCase().trim());
+             || this.data.mentees.find(x => x.nome === call.mentorado)
+             || this.data.mentees.find(x => x.nome?.toLowerCase().trim() === call.mentorado?.toLowerCase().trim());
       return this.igPhoto(m?.instagram || call.mentorado);
     },
 
@@ -4034,7 +5154,7 @@ function operon() {
     // ===================== CALENDAR METHODS =====================
 
     calendarTitle() {
-      const months = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+      const months = ['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
       return months[this.ui.calendarMonth] + ' ' + this.ui.calendarYear;
     },
 
@@ -4079,12 +5199,12 @@ function operon() {
         const d = prevLastDay - i;
         const m2 = month === 0 ? 11 : month - 1;
         const y2 = month === 0 ? year - 1 : year;
-        const ds = `${y2}-${String(m2 + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const ds = `${y2}-${String(m2+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
         days.push({ key: ds, num: d, currentMonth: false, isToday: ds === todayStr, dateStr: ds, calls: callMap[ds] || 0 });
       }
       // Current month days
       for (let d = 1; d <= lastDay.getDate(); d++) {
-        const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
         days.push({ key: ds, num: d, currentMonth: true, isToday: ds === todayStr, dateStr: ds, calls: callMap[ds] || 0 });
       }
       // Next month days to fill grid (6 rows)
@@ -4092,7 +5212,7 @@ function operon() {
       for (let d = 1; d <= remaining; d++) {
         const m2 = month === 11 ? 0 : month + 1;
         const y2 = month === 11 ? year + 1 : year;
-        const ds = `${y2}-${String(m2 + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const ds = `${y2}-${String(m2+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
         days.push({ key: ds, num: d, currentMonth: false, isToday: ds === todayStr, dateStr: ds, calls: callMap[ds] || 0 });
       }
       return days;
@@ -4162,7 +5282,7 @@ function operon() {
               invitees: f.email ? [f.email] : [],
             }),
           });
-          const zoomData = await zoomRes.json().catch(() => ({}));
+          const zoomData = await zoomRes.json();
           if (zoomData.join_url) zoomUrl = zoomData.join_url;
         } catch (e) {
           console.warn('[Schedule] Zoom creation warning:', e.message);
@@ -4183,7 +5303,7 @@ function operon() {
               location: zoomUrl || '',
             }),
           });
-          const calData = await calRes.json().catch(() => ({}));
+          const calData = await calRes.json();
           if (calData.html_link) calendarUrl = calData.html_link;
         } catch (e) {
           console.warn('[Schedule] Calendar creation warning:', e.message);
@@ -4229,7 +5349,7 @@ function operon() {
         this.scheduleForm = { mentorado: '', mentorado_id: '', tipo: 'acompanhamento', data: '', horario: '10:00', duracao: 60, email: '', notas: '' };
 
         // Refresh upcoming calls
-        this.fetchUpcomingCalls().catch(e => console.warn('[Spalla] fetchUpcomingCalls:', e.message));
+        this.fetchUpcomingCalls();
 
       } catch (err) {
         console.error('[Schedule]', err);
@@ -4343,14 +5463,12 @@ function operon() {
       return DOSSIER_STATUS_CONFIG[status] || DOSSIER_STATUS_CONFIG.nao_iniciado;
     },
 
-    // DEPRECATED: stats now computed from dsProducoes (Supabase data)
     dossierStats() {
-      const prods = this.data.dsProducoes;
-      const total = prods.length;
-      const enviados = prods.filter(p => p.status === 'enviado' || p.status === 'finalizado').length;
-      const emRevisao = prods.filter(p => p.status === 'revisao').length;
-      const producaoIa = prods.filter(p => p.status === 'producao').length;
-      const naoIniciado = prods.filter(p => ['nao_iniciado', 'call_estrategia', 'pausado'].includes(p.status)).length;
+      const total = DOSSIER_PIPELINE.length;
+      const enviados = DOSSIER_PIPELINE.filter(d => d.status === 'enviado').length;
+      const emRevisao = DOSSIER_PIPELINE.filter(d => ['em_revisao', 'ajustar', 'ajustando', 'aprovado_enviar', 'revisao_kaique', 'revisao_mariza', 'revisao_queila'].includes(d.status)).length;
+      const producaoIa = DOSSIER_PIPELINE.filter(d => d.status === 'producao_ia').length;
+      const naoIniciado = DOSSIER_PIPELINE.filter(d => ['nao_iniciado', 'onboarding', 'pausado'].includes(d.status)).length;
       return { total, enviados, emRevisao, producaoIa, naoIniciado };
     },
 
@@ -4545,7 +5663,7 @@ function operon() {
 
       // Refresh
       await this.loadDsMenteeDetail(doc.producao_id);
-      await this.loadDsData().catch(e => console.warn('[Spalla] loadDsData:', e.message));
+      await this.loadDsData();
       this.toast(`Avançou para ${nextEstagio.label}`, 'success');
     },
 
@@ -4570,7 +5688,7 @@ function operon() {
       await this._logDsEvento(doc.producao_id, docId, 'estagio_change', doc.estagio_atual, prevEstagio.id, user, motivo || `Retornou para ${prevEstagio.label}`);
       await this._updateDsProducaoStatus(doc.producao_id);
       await this.loadDsMenteeDetail(doc.producao_id);
-      await this.loadDsData().catch(e => console.warn('[Spalla] loadDsData:', e.message));
+      await this.loadDsData();
       this.toast(`Retornou para ${prevEstagio.label}`, 'info');
     },
 
@@ -4597,7 +5715,7 @@ function operon() {
       if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
       const user = this.currentUserName;
       await this._logDsEvento(producaoId, null, 'nota', null, valor, user, `Contrato: ${valor}`);
-      await this.loadDsData().catch(e => console.warn('[Spalla] loadDsData:', e.message));
+      await this.loadDsData();
       this.toast('Contrato atualizado', 'success');
     },
 
@@ -4610,7 +5728,7 @@ function operon() {
       else {
         const user = this.currentUserName;
         await this._logDsEvento(producaoId, null, 'nota', null, data, user, `${campo} definido: ${data}`);
-        await this.loadDsData().catch(e => console.warn('[Spalla] loadDsData:', e.message));
+        await this.loadDsData();
         this.toast('Data atualizada', 'success');
       }
     },
@@ -4870,7 +5988,7 @@ function operon() {
             await this._logDsEvento(producaoId, doc.id, 'estagio_change', doc.estagio_atual, targetStage.id, user, `Pipeline: ${doc.tipo} → ${targetStage.label}`);
           }
           await this._updateDsProducaoStatus(producaoId);
-          await this.loadDsData().catch(e => console.warn('[Spalla] loadDsData:', e.message));
+          await this.loadDsData();
           this.toast(`Movido para ${targetStage.label}`, 'success');
         },
       };
@@ -4972,7 +6090,7 @@ function operon() {
         });
         if (error) { this.toast('Erro ao criar trilha: ' + error.message, 'error'); return; }
         this.toast('Trilha de onboarding criada!', 'success');
-        await this.loadObData().catch(e => console.warn('[Spalla] loadObData:', e.message));
+        await this.loadObData();
         this.ui.obNewTrilhaModal = false;
         return data;
       } catch (e) {
@@ -5013,7 +6131,7 @@ function operon() {
         }
         await this.loadObDetail(this.ui.obDetailTrilhaId);
       }
-      await this.loadObData().catch(e => console.warn('[Spalla] loadObData:', e.message));
+      await this.loadObData();
     },
 
     async _recalcObEtapaStatus(etapaId) {
@@ -5063,7 +6181,7 @@ function operon() {
       // Log event
       const statusLabels = { em_andamento: 'Em Andamento', concluido: 'Concluído', pausado: 'Pausado' };
       await this._logObEvento(trilhaId, null, null, 'trilha_status', oldStatus, status, 'Status: ' + (statusLabels[oldStatus] || oldStatus || '-') + ' → ' + (statusLabels[status] || status));
-      await this.loadObData().catch(e => console.warn('[Spalla] loadObData:', e.message));
+      await this.loadObData();
       if (this.ui.obDetailTrilhaId === trilhaId) await this.loadObDetail(trilhaId);
       this.toast('Status atualizado', 'success');
     },
@@ -5075,7 +6193,7 @@ function operon() {
       this.data.obTrilhaDetail = null;
       this.ui.obDetailTrilhaId = null;
       this.ui.obExpandedTrilha = null;
-      await this.loadObData().catch(e => console.warn('[Spalla] loadObData:', e.message));
+      await this.loadObData();
       this.toast('Trilha excluída', 'success');
     },
 
@@ -5413,7 +6531,7 @@ function operon() {
       const r = (size - stroke) / 2;
       const c = 2 * Math.PI * r;
       const offset = c - (pct / 100) * c;
-      return `<svg class="progress-ring" width="${size}" height="${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#e2e8f0" stroke-width="${stroke}"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-dasharray="${c}" stroke-dashoffset="${offset}" stroke-linecap="round"/></svg>`;
+      return `<svg class="progress-ring" width="${size}" height="${size}"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="#e2e8f0" stroke-width="${stroke}"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-dasharray="${c}" stroke-dashoffset="${offset}" stroke-linecap="round"/></svg>`;
     },
 
     statBoxClass(value, warnThreshold, dangerThreshold, inverse = false) {
@@ -5639,7 +6757,7 @@ function operon() {
           body: JSON.stringify({ mentorado_id: mid }),
         });
 
-        const data = await resp.json().catch(() => ({}));
+        const data = await resp.json();
         if (!resp.ok || data.error) throw new Error(data.error || 'Erro na Edge Function');
 
         // Salva localmente caso o upsert da Edge Function tenha falhado
@@ -5668,7 +6786,7 @@ function operon() {
     },
 
     destroyPerfilCharts() {
-      Object.values(this._perfilCharts).forEach(c => { try { c.destroy(); } catch (e) { } });
+      Object.values(this._perfilCharts).forEach(c => { try { c.destroy(); } catch(e) {} });
       this._perfilCharts = {};
     },
 
@@ -5689,7 +6807,7 @@ function operon() {
               labels: ['Abert.', 'Consc.', 'Extrov.', 'Amabil.', 'Neurot.'],
               datasets: [{
                 label: 'Score',
-                data: [bf.abertura || 0, bf.conscienciosidade || 0, bf.extroversao || 0, bf.amabilidade || 0, bf.neuroticismo || 0],
+                data: [bf.abertura||0, bf.conscienciosidade||0, bf.extroversao||0, bf.amabilidade||0, bf.neuroticismo||0],
                 backgroundColor: 'rgba(245,158,11,0.2)',
                 borderColor: 'rgb(245,158,11)',
                 borderWidth: 2,
@@ -5712,7 +6830,7 @@ function operon() {
               labels: ['Domin.', 'Influen.', 'Estabil.', 'Conform.'],
               datasets: [{
                 label: 'Score',
-                data: [d.dominancia || 0, d.influencia || 0, d.estabilidade || 0, d.conformidade || d.consciencia || 0],
+                data: [d.dominancia||0, d.influencia||0, d.estabilidade||0, d.conformidade||d.consciencia||0],
                 backgroundColor: 'rgba(99,102,241,0.2)',
                 borderColor: 'rgb(99,102,241)',
                 borderWidth: 2,
@@ -5729,7 +6847,7 @@ function operon() {
         const ctx = document.getElementById('chart-zonas');
         if (ctx) {
           const z = dim.quatro_zonas;
-          const getVal = (v) => typeof v === 'object' ? (v?.score || 0) : (v || 0);
+          const getVal = (v) => typeof v === 'object' ? (v?.score||0) : (v||0);
           this._perfilCharts.zonas = new Chart(ctx, {
             type: 'radar',
             data: {
@@ -5793,7 +6911,7 @@ function operon() {
           legend: { display: false },
           tooltip: {
             callbacks: {
-              label: function (ctx) { return ctx.raw + '/100'; }
+              label: function(ctx) { return ctx.raw + '/100'; }
             }
           }
         },

@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="16-APP-operon-molecules.css?v=3">
   <link rel="stylesheet" href="17-APP-operon-utilities.css?v=2">
   <link rel="stylesheet" href="18-APP-operon-bridge.css?v=1">
-  <link rel="stylesheet" href="13-APP-styles.css?v=72">
+  <link rel="stylesheet" href="13-APP-styles.css?v=77">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1c1910,#35301d,#1c1910);font-family:'Open Sauce Sans',system-ui,sans-serif;color:var(--brand-500,#8a7d52);font-size:24px;font-weight:700;letter-spacing:0.05em; }
@@ -22,7 +22,7 @@
 <body>
   <div id="loading-fallback"><span>Operon</span></div>
 
-  <div id="app" x-data="operon()" x-init="init()" style="display:none">
+  <div id="app" x-data="operon()" style="display:none">
 
     <!-- ======= AUTH GATE ======= -->
     <div class="auth-overlay" x-show="!auth.authenticated" x-transition.opacity>
@@ -150,11 +150,21 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
             <span x-show="ui.sidebarOpen">Google Docs</span>
           </a>
+          <a class="op-nav-item" :class="{ active: ui.page === 'arquivos' }" @click="navigate('arquivos'); loadArquivos()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span x-show="ui.sidebarOpen">Arquivos</span>
+          </a>
 
           <div class="op-sidebar__section" x-show="ui.sidebarOpen && isCfoUser">Gestao</div>
           <a class="op-nav-item" :class="{ active: ui.page === 'financeiro' }" @click="navigate('financeiro')" x-show="isCfoUser">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
             <span x-show="ui.sidebarOpen">Financeiro</span>
+          </a>
+
+          <div class="op-sidebar__section" x-show="ui.sidebarOpen">Mentorado</div>
+          <a class="op-nav-item" href="/jornada" target="_blank">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+            <span x-show="ui.sidebarOpen">Jornada</span>
           </a>
 
           <div class="op-sidebar__section" x-show="ui.sidebarOpen">Sistema</div>
@@ -391,7 +401,6 @@
                   </div>
                   <div class="mc-card__identity">
                     <span class="mc-card__name" x-text="m.nome"></span>
-                    <span class="badge badge--sm" :class="m.consultor_responsavel === 'Lara' ? 'badge--info' : 'badge--neutral'" x-text="m.consultor_responsavel" x-show="m.consultor_responsavel" style="font-size:10px;padding:1px 6px;margin-left:4px"></span>
                     <template x-if="m.instagram">
                       <a :href="'https://instagram.com/' + (m.instagram || '').replace(/^@/, '')" target="_blank" rel="noopener noreferrer" class="mc-card__handle" style="text-decoration:none;color:inherit" @click.stop>
                         <span x-text="'@' + (m.instagram || '').replace(/^@/, '')"></span>
@@ -492,7 +501,6 @@
                   <span class="badge" :class="'badge--' + riskClass(data.detail?.phase?.risco_churn)" x-text="riskLabel(data.detail?.phase?.risco_churn)"></span>
                   <span class="badge badge--neutral" x-text="data.detail?.profile?.cohort"></span>
                   <span class="badge badge--neutral" x-text="data.detail?.phase?.marco_atual"></span>
-                  <span class="badge badge--info" x-text="'Consultor: ' + data.detail?.profile?.consultor_responsavel" x-show="data.detail?.profile?.consultor_responsavel" style="font-size:11px"></span>
                 </div>
                 <div class="detail-hero__meta" x-show="data.detail?.profile?.instagram">
                   <a :href="'https://instagram.com/' + (data.detail?.profile?.instagram || '').replace(/^@/, '')" target="_blank" rel="noopener noreferrer" style="text-decoration:none;color:inherit" @click.stop>
@@ -551,6 +559,11 @@
                 <template x-if="getPaForMentee(data.detail?.profile?.id)">
                   <span class="op-tab__count" x-text="(getPaForMentee(data.detail?.profile?.id)?.pct_concluido || 0) + '%'"></span>
                 </template>
+              </button>
+              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'arquivos_detail' }" @click="ui.activeDetailTab = 'arquivos_detail'; loadDetailArquivos()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Arquivos
+                <span class="op-tab__count" x-show="_detailArquivos.length" x-text="_detailArquivos.length"></span>
               </button>
               <button class="op-tab" :class="{ active: ui.activeDetailTab === 'financeiro' }" @click="ui.activeDetailTab = 'financeiro'; loadFinDetailLogs()" x-show="isCfoUser">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -1227,6 +1240,70 @@
                   </div>
                 </div>
               </template>
+            </div>
+
+            <!-- ===== TAB: ARQUIVOS DO MENTORADO (5.5) ===== -->
+            <div class="op-tab-content" x-show="ui.activeDetailTab === 'arquivos_detail'">
+              <!-- Header with actions -->
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                <div style="display:flex;gap:8px;align-items:center;flex:1">
+                  <input type="text" class="op-input" style="max-width:300px;font-size:13px"
+                    placeholder="Buscar arquivos..."
+                    x-model="_detailArquivosSearch">
+                  <span class="badge badge--sm badge--neutral" x-text="filteredDetailArquivos.length + ' arquivos'"></span>
+                </div>
+                <div style="display:flex;gap:8px">
+                  <button class="op-btn op-btn--ghost op-btn--sm"
+                    @click="goToMentoradoFolder(data.detail?.profile?.id, data.detail?.profile?.nome)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    Ver pasta
+                  </button>
+                  <button class="op-btn op-btn--primary op-btn--sm" @click="openUploadForDetail()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Upload
+                  </button>
+                </div>
+              </div>
+
+              <!-- Loading -->
+              <div x-show="_detailArquivosLoading" style="padding:32px;text-align:center;color:var(--text-muted)">
+                Carregando arquivos...
+              </div>
+
+              <!-- Empty -->
+              <div x-show="!_detailArquivosLoading && _detailArquivos.length === 0" class="empty-state">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:12px;color:var(--text-secondary)"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                <p>Nenhum arquivo para este mentorado.</p>
+                <button class="op-btn op-btn--primary op-btn--sm" @click="openUploadForDetail()" style="margin-top:12px">Upload</button>
+              </div>
+
+              <!-- File list -->
+              <div x-show="!_detailArquivosLoading && filteredDetailArquivos.length > 0">
+                <template x-for="a in filteredDetailArquivos" :key="a.id">
+                  <div class="op-card" style="padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px">
+                    <span style="font-size:18px" x-text="_categoriaIcon(a.categoria)"></span>
+                    <div style="flex:1;min-width:0">
+                      <div style="display:flex;align-items:center;gap:6px">
+                        <a href="#" @click.prevent="openViewer(a)" style="font-weight:500;font-size:13px;text-decoration:none;color:var(--text)" x-text="a.nome_original"></a>
+                        <span x-show="a.pinned" style="font-size:12px">&#128204;</span>
+                      </div>
+                      <div style="font-size:11px;color:var(--text-muted);display:flex;gap:8px">
+                        <span x-text="a.categoria"></span>
+                        <span x-text="_formatBytes(a.tamanho_bytes)"></span>
+                        <span x-text="new Date(a.created_at).toLocaleDateString('pt-BR')"></span>
+                        <span x-show="a.descricao" x-text="a.descricao" style="font-style:italic"></span>
+                      </div>
+                    </div>
+                    <span style="font-size:14px" :class="{ 'arquivos-status-pulse': _isProcessing(a.status_processamento) }"
+                      x-text="_statusIcon(a.status_processamento)" :title="a.status_processamento"></span>
+                    <button x-show="a.status_processamento === 'erro'" class="op-btn op-btn--ghost op-btn--sm" @click="reprocessArquivo(a.id)"
+                      style="font-size:11px;color:var(--warning)">Reprocessar</button>
+                    <button class="op-btn op-btn--ghost op-btn--sm op-btn--danger" @click="deleteArquivo(a.id)">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                  </div>
+                </template>
+              </div>
             </div>
 
             <!-- ===== TAB: FINANCEIRO (CFO Detail) ===== -->
@@ -3479,6 +3556,830 @@
           </div>
         </div>
 
+        <!-- ===== PAGE: ARQUIVOS (Storage + Semantic Search) ===== -->
+        <div class="page-content" x-show="ui.page === 'arquivos'" x-transition>
+          <div class="page-header">
+            <div style="display:flex;align-items:center;gap:12px">
+              <button x-show="arquivos.viewMode === 'folder_detail'" class="op-btn op-btn--ghost op-btn--sm" @click="closeFolderView()" title="Voltar">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <div>
+                <h2 x-show="arquivos.viewMode === 'folders'">Arquivos &amp; Busca Semantica</h2>
+                <h2 x-show="arquivos.viewMode === 'folder_detail' && arquivos.currentFolder">
+                  <span style="color:var(--text-muted);cursor:pointer" @click="closeFolderView()">Arquivos</span>
+                  <span style="color:var(--text-muted);margin:0 6px">/</span>
+                  <span x-show="arquivos.currentFolder?.pasta_id" style="display:inline-flex;align-items:center;gap:6px">
+                    <span style="width:10px;height:10px;border-radius:50%;display:inline-block" :style="'background:' + (arquivos.currentFolder?.cor || '#6b7280')"></span>
+                    <span x-text="arquivos.currentFolder?.nome"></span>
+                  </span>
+                  <span x-show="!arquivos.currentFolder?.pasta_id" x-text="arquivos.currentFolder?.mentorado_nome || 'Geral'"></span>
+                </h2>
+                <h2 x-show="arquivos.viewMode === 'all'">Todos os Arquivos</h2>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button x-show="arquivos.viewMode === 'folders'" class="op-btn op-btn--ghost op-btn--sm"
+                :class="{ 'op-btn--active': arquivos.viewMode === 'all' }"
+                @click="arquivos.viewMode = 'all'">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                Lista
+              </button>
+              <button x-show="arquivos.viewMode === 'all'" class="op-btn op-btn--ghost op-btn--sm" @click="arquivos.viewMode = 'folders'">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                Pastas
+              </button>
+              <!-- Custom folder actions in detail view -->
+              <button x-show="arquivos.viewMode === 'folder_detail' && arquivos.currentFolder?.pasta_id" class="op-btn op-btn--ghost op-btn--sm"
+                @click="openEditFolderForm(arquivos.currentFolder)" title="Editar pasta" aria-label="Editar pasta">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <button x-show="arquivos.viewMode === 'folder_detail' && arquivos.currentFolder?.pasta_id" class="op-btn op-btn--ghost op-btn--sm op-btn--danger"
+                @click="deleteFolder(arquivos.currentFolder.pasta_id)" title="Excluir pasta" aria-label="Excluir pasta">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+              <button x-show="arquivos.viewMode === 'folders'" class="op-btn op-btn--outline op-btn--sm" @click="openNewFolderForm()" title="Nova Pasta">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+                Nova Pasta
+              </button>
+              <button class="op-btn op-btn--primary" @click="arquivos.viewMode === 'folder_detail' ? openUploadForFolder() : openUploadModal()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Upload
+              </button>
+            </div>
+          </div>
+
+          <!-- 5.4 — Processing Banner -->
+          <div x-show="arquivos.processingCount > 0" class="op-card arquivos-processing-banner" style="margin-bottom:12px;padding:12px 16px;display:flex;align-items:center;gap:10px;background:var(--warning-bg, rgba(234,179,8,0.08));border:1px solid var(--warning, #eab308)">
+            <span class="arquivos-spinner"></span>
+            <span style="font-size:13px;font-weight:500" x-text="arquivos.processingCount + ' arquivo(s) sendo processado(s)...'"></span>
+            <span style="font-size:11px;color:var(--text-muted)">(atualizacao em tempo real)</span>
+          </div>
+
+          <!-- Upload Modal -->
+          <div class="modal-overlay" x-show="arquivos.uploadForm.showModal" x-transition.opacity @click.self="closeUploadModal()" role="dialog" aria-modal="true" style="z-index:1000">
+            <div class="modal" style="max-width:560px;overflow:visible" @click.stop>
+              <div class="modal__header">
+                <h3>Upload de Arquivos</h3>
+                <button @click="closeUploadModal()" aria-label="Fechar">&times;</button>
+              </div>
+              <div class="modal__body" style="overflow:visible">
+
+                <!-- Mentorado Selector -->
+                <div style="margin-bottom:16px;position:relative;z-index:50">
+                  <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px">Mentorado (opcional)</label>
+                  <div style="position:relative">
+                    <input type="text" class="op-input" style="width:100%"
+                      placeholder="Buscar mentorado por nome..."
+                      x-model="arquivos.uploadForm.mentoradoSearch"
+                      @focus="arquivos.uploadForm.showMentoradoDropdown = true"
+                      @input="arquivos.uploadForm.showMentoradoDropdown = true; if(!$event.target.value) clearUploadMentorado()"
+                      @keydown.escape="arquivos.uploadForm.showMentoradoDropdown = false">
+                    <!-- Dropdown -->
+                    <div x-show="arquivos.uploadForm.showMentoradoDropdown && uploadFilteredMentees.length > 0"
+                      x-transition
+                      @click.outside="arquivos.uploadForm.showMentoradoDropdown = false"
+                      style="position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:100;background:white;border:1px solid var(--border);border-radius:8px;max-height:220px;overflow-y:auto;box-shadow:0 12px 32px rgba(0,0,0,.18)">
+                      <template x-for="m in uploadFilteredMentees" :key="m.id">
+                        <div style="padding:8px 12px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px"
+                          @click="selectUploadMentorado(m)"
+                          @mouseenter="$el.style.background='#f5f5f5'"
+                          @mouseleave="$el.style.background=''">
+                          <span style="font-weight:500" x-text="m.nome"></span>
+                          <span style="color:#999;font-size:11px" x-show="m.instagram" x-text="'@' + m.instagram"></span>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                  <div x-show="arquivos.uploadForm.mentoradoId" style="margin-top:6px">
+                    <span class="badge badge--sm badge--success" x-text="arquivos.uploadForm.mentoradoNome"></span>
+                    <button class="op-btn op-btn--ghost op-btn--sm" @click="clearUploadMentorado()" style="font-size:11px;margin-left:4px">limpar</button>
+                  </div>
+                </div>
+
+                <!-- Row: Tipo + Pasta -->
+                <div style="display:flex;gap:12px;margin-bottom:16px">
+                  <div style="flex:1" x-show="arquivos.uploadForm.mentoradoId" x-transition>
+                    <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px">Tipo</label>
+                    <select class="op-input op-select" style="width:100%" x-model="arquivos.uploadForm.entidadeTipo">
+                      <option value="mentorado">Geral do Mentorado</option>
+                      <option value="dossie_doc">Dossie</option>
+                      <option value="plano_acao">Plano de Acao</option>
+                      <option value="call">Call / Gravacao</option>
+                    </select>
+                  </div>
+                  <div style="flex:1">
+                    <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px">Pasta (opcional)</label>
+                    <select class="op-input op-select" style="width:100%" x-model="arquivos.uploadForm.pastaId">
+                      <option :value="null">Nenhuma pasta</option>
+                      <template x-for="p in arquivos.customFolders" :key="p.id">
+                        <option :value="p.id" x-text="p.nome"></option>
+                      </template>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Description -->
+                <div style="margin-bottom:16px">
+                  <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px">Descricao (opcional)</label>
+                  <input type="text" class="op-input" style="width:100%" x-model="arquivos.uploadForm.descricao"
+                    placeholder="Ex: Dossie completo, gravacao call 15/03...">
+                </div>
+
+                <!-- Drag and Drop Zone -->
+                <div style="border:2px dashed var(--border);border-radius:8px;padding:28px 16px;text-align:center;transition:all 0.2s;cursor:pointer"
+                  @dragover.prevent="$el.style.borderColor='var(--primary)';$el.style.background='rgba(0,0,0,0.02)'"
+                  @dragleave.prevent="$el.style.borderColor='var(--border)';$el.style.background=''"
+                  @drop.prevent="handleUploadDrop($event);$el.style.borderColor='var(--border)';$el.style.background=''"
+                  @click="$refs.uploadFileInput.click()">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="1.5" style="margin-bottom:6px">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                  <div style="font-size:13px;color:#666">Arraste arquivos aqui ou <strong style="color:var(--primary)">clique para selecionar</strong></div>
+                  <div style="font-size:11px;color:#999;margin-top:2px">PDF, DOCX, XLSX, CSV, MD, TXT, MP3, WAV, MP4, MOV, imagens</div>
+                  <input type="file" multiple hidden x-ref="uploadFileInput" @change="handleUploadFileInput($event)"
+                    accept=".pdf,.docx,.xlsx,.csv,.md,.txt,.mp3,.wav,.ogg,.mp4,.mov,.webm,.png,.jpg,.jpeg,.webp">
+                </div>
+
+                <!-- File list -->
+                <div x-show="arquivos.uploadForm.files.length > 0" style="margin-top:12px">
+                  <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:6px" x-text="arquivos.uploadForm.files.length + ' arquivo(s)'"></div>
+                  <template x-for="(entry, idx) in arquivos.uploadForm.files" :key="entry.name + entry.size">
+                    <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;font-size:12px">
+                      <span x-text="_uploadFileIcon(entry.type)" style="font-size:15px;flex-shrink:0"></span>
+                      <div style="flex:1;min-width:0">
+                        <div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="entry.name"></div>
+                        <div style="color:#999;font-size:11px" x-text="_formatBytes(entry.size)"></div>
+                      </div>
+                      <span x-show="entry.status === 'waiting'" class="badge badge--sm badge--neutral">Aguardando</span>
+                      <span x-show="entry.status === 'uploading'" class="badge badge--sm badge--info">Enviando</span>
+                      <span x-show="entry.status === 'processing'" class="badge badge--sm badge--warning">Processando</span>
+                      <span x-show="entry.status === 'done'" class="badge badge--sm badge--success">OK</span>
+                      <span x-show="entry.status === 'error'" class="badge badge--sm badge--danger">Erro</span>
+                      <button x-show="entry.status === 'waiting'" class="op-btn op-btn--ghost op-btn--sm"
+                        @click="removeUploadFile(idx)" style="color:var(--danger);flex-shrink:0">&times;</button>
+                    </div>
+                  </template>
+                </div>
+
+              </div>
+              <div class="modal__footer">
+                <button class="btn" @click="closeUploadModal()">Cancelar</button>
+                <button class="btn btn--brand" @click="uploadArquivos()"
+                  :disabled="arquivos.uploadLoading || arquivos.uploadForm.files.length === 0">
+                  <span x-show="!arquivos.uploadLoading" x-text="'Enviar ' + arquivos.uploadForm.files.filter(f => f.status === 'waiting').length + ' arquivo(s)'"></span>
+                  <span x-show="arquivos.uploadLoading">Enviando...</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5.6 — New Folder Modal -->
+          <div class="modal-overlay" x-show="arquivos.showNewFolderForm" x-transition.opacity @click.self="closeNewFolderForm()" style="z-index:1001">
+            <div class="modal" style="max-width:480px" @click.stop>
+              <div class="modal__header">
+                <h3>Nova Pasta</h3>
+                <button @click="closeNewFolderForm()" aria-label="Fechar">&times;</button>
+              </div>
+              <div class="modal__body">
+                <label>Nome *</label>
+                <input type="text" class="modal__input" x-model="arquivos.newFolderForm.nome" placeholder="Ex: Depoimentos, Contratos..." @keydown.enter="createFolder()">
+
+                <label style="margin-top:12px">Descricao (opcional)</label>
+                <input type="text" class="modal__input" x-model="arquivos.newFolderForm.descricao" placeholder="Breve descricao da pasta...">
+
+                <label style="margin-top:12px">Cor</label>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+                  <template x-for="c in arquivos.folderColors" :key="c.hex">
+                    <button type="button" style="width:28px;height:28px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:all 0.15s;padding:0"
+                      :style="'background:' + c.hex + ';' + (arquivos.newFolderForm.cor === c.hex ? 'border-color:var(--text);transform:scale(1.2)' : 'border-color:transparent')"
+                      @click="arquivos.newFolderForm.cor = c.hex"
+                      :title="c.name"></button>
+                  </template>
+                </div>
+
+                <label style="margin-top:12px">Mentorado (opcional - vincular pasta)</label>
+                <div style="position:relative">
+                  <div style="display:flex;gap:6px;align-items:center">
+                    <input type="text" class="modal__input" style="flex:1"
+                      placeholder="Buscar mentorado..."
+                      x-model="arquivos.newFolderForm.mentoradoSearch"
+                      @focus="arquivos.newFolderForm.showMentoradoDropdown = true"
+                      @input="arquivos.newFolderForm.showMentoradoDropdown = true"
+                      @keydown.escape="arquivos.newFolderForm.showMentoradoDropdown = false">
+                    <button class="op-btn op-btn--ghost op-btn--sm" x-show="arquivos.newFolderForm.mentoradoId"
+                      @click="clearNewFolderMentorado()" style="flex-shrink:0">&times;</button>
+                  </div>
+                  <div x-show="arquivos.newFolderForm.showMentoradoDropdown && newFolderFilteredMentees.length > 0"
+                    @click.outside="arquivos.newFolderForm.showMentoradoDropdown = false"
+                    style="position:absolute;top:100%;left:0;right:0;z-index:10;background:var(--bg-card, #fff);border:1px solid var(--border);border-radius:6px;max-height:160px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.15);margin-top:4px">
+                    <template x-for="m in newFolderFilteredMentees" :key="m.id">
+                      <div style="padding:6px 12px;cursor:pointer;font-size:13px" @click="selectNewFolderMentorado(m)"
+                        @mouseenter="$el.style.background='var(--hover-bg, #f3f4f6)'" @mouseleave="$el.style.background=''">
+                        <span style="font-weight:500" x-text="m.nome"></span>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+              <div class="modal__footer">
+                <button class="btn" @click="closeNewFolderForm()">Cancelar</button>
+                <button class="btn btn--brand" @click="createFolder()" :disabled="!arquivos.newFolderForm.nome.trim() || arquivos.creatingFolder">
+                  <span x-show="!arquivos.creatingFolder">Criar Pasta</span>
+                  <span x-show="arquivos.creatingFolder">Criando...</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5.6 — Edit Folder Modal -->
+          <div class="modal-overlay" x-show="arquivos.showEditFolderForm" x-transition.opacity @click.self="closeEditFolderForm()" style="z-index:1001">
+            <div class="modal" style="max-width:480px" @click.stop>
+              <div class="modal__header">
+                <h3>Editar Pasta</h3>
+                <button @click="closeEditFolderForm()" aria-label="Fechar">&times;</button>
+              </div>
+              <div class="modal__body">
+                <label>Nome</label>
+                <input type="text" class="modal__input" x-model="arquivos.editingFolder.nome" @keydown.enter="editFolder()">
+
+                <label style="margin-top:12px">Descricao</label>
+                <input type="text" class="modal__input" x-model="arquivos.editingFolder.descricao">
+
+                <label style="margin-top:12px">Cor</label>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+                  <template x-for="c in arquivos.folderColors" :key="c.hex">
+                    <button type="button" style="width:28px;height:28px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:all 0.15s;padding:0"
+                      :style="'background:' + c.hex + ';' + (arquivos.editingFolder?.cor === c.hex ? 'border-color:var(--text);transform:scale(1.2)' : 'border-color:transparent')"
+                      @click="arquivos.editingFolder.cor = c.hex"
+                      :title="c.name"></button>
+                  </template>
+                </div>
+              </div>
+              <div class="modal__footer">
+                <button class="btn" @click="closeEditFolderForm()">Cancelar</button>
+                <button class="btn btn--brand" @click="editFolder()">Salvar</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5.6 — Move File to Folder Modal -->
+          <div class="modal-overlay" x-show="arquivos.showMoveModal" x-transition.opacity @click.self="closeMoveModal()" style="z-index:1001">
+            <div class="modal" style="max-width:420px" @click.stop>
+              <div class="modal__header">
+                <h3>Mover para Pasta</h3>
+                <button @click="closeMoveModal()" aria-label="Fechar">&times;</button>
+              </div>
+              <div class="modal__body">
+                <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
+                  Arquivo: <strong x-text="arquivos.moveFileTarget?.nome_original"></strong>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px">
+                  <div style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px"
+                    @click="moveFileToFolder(null)"
+                    @mouseenter="$el.style.background='var(--hover-bg, #f3f4f6)'" @mouseleave="$el.style.background=''">
+                    <span style="color:var(--text-muted)">&#10060;</span>
+                    <span>Sem pasta</span>
+                  </div>
+                  <template x-for="p in arquivos.customFolders" :key="p.id">
+                    <div style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px"
+                      :style="arquivos.moveFileTarget?.pasta_id === p.id ? 'background:var(--primary-bg, rgba(16,185,129,0.08));border-color:var(--primary)' : ''"
+                      @click="moveFileToFolder(p.id)"
+                      @mouseenter="$el.style.background='var(--hover-bg, #f3f4f6)'" @mouseleave="$el.style.background = arquivos.moveFileTarget?.pasta_id === p.id ? 'var(--primary-bg)' : ''">
+                      <span style="width:12px;height:12px;border-radius:50%;flex-shrink:0" :style="'background:' + p.cor"></span>
+                      <span style="font-weight:500" x-text="p.nome"></span>
+                      <span style="color:var(--text-muted);font-size:11px;margin-left:auto" x-text="(p.total_arquivos || 0) + ' arq.'"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5.3 — Enhanced Search Bar -->
+          <div class="op-card" style="margin-bottom:16px;padding:12px 16px">
+            <div class="arquivos-search-bar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <div style="flex:1;min-width:200px;position:relative">
+                <input type="text" class="op-input" style="width:100%"
+                  :placeholder="arquivos.viewMode === 'folder_detail' && arquivos.currentFolder ? 'Buscar nos arquivos de ' + (arquivos.currentFolder.mentorado_nome || 'Geral') + '...' : 'Buscar: depoimento da Rosalie sobre vendas, plano de acao do Joao...'"
+                  x-model="arquivos.searchQuery"
+                  @keydown.enter="searchArquivos()"
+                  @focus="$refs.searchHistoryDropdown && ($refs.searchHistoryDropdown.style.display = searchHistory.length ? 'block' : 'none')"
+                  @blur="setTimeout(() => { if($refs.searchHistoryDropdown) $refs.searchHistoryDropdown.style.display = 'none' }, 200)">
+                <!-- Fix 17 — Search history dropdown -->
+                <div x-ref="searchHistoryDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:50;background:var(--surface, #fff);border:1px solid var(--border);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.12);margin-top:4px">
+                  <template x-for="h in searchHistory" :key="h">
+                    <div style="padding:6px 12px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:6px"
+                      @mousedown.prevent="arquivos.searchQuery = h; searchArquivos()"
+                      @mouseenter="$el.style.background='var(--hover-bg, #f3f4f6)'" @mouseleave="$el.style.background=''">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                      <span x-text="h"></span>
+                    </div>
+                  </template>
+                  <div style="padding:4px 12px;border-top:1px solid var(--border);text-align:right">
+                    <button class="op-btn op-btn--ghost op-btn--sm" style="font-size:10px" @mousedown.prevent="clearSearchHistory()">Limpar historico</button>
+                  </div>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:4px;flex:none">
+                <select class="op-input op-select" style="width:120px;flex:none" x-model="arquivos.searchMode">
+                  <option value="hybrid" title="Combina significado + palavras-chave (recomendado)">Hibrida</option>
+                  <option value="semantic" title="Busca por significado e contexto (mais inteligente, mais lento)">Semantica</option>
+                  <option value="keyword" title="Busca exata por palavras (mais rapido)">Keyword</option>
+                </select>
+                <!-- Fix 10 — Help icon with tooltip -->
+                <span style="cursor:help;font-size:14px;color:var(--text-muted)" title="Hibrida: combina significado + palavras-chave. Semantica: busca por contexto. Keyword: busca exata por palavras.">?</span>
+              </div>
+              <select class="op-input op-select" style="width:150px;flex:none" x-model="arquivos.filterCategoria">
+                <option value="">Todas categorias</option>
+                <option value="documento">Documentos</option>
+                <option value="audio">Audio</option>
+                <option value="video">Video</option>
+                <option value="imagem">Imagens</option>
+                <option value="planilha">Planilhas</option>
+              </select>
+              <button class="op-btn op-btn--primary" @click="searchArquivos()" :disabled="arquivos.searchLoading">
+                <template x-if="!arquivos.searchLoading">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </template>
+                <template x-if="arquivos.searchLoading"><span>...</span></template>
+                Buscar
+              </button>
+            </div>
+          </div>
+
+          <!-- Fix 3 — Search loading skeleton -->
+          <div x-show="arquivos.searchLoading" class="op-card" style="margin-bottom:16px;padding:16px">
+            <div style="display:flex;align-items:center;gap:10px;color:var(--text-muted)">
+              <span class="arquivos-spinner"></span>
+              <span style="font-size:13px">Buscando...</span>
+            </div>
+            <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
+              <div class="arquivos-skeleton" style="height:14px;width:70%;border-radius:4px"></div>
+              <div class="arquivos-skeleton" style="height:12px;width:90%;border-radius:4px"></div>
+              <div class="arquivos-skeleton" style="height:12px;width:50%;border-radius:4px"></div>
+            </div>
+          </div>
+
+          <!-- Fix 1 — Zero results state -->
+          <div x-show="!arquivos.searchLoading && arquivos.searchResults.length === 0 && arquivos.searchQuery.trim().length > 0" class="arquivos-empty-state op-card" style="margin-bottom:16px;padding:40px;text-align:center">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5" style="margin:0 auto 12px;display:block"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <h4 style="margin:0 0 6px;font-size:15px;font-weight:600">Nenhum resultado para "<span x-text="arquivos.searchQuery"></span>"</h4>
+            <p style="margin:0;font-size:13px;color:var(--text-muted)">Tente termos mais gerais ou outro modo de busca</p>
+          </div>
+
+          <!-- 5.3 — Search Results (enhanced) -->
+          <template x-if="arquivos.searchResults.length > 0">
+            <div class="op-card" style="margin-bottom:16px">
+              <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-weight:600;display:flex;justify-content:space-between;align-items:center">
+                <span>Resultados da Busca</span>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <span class="badge badge--sm badge--info" x-text="arquivos.searchResults.length + ' encontrados'"></span>
+                  <button class="op-btn op-btn--ghost op-btn--sm" @click="arquivos.searchResults = []; arquivos.searchQuery = ''">Limpar</button>
+                </div>
+              </div>
+              <template x-for="r in arquivos.searchResults" :key="r.chunk_id || r.arquivo_id">
+                <div style="padding:12px 16px;border-bottom:1px solid var(--border)">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <span x-text="_categoriaIcon(r.categoria)"></span>
+                      <strong style="font-size:13px;cursor:pointer;text-decoration:underline" x-text="r.arquivo_nome"
+                        @click="openViewer({id: r.arquivo_id, nome_original: r.arquivo_nome, storage_path: r.storage_path, mime_type: r.mime_type, categoria: r.categoria, extensao: (r.arquivo_nome||'').split('.').pop()})"></strong>
+                    </div>
+                    <div style="display:flex;gap:6px;align-items:center">
+                      <span class="badge badge--sm badge--success" x-show="r.rerank_score || r.score_final || r.similaridade"
+                        x-text="Math.round((r.rerank_score || r.score_final || r.similaridade) * 100) + '%'"
+                        :title="'Relevancia: ' + Math.round((r.rerank_score || r.score_final || r.similaridade) * 100) + '% — quanto mais alto, mais relevante para sua busca'"></span>
+                      <span class="badge badge--sm" x-text="r.categoria"></span>
+                    </div>
+                  </div>
+                  <div style="font-size:12px;color:var(--text-muted);line-height:1.5;max-height:80px;overflow:hidden;margin-bottom:6px"
+                    x-text="r.chunk_texto?.substring(0, 300) + (r.chunk_texto?.length > 300 ? '...' : '')"></div>
+                  <div style="display:flex;gap:8px;align-items:center;font-size:11px">
+                    <span x-show="r.mentorado_nome" class="badge badge--sm badge--neutral" x-text="r.mentorado_nome"
+                      style="cursor:pointer" @click="goToMentoradoFolder(r.mentorado_id, r.mentorado_nome)"></span>
+                    <span style="color:var(--text-muted)" x-show="r.created_at" x-text="new Date(r.created_at).toLocaleDateString('pt-BR')"></span>
+                    <button class="op-btn op-btn--ghost op-btn--sm" style="font-size:11px"
+                      @click="openViewer({id: r.arquivo_id, nome_original: r.arquivo_nome, storage_path: r.storage_path, mime_type: r.mime_type, categoria: r.categoria, extensao: (r.arquivo_nome||'').split('.').pop()})">
+                      Ver no contexto
+                    </button>
+                    <button x-show="r.mentorado_id" class="op-btn op-btn--ghost op-btn--sm" style="font-size:11px"
+                      @click="goToMentoradoFolder(r.mentorado_id, r.mentorado_nome)">
+                      Ver mentorado
+                    </button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <!-- ===== 5.2 — FOLDER GRID VIEW ===== -->
+          <div x-show="arquivos.viewMode === 'folders' && arquivos.searchResults.length === 0">
+            <!-- Storage Overview -->
+            <template x-if="arquivos.storageOverview.length > 0">
+              <div style="margin-bottom:16px">
+                <!-- Fix 19 — Storage quota bar -->
+                <div class="op-card" style="padding:10px 16px;margin-bottom:12px">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                    <span style="font-size:12px;font-weight:500">Armazenamento</span>
+                    <span style="font-size:11px;color:var(--text-muted)" x-text="storageUsedMb.toFixed(1) + ' MB / ' + storageQuotaMb + ' MB (' + storagePercent + '%)'"></span>
+                  </div>
+                  <div style="height:6px;background:var(--border, #e5e7eb);border-radius:3px;overflow:hidden">
+                    <div style="height:100%;border-radius:3px;transition:width 0.3s"
+                      :style="'width:' + storagePercent + '%;background:' + (storagePercent > 80 ? 'var(--danger, #ef4444)' : storagePercent > 60 ? 'var(--warning, #eab308)' : 'var(--success, #22c55e)')"></div>
+                  </div>
+                </div>
+                <div class="op-grid op-grid-cols-4" style="gap:12px">
+                  <template x-for="o in arquivos.storageOverview" :key="o.entidade_tipo">
+                    <div class="op-card" style="padding:12px;text-align:center">
+                      <div style="font-size:20px;font-weight:700" x-text="o.total_arquivos"></div>
+                      <div style="font-size:11px;color:var(--text-muted)" x-text="o.entidade_tipo"></div>
+                      <div style="font-size:11px" x-text="o.total_mb + ' MB'"></div>
+                      <div style="font-size:11px">
+                        <span style="color:var(--success)" x-text="o.indexados + ' indexados'"></span>
+                        <span style="color:var(--warning)" x-show="o.pendentes > 0" x-text="' / ' + o.pendentes + ' pendentes'"></span>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+            <!-- Custom Folders + Geral + Mentorado folders -->
+            <div class="op-grid op-grid-cols-3" style="gap:12px">
+              <!-- Custom folders -->
+              <template x-for="cf in arquivos.customFolders" :key="cf.id">
+                <div class="op-card arquivos-folder-card arquivos-custom-folder-card" style="cursor:pointer;padding:16px;transition:all 0.15s;position:relative"
+                  @click="openCustomFolder(cf)" tabindex="0" role="button" @keydown.enter="openCustomFolder(cf)"
+                  @mouseenter="$el.style.borderColor='var(--primary)'"
+                  @mouseleave="$el.style.borderColor='var(--border)'">
+                  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+                    <div class="avatar avatar--md" style="color:white;display:flex;align-items:center;justify-content:center;font-size:16px;border-radius:10px;width:44px;height:44px"
+                      :style="'background:linear-gradient(135deg,' + (cf.cor || '#6b7280') + ',' + (cf.cor || '#6b7280') + 'aa)'">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    </div>
+                    <div>
+                      <div style="font-weight:600;font-size:14px" x-text="cf.nome"></div>
+                      <div style="font-size:11px;color:var(--text-muted)" x-text="cf.descricao || 'Pasta personalizada'"></div>
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <span class="badge badge--sm badge--neutral" x-text="(cf.total_arquivos || 0) + ' arquivos'"></span>
+                    <span class="badge badge--sm" x-text="_formatBytes((cf.total_mb || 0) * 1048576)"></span>
+                  </div>
+                  <div class="arquivos-custom-folder-actions" style="position:absolute;top:8px;right:8px;display:none;gap:2px">
+                    <button class="op-btn op-btn--ghost op-btn--sm" @click.stop="openEditFolderForm(cf)" title="Editar pasta" aria-label="Editar pasta" style="padding:2px 6px">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                    <button class="op-btn op-btn--ghost op-btn--sm op-btn--danger" @click.stop="deleteFolder(cf.id)" title="Excluir pasta" aria-label="Excluir pasta" style="padding:2px 6px">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Geral folder -->
+              <div class="op-card arquivos-folder-card" style="cursor:pointer;padding:16px;transition:all 0.15s"
+                @click="openFolder(null)" tabindex="0" role="button" @keydown.enter="openFolder(null)"
+                @mouseenter="$el.style.borderColor='var(--primary)'"
+                @mouseleave="$el.style.borderColor='var(--border)'">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+                  <div class="avatar avatar--md" style="background:linear-gradient(135deg,#94a3b8,#64748b);color:white;display:flex;align-items:center;justify-content:center;font-size:16px;border-radius:10px;width:44px;height:44px">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                  </div>
+                  <div>
+                    <div style="font-weight:600;font-size:14px">Geral</div>
+                    <div style="font-size:11px;color:var(--text-muted)">Arquivos sem mentorado</div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <span class="badge badge--sm badge--neutral" x-text="arquivosGeralCount + ' arquivos'"></span>
+                  <span class="badge badge--sm" x-text="_formatBytes(arquivosGeralSize)"></span>
+                </div>
+              </div>
+
+              <!-- Mentorado folders -->
+              <template x-for="f in arquivos.folders" :key="f.mentorado_id">
+                <div class="op-card arquivos-folder-card" style="cursor:pointer;padding:16px;transition:all 0.15s"
+                  @click="openFolder({ mentorado_id: f.mentorado_id, mentorado_nome: f.mentorado_nome })" tabindex="0" role="button" @keydown.enter="openFolder({ mentorado_id: f.mentorado_id, mentorado_nome: f.mentorado_nome })"
+                  @mouseenter="$el.style.borderColor='var(--primary)'"
+                  @mouseleave="$el.style.borderColor='var(--border)'">
+                  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+                    <div class="avatar avatar--md" :style="'background:' + avatarGradient(f.mentorado_nome) + ';color:white;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;border-radius:10px;width:44px;height:44px'"
+                      x-text="avatarInitials(f.mentorado_nome)"></div>
+                    <div style="flex:1;min-width:0">
+                      <div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="f.mentorado_nome"></div>
+                      <div style="font-size:11px;color:var(--text-muted)" x-text="f.total_arquivos + ' arquivos - ' + (f.total_mb || 0).toFixed(1) + ' MB'"></div>
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap">
+                    <span x-show="f.documentos > 0" class="badge badge--sm" x-text="f.documentos + ' docs'"></span>
+                    <span x-show="f.audios > 0" class="badge badge--sm" x-text="f.audios + ' audios'"></span>
+                    <span x-show="f.videos > 0" class="badge badge--sm" x-text="f.videos + ' videos'"></span>
+                    <span x-show="f.imagens > 0" class="badge badge--sm" x-text="f.imagens + ' imgs'"></span>
+                    <span x-show="f.indexados > 0" class="badge badge--sm badge--success" x-text="f.indexados + ' indexados'"></span>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- ===== 5.2 — FOLDER DETAIL VIEW ===== -->
+          <div x-show="arquivos.viewMode === 'folder_detail' && arquivos.searchResults.length === 0">
+            <!-- Loading (Fix 3) -->
+            <div x-show="arquivos.folderFilesLoading" style="padding:40px;text-align:center;color:var(--text-muted)">
+              <span class="arquivos-spinner" style="margin:0 auto 8px;display:block;width:24px;height:24px"></span>
+              Carregando arquivos...
+            </div>
+
+            <!-- Empty -->
+            <div x-show="!arquivos.folderFilesLoading && arquivos.folderFiles.length === 0" style="padding:40px;text-align:center;color:var(--text-muted)">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 12px;display:block"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              Nenhum arquivo nesta pasta.
+              <div style="margin-top:12px">
+                <button class="op-btn op-btn--primary op-btn--sm" @click="openUploadForFolder()">Upload</button>
+              </div>
+            </div>
+
+            <!-- Files grouped by categoria -->
+            <template x-for="group in folderFilesByCategoria" :key="group.categoria">
+              <div class="op-card" style="margin-bottom:12px">
+                <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
+                  <span x-text="_categoriaIcon(group.categoria)" style="font-size:16px"></span>
+                  <span style="font-weight:600;font-size:13px" x-text="_categoriaLabel(group.categoria)"></span>
+                  <span class="badge badge--sm badge--neutral" x-text="group.files.length"></span>
+                </div>
+                <template x-for="a in group.files" :key="a.id">
+                  <div style="padding:8px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+                    <span style="font-size:18px" x-text="_categoriaIcon(a.categoria)"></span>
+                    <div style="flex:1;min-width:0">
+                      <div style="display:flex;align-items:center;gap:6px">
+                        <a href="#" @click.prevent="openViewer(a)" style="font-weight:500;font-size:13px;text-decoration:none;color:var(--text)" x-text="a.nome_original"></a>
+                        <span x-show="a.pinned" style="font-size:12px" title="Fixado">&#128204;</span>
+                      </div>
+                      <div style="font-size:11px;color:var(--text-muted);display:flex;gap:8px">
+                        <span x-text="_formatBytes(a.tamanho_bytes)"></span>
+                        <span x-text="new Date(a.created_at).toLocaleDateString('pt-BR')"></span>
+                        <span x-show="a.descricao" x-text="a.descricao" style="font-style:italic"></span>
+                        <span x-show="a.pasta_id && _folderNameById(a.pasta_id)" class="badge badge--sm" style="font-size:10px;display:inline-flex;align-items:center;gap:3px">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                          <span x-text="_folderNameById(a.pasta_id)"></span>
+                        </span>
+                      </div>
+                    </div>
+                    <!-- 5.4 — Animated status icon + label for processing (Fix 14/15) -->
+                    <span class="arquivos-file-status" :class="{ 'arquivos-status-pulse': _isProcessing(a.status_processamento) }"
+                      :title="a.status_processamento" style="display:inline-flex;align-items:center;gap:3px;font-size:12px;white-space:nowrap">
+                      <span x-text="_statusIcon(a.status_processamento)"></span>
+                      <span x-text="_statusLabel(a.status_processamento)" style="font-size:11px;color:var(--text-muted)"></span>
+                    </span>
+                    <!-- Reprocess button for errors -->
+                    <button x-show="a.status_processamento === 'erro'" class="op-btn op-btn--ghost op-btn--sm" @click="reprocessArquivo(a.id)" title="Reprocessar" aria-label="Reprocessar arquivo"
+                      style="font-size:11px;color:var(--warning)">Reprocessar</button>
+                    <!-- File actions -->
+                    <div class="arquivos-file-actions" style="display:flex;gap:4px;align-items:center">
+                      <button class="op-btn op-btn--ghost op-btn--sm" @click.stop="openMoveModal(a)" title="Mover para pasta" aria-label="Mover para pasta">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><polyline points="12 11 12 17"/><polyline points="9 14 12 17 15 14"/></svg>
+                      </button>
+                      <button class="op-btn op-btn--ghost op-btn--sm" @click="togglePinArquivo(a.id, a.pinned)" :title="a.pinned ? 'Desafixar' : 'Fixar'" :aria-label="a.pinned ? 'Desafixar arquivo' : 'Fixar arquivo'">
+                        <span x-text="a.pinned ? '&#128204;' : '&#128392;'"></span>
+                      </button>
+                      <button class="op-btn op-btn--ghost op-btn--sm op-btn--danger" @click="deleteArquivo(a.id)" title="Excluir" aria-label="Excluir arquivo">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </template>
+          </div>
+
+          <!-- ===== ALL FILES VIEW (flat list) ===== -->
+          <div x-show="arquivos.viewMode === 'all' && arquivos.searchResults.length === 0">
+            <!-- Fix 3 — Loading skeleton -->
+            <div x-show="arquivos.loading" class="op-card" style="padding:16px">
+              <div style="display:flex;flex-direction:column;gap:12px">
+                <template x-for="i in 5" :key="i">
+                  <div style="display:flex;align-items:center;gap:12px">
+                    <div class="arquivos-skeleton" style="width:24px;height:24px;border-radius:4px"></div>
+                    <div style="flex:1">
+                      <div class="arquivos-skeleton" style="height:14px;width:60%;border-radius:4px;margin-bottom:6px"></div>
+                      <div class="arquivos-skeleton" style="height:10px;width:40%;border-radius:4px"></div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <div class="op-card" x-show="!arquivos.loading">
+              <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <!-- Fix 16 — Select all checkbox -->
+                  <input type="checkbox" @change="selectAllFiles()"
+                    :checked="paginatedFiles.length > 0 && paginatedFiles.every(f => arquivos.selectedIds.includes(f.id))"
+                    title="Selecionar todos" aria-label="Selecionar todos">
+                  <span style="font-weight:600">Todos os Arquivos</span>
+                  <span class="badge badge--sm" x-text="arquivos.list.length + ' arquivos'"></span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <!-- Fix 16 — Bulk actions -->
+                  <template x-if="arquivos.selectedIds.length > 0">
+                    <div style="display:flex;align-items:center;gap:6px">
+                      <span style="font-size:12px;font-weight:500" x-text="arquivos.selectedIds.length + ' selecionado(s)'"></span>
+                      <button class="op-btn op-btn--ghost op-btn--sm op-btn--danger" @click="bulkDeleteFiles()" aria-label="Excluir selecionados">Excluir</button>
+                      <button class="op-btn op-btn--ghost op-btn--sm" @click="clearSelection()">Limpar</button>
+                    </div>
+                  </template>
+                  <!-- Fix 9 — Pagination info -->
+                  <span style="font-size:11px;color:var(--text-muted)" x-text="'Mostrando ' + ((arquivos.page - 1) * arquivos.pageSize + 1) + '-' + Math.min(arquivos.page * arquivos.pageSize, arquivos.list.length) + ' de ' + arquivos.list.length"></span>
+                </div>
+              </div>
+
+              <!-- Fix 13 — First-time empty state -->
+              <template x-if="arquivos.list.length === 0">
+                <div class="arquivos-empty-state" style="padding:48px 24px;text-align:center">
+                  <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.2" style="margin:0 auto 16px;display:block"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <h3 style="margin:0 0 8px;font-size:17px;font-weight:600">Organize seus arquivos com busca inteligente</h3>
+                  <p style="margin:0 0 20px;font-size:13px;color:var(--text-muted);max-width:440px;margin-left:auto;margin-right:auto">Faca upload de dossies, transcricoes, planos de acao e mais. A busca semantica encontra o que voce precisa por significado, nao so por palavras.</p>
+                  <div style="display:flex;gap:8px;justify-content:center">
+                    <button class="op-btn op-btn--primary" @click="openUploadModal()">Upload primeiro arquivo</button>
+                    <button class="op-btn op-btn--outline" @click="openNewFolderForm()">Criar primeira pasta</button>
+                  </div>
+                </div>
+              </template>
+
+              <!-- File rows (Fix 9 — paginated) -->
+              <template x-for="a in paginatedFiles" :key="a.id">
+                <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px">
+                  <!-- Fix 16 — Checkbox -->
+                  <input type="checkbox" :checked="arquivos.selectedIds.includes(a.id)" @change="toggleSelectFile(a.id)" aria-label="Selecionar arquivo">
+                  <span style="font-size:20px" x-text="_categoriaIcon(a.categoria)"></span>
+                  <div style="flex:1;min-width:0">
+                    <div style="display:flex;align-items:center;gap:6px">
+                      <a href="#" @click.prevent="openViewer(a)" style="font-weight:500;font-size:13px;text-decoration:none;color:var(--text)" x-text="a.nome_original"></a>
+                      <span x-show="a.pinned" style="font-size:12px" title="Pinned">&#128204;</span>
+                    </div>
+                    <div style="font-size:11px;color:var(--text-muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                      <span x-text="a.entidade_tipo"></span>
+                      <span x-text="_formatBytes(a.tamanho_bytes)"></span>
+                      <span x-text="new Date(a.created_at).toLocaleDateString('pt-BR')"></span>
+                      <span x-show="a.pasta_id && _folderNameById(a.pasta_id)" class="badge badge--sm" style="font-size:10px;display:inline-flex;align-items:center;gap:3px">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        <span x-text="_folderNameById(a.pasta_id)"></span>
+                      </span>
+                    </div>
+                  </div>
+                  <!-- Fix 14/15 — Status with icon + label -->
+                  <span class="arquivos-file-status" :class="{ 'arquivos-status-pulse': _isProcessing(a.status_processamento) }"
+                    :title="a.status_processamento" style="display:inline-flex;align-items:center;gap:3px;font-size:12px;white-space:nowrap">
+                    <span x-text="_statusIcon(a.status_processamento)"></span>
+                    <span x-text="_statusLabel(a.status_processamento)" style="font-size:11px;color:var(--text-muted)"></span>
+                  </span>
+                  <button x-show="a.status_processamento === 'erro'" class="op-btn op-btn--ghost op-btn--sm" @click="reprocessArquivo(a.id)" title="Reprocessar" aria-label="Reprocessar arquivo"
+                    style="font-size:11px;color:var(--warning)">Reprocessar</button>
+                  <!-- File actions (Fix 6, 8) -->
+                  <div class="arquivos-file-actions" style="display:flex;gap:4px;align-items:center">
+                    <button class="op-btn op-btn--ghost op-btn--sm" @click.stop="openMoveModal(a)" title="Mover para pasta" aria-label="Mover para pasta">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><polyline points="12 11 12 17"/><polyline points="9 14 12 17 15 14"/></svg>
+                    </button>
+                    <button class="op-btn op-btn--ghost op-btn--sm" @click="togglePinArquivo(a.id, a.pinned)" :title="a.pinned ? 'Desafixar' : 'Fixar'" :aria-label="a.pinned ? 'Desafixar arquivo' : 'Fixar arquivo'">
+                      <span x-text="a.pinned ? '&#128204;' : '&#128392;'"></span>
+                    </button>
+                    <button class="op-btn op-btn--ghost op-btn--sm op-btn--danger" @click="deleteArquivo(a.id)" title="Excluir" aria-label="Excluir arquivo">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Fix 9 — Pagination controls -->
+              <div x-show="totalPages > 1" style="padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border)">
+                <button class="op-btn op-btn--ghost op-btn--sm" @click="prevPage()" :disabled="arquivos.page <= 1">Anterior</button>
+                <span style="font-size:12px;color:var(--text-muted)" x-text="'Pagina ' + arquivos.page + ' de ' + totalPages"></span>
+                <button class="op-btn op-btn--ghost op-btn--sm" @click="nextPage()" :disabled="arquivos.page >= totalPages">Proximo</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Processing Queue -->
+          <template x-if="arquivos.queue.length > 0">
+            <div class="op-card" style="margin-top:16px">
+              <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-weight:600">
+                Fila de Processamento
+              </div>
+              <template x-for="q in arquivos.queue" :key="q.id">
+                <div style="padding:8px 16px;border-bottom:1px solid var(--border);font-size:12px;display:flex;justify-content:space-between">
+                  <span x-text="q.nome_original"></span>
+                  <span>
+                    <span class="arquivos-status-pulse" x-text="_statusIcon(q.status_processamento)"></span>
+                    <span x-text="q.status_processamento"></span>
+                    <span style="color:var(--text-muted)" x-text="Math.round(q.minutos_na_fila) + ' min na fila'"></span>
+                  </span>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <!-- ===== DOCUMENT VIEWER MODAL ===== -->
+          <template x-if="viewer.open">
+            <div class="modal-overlay" @click.self="closeViewer()" style="z-index:1000">
+              <div class="arquivos-viewer" style="background:var(--surface);border-radius:12px;width:90vw;max-width:960px;height:85vh;display:flex;flex-direction:column;box-shadow:0 25px 50px -12px rgba(0,0,0,.25);overflow:hidden">
+                <!-- Header -->
+                <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-shrink:0">
+                  <span style="font-size:24px" x-text="_categoriaIcon(viewer.arquivo?.categoria)"></span>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="viewer.arquivo?.nome_original"></div>
+                    <div style="font-size:11px;color:var(--text-muted);display:flex;gap:8px">
+                      <span x-text="viewer.arquivo?.entidade_tipo"></span>
+                      <span x-text="_formatBytes(viewer.arquivo?.tamanho_bytes)"></span>
+                      <span x-text="viewer.arquivo?.extensao?.toUpperCase()"></span>
+                    </div>
+                  </div>
+                  <a :href="viewer.signedUrl" target="_blank" class="op-btn op-btn--ghost op-btn--sm" x-show="viewer.signedUrl" title="Abrir em nova aba" aria-label="Abrir em nova aba">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  </a>
+                  <a :href="viewer.signedUrl" download class="op-btn op-btn--ghost op-btn--sm" x-show="viewer.signedUrl" title="Download" aria-label="Download">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  </a>
+                  <button class="op-btn op-btn--ghost op-btn--sm" @click="closeViewer()" title="Fechar" aria-label="Fechar">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+
+                <!-- Content -->
+                <div style="flex:1;overflow:auto;padding:0">
+                  <!-- Loading -->
+                  <template x-if="viewer.loading">
+                    <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted)">Carregando...</div>
+                  </template>
+
+                  <!-- Text / Markdown -->
+                  <template x-if="!viewer.loading && viewer.mode === 'text'">
+                    <div style="padding:24px 32px;max-width:800px;margin:0 auto">
+                      <template x-if="viewer.contentHtml">
+                        <div class="viewer-markdown" x-html="viewer.contentHtml"></div>
+                      </template>
+                      <template x-if="!viewer.contentHtml && viewer.content">
+                        <pre style="white-space:pre-wrap;word-wrap:break-word;font-family:inherit;font-size:13px;line-height:1.7;margin:0;color:var(--text)" x-text="viewer.content"></pre>
+                      </template>
+                      <template x-if="!viewer.content && !viewer.contentHtml">
+                        <div style="text-align:center;color:var(--text-muted);padding:40px">Conteudo nao disponivel. <a :href="viewer.signedUrl" target="_blank">Abrir arquivo</a></div>
+                      </template>
+                    </div>
+                  </template>
+
+                  <!-- PDF -->
+                  <template x-if="!viewer.loading && viewer.mode === 'pdf'">
+                    <iframe :src="viewer.signedUrl" style="width:100%;height:100%;border:none"></iframe>
+                  </template>
+
+                  <!-- Image -->
+                  <template x-if="!viewer.loading && viewer.mode === 'image'">
+                    <div style="display:flex;align-items:center;justify-content:center;height:100%;padding:20px;background:#1a1a1a">
+                      <img :src="viewer.signedUrl" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:4px">
+                    </div>
+                  </template>
+
+                  <!-- Audio -->
+                  <template x-if="!viewer.loading && viewer.mode === 'audio'">
+                    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:24px;padding:40px">
+                      <div style="font-size:64px">🎵</div>
+                      <audio controls :src="viewer.signedUrl" style="width:100%;max-width:500px"></audio>
+                      <template x-if="viewer.content">
+                        <div style="max-width:700px;width:100%;max-height:300px;overflow:auto;padding:16px;background:var(--surface-alt,#f5f5f5);border-radius:8px;font-size:13px;line-height:1.7">
+                          <div style="font-weight:600;margin-bottom:8px;font-size:12px;color:var(--text-muted)">TRANSCRICAO</div>
+                          <div x-text="viewer.content"></div>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+
+                  <!-- Video -->
+                  <template x-if="!viewer.loading && viewer.mode === 'video'">
+                    <div style="display:flex;flex-direction:column;align-items:center;height:100%;padding:20px;background:#1a1a1a">
+                      <video controls :src="viewer.signedUrl" style="max-width:100%;max-height:70%;border-radius:4px"></video>
+                      <template x-if="viewer.content">
+                        <div style="max-width:700px;width:100%;max-height:200px;overflow:auto;margin-top:16px;padding:16px;background:var(--surface);border-radius:8px;font-size:13px;line-height:1.7">
+                          <div style="font-weight:600;margin-bottom:8px;font-size:12px;color:var(--text-muted)">TRANSCRICAO</div>
+                          <div x-text="viewer.content"></div>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+
+                  <!-- Raw / Unknown -->
+                  <template x-if="!viewer.loading && viewer.mode === 'raw'">
+                    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px">
+                      <div style="font-size:48px">📎</div>
+                      <div style="color:var(--text-muted)">Visualizacao nao disponivel para este tipo de arquivo</div>
+                      <a :href="viewer.signedUrl" download class="op-btn op-btn--primary">Download</a>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+
         <!-- ===== PAGE: DOCS ===== -->
         <div class="page-content" x-show="ui.page === 'docs'" x-transition>
           <div class="page-header"><h2>Documentos Google Drive</h2></div>
@@ -3498,17 +4399,17 @@
 
           <h3 class="docs-section-title">Dossies por Mentorado</h3>
           <div class="docs-grid">
-            <!-- Data now from ds_producoes/ds_documentos via Supabase — see page "Produção de Dossiês" -->
-            <template x-for="p in data.dsProducoes.filter(x => x.mentorado_nome)" :key="p.producao_id">
+            <template x-for="d in DOSSIER_PIPELINE.filter(x => x.titulo || x.docs?.length)" :key="d.nome">
               <div class="doc-card">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                <div class="doc-card__title" x-text="p.mentorado_nome"></div>
+                <div class="doc-card__title" x-text="d.nome"></div>
                 <div class="doc-card__desc">
-                  <template x-if="p.oferta_estagio"><div class="doc-card__sub">Oferta: <span x-text="p.oferta_estagio"></span></div></template>
-                  <template x-if="p.funil_estagio"><div class="doc-card__sub">Funil: <span x-text="p.funil_estagio"></span></div></template>
-                  <template x-if="p.conteudo_estagio"><div class="doc-card__sub">Conteúdo: <span x-text="p.conteudo_estagio"></span></div></template>
+                  <template x-if="d.titulo"><a :href="dossierSearchUrl(d.titulo)" target="_blank" rel="noopener" class="dossier-row__doc-link" x-text="d.titulo"></a></template>
+                  <template x-if="d.docs?.length">
+                    <template x-for="doc in d.docs" :key="doc.titulo"><div class="doc-card__sub"><a :href="dossierSearchUrl(doc.titulo)" target="_blank" rel="noopener" class="dossier-row__doc-link" x-text="doc.titulo"></a></div></template>
+                  </template>
                 </div>
-                <span class="badge badge--sm" :class="'badge--' + dossierStatusConfig(p.status).color" x-text="dossierStatusConfig(p.status).label"></span>
+                <span class="badge badge--sm" :class="'badge--' + dossierStatusConfig(d.status).color" x-text="dossierStatusConfig(d.status).label"></span>
               </div>
             </template>
           </div>
@@ -3870,50 +4771,239 @@
               </div>
             </div>
           </div>
+        </div>
 
-          <!-- Password Change Section -->
-          <div class="settings-section" style="margin-top:24px">
-            <div class="settings-section__header">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              <div>
-                <h3>Alterar Senha</h3>
-                <p class="settings-section__desc">Troque sua senha de acesso ao sistema</p>
+        <!-- ===== WELCOME FLOW ===== -->
+        <div class="page-content" x-show="ui.page === 'welcome_flow'" x-transition>
+          <div class="page-header">
+            <h2>Welcome Flow</h2>
+            <p class="page-header__sub">Cadastro de novos mentorados no sistema</p>
+          </div>
+
+          <div x-data="welcomeFlowStore()" style="max-width: 640px; margin: 0 auto;">
+
+            <!-- Progress bar -->
+            <div x-show="step > 0 && step < 5" style="display: flex; gap: var(--sp-2); margin-bottom: var(--sp-6);">
+              <template x-for="i in 4" :key="i">
+                <div style="flex: 1; height: 4px; border-radius: var(--r-full); transition: background var(--t-base);"
+                     :style="{ background: step >= i ? 'var(--brand-500)' : 'var(--neutral-200)' }"></div>
+              </template>
+            </div>
+
+            <!-- Step 0: Welcome -->
+            <div x-show="step === 0" class="card">
+              <div class="card__body" style="text-align: center; padding: var(--sp-12) var(--sp-8);">
+                <div style="width: 64px; height: 64px; border-radius: var(--r-full); background: var(--brand-100); display: flex; align-items: center; justify-content: center; margin: 0 auto var(--sp-6);">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--brand-600)" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </div>
+                <h2 style="font-family: var(--font-display); font-size: var(--text-2xl); font-weight: 600; color: var(--text-primary); margin-bottom: var(--sp-3);">Bem-vindo ao CASE</h2>
+                <p style="color: var(--text-secondary); font-size: var(--text-base); margin-bottom: var(--sp-8); max-width: 400px; margin-left: auto; margin-right: auto;">Vamos configurar seu perfil e preparar tudo para sua jornada na mentoria.</p>
+                <button class="btn btn--brand" style="padding: var(--sp-3) var(--sp-8); font-size: var(--text-md);" @click="step = 1">Comecar</button>
               </div>
             </div>
-            <div class="settings-password" x-data="{ pwCurrent: '', pwNew: '', pwConfirm: '', pwLoading: false, pwMsg: '', pwSuccess: false }">
-              <div class="settings-password__field">
-                <label>Senha atual</label>
-                <input type="password" x-model="pwCurrent" placeholder="Digite sua senha atual">
+
+            <!-- Step 1: Dados Pessoais -->
+            <div x-show="step === 1" class="card">
+              <div class="card__header"><h3 class="card__title">Dados Pessoais</h3></div>
+              <div class="card__body" style="display: flex; flex-direction: column; gap: var(--sp-4);">
+                <div>
+                  <label style="display: block; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-bottom: var(--sp-1);">Nome completo *</label>
+                  <input class="input" type="text" placeholder="Seu nome completo" x-model="data.nome" @blur="touched.nome = true"
+                         :style="touched.nome && !isValidName(data.nome) ? 'border-color: var(--danger)' : ''" style="width: 100%;">
+                  <p x-show="touched.nome && !isValidName(data.nome)" style="font-size: var(--text-xs); color: var(--danger); margin-top: var(--sp-1);">Nome deve ter pelo menos 3 caracteres</p>
+                </div>
+                <div>
+                  <label style="display: block; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-bottom: var(--sp-1);">E-mail *</label>
+                  <input class="input" type="email" placeholder="seu@email.com" x-model="data.email" @blur="touched.email = true"
+                         :style="touched.email && !isValidEmail(data.email) ? 'border-color: var(--danger)' : ''" style="width: 100%;">
+                  <p x-show="touched.email && !isValidEmail(data.email)" style="font-size: var(--text-xs); color: var(--danger); margin-top: var(--sp-1);">E-mail invalido</p>
+                </div>
+                <div>
+                  <label style="display: block; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-bottom: var(--sp-1);">WhatsApp *</label>
+                  <input class="input" type="tel" placeholder="(00) 00000-0000" x-model="data.whatsapp" @blur="touched.whatsapp = true"
+                         @input="data.whatsapp = formatPhone($event.target.value)"
+                         :style="touched.whatsapp && !isValidPhone(data.whatsapp) ? 'border-color: var(--danger)' : ''" style="width: 100%;">
+                  <p x-show="touched.whatsapp && !isValidPhone(data.whatsapp)" style="font-size: var(--text-xs); color: var(--danger); margin-top: var(--sp-1);">WhatsApp deve ter pelo menos 10 digitos</p>
+                </div>
               </div>
-              <div class="settings-password__field">
-                <label>Nova senha</label>
-                <input type="password" x-model="pwNew" placeholder="Minimo 6 caracteres">
+              <div class="card__footer" style="display: flex; justify-content: space-between;">
+                <button class="btn btn--ghost" @click="prevStep()">Voltar</button>
+                <button class="btn btn--brand" @click="nextStep()" :disabled="!canAdvance()" :style="!canAdvance() ? 'opacity: 0.5; cursor: not-allowed' : ''">Continuar</button>
               </div>
-              <div class="settings-password__field">
-                <label>Confirmar nova senha</label>
-                <input type="password" x-model="pwConfirm" placeholder="Repita a nova senha">
-              </div>
-              <div x-show="pwMsg" class="settings-password__msg" :class="pwSuccess ? 'settings-password__msg--success' : 'settings-password__msg--error'" x-text="pwMsg" x-transition></div>
-              <button class="btn btn--primary settings-password__btn" :disabled="pwLoading || !pwCurrent || !pwNew || !pwConfirm"
-                @click="
-                  pwSuccess = false;
-                  if (pwNew !== pwConfirm) { pwMsg = 'As senhas nao conferem'; return; }
-                  if (pwNew.length < 6) { pwMsg = 'A nova senha deve ter no minimo 6 caracteres'; return; }
-                  pwLoading = true; pwMsg = '';
-                  fetch(CONFIG.API_BASE + '/api/auth/change-password', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('spalla_access_token') || '') },
-                    body: JSON.stringify({ current_password: pwCurrent, new_password: pwNew })
-                  }).then(r => r.json()).then(d => {
-                    if (d.success) { pwSuccess = true; pwMsg = 'Senha alterada com sucesso!'; pwCurrent = ''; pwNew = ''; pwConfirm = ''; }
-                    else { pwMsg = d.error || 'Erro ao alterar senha'; }
-                  }).catch(() => { pwMsg = 'Erro de conexao com o servidor'; }).finally(() => { pwLoading = false; });
-                ">
-                <span x-text="pwLoading ? 'Alterando...' : 'Alterar Senha'"></span>
-              </button>
             </div>
+
+            <!-- Step 2: Redes Sociais -->
+            <div x-show="step === 2" class="card">
+              <div class="card__header"><h3 class="card__title">Redes Sociais</h3></div>
+              <div class="card__body" style="display: flex; flex-direction: column; gap: var(--sp-4);">
+                <div>
+                  <label style="display: block; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-bottom: var(--sp-1);">Instagram</label>
+                  <input class="input" type="text" placeholder="@seuinstagram" x-model="data.instagram" style="width: 100%;">
+                </div>
+                <div>
+                  <label style="display: block; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-bottom: var(--sp-1);">LinkedIn</label>
+                  <input class="input" type="text" placeholder="URL do LinkedIn" x-model="data.linkedin" style="width: 100%;">
+                </div>
+                <div>
+                  <label style="display: block; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-bottom: var(--sp-1);">Outra rede</label>
+                  <input class="input" type="text" placeholder="YouTube, TikTok..." x-model="data.outra_rede" style="width: 100%;">
+                </div>
+              </div>
+              <div class="card__footer" style="display: flex; justify-content: space-between;">
+                <button class="btn btn--ghost" @click="prevStep()">Voltar</button>
+                <button class="btn btn--brand" @click="nextStep()">Continuar</button>
+              </div>
+            </div>
+
+            <!-- Step 3: Voz & Conteudo -->
+            <div x-show="step === 3" class="card">
+              <div class="card__header"><h3 class="card__title">Voz & Conteudo</h3></div>
+              <div class="card__body" style="display: flex; flex-direction: column; gap: var(--sp-5);">
+                <div>
+                  <label style="display: block; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-bottom: var(--sp-2);">Tom de voz *</label>
+                  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--sp-2);">
+                    <template x-for="tom in ['profissional','acolhedor','energetico','descontraido','educativo']" :key="tom">
+                      <button class="btn" :class="data.tom_de_voz === tom ? 'btn--brand' : 'btn--outline'"
+                              @click="data.tom_de_voz = tom" style="text-transform: capitalize;" x-text="tom"></button>
+                    </template>
+                  </div>
+                </div>
+                <div>
+                  <label style="display: block; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-bottom: var(--sp-1);">Como chama sua audiencia?</label>
+                  <input class="input" type="text" placeholder="Ex: alunas, mentoradas, pacientes..." x-model="data.como_chama_audiencia" style="width: 100%;">
+                </div>
+                <div>
+                  <label style="display: block; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-bottom: var(--sp-2);">Usa emojis? *</label>
+                  <div style="display: flex; gap: var(--sp-2);">
+                    <template x-for="opt in ['frequente','moderado','nao']" :key="opt">
+                      <button class="btn" :class="data.usa_emojis === opt ? 'btn--brand' : 'btn--outline'"
+                              @click="data.usa_emojis = opt" x-text="opt === 'nao' ? 'Nao uso' : opt.charAt(0).toUpperCase() + opt.slice(1)"></button>
+                    </template>
+                  </div>
+                </div>
+                <div>
+                  <label style="display: block; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-bottom: var(--sp-1);">Expressoes e bordoes</label>
+                  <input class="input" type="text" placeholder="Separadas por virgula" x-model="data.expressoes" style="width: 100%;">
+                </div>
+                <div>
+                  <label style="display: block; font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); margin-bottom: var(--sp-2);">Tipos de conteudo</label>
+                  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: var(--sp-2);">
+                    <template x-for="tipo in ['Carrossel','Reels','Stories','Lives','Posts','Artigos','Podcasts','Video longo']" :key="tipo">
+                      <button class="btn" :class="data.tipos_conteudo.includes(tipo) ? 'btn--brand' : 'btn--outline'"
+                              @click="data.tipos_conteudo.includes(tipo) ? data.tipos_conteudo = data.tipos_conteudo.filter(t => t !== tipo) : data.tipos_conteudo.push(tipo)"
+                              x-text="tipo"></button>
+                    </template>
+                  </div>
+                </div>
+              </div>
+              <div class="card__footer" style="display: flex; justify-content: space-between;">
+                <button class="btn btn--ghost" @click="prevStep()">Voltar</button>
+                <button class="btn btn--brand" @click="nextStep()" :disabled="!canAdvance()" :style="!canAdvance() ? 'opacity: 0.5; cursor: not-allowed' : ''">Continuar</button>
+              </div>
+            </div>
+
+            <!-- Step 4: Membros Extras -->
+            <div x-show="step === 4" class="card">
+              <div class="card__header"><h3 class="card__title">Equipe / Membros Extras</h3></div>
+              <div class="card__body" style="display: flex; flex-direction: column; gap: var(--sp-4);">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <span style="font-size: var(--text-sm); color: var(--text-primary);">Incluir membros da equipe?</span>
+                  <label style="position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer;">
+                    <input type="checkbox" x-model="data.incluir_membros_extras" style="opacity: 0; width: 0; height: 0;">
+                    <span style="position: absolute; inset: 0; border-radius: var(--r-full); transition: background var(--t-fast);"
+                          :style="data.incluir_membros_extras ? 'background: var(--brand-500)' : 'background: var(--neutral-300)'">
+                      <span style="position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background: white; border-radius: var(--r-full); transition: transform var(--t-fast);"
+                            :style="data.incluir_membros_extras ? 'transform: translateX(20px)' : ''"></span>
+                    </span>
+                  </label>
+                </div>
+
+                <template x-if="data.incluir_membros_extras">
+                  <div style="display: flex; flex-direction: column; gap: var(--sp-4);">
+                    <template x-for="(membro, idx) in data.membros_extras" :key="membro.id">
+                      <div class="card" style="border: 1px solid var(--neutral-200);">
+                        <div class="card__header" style="padding: var(--sp-3) var(--sp-4); display: flex; justify-content: space-between; align-items: center;">
+                          <span style="font-size: var(--text-sm); font-weight: 500;" x-text="'Membro ' + (idx + 1)"></span>
+                          <button class="btn btn--ghost btn--xs" style="color: var(--danger);" @click="removeMembro(membro.id)">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/></svg>
+                          </button>
+                        </div>
+                        <div class="card__body" style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4);">
+                          <input class="input" type="text" placeholder="Nome completo" x-model="membro.nome_completo" style="width: 100%;">
+                          <input class="input" type="tel" placeholder="WhatsApp" x-model="membro.whatsapp" style="width: 100%;">
+                          <input class="input" type="email" placeholder="E-mail" x-model="membro.email" style="width: 100%;">
+                          <input class="input" type="text" placeholder="Funcao" x-model="membro.funcao" style="width: 100%;">
+                        </div>
+                      </div>
+                    </template>
+                    <button class="btn btn--outline" @click="addMembro()" x-show="data.membros_extras.length < 10" style="align-self: flex-start;">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      Adicionar membro
+                    </button>
+                  </div>
+                </template>
+              </div>
+              <div class="card__footer" style="display: flex; justify-content: space-between;">
+                <button class="btn btn--ghost" @click="prevStep()">Voltar</button>
+                <button class="btn btn--brand" @click="submitWizard()">Finalizar cadastro</button>
+              </div>
+            </div>
+
+            <!-- Step 5: Processing -->
+            <div x-show="step === 5 && !error" style="text-align: center; padding: var(--sp-16) 0;">
+              <div class="op-spinner" style="margin: 0 auto var(--sp-6);"></div>
+              <p style="font-size: var(--text-lg); color: var(--text-primary);">Processando cadastro...</p>
+              <p style="font-size: var(--text-sm); color: var(--text-secondary); margin-top: var(--sp-2);">Configurando perfil e preparando acesso</p>
+            </div>
+
+            <!-- Step 5: Error -->
+            <div x-show="error" class="card">
+              <div class="card__body" style="text-align: center; padding: var(--sp-8);">
+                <div style="width: 48px; height: 48px; border-radius: var(--r-full); background: var(--danger-light, #fde8e8); display: flex; align-items: center; justify-content: center; margin: 0 auto var(--sp-4);">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                </div>
+                <p style="font-size: var(--text-md); font-weight: 600; color: var(--text-primary); margin-bottom: var(--sp-2);">Erro no processamento</p>
+                <p style="font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--sp-6);" x-text="error"></p>
+                <button class="btn btn--brand" @click="retrySubmit()">Tentar novamente</button>
+              </div>
+            </div>
+
+            <!-- Step 6: Success -->
+            <div x-show="step === 6" class="card">
+              <div class="card__body" style="text-align: center; padding: var(--sp-8);">
+                <div style="width: 56px; height: 56px; border-radius: var(--r-full); background: var(--success-light, #e6f9ed); display: flex; align-items: center; justify-content: center; margin: 0 auto var(--sp-4);">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+                <h2 style="font-family: var(--font-display); font-size: var(--text-xl); font-weight: 600; color: var(--text-primary); margin-bottom: var(--sp-2);">Cadastro realizado!</h2>
+                <p style="font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--sp-6);">O mentorado foi cadastrado e ja possui acesso ao Spalla.</p>
+
+                <template x-if="credentials">
+                  <div style="background: var(--cream-100); border: 1px solid var(--neutral-200); border-radius: var(--r-lg); padding: var(--sp-5); text-align: left; margin-bottom: var(--sp-6);">
+                    <p style="font-size: var(--text-xs); font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: var(--tracking-wider, 0.05em); margin-bottom: var(--sp-3);">Credenciais de acesso</p>
+                    <div style="display: flex; flex-direction: column; gap: var(--sp-2);">
+                      <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: var(--text-sm); color: var(--text-secondary);">E-mail:</span>
+                        <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); font-family: monospace;" x-text="credentials.email"></span>
+                      </div>
+                      <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: var(--text-sm); color: var(--text-secondary);">Senha temporaria:</span>
+                        <span style="font-size: var(--text-sm); font-weight: 600; color: var(--text-primary); font-family: monospace;" x-text="credentials.temp_password"></span>
+                      </div>
+                    </div>
+                    <p style="font-size: var(--text-xs); color: var(--warning); margin-top: var(--sp-3);">O mentorado deve alterar a senha no primeiro acesso.</p>
+                  </div>
+                </template>
+
+                <div style="display: flex; gap: var(--sp-3); justify-content: center;">
+                  <button class="btn btn--outline" @click="resetWizard()">Novo cadastro</button>
+                  <button class="btn btn--brand" @click="window.location.href = '/dashboard'">Ir ao Dashboard</button>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
+
 
       </main>
 
@@ -4130,10 +5220,10 @@
   <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js" integrity="sha384-Sm2s7OXxsAMTyJ4iIyRBgVpeGUvMPk2lRQnnZhE78Wej7oggIoolKt+SCt0XJbUB" crossorigin="anonymous"></script>
-  <script src="00-config-env.js?v=73"></script>
   <script src="12-APP-data.js?v=72"></script>
   <script src="13-APP-photos.js?v=72"></script>
-  <script src="11-APP-app.js?v=72"></script>
+  <script src="19-APP-welcome-flow.js?v=20260314b"></script>
+  <script src="11-APP-app.js?v=86"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {
@@ -4141,37 +5231,6 @@
       document.getElementById('loading-fallback')?.remove();
       document.getElementById('app').style.display = '';
     });
-
-    // ===== CFO PAYMENTS SVG CHART =====
-    function renderFinChart(snapshots) {
-      if (!snapshots || snapshots.length < 2) return;
-      const el = document.getElementById('fin-chart-svg');
-      if (!el) return;
-      const W = el.clientWidth || 560, H = 120, pad = 30;
-      const max = Math.max(...snapshots.map(s => s.atrasado_count), 1);
-      const pts = snapshots.map((s, i) => {
-        const x = pad + (i / (snapshots.length - 1)) * (W - pad * 2);
-        const y = H - pad - ((s.atrasado_count / max) * (H - pad * 2));
-        return { x, y, s };
-      });
-      const pathD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-      const areaD = pathD + ` L${pts[pts.length-1].x.toFixed(1)},${H-pad} L${pts[0].x.toFixed(1)},${H-pad} Z`;
-      el.innerHTML = `
-        <defs><linearGradient id="fin-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ef4444" stop-opacity="0.3"/><stop offset="100%" stop-color="#ef4444" stop-opacity="0.02"/></linearGradient></defs>
-        <path d="${areaD}" fill="url(#fin-grad)"/>
-        <path d="${pathD}" fill="none" stroke="#ef4444" stroke-width="2" stroke-linejoin="round"/>
-        ${pts.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="#ef4444"/>`).join('')}
-        ${pts.filter((_, i) => i === 0 || i === pts.length - 1 || i % 3 === 0).map(p => {
-          const d = new Date(p.s.snapshot_date);
-          const label = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
-          return `<text x="${p.x.toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="9" fill="#9ca3af">${label}</text>`;
-        }).join('')}
-        <text x="${pad}" y="${H-pad+4}" text-anchor="middle" font-size="9" fill="#9ca3af">${snapshots[0]?.atrasado_count || 0}</text>
-        <text x="${W-pad}" y="${H-pad+4}" text-anchor="middle" font-size="9" fill="#9ca3af">${snapshots[snapshots.length-1]?.atrasado_count || 0}</text>
-        <text x="${pad}" y="${pad-6}" text-anchor="start" font-size="9" fill="#9ca3af">${max}</text>
-      `;
-    }
-
     document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => {
         if (document.getElementById('loading-fallback')) {
