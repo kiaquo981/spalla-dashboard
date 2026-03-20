@@ -475,8 +475,8 @@ function operon() {
       }).length;
       // Calculate pending tasks from board (god_tasks)
       const tarefasPendentes = this.data.tasks.filter(t => t.status === 'pendente' || t.status === 'em_andamento').length;
-      // WhatsApp pending messages
-      const msgsPendentes = this.data.mentees.reduce((s, m) => s + (m.msgs_pendentes_resposta || 0), 0);
+      // WhatsApp pending messages — read from pendencias list (single source of truth, always in sync)
+      const msgsPendentes = this.data.pendencias.length;
       const mentoradosCriticos = this.data.mentees.filter(m => (m.horas_sem_resposta_equipe || 0) > 24).length;
       return {
         totalMentorados,
@@ -1642,7 +1642,20 @@ function operon() {
             this.loadDemoData();
           }
           if (cohort.data?.length) this.data.cohort = cohort.data;
-          if (pendencias.data) this.data.pendencias = pendencias.data;
+          if (pendencias.data) {
+            this.data.pendencias = pendencias.data;
+            // Reconcile msgs_pendentes_resposta per mentee to match the actual pendencias list.
+            // vw_god_overview and vw_god_pendencias use different logic → counts never match.
+            // Single source of truth: always derive from pendencias.data.
+            const pendsByMentee = {};
+            pendencias.data.forEach(p => {
+              if (p.mentorado_id) pendsByMentee[p.mentorado_id] = (pendsByMentee[p.mentorado_id] || 0) + 1;
+            });
+            this.data.mentees = this.data.mentees.map(m => ({
+              ...m,
+              msgs_pendentes_resposta: pendsByMentee[m.id] || 0,
+            }));
+          }
           if (calls.data?.length) {
             // Normalize calls data (from calls_mentoria table directly)
             this._supabaseCalls = calls.data.map(c => ({
