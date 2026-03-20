@@ -1929,7 +1929,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             email = payload.get('email')
 
             # Fetch fresh user data from DB
-            result = supabase_request('GET', f'auth_users?id=eq.{user_id}&select=id,email,full_name,role')
+            result = supabase_request('GET', f'auth_users?id=eq.{user_id}&select=id,email,full_name')
             if isinstance(result, list) and len(result) > 0:
                 self._send_json({'user': result[0]})
             else:
@@ -1949,7 +1949,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': 'Email and password required'}, 400)
                 return
 
-            result = supabase_request('GET', f'auth_users?email=eq.{email}&select=id,email,full_name,password_hash,role')
+            result = supabase_request('GET', f'auth_users?email=eq.{email}&select=id,email,full_name,password_hash')
             if not isinstance(result, list) or len(result) == 0:
                 self._send_json({'error': 'Invalid email or password'}, 401)
                 return
@@ -2004,7 +2004,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             user_id = payload.get('user_id')
 
             # Fetch fresh user data
-            user_data = supabase_request('GET', f'auth_users?id=eq.{user_id}&select=id,email,full_name,role')
+            user_data = supabase_request('GET', f'auth_users?id=eq.{user_id}&select=id,email,full_name')
             user = user_data[0] if isinstance(user_data, list) and len(user_data) > 0 else {'id': user_id, 'email': email}
             role = user.get('role', 'equipe')
 
@@ -2073,7 +2073,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 return
 
             # Check if auth_users already exists
-            existing = supabase_request('GET', f'auth_users?email=eq.{email}&select=id,email,full_name,role')
+            existing = supabase_request('GET', f'auth_users?email=eq.{email}&select=id,email,full_name')
             if isinstance(existing, list) and len(existing) > 0:
                 self._send_json({
                     'success': True,
