@@ -2,6 +2,7 @@
   "buildCommand": "echo Static SPA",
   "outputDirectory": "app/frontend",
   "rewrites": [
+    { "source": "/api-docs", "destination": "/api-docs.html" },
     { "source": "/(.*)", "destination": "/10-APP-index.html" }
   ]
 }
