@@ -119,7 +119,7 @@ components:
       properties:
         access_token:
           type: string
-          description: JWT de acesso — envie no header `Authorization: Bearer <token>`
+          description: "JWT de acesso — envie no header `Authorization: Bearer <token>`"
           example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
         refresh_token:
           type: string
