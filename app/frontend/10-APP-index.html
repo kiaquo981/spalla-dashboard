@@ -113,6 +113,32 @@
     .timeline-item__title { font-size:13px;font-weight:600;color:#1e293b; }
     .timeline-item__desc { font-size:12px;color:#64748b;margin-top:2px; }
     .timeline-empty { text-align:center;padding:32px;color:#94a3b8;font-size:14px; }
+    /* === TEAM DASHBOARD (Wave 2 F2.2) === */
+    .team-view { padding:24px; }
+    .team-view__header { display:flex;align-items:center;justify-content:space-between;margin-bottom:20px; }
+    .team-view__title { font-size:18px;font-weight:700;color:#1e293b; }
+    .team-toggle { display:flex;gap:4px;background:#f1f5f9;border-radius:8px;padding:3px; }
+    .team-toggle-btn { padding:5px 12px;border-radius:6px;border:none;background:none;font-size:12px;font-weight:500;cursor:pointer;color:#64748b; }
+    .team-toggle-btn.active { background:#fff;color:#1e293b;box-shadow:0 1px 3px rgba(0,0,0,.1); }
+    .team-perf-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px; }
+    .team-perf-card { background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px; }
+    .team-perf-card__name { font-size:14px;font-weight:700;color:#1e293b;margin-bottom:12px; }
+    .team-perf-card__stats { display:grid;grid-template-columns:1fr 1fr;gap:8px; }
+    .team-stat { background:#f8fafc;border-radius:8px;padding:8px;text-align:center; }
+    .team-stat__val { font-size:20px;font-weight:700;color:#3b82f6; }
+    .team-stat__lbl { font-size:11px;color:#64748b;margin-top:2px; }
+    .team-stat--warn .team-stat__val { color:#f59e0b; }
+    .team-ranking { display:flex;flex-direction:column;gap:10px; }
+    .team-rank-row { display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px; }
+    .team-rank-pos { font-size:20px;font-weight:800;color:#94a3b8;min-width:28px; }
+    .team-rank-pos--1 { color:#f59e0b; }
+    .team-rank-pos--2 { color:#94a3b8; }
+    .team-rank-pos--3 { color:#cd7c33; }
+    .team-rank-name { flex:1;font-weight:600;color:#1e293b; }
+    .team-rank-bar-wrap { flex:2;background:#f1f5f9;border-radius:4px;height:8px;overflow:hidden; }
+    .team-rank-bar { height:100%;background:#3b82f6;border-radius:4px;transition:width .4s ease; }
+    .team-rank-val { font-size:13px;font-weight:700;color:#3b82f6;min-width:36px;text-align:right; }
+    .team-perf-empty { text-align:center;padding:48px;color:#94a3b8; }
   </style>
 </head>
 <body>
@@ -4583,51 +4609,66 @@
         </div>
 
         <!-- ===== PAGE: EQUIPE ===== -->
+        <!-- ===== PAGE: EQUIPE (Wave 2 F2.2 — Team Performance) ===== -->
         <div class="page-content" x-show="ui.page === 'equipe'" x-transition>
-          <div class="page-header"><h2>Dashboard da Equipe</h2></div>
-          <div class="op-grid op-grid-cols-3" style="gap:16px">
-            <template x-for="member in teamStats" :key="member.name">
-              <div class="op-card team-card" @click="taskAssignee = member.name; navigate('tasks')">
-                <div class="team-card__header">
-                  <div class="avatar avatar--md avatar--brand" :style="'background:' + avatarGradient(member.name)" x-text="avatarInitials(member.name)"></div>
-                  <div>
-                    <div class="team-card__name" x-text="member.name"></div>
-                    <div class="team-card__role" x-text="member.id"></div>
-                  </div>
-                  <span class="badge badge--sm" x-show="member.carga >= 85" :class="'badge--danger'">SOBRECARGA</span>
-                </div>
-                <div class="team-card__metrics">
-                  <div class="team-card__metric">
-                    <span class="team-card__metric-val" x-text="member.pendentes"></span>
-                    <span class="team-card__metric-label">Pendentes</span>
-                  </div>
-                  <div class="team-card__metric">
-                    <span class="team-card__metric-val" x-text="member.emAndamento"></span>
-                    <span class="team-card__metric-label">Em andamento</span>
-                  </div>
-                  <div class="team-card__metric">
-                    <span class="team-card__metric-val team-card__metric-val--danger" x-text="member.atrasadas" x-show="member.atrasadas > 0"></span>
-                    <span class="team-card__metric-label" x-show="member.atrasadas > 0">Atrasadas</span>
-                  </div>
-                  <div class="team-card__metric">
-                    <span class="team-card__metric-val team-card__metric-val--success" x-text="member.concluidas7d"></span>
-                    <span class="team-card__metric-label">Concl. 7d</span>
-                  </div>
-                </div>
-                <div class="team-card__footer">
-                  <span class="team-card__mentees">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                    <span x-text="member.mentorados + ' mentorados'"></span>
-                  </span>
-                  <div class="team-card__load">
-                    <div class="team-card__load-bar">
-                      <div class="team-card__load-fill" :style="'width:' + Math.min(member.carga, 100) + '%'" :class="'team-card__load-fill--' + member.cargaStatus"></div>
-                    </div>
-                    <span class="team-card__load-val" x-text="member.carga + '%'"></span>
-                  </div>
-                </div>
+          <div class="team-view">
+            <div class="team-view__header">
+              <h2 class="team-view__title">Performance da Equipe</h2>
+              <div class="team-toggle" role="group" aria-label="Modo de visualizacao">
+                <button type="button" class="team-toggle-btn" :class="{ active: ui.teamView === 'cards' }"
+                        :aria-pressed="ui.teamView === 'cards'" @click="ui.teamView = 'cards'">Cards</button>
+                <button type="button" class="team-toggle-btn" :class="{ active: ui.teamView === 'ranking' }"
+                        :aria-pressed="ui.teamView === 'ranking'" @click="ui.teamView = 'ranking'">Ranking</button>
               </div>
-            </template>
+            </div>
+
+            <!-- Empty state -->
+            <div class="team-perf-empty" x-show="!data.teamPerformance.length">
+              <p>Nenhum dado de equipe encontrado.</p>
+            </div>
+
+            <!-- Cards view -->
+            <div class="team-perf-grid" x-show="data.teamPerformance.length && ui.teamView === 'cards'">
+              <template x-for="member in data.teamPerformance" :key="member.name">
+                <div class="team-perf-card">
+                  <div class="team-perf-card__name" x-text="member.name"></div>
+                  <div class="team-perf-card__stats">
+                    <div class="team-stat">
+                      <div class="team-stat__val" x-text="member.tasksDone"></div>
+                      <div class="team-stat__lbl">Tarefas feitas</div>
+                    </div>
+                    <div class="team-stat" :class="{ 'team-stat--warn': member.tasksPending > 5 }">
+                      <div class="team-stat__val" x-text="member.tasksPending"></div>
+                      <div class="team-stat__lbl">Pendentes</div>
+                    </div>
+                    <div class="team-stat">
+                      <div class="team-stat__val" x-text="member.mentorados"></div>
+                      <div class="team-stat__lbl">Mentorados</div>
+                    </div>
+                    <div class="team-stat">
+                      <div class="team-stat__val" x-text="member.calls30d"></div>
+                      <div class="team-stat__lbl">Calls 30d</div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <!-- Ranking view -->
+            <div class="team-ranking" x-show="data.teamPerformance.length && ui.teamView === 'ranking'">
+              <template x-for="(member, idx) in data.teamPerformance" :key="member.name">
+                <div class="team-rank-row">
+                  <span class="team-rank-pos" :class="'team-rank-pos--' + (idx + 1)" x-text="idx + 1"></span>
+                  <span class="team-rank-name" x-text="member.name"></span>
+                  <div class="team-rank-bar-wrap" aria-hidden="true">
+                    <div class="team-rank-bar"
+                         :style="'width:' + Math.round((member.tasksDone / (data.teamPerformance[0]?.tasksDone || 1)) * 100) + '%'">
+                    </div>
+                  </div>
+                  <span class="team-rank-val" x-text="member.tasksDone + ' tasks'"></span>
+                </div>
+              </template>
+            </div>
           </div>
         </div>
 
