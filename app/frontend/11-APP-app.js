@@ -4205,6 +4205,8 @@ function operon() {
     // Pre-linked Evolution instances per user (skip QR, always connected)
     _waPrelinkedInstances: {
       mariza: { instance_name: 'producao002', phone_number: '5511941936764' },
+      kaique: { instance_name: 'producao002', phone_number: '5511941936764' },
+      'kaique rodrigues': { instance_name: 'producao002', phone_number: '5511941936764' },
     },
 
     _isPrelinkedUser() {
@@ -4912,7 +4914,7 @@ function operon() {
     },
 
     _waHealthLabel(m) {
-      const score = this.calcHealthScore(m);
+      const score = this.calcHealthScore(m).total;
       if (score >= 70) return 'verde';
       if (score >= 40) return 'amarelo';
       return 'vermelho';
