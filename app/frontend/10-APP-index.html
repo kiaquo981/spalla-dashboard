@@ -5414,6 +5414,9 @@
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 3H3v7l6.29 6.29c.94.94 2.48.94 3.42 0l3.58-3.58c.94-.94.94-2.48 0-3.42L10 3z"/><line x1="6" y1="6" x2="6.01" y2="6"/></svg>
                   <span x-show="data.waTriageCount > 0" class="triage-count-badge" x-text="data.waTriageCount" style="position:absolute;top:-4px;right:-4px;min-width:14px;height:14px;line-height:14px;text-align:center;font-size:9px"></span>
                 </button>
+                <button class="topics-view-btn" :class="{ active: ui.waPortfolioView === 'board' }" @click="ui.waPortfolioView = 'board'" title="Board de Grupos">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="4" height="18" rx="1"/><rect x="10" y="3" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="10" rx="1"/></svg>
+                </button>
               </div>
               <!-- Saved Segment chips (S9-C) -->
               <template x-if="data.waSavedSegments.length > 0 || ui.waPortfolioFaseFilter || ui.waPortfolioHealthFilter">
@@ -5757,6 +5760,99 @@
                 </div>
               </div>
             </template>
+          </div>
+
+          <!-- Board View — WA Group Kanban (wa_status) -->
+          <div x-show="ui.waPortfolioView === 'board'" style="margin-top:8px;overflow-x:auto">
+            <div style="display:flex;gap:12px;min-width:640px;align-items:flex-start">
+
+              <!-- Column: Aguardando -->
+              <div style="flex:1;min-width:160px;background:var(--neutral-50,#f8fafc);border-radius:10px;padding:12px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+                  <span style="width:8px;height:8px;border-radius:50%;background:#94a3b8;flex-shrink:0"></span>
+                  <span style="font-size:12px;font-weight:600;color:var(--text-secondary)">Aguardando</span>
+                  <span style="margin-left:auto;font-size:11px;color:var(--text-tertiary)" x-text="waGroupBoard().aguardando.length"></span>
+                </div>
+                <template x-for="m in waGroupBoard().aguardando" :key="m.id">
+                  <div class="board-card" style="background:#fff;border:1px solid var(--neutral-200,#e2e8f0);border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:default">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                      <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.src='/assets/avatar-placeholder.png'">
+                      <span style="font-size:13px;font-weight:500;color:var(--text-primary)" x-text="m.nome"></span>
+                    </div>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap">
+                      <button class="btn btn--ghost btn--sm" style="font-size:10px;padding:2px 8px" @click="setGroupStatus(m.id, 'em_andamento')" title="Mover para Em andamento">→ Em andamento</button>
+                    </div>
+                  </div>
+                </template>
+                <div x-show="waGroupBoard().aguardando.length === 0" style="font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">Nenhum</div>
+              </div>
+
+              <!-- Column: Em andamento -->
+              <div style="flex:1;min-width:160px;background:#eff6ff;border-radius:10px;padding:12px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+                  <span style="width:8px;height:8px;border-radius:50%;background:#3b82f6;flex-shrink:0"></span>
+                  <span style="font-size:12px;font-weight:600;color:#1d4ed8">Em andamento</span>
+                  <span style="margin-left:auto;font-size:11px;color:#3b82f6" x-text="waGroupBoard().em_andamento.length"></span>
+                </div>
+                <template x-for="m in waGroupBoard().em_andamento" :key="m.id">
+                  <div class="board-card" style="background:#fff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:default">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                      <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.src='/assets/avatar-placeholder.png'">
+                      <span style="font-size:13px;font-weight:500;color:var(--text-primary)" x-text="m.nome"></span>
+                    </div>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap">
+                      <button class="btn btn--ghost btn--sm" style="font-size:10px;padding:2px 8px" @click="setGroupStatus(m.id, 'bloqueado')" title="Mover para Bloqueado">→ Bloqueado</button>
+                      <button class="btn btn--ghost btn--sm" style="font-size:10px;padding:2px 8px" @click="setGroupStatus(m.id, 'resolvido')" title="Mover para Resolvido">→ Resolvido</button>
+                    </div>
+                  </div>
+                </template>
+                <div x-show="waGroupBoard().em_andamento.length === 0" style="font-size:12px;color:#93c5fd;text-align:center;padding:16px 0">Nenhum</div>
+              </div>
+
+              <!-- Column: Bloqueado -->
+              <div style="flex:1;min-width:160px;background:#fff7ed;border-radius:10px;padding:12px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+                  <span style="width:8px;height:8px;border-radius:50%;background:#f97316;flex-shrink:0"></span>
+                  <span style="font-size:12px;font-weight:600;color:#c2410c">Bloqueado</span>
+                  <span style="margin-left:auto;font-size:11px;color:#f97316" x-text="waGroupBoard().bloqueado.length"></span>
+                </div>
+                <template x-for="m in waGroupBoard().bloqueado" :key="m.id">
+                  <div class="board-card" style="background:#fff;border:1px solid #fed7aa;border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:default">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                      <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.src='/assets/avatar-placeholder.png'">
+                      <span style="font-size:13px;font-weight:500;color:var(--text-primary)" x-text="m.nome"></span>
+                    </div>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap">
+                      <button class="btn btn--ghost btn--sm" style="font-size:10px;padding:2px 8px" @click="setGroupStatus(m.id, 'em_andamento')" title="Reabrir">← Reabrir</button>
+                      <button class="btn btn--ghost btn--sm" style="font-size:10px;padding:2px 8px" @click="setGroupStatus(m.id, 'resolvido')" title="Resolver">→ Resolvido</button>
+                    </div>
+                  </div>
+                </template>
+                <div x-show="waGroupBoard().bloqueado.length === 0" style="font-size:12px;color:#fdba74;text-align:center;padding:16px 0">Nenhum</div>
+              </div>
+
+              <!-- Column: Resolvido -->
+              <div style="flex:1;min-width:160px;background:#f0fdf4;border-radius:10px;padding:12px">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+                  <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0"></span>
+                  <span style="font-size:12px;font-weight:600;color:#15803d">Resolvido</span>
+                  <span style="margin-left:auto;font-size:11px;color:#22c55e" x-text="waGroupBoard().resolvido.length"></span>
+                </div>
+                <template x-for="m in waGroupBoard().resolvido" :key="m.id">
+                  <div class="board-card" style="background:#fff;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:default">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                      <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.src='/assets/avatar-placeholder.png'">
+                      <span style="font-size:13px;font-weight:500;color:var(--text-primary)" x-text="m.nome"></span>
+                    </div>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap">
+                      <button class="btn btn--ghost btn--sm" style="font-size:10px;padding:2px 8px" @click="setGroupStatus(m.id, 'aguardando')" title="Recolocar em aguardando">← Reabrir</button>
+                    </div>
+                  </div>
+                </template>
+                <div x-show="waGroupBoard().resolvido.length === 0" style="font-size:12px;color:#86efac;text-align:center;padding:16px 0">Nenhum</div>
+              </div>
+
+            </div>
           </div>
 
         </div>
