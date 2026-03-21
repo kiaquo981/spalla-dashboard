@@ -1489,6 +1489,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_auth_me()
         elif self.path.startswith('/api/evolution/'):
             self._proxy_evolution('GET')
+        elif self.path == '/api/mentees/portfolio':
+            self._handle_get_portfolio()
         elif self.path == '/api/mentees':
             self._handle_get_mentees()
         elif self.path.startswith('/api/calendar/events'):
@@ -2295,6 +2297,125 @@ def _handle_mentees_triage(self):
 
         except Exception as e:
             print(f'[Instance UUID] Error: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_get_portfolio(self):
+        """GET /api/mentees/portfolio — carteira do consultor com health/priority scores"""
+        try:
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Unauthorized'}, 401)
+                return
+            token = auth_header[7:]
+            payload = verify_jwt_token(token)
+            if not payload or payload.get('type') == 'refresh':
+                self._send_json({'error': 'Invalid token'}, 401)
+                return
+            email = payload.get('email', '')
+
+            # Fetch mentees assigned to this consultant
+            mentees = supabase_request(
+                'GET',
+                f'mentorados?select=id,nome,email,instagram,fase_jornada,cohort,ativo,consultor_responsavel,snoozed_until,whatsapp_7d,whatsapp_30d'
+                f'&ativo=eq.true&consultor_responsavel=eq.{urllib.parse.quote(email)}&order=nome'
+            )
+            if isinstance(mentees, dict) and 'error' in mentees:
+                self._send_json({'error': mentees['error']}, 500)
+                return
+            if not isinstance(mentees, list):
+                mentees = []
+
+            # Fetch all wa_topics for health signals (one call, then group by mentee name)
+            topics_raw = supabase_request(
+                'GET',
+                'vw_wa_topic_board?select=group_jid,mentorado_nome,status,type_slug,last_message_at&order=last_message_at.desc'
+            )
+            topics_by_nome = {}
+            if isinstance(topics_raw, list):
+                for t in topics_raw:
+                    nome = t.get('mentorado_nome') or ''
+                    if nome not in topics_by_nome:
+                        topics_by_nome[nome] = []
+                    topics_by_nome[nome].append(t)
+
+            now = datetime.now(timezone.utc)
+            result = []
+            for m in mentees:
+                nome = m.get('nome', '')
+                mtopics = topics_by_nome.get(nome, [])
+
+                unread_count = m.get('whatsapp_7d') or 0
+                last_activity = None
+                negative_topics = 0
+
+                for t in mtopics:
+                    lma = t.get('last_message_at')
+                    if lma:
+                        if last_activity is None or lma > last_activity:
+                            last_activity = lma
+                    if t.get('type_slug') in ('problema', 'risco', 'reclamacao', 'negativo'):
+                        negative_topics += 1
+
+                # Health: green/yellow/red based on days since last activity
+                health = 'green'
+                days_since = None
+                if last_activity:
+                    try:
+                        ldt = datetime.fromisoformat(last_activity.replace('Z', '+00:00'))
+                        days_since = (now - ldt).days
+                        if days_since > 14:
+                            health = 'red'
+                        elif days_since > 7:
+                            health = 'yellow'
+                    except Exception:
+                        pass
+                else:
+                    health = 'red'
+
+                if negative_topics > 0 and health == 'green':
+                    health = 'yellow'
+
+                # Check snooze
+                snoozed = False
+                snoozed_until = m.get('snoozed_until')
+                if snoozed_until:
+                    try:
+                        su = datetime.fromisoformat(snoozed_until.replace('Z', '+00:00'))
+                        if su > now:
+                            snoozed = True
+                    except Exception:
+                        pass
+
+                # Priority score for inbox ordering (higher = more urgent)
+                priority = 0
+                if not snoozed:
+                    if health == 'red':
+                        priority += 30
+                    elif health == 'yellow':
+                        priority += 10
+                    if m.get('fase_jornada') in ('onboarding', 'renovacao'):
+                        priority += 20
+                    priority += min((unread_count or 0) // 5, 15)
+                    if negative_topics > 0:
+                        priority += 10
+
+                result.append({
+                    **m,
+                    'health': health,
+                    'snoozed': snoozed,
+                    'days_since_activity': days_since,
+                    'unread_count': unread_count,
+                    'negative_topics': negative_topics,
+                    'priority_score': priority,
+                    'recent_topics': mtopics[:3],
+                })
+
+            # Sort by priority descending (snoozed go to bottom)
+            result.sort(key=lambda x: (x['snoozed'], -x['priority_score']))
+            self._send_json(result)
+
+        except Exception as e:
+            log_error('Portfolio', f'_handle_get_portfolio failed: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_get_mentees(self):
