@@ -2278,7 +2278,7 @@ def _handle_mentees_triage(self):
                 self._send_json({'error': 'Invalid JSON'}, 400)
                 return
 
-            ALLOWED_FIELDS = {'fase_jornada', 'snoozed_until'}
+            ALLOWED_FIELDS = {'fase_jornada', 'snoozed_until', 'wa_status'}
             updates = {k: v for k, v in body.items() if k in ALLOWED_FIELDS}
             if not updates:
                 self._send_json({'error': 'No allowed fields provided'}, 400)
@@ -2291,9 +2291,14 @@ def _handle_mentees_triage(self):
                 self._send_json({'error': f'Invalid fase_jornada: {updates["fase_jornada"]}'}, 400)
                 return
 
+            valid_wa_status = {'aguardando', 'em_andamento', 'bloqueado', 'resolvido'}
+            if 'wa_status' in updates and updates['wa_status'] not in valid_wa_status:
+                self._send_json({'error': f'Invalid wa_status: {updates["wa_status"]}'}, 400)
+                return
+
             result = supabase_request(
                 'PATCH',
-                f'mentorados?id=eq.{mentee_id}&select=id,nome,fase_jornada,snoozed_until',
+                f'mentorados?id=eq.{mentee_id}&select=id,nome,fase_jornada,snoozed_until,wa_status',
                 updates
             )
             self._send_json(result)
