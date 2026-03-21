@@ -196,6 +196,10 @@ function operon() {
       notesDrawer: { open: false, menteeId: null, menteeNome: '', tipo: 'livre' },
       notesSaving: false,
       notesForm: { conteudo: '', tags: '' },
+      // WA Management — Bulk Selection
+      waBulkMode: false,             // bulk select mode on/off
+      waBulkFase: '',                // fase to apply in bulk
+      waBulkApplying: false,         // loading state for bulk apply
       // Reminders
       reminderModal: false,
       reminderFilter: 'ativo', // ativo | concluido | all
@@ -271,6 +275,7 @@ function operon() {
       fieldDefs: [],            // applicable god_task_field_defs for current modal
       finDetailLogs: [],        // financial logs for mentee detail tab
       menteeNotes: [],          // notes for current notes drawer
+      waSelectedMentees: [],    // IDs selected in bulk mode
     },
 
     // --- Financeiro (CFO Payments View) ---
@@ -5068,6 +5073,61 @@ function operon() {
       };
       return map[tipo] || 'Escreva sua nota...';
     },
+
+    // ===================== WA MANAGEMENT — BULK SELECTION =====================
+
+    toggleBulkSelect(menteeId) {
+      const idx = this.data.waSelectedMentees.indexOf(menteeId);
+      if (idx === -1) {
+        this.data.waSelectedMentees.push(menteeId);
+      } else {
+        this.data.waSelectedMentees.splice(idx, 1);
+      }
+    },
+
+    isBulkSelected(menteeId) {
+      return this.data.waSelectedMentees.includes(menteeId);
+    },
+
+    clearBulkSelection() {
+      this.data.waSelectedMentees = [];
+      this.ui.waBulkFase = '';
+      this.ui.waBulkMode = false;
+    },
+
+    selectAllBulk() {
+      const visible = this.waPortfolioMentees ? this.waPortfolioMentees() : (this.data.mentees || []);
+      this.data.waSelectedMentees = visible.map(m => m.id);
+    },
+
+    async bulkUpdateFase(fase) {
+      if (!fase || this.data.waSelectedMentees.length === 0) return;
+      const ids = [...this.data.waSelectedMentees];
+      this.ui.waBulkApplying = true;
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/mentees/bulk`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.auth.token}`,
+          },
+          body: JSON.stringify({ ids, updates: { fase_jornada: fase } }),
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        ids.forEach(id => {
+          const m = (this.data.mentees || []).find(x => x.id === id);
+          if (m) m.fase_jornada = fase;
+        });
+        this.toast(`${ids.length} mentorado(s) movido(s) para ${this._waFaseLabel(fase)}`, 'success');
+        this.clearBulkSelection();
+      } catch (e) {
+        console.error('bulkUpdateFase error:', e);
+        this.toast('Erro ao aplicar bulk update.', 'error');
+      } finally {
+        this.ui.waBulkApplying = false;
+      }
+    },
+
 
     async openWaTopic(topic) {
       this.ui.waTopicDetail = topic;

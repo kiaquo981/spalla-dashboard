@@ -1450,7 +1450,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type, apikey, Authorization')
         self.send_header('Access-Control-Max-Age', '86400')
         self.end_headers()
@@ -1542,6 +1542,17 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._proxy_evolution('DELETE')
         else:
             self._send_json({'error': 'Not found'}, 404)
+
+    def do_PATCH(self):
+        # bulk MUST come before individual to avoid /api/mentees/bulk matching \d+
+        if self.path == '/api/mentees/bulk':
+            self._handle_bulk_patch_mentees()
+        else:
+            _m = re.match(r'^/api/mentees/(\d+)$', self.path)
+            if _m:
+                self._handle_patch_mentee(_m.group(1))
+            else:
+                self._send_json({'error': 'Not found'}, 404)
 
     # ===== SCHEDULE CALL (main orchestrator) =====
     def _handle_schedule_call(self):
@@ -1788,6 +1799,100 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def _handle_get_mentees(self):
         result = get_mentees_with_email()
         self._send_json(result if isinstance(result, list) else [result])
+
+    def _handle_patch_mentee(self, mentee_id):
+        """PATCH /api/mentees/{id} — update fase_jornada or snoozed_until"""
+        try:
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Unauthorized'}, 401)
+                return
+            token = auth_header[7:]
+            payload = verify_jwt_token(token)
+            if not payload or payload.get('type') == 'refresh':
+                self._send_json({'error': 'Invalid token'}, 401)
+                return
+
+            try:
+                body = json.loads(self._read_body())
+            except Exception:
+                self._send_json({'error': 'Invalid JSON'}, 400)
+                return
+
+            ALLOWED_FIELDS = {'fase_jornada', 'snoozed_until'}
+            updates = {k: v for k, v in body.items() if k in ALLOWED_FIELDS}
+            if not updates:
+                self._send_json({'error': 'No allowed fields provided'}, 400)
+                return
+
+            valid_fases = {
+                'onboarding', 'execucao', 'resultado', 'renovacao', 'encerrado'
+            }
+            if 'fase_jornada' in updates and updates['fase_jornada'] not in valid_fases:
+                self._send_json({'error': f'Invalid fase_jornada: {updates["fase_jornada"]}'}, 400)
+                return
+
+            result = supabase_request(
+                'PATCH',
+                f'mentorados?id=eq.{mentee_id}&select=id,nome,fase_jornada,snoozed_until',
+                updates
+            )
+            self._send_json(result)
+        except Exception as e:
+            log_error('PatchMentee', f'_handle_patch_mentee failed: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_bulk_patch_mentees(self):
+        """PATCH /api/mentees/bulk — update fase_jornada for multiple mentees at once
+        Body: { ids: [1, 2, 3], updates: { fase_jornada: 'execucao' } }
+        """
+        try:
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Unauthorized'}, 401)
+                return
+            token = auth_header[7:]
+            payload = verify_jwt_token(token)
+            if not payload or payload.get('type') == 'refresh':
+                self._send_json({'error': 'Invalid token'}, 401)
+                return
+
+            try:
+                body = json.loads(self._read_body())
+            except Exception:
+                self._send_json({'error': 'Invalid JSON'}, 400)
+                return
+
+            ids = body.get('ids', [])
+            if not ids or not isinstance(ids, list):
+                self._send_json({'error': 'ids must be a non-empty list'}, 400)
+                return
+
+            ALLOWED_FIELDS = {'fase_jornada', 'snoozed_until'}
+            updates = {k: v for k, v in body.get('updates', {}).items() if k in ALLOWED_FIELDS}
+            if not updates:
+                self._send_json({'error': 'No allowed fields in updates'}, 400)
+                return
+
+            valid_fases = {
+                'onboarding', 'execucao', 'resultado', 'renovacao', 'encerrado'
+            }
+            if 'fase_jornada' in updates and updates['fase_jornada'] not in valid_fases:
+                self._send_json({'error': f'Invalid fase_jornada: {updates["fase_jornada"]}'}, 400)
+                return
+
+            # PostgREST IN filter: id=in.(1,2,3)
+            ids_csv = ','.join(str(i) for i in ids)
+            result = supabase_request(
+                'PATCH',
+                f'mentorados?id=in.({ids_csv})&select=id,nome,fase_jornada,snoozed_until',
+                updates
+            )
+            updated = result if isinstance(result, list) else []
+            self._send_json({'updated': len(updated), 'mentees': updated})
+        except Exception as e:
+            log_error('BulkPatch', f'_handle_bulk_patch_mentees failed: {e}')
+            self._send_json({'error': str(e)}, 500)
 
     def _handle_list_events(self):
         result = list_calendar_events()
