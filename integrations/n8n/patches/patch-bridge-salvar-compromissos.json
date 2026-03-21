@@ -1,0 +1,28 @@
+{
+  "meta": {
+    "instanceId": "33738330930e3881dd5571eca013f36ddf8aab20e4ea5c1f2ebaf4a2b4668ac6"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT bridge_create_task(\n  {{ $json.mentorado_id }},\n  '{{ ($json.compromisso || '').replace(/'/g, \"''\") }}',\n  '{{ ($json.contexto || '').replace(/'/g, \"''\") }}',\n  '{{ $json.sender_name || 'mentorado' }}',\n  'normal',\n  {{ $json.prazo_inferido ? \"'\" + $json.prazo_inferido + \"'\" : 'NULL' }},\n  'whatsapp_compromisso',\n  NULL,\n  NULL,\n  NULL,\n  {{ $json.confianca || 0.7 }}\n);",
+        "options": {}
+      },
+      "id": "b1c2d3e4-0020-4000-8000-000000000020",
+      "name": "Salvar Compromissos",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1040, 5296],
+      "credentials": {
+        "postgres": {
+          "id": "vVXQE04tisGHZsFJ",
+          "name": "Postgres | case"
+        }
+      },
+      "continueOnFail": true,
+      "notes": "SUBSTITUI o Supabase node antigo. Chama bridge_create_task via Postgres para criar god_task a partir de compromisso detectado."
+    }
+  ],
+  "connections": {}
+}
