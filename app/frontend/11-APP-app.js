@@ -186,6 +186,12 @@ function operon() {
       waTopicDetail: null,
       waTopicMessages: [],
       waTopicsLoading: false,
+      // WA Management — Carteira
+      waPortfolioLoading: false,
+      waPortfolioView: 'carteira',      // 'carteira' | 'inbox'
+      waPortfolioFaseFilter: '',        // '' | 'onboarding' | 'execucao' | 'resultado' | 'renovacao'
+      waPortfolioHealthFilter: '',      // '' | 'verde' | 'amarelo' | 'vermelho'
+      waFaseDropdownId: null,           // id of mentee with open fase dropdown
       // Reminders
       reminderModal: false,
       reminderFilter: 'ativo', // ativo | concluido | all
@@ -1901,6 +1907,7 @@ function operon() {
       'equipe': 'equipe',
       'whatsapp': 'whatsapp',
       'wa-topics': 'wa_topics',
+      'wa-management': 'wa_management',
       'reminders': 'reminders',
       'dossies': 'dossies',
       'planos-acao': 'planos_acao',
@@ -4860,6 +4867,121 @@ function operon() {
         }
         return true;
       });
+    },
+
+    // ===================== WA MANAGEMENT — CARTEIRA =====================
+
+    waPortfolioMentees() {
+      let list = [...this.data.mentees];
+      if (this.ui.waPortfolioFaseFilter) {
+        list = list.filter(m => m.fase_jornada === this.ui.waPortfolioFaseFilter);
+      }
+      if (this.ui.waPortfolioHealthFilter) {
+        list = list.filter(m => this._waHealthLabel(m) === this.ui.waPortfolioHealthFilter);
+      }
+      if (this.ui.waPortfolioView === 'inbox') {
+        list.sort((a, b) => this._waPriorityScore(b) - this._waPriorityScore(a));
+      } else {
+        list.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+      }
+      return list;
+    },
+
+    waPortfolioKpis() {
+      const all = this.data.mentees;
+      return {
+        total: all.length,
+        verde: all.filter(m => this._waHealthLabel(m) === 'verde').length,
+        amarelo: all.filter(m => this._waHealthLabel(m) === 'amarelo').length,
+        vermelho: all.filter(m => this._waHealthLabel(m) === 'vermelho').length,
+      };
+    },
+
+    _waHealthLabel(m) {
+      const score = this.calcHealthScore(m);
+      if (score >= 70) return 'verde';
+      if (score >= 40) return 'amarelo';
+      return 'vermelho';
+    },
+
+    _waPriorityScore(m) {
+      let score = 0;
+      const h = m.horas_sem_resposta_equipe || 0;
+      if (h > 72) score += 40;
+      else if (h > 48) score += 25;
+      else if (h > 24) score += 10;
+      if (m.fase_jornada === 'onboarding' || m.fase_jornada === 'renovacao') score += 20;
+      score += Math.min(20, (m.pendencias_count || 0) * 5);
+      score += Math.min(10, (m.msgs_pendentes_resposta || 0));
+      if (m.risco_churn === 'alto') score += 15;
+      else if (m.risco_churn === 'medio') score += 5;
+      return score;
+    },
+
+    _waFaseLabel(fase) {
+      const labels = {
+        onboarding: 'Onboarding',
+        execucao: 'Execução',
+        resultado: 'Resultado',
+        renovacao: 'Renovação',
+        encerrado: 'Encerrado',
+      };
+      return labels[fase] || fase || '—';
+    },
+
+    _waFaseBadgeStyle(fase) {
+      const styles = {
+        onboarding: 'background:#dbeafe;color:#1e40af',
+        execucao: 'background:#d1fae5;color:#065f46',
+        resultado: 'background:#ede9fe;color:#5b21b6',
+        renovacao: 'background:#fef3c7;color:#92400e',
+        encerrado: 'background:#f1f5f9;color:#64748b',
+      };
+      return styles[fase] || 'background:#f1f5f9;color:#64748b';
+    },
+
+    _waUltimoContato(m) {
+      const h = m.horas_sem_resposta_equipe;
+      if (h == null) return '—';
+      if (h < 1) return 'Agora';
+      if (h < 24) return `${Math.floor(h)}h atrás`;
+      const d = Math.floor(h / 24);
+      if (d === 1) return 'Ontem';
+      return `${d}d atrás`;
+    },
+
+    async patchMentee(menteeId, updates) {
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/mentees/${menteeId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.auth.token}`,
+          },
+          body: JSON.stringify(updates),
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const result = await resp.json();
+        const idx = this.data.mentees.findIndex(m => m.id === menteeId);
+        if (idx !== -1) this.data.mentees[idx] = { ...this.data.mentees[idx], ...updates };
+        return result;
+      } catch (e) {
+        this.toast('Erro ao atualizar mentorado: ' + e.message, 'error');
+        throw e;
+      }
+    },
+
+    async changeFaseMentee(menteeId, novaFase) {
+      await this.patchMentee(menteeId, { fase_jornada: novaFase });
+      this.ui.waFaseDropdownId = null;
+      this.toast(`Fase atualizada para ${this._waFaseLabel(novaFase)}`, 'success');
+    },
+
+    async snoozeMentee(menteeId, dias) {
+      const dt = new Date();
+      dt.setDate(dt.getDate() + dias);
+      await this.patchMentee(menteeId, { snoozed_until: dt.toISOString() });
+      this.toast(`Mentorado snoozeado por ${dias} dias`, 'success');
     },
 
     async openWaTopic(topic) {

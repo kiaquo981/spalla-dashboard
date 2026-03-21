@@ -128,6 +128,10 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             <span x-show="ui.sidebarOpen">Tópicos WA</span>
           </a>
+          <a class="op-nav-item" :class="{ active: ui.page === 'wa_management' }" @click="navigate('wa_management')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span x-show="ui.sidebarOpen">Carteira</span>
+          </a>
           <a class="op-nav-item" :class="{ active: ui.page === 'reminders' }" @click="navigate('reminders')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             <span x-show="ui.sidebarOpen">Lembretes</span>
@@ -5003,6 +5007,195 @@
 
           </div>
         </div>
+
+        <!-- ===== PAGE: WA MANAGEMENT — CARTEIRA ===== -->
+        <div class="page-content" x-show="ui.page === 'wa_management'" x-transition>
+
+          <!-- Header -->
+          <div class="page-header">
+            <div>
+              <h2>Carteira de Mentorados</h2>
+              <p class="page-header__sub">Visão consultiva da sua carteira</p>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <!-- View toggle -->
+              <div class="topics-view-switcher">
+                <button class="topics-view-btn" :class="{ active: ui.waPortfolioView === 'carteira' }" @click="ui.waPortfolioView = 'carteira'" title="Carteira">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                </button>
+                <button class="topics-view-btn" :class="{ active: ui.waPortfolioView === 'inbox' }" @click="ui.waPortfolioView = 'inbox'" title="Priority Inbox">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                </button>
+              </div>
+              <!-- Fase filter -->
+              <select class="filter-select" x-model="ui.waPortfolioFaseFilter" style="font-size:13px;padding:4px 8px;border:1px solid var(--neutral-200);border-radius:var(--r-md);background:white;cursor:pointer">
+                <option value="">Todas as fases</option>
+                <option value="onboarding">Onboarding</option>
+                <option value="execucao">Execução</option>
+                <option value="resultado">Resultado</option>
+                <option value="renovacao">Renovação</option>
+                <option value="encerrado">Encerrado</option>
+              </select>
+              <!-- Health filter -->
+              <select class="filter-select" x-model="ui.waPortfolioHealthFilter" style="font-size:13px;padding:4px 8px;border:1px solid var(--neutral-200);border-radius:var(--r-md);background:white;cursor:pointer">
+                <option value="">Todos</option>
+                <option value="verde">🟢 Saudável</option>
+                <option value="amarelo">🟡 Atenção</option>
+                <option value="vermelho">🔴 Crítico</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Health KPI Strip -->
+          <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+            <template x-if="data.mentees.length">
+              <div style="display:flex;gap:12px">
+                <div style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--cream-50);border:1px solid var(--neutral-200);border-radius:var(--r-lg);font-size:13px">
+                  <span style="font-weight:600;color:var(--text-primary)" x-text="waPortfolioKpis().total"></span>
+                  <span style="color:var(--text-secondary)">total</span>
+                </div>
+                <div @click="ui.waPortfolioHealthFilter = ui.waPortfolioHealthFilter === 'verde' ? '' : 'verde'" style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:#f0fdf4;border:1px solid #86efac;border-radius:var(--r-lg);font-size:13px;cursor:pointer" :style="ui.waPortfolioHealthFilter === 'verde' ? 'outline:2px solid #22c55e' : ''">
+                  <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block"></span>
+                  <span style="font-weight:600;color:#166534" x-text="waPortfolioKpis().verde"></span>
+                  <span style="color:#166534">saudável</span>
+                </div>
+                <div @click="ui.waPortfolioHealthFilter = ui.waPortfolioHealthFilter === 'amarelo' ? '' : 'amarelo'" style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:#fefce8;border:1px solid #fde047;border-radius:var(--r-lg);font-size:13px;cursor:pointer" :style="ui.waPortfolioHealthFilter === 'amarelo' ? 'outline:2px solid #eab308' : ''">
+                  <span style="width:8px;height:8px;border-radius:50%;background:#eab308;display:inline-block"></span>
+                  <span style="font-weight:600;color:#713f12" x-text="waPortfolioKpis().amarelo"></span>
+                  <span style="color:#713f12">atenção</span>
+                </div>
+                <div @click="ui.waPortfolioHealthFilter = ui.waPortfolioHealthFilter === 'vermelho' ? '' : 'vermelho'" style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:#fef2f2;border:1px solid #fca5a5;border-radius:var(--r-lg);font-size:13px;cursor:pointer" :style="ui.waPortfolioHealthFilter === 'vermelho' ? 'outline:2px solid #ef4444' : ''">
+                  <span style="width:8px;height:8px;border-radius:50%;background:#ef4444;display:inline-block"></span>
+                  <span style="font-weight:600;color:#7f1d1d" x-text="waPortfolioKpis().vermelho"></span>
+                  <span style="color:#7f1d1d">crítico</span>
+                </div>
+              </div>
+            </template>
+            <template x-if="ui.waPortfolioView === 'inbox'">
+              <div style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:var(--r-lg);font-size:12px;color:#1e40af">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                Ordenado por prioridade — risco de churn, fase crítica, pendências
+              </div>
+            </template>
+          </div>
+
+          <!-- Empty state -->
+          <div x-show="!data.mentees.length" style="text-align:center;padding:60px 20px;color:var(--text-secondary)">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 16px;display:block;opacity:.4"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+            <p>Nenhum mentorado carregado ainda.</p>
+          </div>
+
+          <!-- Carteira Grid -->
+          <div x-show="data.mentees.length" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
+            <template x-for="m in waPortfolioMentees()" :key="m.id">
+              <div class="card" style="padding:0;overflow:visible;position:relative">
+                <!-- Health indicator bar -->
+                <div style="height:3px;border-radius:var(--r-lg) var(--r-lg) 0 0"
+                     :style="{ background: _waHealthLabel(m) === 'verde' ? '#22c55e' : _waHealthLabel(m) === 'amarelo' ? '#eab308' : '#ef4444' }">
+                </div>
+                <div style="padding:16px">
+                  <!-- Top row: avatar + nome + fase -->
+                  <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px">
+                    <!-- Avatar -->
+                    <div style="width:44px;height:44px;border-radius:50%;background:var(--neutral-200);flex-shrink:0;overflow:hidden">
+                      <template x-if="igPhoto(m.instagram || m.nome)">
+                        <img :src="igPhoto(m.instagram || m.nome)" style="width:100%;height:100%;object-fit:cover" @error="photoTick++">
+                      </template>
+                      <template x-if="!igPhoto(m.instagram || m.nome)">
+                        <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;color:var(--text-secondary)" x-text="(m.nome || '?').charAt(0).toUpperCase()"></div>
+                      </template>
+                    </div>
+                    <!-- Nome + fase -->
+                    <div style="flex:1;min-width:0">
+                      <div style="font-weight:600;font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="m.nome"></div>
+                      <!-- Fase dropdown trigger -->
+                      <div style="position:relative;display:inline-block;margin-top:4px">
+                        <span @click.stop="ui.waFaseDropdownId = ui.waFaseDropdownId === m.id ? null : m.id"
+                              style="font-size:11px;font-weight:500;padding:2px 8px;border-radius:var(--r-full);cursor:pointer;display:inline-block"
+                              :style="_waFaseBadgeStyle(m.fase_jornada)"
+                              x-text="_waFaseLabel(m.fase_jornada)">
+                        </span>
+                        <!-- Fase dropdown -->
+                        <div x-show="ui.waFaseDropdownId === m.id" @click.away="ui.waFaseDropdownId = null"
+                             style="position:absolute;top:100%;left:0;z-index:50;background:white;border:1px solid var(--neutral-200);border-radius:var(--r-lg);box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:140px;padding:4px 0;margin-top:4px">
+                          <template x-for="fase in ['onboarding','execucao','resultado','renovacao','encerrado']" :key="fase">
+                            <div @click.stop="changeFaseMentee(m.id, fase)"
+                                 style="padding:6px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px"
+                                 :style="m.fase_jornada === fase ? 'background:var(--cream-100)' : ''"
+                                 class="wa-fase-option">
+                              <span style="width:8px;height:8px;border-radius:50%;display:inline-block"
+                                    :style="fase === 'onboarding' ? 'background:#3b82f6' : fase === 'execucao' ? 'background:#10b981' : fase === 'resultado' ? 'background:#8b5cf6' : fase === 'renovacao' ? 'background:#f59e0b' : 'background:#94a3b8'">
+                              </span>
+                              <span x-text="_waFaseLabel(fase)"></span>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </div>
+                    <!-- Health dot -->
+                    <div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:4px"
+                         :style="{ background: _waHealthLabel(m) === 'verde' ? '#22c55e' : _waHealthLabel(m) === 'amarelo' ? '#eab308' : '#ef4444' }"
+                         :title="'Saúde: ' + _waHealthLabel(m)">
+                    </div>
+                  </div>
+
+                  <!-- Stats row -->
+                  <div style="display:flex;gap:16px;margin-bottom:12px;font-size:12px;color:var(--text-secondary)">
+                    <div>
+                      <span style="display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Último contato</span>
+                      <span style="font-weight:500;color:var(--text-primary)" x-text="_waUltimoContato(m)"></span>
+                    </div>
+                    <div x-show="m.msgs_pendentes_resposta > 0">
+                      <span style="display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Msgs pendentes</span>
+                      <span style="font-weight:600;color:#ef4444" x-text="m.msgs_pendentes_resposta"></span>
+                    </div>
+                    <div x-show="m.pendencias_count > 0">
+                      <span style="display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Pendências</span>
+                      <span style="font-weight:600;color:#f59e0b" x-text="m.pendencias_count"></span>
+                    </div>
+                  </div>
+
+                  <!-- Quick actions -->
+                  <div style="display:flex;gap:6px;flex-wrap:wrap">
+                    <button class="btn btn--ghost btn--sm"
+                            @click="navigate('whatsapp'); ui.waActiveChat = m.group_jid || null"
+                            style="font-size:11px;padding:4px 8px">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                      Chat
+                    </button>
+                    <button class="btn btn--ghost btn--sm"
+                            @click="openDetail(m.id)"
+                            style="font-size:11px;padding:4px 8px">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                      Perfil
+                    </button>
+                    <button class="btn btn--ghost btn--sm"
+                            @click="openNotesDrawer(m.id, m.nome)"
+                            title="Notas"
+                            style="font-size:11px;padding:4px 8px">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                      Notas
+                    </button>
+                    <button class="btn btn--ghost btn--sm"
+                            @click="snoozeMentee(m.id, 3)"
+                            title="Snooze 3 dias"
+                            style="font-size:11px;padding:4px 8px">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                      Snooze
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Priority Inbox label when view=inbox -->
+          <div x-show="ui.waPortfolioView === 'inbox' && data.mentees.length" style="margin-top:8px;font-size:11px;color:var(--text-secondary);text-align:right">
+            Exibindo <span x-text="waPortfolioMentees().length"></span> mentorados · ordenados por prioridade
+          </div>
+
+        </div>
+        <!-- ===== END PAGE: WA MANAGEMENT ===== -->
 
 
       </main>
