@@ -2385,6 +2385,7 @@
                     <div class="ag-upcoming__meta" x-text="formatDateFull(sc.data) + ' ' + (sc.horario || '') + ' — ' + sc.tipo"></div>
                   </div>
                   <a x-show="sc.zoom_url" :href="sc.zoom_url" target="_blank" rel="noopener" class="ag-upcoming__zoom" @click.stop>Zoom</a>
+                  <button class="ag-upcoming__cancel" @click.stop="cancelScheduledCall(sc)" title="Cancelar call" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px;padding:4px 8px;">✕</button>
                 </div>
               </template>
             </div>
@@ -2417,11 +2418,14 @@
                        :class="{'ag-calendar__day--other': !day.currentMonth, 'ag-calendar__day--today': day.isToday, 'ag-calendar__day--selected': day.dateStr === ui.selectedCalDate, 'ag-calendar__day--has-calls': day.calls > 0}"
                        @click="ui.selectedCalDate = day.dateStr">
                     <span class="ag-calendar__day-num" x-text="day.num"></span>
-                    <div class="ag-calendar__day-dots" x-show="day.calls > 0">
-                      <template x-for="i in Math.min(day.calls, 3)" :key="i">
+                    <div class="ag-calendar__day-dots" x-show="day.calls > 0 || day.gcalEvents > 0">
+                      <template x-for="i in Math.min(day.calls, 3)" :key="'c'+i">
                         <span class="ag-calendar__dot"></span>
                       </template>
                       <span class="ag-calendar__dot-more" x-show="day.calls > 3" x-text="'+' + (day.calls - 3)"></span>
+                      <template x-for="i in Math.min(day.gcalEvents, 2)" :key="'g'+i">
+                        <span class="ag-calendar__dot" style="background:#3b82f6"></span>
+                      </template>
                     </div>
                   </div>
                 </template>
@@ -2559,8 +2563,17 @@
                 <label>Notas / Pauta (opcional)</label>
                 <textarea x-model="scheduleForm.notas" placeholder="Pauta da call, topicos a discutir..." class="modal__textarea" rows="3"></textarea>
               </div>
+              <!-- GCal conflict warning -->
+              <div x-show="ui.gcalConflict" class="modal__alert" style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#92400e">
+                <strong>Conflito de horario!</strong>
+                <span x-text="'Evento \"' + (ui.gcalConflict?.summary || '') + '\" no Google Calendar proximo deste horario.'"></span>
+                <div style="margin-top:8px;display:flex;gap:8px">
+                  <button class="btn btn--sm" @click="ui.gcalConflict = null; ui._conflictConfirmed = true; scheduleCall()" style="font-size:12px">Continuar assim mesmo</button>
+                  <button class="btn btn--sm" @click="ui.gcalConflict = null" style="font-size:12px">Alterar horario</button>
+                </div>
+              </div>
               <div class="modal__footer">
-                <button class="btn" @click="ui.scheduleModal = false">Cancelar</button>
+                <button class="btn" @click="ui.scheduleModal = false; ui.gcalConflict = null">Cancelar</button>
                 <button class="btn btn--brand" @click="scheduleCall()" :disabled="ui.scheduling || getScheduleBlock(scheduleForm.mentorado)" :title="getScheduleBlock(scheduleForm.mentorado)?.title || ''">
                   <span x-show="!ui.scheduling" x-text="getScheduleBlock(scheduleForm.mentorado) ? 'Bloqueado' : 'Agendar Call'"></span>
                   <span x-show="ui.scheduling">Agendando...</span>
