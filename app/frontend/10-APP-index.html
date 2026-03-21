@@ -62,6 +62,16 @@
     .wa-inbox-input-wrap input { width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box; }
     .wa-inbox-input-wrap input:focus { border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.1); }
 
+    /* === WA QUICK REPLIES (Wave 2 F2.3) === */
+    .wa-quick-btn { padding:5px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;font-size:12px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:4px; }
+    .wa-quick-btn:hover { background:#ede9fe;color:#7c3aed;border-color:#c4b5fd; }
+    .wa-quick-btn:focus-visible { outline:2px solid #7c3aed;outline-offset:2px; }
+    .wa-quick-dropdown { position:absolute;bottom:100%;left:0;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:240px;z-index:100;overflow:hidden;margin-bottom:4px; }
+    .wa-quick-item { padding:10px 14px;cursor:pointer;font-size:13px;color:#334155;display:flex;align-items:center;gap:8px;transition:background .1s; }
+    .wa-quick-item:hover { background:#f8fafc; }
+    .wa-quick-item__label { font-weight:500; }
+    .wa-quick-wrap { position:relative;display:inline-block; }
+
         /* === S9-C: Task Extraction + Triage + Segments === */
     .triage-item { display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:12px 16px;border-bottom:1px solid #f1f5f9; }
     .triage-info { flex:1;min-width:0; }
@@ -5666,7 +5676,7 @@
             </template>
           </div>
 
-          <!-- Input / Canned responses -->
+          <!-- Input / Canned responses / Quick Replies -->
           <div class="wa-inbox-input-wrap">
             <div x-show="ui.waCanned.show" class="canned-dropdown">
               <template x-for="r in ui.waCanned.filtered" :key="r.shortcode">
@@ -5677,12 +5687,37 @@
                 </button>
               </template>
             </div>
-            <input type="text"
-                   x-model="ui.waMessageInput"
-                   @keyup="onWaInputKeyup(ui.waMessageInput)"
-                   @keydown.escape="ui.waCanned.show = false"
-                   placeholder="Digite / para respostas rápidas..."
-                   autocomplete="off" />
+            <div style="display:flex;align-items:center;gap:8px">
+              <input type="text" style="flex:1"
+                     x-model="ui.waMessageInput"
+                     @keyup="onWaInputKeyup(ui.waMessageInput)"
+                     @keydown.escape="ui.waCanned.show = false; ui.waQuickRepliesOpen = false"
+                     placeholder="Digite / para respostas rápidas..."
+                     autocomplete="off" />
+              <!-- Quick Reply Templates (Wave 2 F2.3) -->
+              <div class="wa-quick-wrap">
+                <button type="button" class="wa-quick-btn"
+                        @click="ui.waQuickRepliesOpen = !ui.waQuickRepliesOpen"
+                        :aria-expanded="ui.waQuickRepliesOpen"
+                        aria-label="Templates de resposta rápida">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                  Templates
+                </button>
+                <div class="wa-quick-dropdown" x-show="ui.waQuickRepliesOpen" x-cloak
+                     @click.outside="ui.waQuickRepliesOpen = false"
+                     @keydown.escape.window="ui.waQuickRepliesOpen = false">
+                  <template x-for="tpl in WA_QUICK_REPLY_TEMPLATES" :key="tpl.id">
+                    <div class="wa-quick-item" role="button" tabindex="0"
+                         @click="applyQuickReply(tpl)"
+                         @keydown.enter="applyQuickReply(tpl)">
+                      <span class="wa-quick-item__label" x-text="tpl.label"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
           </div>
 
         </div>

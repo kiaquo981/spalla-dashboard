@@ -136,6 +136,18 @@ function operon() {
     supabaseConnected: false,
     _supabaseCalls: [],
 
+    // --- WA Quick Reply Templates (Wave 2 F2.3) ---
+    WA_QUICK_REPLY_TEMPLATES: [
+      { id: 'saudacao', label: '\u{1F44B} Saudação', template: 'Oi {nome}! Tudo bem? Passei para checar como você está indo. Tem alguma dúvida ou precisa de algo?' },
+      { id: 'lembrete-call', label: '\u{1F4C5} Lembrete de Call', template: 'Oi {nome}! Lembrete: sua call está agendada para amanhã. Confirma sua presença?' },
+      { id: 'parabens-venda', label: '\u{1F389} Parabéns pela Venda', template: 'Parabéns pela primeira venda, {nome}! Esse é um marco enorme. Estamos muito felizes com seu progresso!' },
+      { id: 'reengajamento', label: '\u{26A1} Reengajamento', template: 'Oi {nome}, notei que faz alguns dias sem atividade. Tudo certo? Posso ajudar com algum bloqueio?' },
+      { id: 'checkin-semanal', label: '\u{1F4CA} Check-in Semanal', template: 'Oi {nome}! Check-in semanal: como foi sua semana? Conseguiu executar o plano de ação?' },
+      { id: 'mudanca-fase', label: '\u{1F680} Mudança de Fase', template: 'Oi {nome}! Você avançou para a fase {fase}. Preparei as próximas tarefas para você. Bora?' },
+      { id: 'tarefa-pendente', label: '\u{2705} Tarefa Pendente', template: 'Oi {nome}, você tem tarefas pendentes desta semana. Posso ajudar a desbloqueá-las?' },
+      { id: 'resultado-financeiro', label: '\u{1F4B0} Resultado Financeiro', template: 'Oi {nome}! Vi que você teve um resultado incrível. Vamos conversar sobre como escalar isso?' },
+    ],
+
     // --- Broken photo tracking ---
     brokenPhotos: {},
     waPhotos: {},
@@ -289,6 +301,7 @@ function operon() {
         show: false,
       },
       waMessageInput: '',
+      waQuickRepliesOpen: false,
       // S9-C: Task Extraction + Triage + Saved Segments
       waTaskExtract: { open: false, msg: null, titulo: '', prioridade: 'normal', data_fim: '', saving: false },
       waTriageLoading: false,
@@ -5492,6 +5505,19 @@ function operon() {
     selectCannedResponse(r) {
       this.ui.waMessageInput = r.content;
       this.ui.waCanned.show  = false;
+    },
+
+    // --- Quick Reply Templates (Wave 2 F2.3) ---
+    applyQuickReply(tpl) {
+      const nome = this.ui.waInbox?.mentoradoNome || '';
+      const menteeId = this.ui.waInbox?.mentoradoId;
+      const mentee = menteeId ? this.data.mentees.find(m => m.id === menteeId) : null;
+      const fase = mentee?.fase_jornada || '';
+      const text = tpl.template
+        .replace(/\{nome\}/g, nome)
+        .replace(/\{fase\}/g, fase);
+      this.ui.waMessageInput = text;
+      this.ui.waQuickRepliesOpen = false;
     },
 
     // ===================== END WA DM v2 — S9-B =====================
