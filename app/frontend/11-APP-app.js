@@ -239,6 +239,32 @@ function operon() {
       expandedCall: null,
       scheduleModal: false,
       scheduling: false,
+      // WA DM v2 — Inbox (S9-B)
+      waInbox: {
+        open: false,
+        mentoradoId: null,
+        mentoradoNome: '',
+        messages: [],
+        loading: false,
+        cursor: null,               // timestamp da msg mais antiga carregada
+        hasMore: true,
+        presenceInterval: null,
+        presencePollInterval: null,
+        others: [],                 // outros usuários vendo agora (collision)
+      },
+      waCanned: {
+        filtered: [],
+        show: false,
+      },
+      waMessageInput: '',
+      // S9-C: Task Extraction + Triage + Saved Segments
+      waTaskExtract: { open: false, msg: null, titulo: '', prioridade: 'normal', data_fim: '', saving: false },
+      waTriageLoading: false,
+      waTriageAssigning: null,
+      waSavedSegmentActive: null,
+      waSaveSegmentModal: { open: false, name: '' },
+      alertsDismissed: [],
+      timelineFilter: '',
     },
 
     // --- Data ---
@@ -280,6 +306,13 @@ function operon() {
       menteeNotes: [],          // notes for current notes drawer
       waSelectedMentees: [],    // IDs selected in bulk mode
       digestData: null,         // loaded digest for current mentee
+      // WA DM v2 (S9-B)
+      waCannedAll: [],          // cache de canned responses
+      // S9-C
+      waTriageTopics: [],
+      waTriageCount: 0,
+      waSavedSegments: [],
+      timeline: [],
     },
 
     // --- Financeiro (CFO Payments View) ---
@@ -751,7 +784,7 @@ function operon() {
       try {
         const res = await fetch(`${CONFIG.API_BASE}/api/financeiro/status`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.token}` },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
           body: JSON.stringify({ mentorado_id: menteeId, status: newStatus, observacao }),
         });
         if (res.ok) {
@@ -773,7 +806,7 @@ function operon() {
       try {
         const res = await fetch(`${CONFIG.API_BASE}/api/financeiro/nota`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.token}` },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
           body: JSON.stringify({ mentorado_id: this.finNoteModal.menteeId, observacao: this.finNoteModal.text.trim() }),
         });
         if (res.ok) {
@@ -1701,6 +1734,8 @@ function operon() {
           // Recalculate dias_desde_call with real call data
           if (this._supabaseCalls?.length) this._enrichMenteesWithCalls();
           this.supabaseConnected = true;
+          this.loadAlerts().catch(e => console.warn('[Spalla] Alerts:', e));
+          this._maybeUpdateKpiSnapshot();
           this.toast('Dados carregados do Supabase', 'success');
         } catch (e) {
           console.error('[Spalla] Fetch error:', e);
@@ -1713,6 +1748,161 @@ function operon() {
       this.ui.loading = false;
       // Auto-refresh disabled — only WhatsApp polling active
       // if (this.supabaseConnected) this.startDataRefresh();
+    },
+
+    // === ALERTS BAR (Wave 1 F1.1) ===
+    async loadAlerts() {
+      if (!sb) return;
+      const { data, error } = await sb.rpc('fn_god_alerts');
+      if (error) { console.warn('[Spalla] loadAlerts:', error.message); return; }
+      this.data.alerts = data || [];
+    },
+
+    _alertKey(alert) {
+      return `${alert.mentorado_id || ''}-${alert.alerta_tipo || ''}`;
+    },
+
+    dismissAlert(alert) {
+      const key = this._alertKey(alert);
+      if (!(this.ui.alertsDismissed || []).includes(key)) {
+        this.ui.alertsDismissed = [...(this.ui.alertsDismissed || []), key];
+      }
+    },
+
+    get visibleAlerts() {
+      const dismissed = this.ui.alertsDismissed || [];
+      return (this.data.alerts || []).filter(a => !dismissed.includes(this._alertKey(a)));
+    },
+
+    get criticalAlertCount() {
+      return (this.visibleAlerts || []).filter(a => a.severidade === 'critico').length;
+    },
+
+    // === KPI TRENDS (Wave 1 F1.4) ===
+    _maybeUpdateKpiSnapshot() {
+      try {
+        const stored = JSON.parse(localStorage.getItem('spalla_kpi_snapshot') || 'null');
+        const now = Date.now();
+        if (!stored || !Number.isFinite(stored.ts) || (now - stored.ts) > 7 * 24 * 60 * 60 * 1000) {
+          localStorage.setItem('spalla_kpi_snapshot', JSON.stringify({
+            ts: now,
+            kpis: { ...this.kpis },
+          }));
+        }
+      } catch (e) { /* noop */ }
+    },
+
+    kpiTrend(key) {
+      try {
+        const stored = JSON.parse(localStorage.getItem('spalla_kpi_snapshot') || 'null');
+        if (!stored?.kpis) return '';
+        const prev = stored.kpis[key];
+        const curr = this.kpis[key];
+        if (prev == null || curr == null) return '';
+        if (curr > prev) return '▲';
+        if (curr < prev) return '▼';
+        return '';
+      } catch (e) { return ''; }
+    },
+
+    kpiTrendClass(key) {
+      const t = this.kpiTrend(key);
+      if (t === '▲') return 'trend--up';
+      if (t === '▼') return 'trend--down';
+      return '';
+    },
+
+    // === EXPORT CSV (Wave 1 F1.3) ===
+    exportDashboardCsv() {
+      let url;
+      try {
+        const rows = [['Nome','Fase','Risco','Engagement (%)','Dias sem Call','Msgs Pendentes','Financeiro','Contrato','Consultor','Cohort']];
+        for (const m of this.filteredMentees) {
+          rows.push([
+            m.nome || '',
+            m.fase_jornada || '',
+            m.risco_churn || '',
+            m.engagement_score ?? '',
+            m.dias_desde_call ?? '',
+            m.msgs_pendentes_resposta ?? 0,
+            m.status_financeiro || '',
+            m.contrato_assinado ? 'Sim' : 'Não',
+            m.consultor_responsavel || '',
+            m.cohort || '',
+          ]);
+        }
+        const csv = rows.map(r => r.map(v => `"${(v ?? '').toString().replace(/"/g, '""')}"`).join(',')).join('\n');
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `spalla-mentorados-${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        this.toast(`${this.filteredMentees.length} mentorados exportados`, 'success');
+      } catch (e) {
+        console.warn('[Spalla] exportDashboardCsv:', e);
+        this.toast('Erro ao exportar CSV', 'error');
+      } finally {
+        if (url) URL.revokeObjectURL(url);
+      }
+    },
+
+    exportDetailCsv() {
+      let url;
+      try {
+        const p = this.data.detail?.profile || {};
+        const ph = this.data.detail?.phase || {};
+        const fin = this.data.detail?.financial || {};
+        const calls = this.data.detail?.last_calls || [];
+        const profile = [
+          ['Campo', 'Valor'],
+          ['Nome', p.nome || ''],
+          ['Instagram', p.instagram || ''],
+          ['Fase', ph.fase_jornada || ''],
+          ['Risco', ph.risco_churn || ''],
+          ['Marco', ph.marco_atual || ''],
+          ['Engagement', (ph.engagement_score || 0) + '%'],
+          ['Implementacao', (ph.implementation_score || 0) + '%'],
+          ['Cohort', p.cohort || ''],
+          ['Consultor', p.consultor_responsavel || ''],
+          ['Total Vendido', fin.faturamento_atual || 0],
+          ['Qtd Vendas', fin.qtd_vendas_total || 0],
+          ['Status Financeiro', fin.status_financeiro || ''],
+          ['Contrato', p.contrato_assinado ? 'Sim' : 'Não'],
+          ['Dias desde Call', ph.dias_desde_call ?? ''],
+          ['Msgs Pendentes', ph.msgs_pendentes_resposta ?? 0],
+        ];
+        const callsRows = [
+          [],
+          ['--- CALLS ---'],
+          ['Data', 'Tipo', 'Duração (min)', 'Status'],
+          ...calls.map(c => [
+            c.data_call ? new Date(c.data_call).toLocaleDateString('pt-BR') : '',
+            c.tipo_call || '',
+            c.duracao || c.duracao_minutos || '',
+            c.status_call || '',
+          ]),
+        ];
+        const allRows = [...profile, ...callsRows];
+        const csv = allRows.map(r => r.map(v => `"${(v ?? '').toString().replace(/"/g, '""')}"`).join(',')).join('\n');
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const nome = (p.nome || 'mentorado').toLowerCase().replace(/\s+/g, '-');
+        a.download = `spalla-${nome}-${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        this.toast('Perfil exportado', 'success');
+      } catch (e) {
+        console.warn('[Spalla] exportDetailCsv:', e);
+        this.toast('Erro ao exportar perfil', 'error');
+      } finally {
+        if (url) URL.revokeObjectURL(url);
+      }
     },
 
     _enrichMenteesWithCalls() {
@@ -4966,13 +5156,379 @@ function operon() {
       return `${d}d atrás`;
     },
 
+    // ===================== WA DM v2 — S9-B =====================
+
+    // --- SLA Timer helpers ---
+
+    _waSlaTimerClass(horas) {
+      if (horas == null || horas < 0) return 'sla-none';
+      if (horas > 72) return 'sla-red';
+      if (horas > 48) return 'sla-yellow';
+      return 'sla-green';
+    },
+
+    _waSlaTimerText(horas) {
+      if (horas == null || horas < 0) return '—';
+      if (horas < 1) return `${Math.round(horas * 60)}m`;
+      if (horas < 24) return `${Math.round(horas)}h`;
+      const d = Math.floor(horas / 24);
+      const h = Math.round(horas % 24);
+      return h > 0 ? `${d}d ${h}h` : `${d}d`;
+    },
+
+    // Formata timestamp ISO para exibição no chat ("14:32", "ontem", "seg 18 mar")
+    _waInboxMsgTime(ts) {
+      if (!ts) return '';
+      const d = new Date(ts);
+      const now = new Date();
+      const diffH = (now - d) / 3600000;
+      if (diffH < 24 && d.getDate() === now.getDate()) {
+        return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      }
+      if (diffH < 48) return 'ontem';
+      return d.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' });
+    },
+
+    // Returns true when topic badge should be shown (topic changes between consecutive msgs)
+    _waInboxShouldShowTopic(messages, index) {
+      if (index === 0) return !!messages[index].topic_id;
+      return messages[index].topic_id &&
+             messages[index].topic_id !== messages[index - 1].topic_id;
+    },
+
+    // --- Inbox View ---
+
+    async openWaInbox(menteeId, menteeNome) {
+      // Clean up any previous inbox session before overwriting
+      if (this.ui.waInbox?.presenceInterval) clearInterval(this.ui.waInbox.presenceInterval);
+      if (this.ui.waInbox?.presencePollInterval) clearInterval(this.ui.waInbox.presencePollInterval);
+      if (this.ui.waInbox?.mentoradoId && this.ui.waInbox.mentoradoId !== menteeId) {
+        await this.clearWaPresence(this.ui.waInbox.mentoradoId);
+      }
+      this.ui.waInbox = {
+        open: true, mentoradoId: menteeId, mentoradoNome: menteeNome || '',
+        messages: [], loading: true, cursor: null, hasMore: true,
+        presenceInterval: null, presencePollInterval: null, others: [],
+      };
+      this.ui.waMessageInput = '';
+      this.ui.waCanned.show = false;
+      await this.loadInboxMessages(menteeId);
+      await this.loadCannedResponses();
+      await this.sendWaPresence(menteeId);
+      this.ui.waInbox.presenceInterval = setInterval(
+        () => this.sendWaPresence(menteeId), 30000
+      );
+      this.ui.waInbox.presencePollInterval = setInterval(
+        () => this.pollWaPresence(menteeId), 15000
+      );
+    },
+
+    async closeWaInbox() {
+      const { mentoradoId, presenceInterval, presencePollInterval } = this.ui.waInbox;
+      clearInterval(presenceInterval);
+      clearInterval(presencePollInterval);
+      if (mentoradoId) await this.clearWaPresence(mentoradoId);
+      this.ui.waInbox = {
+        open: false, mentoradoId: null, mentoradoNome: '',
+        messages: [], loading: false, cursor: null, hasMore: true,
+        presenceInterval: null, presencePollInterval: null, others: [],
+      };
+      this.ui.waCanned.show = false;
+      this.ui.waMessageInput = '';
+    },
+
+    async loadInboxMessages(menteeId) {
+      this.ui.waInbox.loading = true;
+      try {
+        const { data, error } = await sb.from('wa_messages')
+          .select('id,sender_name,is_from_team,content_type,content_text,timestamp,topic_id')
+          .eq('mentorado_id', menteeId)
+          .order('timestamp', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(50);
+        if (error) throw error;
+        if (this.ui.waInbox.mentoradoId !== menteeId) return; // stale guard
+        const msgs = (data || []).reverse();
+        this.ui.waInbox.messages = msgs;
+        // composite cursor: { timestamp, id } — stable even when timestamps tie
+        this.ui.waInbox.cursor   = msgs.length ? { timestamp: msgs[0].timestamp, id: msgs[0].id } : null;
+        this.ui.waInbox.hasMore  = (data?.length || 0) === 50;
+      } catch (e) {
+        console.error('[Spalla] loadInboxMessages error:', e);
+        this.ui.waInbox.messages = [];
+      } finally {
+        this.ui.waInbox.loading = false;
+      }
+    },
+
+    async loadMoreInboxMessages() {
+      const { mentoradoId, cursor, loading, hasMore } = this.ui.waInbox;
+      if (!mentoradoId || !cursor || loading || !hasMore) return;
+      this.ui.waInbox.loading = true;
+      try {
+        const { data, error } = await sb.from('wa_messages')
+          .select('id,sender_name,is_from_team,content_type,content_text,timestamp,topic_id')
+          .eq('mentorado_id', mentoradoId)
+          // composite cursor: (ts < cur.ts) OR (ts = cur.ts AND id < cur.id)
+          .or(`timestamp.lt.${cursor.timestamp},and(timestamp.eq.${cursor.timestamp},id.lt.${cursor.id})`)
+          .order('timestamp', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(50);
+        if (error) throw error;
+        if (this.ui.waInbox.mentoradoId !== mentoradoId) return; // stale guard
+        const older = (data || []).reverse();
+        this.ui.waInbox.messages = [...older, ...this.ui.waInbox.messages];
+        this.ui.waInbox.cursor   = older.length ? { timestamp: older[0].timestamp, id: older[0].id } : cursor;
+        this.ui.waInbox.hasMore  = (data?.length || 0) === 50;
+      } catch (e) {
+        console.error('[Spalla] loadMoreInboxMessages error:', e);
+      } finally {
+        this.ui.waInbox.loading = false;
+      }
+    },
+
+    // --- Presence ---
+
+    async sendWaPresence(mentoradoId) {
+      if (!mentoradoId) return;
+      try {
+        await fetch(`${CONFIG.API_BASE}/api/wa/presence`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.auth.accessToken}`,
+          },
+          body: JSON.stringify({
+            mentorado_id: mentoradoId,
+            user_email: this.auth?.currentUser?.email || '',
+            user_name:  this.auth?.currentUser?.name  || this.auth?.currentUser?.email || '',
+          }),
+        });
+      } catch (e) { /* best-effort */ }
+    },
+
+    async clearWaPresence(mentoradoId) {
+      if (!mentoradoId) return;
+      const email = encodeURIComponent(this.auth?.currentUser?.email || '');
+      try {
+        await fetch(
+          `${CONFIG.API_BASE}/api/wa/presence?mentorado_id=${mentoradoId}&user_email=${email}`,
+          { method: 'DELETE', headers: { 'Authorization': `Bearer ${this.auth.accessToken}` } }
+        );
+      } catch (e) { /* best-effort */ }
+    },
+
+    async pollWaPresence(mentoradoId) {
+      if (!mentoradoId) return;
+      try {
+        const resp = await fetch(
+          `${CONFIG.API_BASE}/api/wa/presence/${mentoradoId}`,
+          { headers: { 'Authorization': `Bearer ${this.auth.accessToken}` } }
+        );
+        if (!resp.ok) return;
+        const all = await resp.json();
+        const myEmail = this.auth?.currentUser?.email || '';
+        this.ui.waInbox.others = (Array.isArray(all) ? all : [])
+          .filter(u => u.user_email !== myEmail);
+      } catch (e) { /* silencioso */ }
+    },
+
+    // --- Canned Responses ---
+
+    async loadCannedResponses() {
+      if (this.data.waCannedAll?.length > 0) return; // já em cache
+      try {
+        const { data } = await sb.from('wa_canned_responses')
+          .select('shortcode,name,content,category')
+          .order('shortcode');
+        this.data.waCannedAll = data || [];
+      } catch (e) {
+        this.data.waCannedAll = [];
+      }
+    },
+
+    onWaInputKeyup(value) {
+      if (value && value.startsWith('/')) {
+        const q = value.slice(1).toLowerCase();
+        this.ui.waCanned.filtered = (this.data.waCannedAll || []).filter(r =>
+          r.shortcode.slice(1).includes(q) || r.name.toLowerCase().includes(q)
+        );
+        this.ui.waCanned.show = this.ui.waCanned.filtered.length > 0;
+      } else {
+        this.ui.waCanned.show = false;
+      }
+    },
+
+    selectCannedResponse(r) {
+      this.ui.waMessageInput = r.content;
+      this.ui.waCanned.show  = false;
+    },
+
+    // ===================== END WA DM v2 — S9-B =====================
+
+    // === WA TASK EXTRACTION (S9-C) ===
+
+    openWaTaskExtract(msg) {
+      const titulo = (msg?.content_text || '').slice(0, 80);
+      this.ui.waTaskExtract = { open: true, msg, titulo, prioridade: 'normal', data_fim: '', saving: false };
+    },
+
+    closeWaTaskExtract() {
+      this.ui.waTaskExtract = { open: false, msg: null, titulo: '', prioridade: 'normal', data_fim: '', saving: false };
+    },
+
+    async submitWaTaskExtract() {
+      const { msg, titulo, prioridade, data_fim } = this.ui.waTaskExtract;
+      if (!titulo.trim()) { this.toast('Título obrigatório', 'warning'); return; }
+      this.ui.waTaskExtract.saving = true;
+      try {
+        const mentoradoId = this.ui.waInbox?.mentoradoId || null;
+        const mentee      = (this.data.mentees || []).find(m => m.id === mentoradoId);
+        const payload = {
+          titulo:            titulo.trim(),
+          status:            'pendente',
+          prioridade,
+          mentorado_id:      mentoradoId,
+          mentorado_nome:    mentee?.nome || null,
+          source_message_id: msg?.id           || null,
+          source_topic_id:   msg?.topic_id     || null,
+          data_fim:          data_fim          || null,
+          created_by:        this.auth?.currentUser?.email || null,
+        };
+        const { error } = await sb.from('god_tasks').insert(payload);
+        if (error) throw error;
+        this.toast('Tarefa criada!', 'success');
+        this.closeWaTaskExtract();
+      } catch (e) {
+        console.error('[Spalla] submitWaTaskExtract error:', e);
+        this.toast('Erro ao criar tarefa: ' + e.message, 'error');
+      } finally {
+        this.ui.waTaskExtract.saving = false;
+      }
+    },
+
+    // === WA TRIAGE (S9-C) ===
+
+    async loadWaTriage() {
+      this.ui.waTriageLoading = true;
+      try {
+        const { data, error } = await sb
+          .from('wa_topics')
+          .select('id,group_jid,title,summary,last_message_at,message_count,status')
+          .is('mentorado_id', null)
+          .neq('status', 'archived')
+          .order('last_message_at', { ascending: false });
+        if (error) throw error;
+        this.data.waTriageTopics = data || [];
+        this.data.waTriageCount  = (data || []).length;
+      } catch (e) {
+        console.error('[Spalla] loadWaTriage error:', e);
+        this.data.waTriageTopics = [];
+        this.data.waTriageCount  = 0;
+      } finally {
+        this.ui.waTriageLoading = false;
+      }
+    },
+
+    async assignWaTriageTopic(topicId, groupJid, mentoradoId) {
+      if (!mentoradoId) return;
+      this.ui.waTriageAssigning = topicId;
+      try {
+        const { error } = await sb.from('wa_topics')
+          .update({ mentorado_id: parseInt(mentoradoId, 10) })
+          .eq('id', topicId);
+        if (error) throw error;
+        await this.patchMentee(parseInt(mentoradoId, 10), { grupo_whatsapp_id: groupJid });
+        this.toast('Tópico vinculado!', 'success');
+        this.data.waTriageTopics = this.data.waTriageTopics.filter(t => t.id !== topicId);
+        this.data.waTriageCount  = this.data.waTriageTopics.length;
+      } catch (e) {
+        console.error('[Spalla] assignWaTriageTopic error:', e);
+        this.toast('Erro ao vincular: ' + e.message, 'error');
+      } finally {
+        this.ui.waTriageAssigning = null;
+      }
+    },
+
+    // === WA SAVED SEGMENTS (S9-C) ===
+
+    async loadWaSavedSegments() {
+      const email = this.auth?.currentUser?.email || '';
+      try {
+        const { data } = await sb.from('wa_saved_segments')
+          .select('id,name,filters,is_shared,owner_email')
+          .or(`is_shared.eq.true,owner_email.eq.${email}`)
+          .order('created_at', { ascending: false });
+        this.data.waSavedSegments = data || [];
+      } catch (e) {
+        this.data.waSavedSegments = [];
+      }
+    },
+
+    applyWaSegment(segment) {
+      this.ui.waSavedSegmentActive      = segment.id;
+      const f = segment.filters || {};
+      this.ui.waPortfolioFaseFilter     = f.fase_jornada  || '';
+      this.ui.waPortfolioHealthFilter   = f.health_status || '';
+    },
+
+    clearWaSegment() {
+      this.ui.waSavedSegmentActive    = null;
+      this.ui.waPortfolioFaseFilter   = '';
+      this.ui.waPortfolioHealthFilter = '';
+    },
+
+    async saveCurrentWaSegment() {
+      const name = (this.ui.waSaveSegmentModal.name || '').trim();
+      if (!name) { this.toast('Nome obrigatório', 'warning'); return; }
+      const filters = {};
+      if (this.ui.waPortfolioFaseFilter)   filters.fase_jornada  = this.ui.waPortfolioFaseFilter;
+      if (this.ui.waPortfolioHealthFilter) filters.health_status = this.ui.waPortfolioHealthFilter;
+      const { error } = await sb.from('wa_saved_segments').insert({
+        name, filters, is_shared: false,
+        owner_email: this.auth?.currentUser?.email || '',
+      });
+      if (error) { this.toast('Erro ao salvar filtro', 'error'); return; }
+      this.toast('Filtro salvo!', 'success');
+      this.ui.waSaveSegmentModal = { open: false, name: '' };
+      await this.loadWaSavedSegments();
+    },
+
+    async deleteWaSegment(id) {
+      const { error } = await sb.from('wa_saved_segments').delete().eq('id', id);
+      if (error) { this.toast('Erro ao remover', 'error'); return; }
+      this.data.waSavedSegments = this.data.waSavedSegments.filter(s => s.id !== id);
+      if (this.ui.waSavedSegmentActive === id) this.clearWaSegment();
+    },
+
+    // === TIMELINE UNIFICADA (Wave 1 F1.2) ===
+    async loadTimeline(menteeId) {
+      if (!sb || !menteeId) return;
+      this._timelineReqId = (this._timelineReqId || 0) + 1;
+      const reqId = this._timelineReqId;
+      this.data.timeline = [];
+      try {
+        const { data, error } = await sb
+          .from('vw_god_timeline')
+          .select('*')
+          .eq('mentorado_id', menteeId)
+          .order('data', { ascending: false })
+          .limit(50);
+        if (reqId !== this._timelineReqId) return; // stale response
+        if (error) { console.warn('[Spalla] loadTimeline:', error.message); return; }
+        this.data.timeline = data || [];
+      } catch (e) {
+        if (reqId === this._timelineReqId) console.warn('[Spalla] loadTimeline exception:', e);
+      }
+    },
+
     async patchMentee(menteeId, updates) {
       try {
         const resp = await fetch(`${CONFIG.API_BASE}/api/mentees/${menteeId}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.auth.token}`,
+            'Authorization': `Bearer ${this.auth.accessToken}`,
           },
           body: JSON.stringify(updates),
         });
@@ -5115,7 +5671,7 @@ function operon() {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.auth.token}`,
+            'Authorization': `Bearer ${this.auth.accessToken}`,
           },
           body: JSON.stringify({ ids, updates: { fase_jornada: fase } }),
         });
