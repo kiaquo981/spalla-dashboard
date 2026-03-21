@@ -349,6 +349,85 @@
           </div>
           <div class="op-topbar__right">
             <span class="op-topbar__date" x-text="today()"></span>
+
+            <!-- F2.5 — Notification Bell -->
+            <div style="position:relative;margin-right:8px">
+              <button @click="toggleNotifications()"
+                      style="position:relative;padding:6px;border:none;background:transparent;cursor:pointer;border-radius:6px;color:var(--text-secondary)"
+                      :style="notificationsOpen ? 'background:var(--surface-hover)' : ''"
+                      title="Notificações">
+                <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+                <!-- Badge -->
+                <span x-show="notificationsUnread > 0"
+                      x-text="notificationsUnread > 9 ? '9+' : notificationsUnread"
+                      style="position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;background:#ef4444;color:#fff;border-radius:9px;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 3px;border:2px solid var(--bg)"></span>
+              </button>
+
+              <!-- Dropdown -->
+              <div x-show="notificationsOpen"
+                   @click.outside="notificationsOpen = false"
+                   x-transition:enter="transition ease-out duration-150"
+                   x-transition:enter-start="opacity-0 scale-95"
+                   x-transition:enter-end="opacity-100 scale-100"
+                   style="position:absolute;right:0;top:calc(100% + 8px);width:320px;background:var(--surface, #fff);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:9999;overflow:hidden">
+
+                <!-- Header -->
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)">
+                  <span style="font-size:14px;font-weight:600;color:var(--text-primary)">Notificações
+                    <span x-show="notificationsUnread > 0" x-text="'(' + notificationsUnread + ')'"
+                          style="color:var(--brand-500,#8b5cf6);margin-left:4px"></span>
+                  </span>
+                  <button @click="markAllNotificationsRead()"
+                          x-show="notificationsUnread > 0"
+                          style="font-size:11px;color:var(--brand-500,#8b5cf6);background:none;border:none;cursor:pointer;padding:2px 6px;border-radius:4px">
+                    Marcar todas lidas
+                  </button>
+                </div>
+
+                <!-- List -->
+                <div style="max-height:360px;overflow-y:auto">
+                  <template x-if="notifications.length === 0">
+                    <div style="padding:32px 16px;text-align:center;color:var(--text-muted);font-size:13px">
+                      Nenhuma notificação
+                    </div>
+                  </template>
+                  <template x-for="n in notifications" :key="n.id">
+                    <div @click="markNotificationRead(n.id)"
+                         :style="!n.read ? 'background:var(--brand-50,#faf5ff)' : ''"
+                         style="display:flex;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border-subtle,#f3f4f6);cursor:pointer;transition:background 0.1s">
+                      <!-- Indicator dot -->
+                      <div style="padding-top:4px;flex-shrink:0">
+                        <div x-show="!n.read"
+                             :style="'background:' + (n.color || '#8b5cf6')"
+                             style="width:6px;height:6px;border-radius:50%"></div>
+                        <div x-show="n.read" style="width:6px;height:6px"></div>
+                      </div>
+                      <!-- Content -->
+                      <div style="flex:1;min-width:0">
+                        <div style="display:flex;align-items:flex-start;gap:6px">
+                          <span x-text="n.icon" style="font-size:14px;flex-shrink:0"></span>
+                          <div>
+                            <div x-text="n.title" style="font-size:13px;font-weight:500;color:var(--text-primary);line-height:1.3"></div>
+                            <div x-text="n.body" style="font-size:11px;color:var(--text-muted);margin-top:2px"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+
+                <!-- Footer -->
+                <div x-show="notifications.length > 0"
+                     style="padding:8px 16px;border-top:1px solid var(--border);text-align:center">
+                  <span style="font-size:11px;color:var(--text-muted)" x-text="notifications.length + ' notificações'"></span>
+                </div>
+              </div>
+            </div>
+            <!-- /F2.5 Notification Bell -->
+
             <button class="op-topbar__btn" @click="loadDashboard()" title="Recarregar">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
             </button>
