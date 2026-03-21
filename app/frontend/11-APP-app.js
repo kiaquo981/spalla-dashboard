@@ -911,6 +911,13 @@ function operon() {
       }
     },
 
+    get myCarteira() {
+      const name = (this.auth.currentUser?.full_name || '').toLowerCase();
+      if (name.includes('lara')) return 'Lara';
+      if (name.includes('heitor')) return 'Heitor';
+      return null;
+    },
+
     todayStr() { return new Date().toISOString().split('T')[0]; },
 
     _filterTasks(tasks) {
