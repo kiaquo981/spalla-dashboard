@@ -87,6 +87,38 @@ function daysBetween(dateStr) {
 // ===== ALPINE APP =====
 function operon() {
   return {
+    // === PHASE TASK TEMPLATES (Wave 2 F2.1) ===
+    PHASE_TASK_TEMPLATES: {
+      'onboarding': [
+        { titulo: 'Enviar kit de boas-vindas', descricao: 'Kit com acesso à plataforma, cronograma e materiais iniciais', prioridade: 'alta' },
+        { titulo: 'Agendar call de onboarding', descricao: 'Call de 60min para alinhamento de expectativas e plano de ação', prioridade: 'alta' },
+        { titulo: 'Criar grupo WhatsApp', descricao: 'Grupo com mentorado + consultor responsável', prioridade: 'alta' },
+        { titulo: 'Verificar assinatura do contrato', descricao: 'Confirmar recebimento e assinatura do contrato na plataforma', prioridade: 'alta' },
+      ],
+      'concepcao': [
+        { titulo: 'Definir nicho e público-alvo', descricao: 'Workshop para definição precisa do nicho e ICP', prioridade: 'alta' },
+        { titulo: 'Validar oferta principal', descricao: 'Revisão e validação da oferta com framework CASE', prioridade: 'alta' },
+        { titulo: 'Criar estrutura do funil', descricao: 'Mapear etapas do funil de vendas', prioridade: 'normal' },
+        { titulo: 'Definir posicionamento', descricao: 'Definir diferencial e mensagem de posicionamento', prioridade: 'normal' },
+      ],
+      'validacao': [
+        { titulo: 'Acompanhar primeira venda', descricao: 'Suporte e monitoramento até fechar primeira venda', prioridade: 'alta' },
+        { titulo: 'Review do funil de vendas', descricao: 'Análise de métricas e ajustes necessários', prioridade: 'alta' },
+        { titulo: 'Ajustar oferta conforme feedback', descricao: 'Iterar oferta com base em objeções reais', prioridade: 'normal' },
+        { titulo: 'Call de estratégia — próxima fase', descricao: 'Call para planejar transição para Otimização', prioridade: 'normal' },
+      ],
+      'otimizacao': [
+        { titulo: 'Escalar tráfego pago', descricao: 'Aumentar investimento em tráfego com base nos dados', prioridade: 'alta' },
+        { titulo: 'Otimizar taxa de conversão', descricao: 'A/B test de copy, landing page e oferta', prioridade: 'alta' },
+        { titulo: 'Automatizar processos repetitivos', descricao: 'Mapear e automatizar top 3 gargalos operacionais', prioridade: 'normal' },
+      ],
+      'escala': [
+        { titulo: 'Definir estrutura da equipe', descricao: 'Mapear cargos e responsabilidades necessárias para escalar', prioridade: 'alta' },
+        { titulo: 'Implementar processos e SOPs', descricao: 'Documentar processos críticos para onboarding de equipe', prioridade: 'alta' },
+        { titulo: 'Escalar operação', descricao: 'Executar plano de escala com time definido', prioridade: 'normal' },
+      ],
+    },
+
     // --- Auth ---
     auth: {
       authenticated: false,
@@ -1036,11 +1068,67 @@ function operon() {
         if (error) throw error;
 
         this.toast(`${mentee.nome}: ${this.phaseLabel(oldFase)} → ${this.phaseLabel(targetFase)}`, 'success');
+
+        // Wave 2 F2.1: Generate phase tasks on phase change
+        const templates = this.PHASE_TASK_TEMPLATES[targetFase?.toLowerCase()];
+        if (templates?.length) {
+          const confirmGenerate = window.confirm(`Gerar ${templates.length} tarefas padrão para a fase ${this.formatPhaseLabel(targetFase)}?`);
+          if (confirmGenerate) {
+            try {
+              const generated = await this.generatePhaseTasks(menteeId, targetFase);
+              if (generated > 0) {
+                this.toast(`${generated} tarefas geradas para fase ${this.formatPhaseLabel(targetFase)}`, 'success');
+                await this.loadTasks();
+              }
+            } catch (taskErr) {
+              console.warn('[Spalla] generatePhaseTasks (kanban):', taskErr.message);
+              this.toast('Erro ao gerar tarefas da fase', 'error');
+            }
+          }
+        }
       } catch (err) {
         // Rollback
         mentee.fase_jornada = oldFase;
         this.toast(`Erro ao mover ${mentee.nome}: ${err.message}`, 'error');
       }
+    },
+
+    // Wave 2 F2.1: Generate tasks from phase templates
+    formatPhaseLabel(fase) {
+      return {
+        onboarding: 'Onboarding', concepcao: 'Concepção', validacao: 'Validação',
+        otimizacao: 'Otimização', escala: 'Escala',
+        execucao: 'Execução', resultado: 'Resultado', renovacao: 'Renovação', encerrado: 'Encerrado',
+      }[fase] || fase || '-';
+    },
+
+    async generatePhaseTasks(menteeId, newPhase) {
+      const templates = this.PHASE_TASK_TEMPLATES[newPhase?.toLowerCase()];
+      if (!templates?.length || !menteeId || !sb) return 0;
+      // Preflight: skip titles already present for this mentee+phase to avoid duplicates
+      const { data: existing, error: fetchErr } = await sb
+        .from('god_tasks')
+        .select('titulo')
+        .eq('mentorado_id', menteeId)
+        .eq('fase_origem', newPhase)
+        .eq('auto_gerada', true);
+      if (fetchErr) throw fetchErr;
+      const existingTitles = new Set((existing || []).map(t => t.titulo));
+      const newTasks = templates
+        .filter(t => !existingTitles.has(t.titulo))
+        .map(t => ({
+          mentorado_id: menteeId,
+          titulo: t.titulo,
+          descricao: t.descricao,
+          prioridade: t.prioridade,
+          status: 'pendente',
+          fase_origem: newPhase,
+          auto_gerada: true,
+        }));
+      if (!newTasks.length) return 0;
+      const { error } = await sb.from('god_tasks').insert(newTasks);
+      if (error) throw error;
+      return newTasks.length;
     },
 
     // Tasks: filtered
@@ -5614,7 +5702,24 @@ function operon() {
     async changeFaseMentee(menteeId, novaFase) {
       await this.patchMentee(menteeId, { fase_jornada: novaFase });
       this.ui.waFaseDropdownId = null;
-      this.toast(`Fase atualizada para ${this._waFaseLabel(novaFase)}`, 'success');
+      this.toast(`Fase atualizada para ${this.formatPhaseLabel(novaFase)}`, 'success');
+      // Wave 2 F2.1: Generate phase tasks on phase change
+      const templates = this.PHASE_TASK_TEMPLATES[novaFase?.toLowerCase()];
+      if (templates?.length) {
+        const confirmGenerate = window.confirm(`Gerar ${templates.length} tarefas padrão para a fase ${this.formatPhaseLabel(novaFase)}?`);
+        if (confirmGenerate) {
+          try {
+            const generated = await this.generatePhaseTasks(menteeId, novaFase);
+            if (generated > 0) {
+              this.toast(`${generated} tarefas geradas para fase ${this.formatPhaseLabel(novaFase)}`, 'success');
+              await this.loadTasks();
+            }
+          } catch (taskErr) {
+            console.warn('[Spalla] generatePhaseTasks (wa):', taskErr.message);
+            this.toast('Erro ao gerar tarefas da fase', 'error');
+          }
+        }
+      }
     },
 
     async snoozeMentee(menteeId, dias) {
@@ -5859,7 +5964,7 @@ function operon() {
           titulo: topic.title,
           descricao: topic.summary || `Convertido do tópico WA: ${topic.title}`,
           status: 'pendente',
-          prioridade: 'media',
+          prioridade: 'normal',
           acompanhante: topic.mentorado_nome || null,
           created_by: this.auth?.currentUser?.email || null,
         };

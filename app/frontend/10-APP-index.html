@@ -105,6 +105,8 @@
     .trend--down { color:#ef4444; }
     /* Sidebar alert badge */
     .sidebar-alert-badge { background:#ef4444;color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:auto;line-height:1.4; }
+    /* === TASK TEMPLATES BADGE (Wave 2 F2.1) === */
+    .task-auto-badge { display:inline-block;font-size:10px;background:#e0f2fe;color:#0369a1;border-radius:8px;padding:1px 6px;font-weight:600;margin-left:4px; }
     /* === TIMELINE UNIFICADA (Wave 1 F1.2) === */
     .timeline-wrap { padding:16px 0; }
     .timeline-filters { display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px; }
@@ -1012,7 +1014,7 @@
                     <div class="detail-task-card" @click="openTaskDetail(t.id)">
                       <div class="detail-task-card__check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
                       <div class="detail-task-card__body">
-                        <div class="detail-task-card__title" x-text="t.titulo"></div>
+                        <div class="detail-task-card__title"><span x-text="t.titulo"></span><span class="task-auto-badge" x-show="t.auto_gerada">Auto</span></div>
                         <div class="detail-task-card__meta">
                           <span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span>
                           <span x-show="t.data_fim || t.prazo" class="detail-task-card__due" :class="{ 'detail-task-card__due--overdue': isOverdue(t.data_fim || t.prazo) }" x-text="formatDate(t.data_fim || t.prazo)"></span>
@@ -1046,7 +1048,7 @@
                     <div class="detail-task-card" @click="openTaskDetail(t.id)">
                       <div class="detail-task-card__check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
                       <div class="detail-task-card__body">
-                        <div class="detail-task-card__title" x-text="t.titulo"></div>
+                        <div class="detail-task-card__title"><span x-text="t.titulo"></span><span class="task-auto-badge" x-show="t.auto_gerada">Auto</span></div>
                         <div class="detail-task-card__meta">
                           <span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span>
                           <span class="badge badge--sm badge--neutral" x-text="t.responsavel"></span>
@@ -1091,7 +1093,7 @@
                     <div class="detail-task-card" @click="openTaskDetail(t.id)">
                       <div class="detail-task-card__check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
                       <div class="detail-task-card__body">
-                        <div class="detail-task-card__title" x-text="t.titulo"></div>
+                        <div class="detail-task-card__title"><span x-text="t.titulo"></span><span class="task-auto-badge" x-show="t.auto_gerada">Auto</span></div>
                         <div class="detail-task-card__meta">
                           <span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span>
                           <span x-show="t.data_fim || t.prazo" class="detail-task-card__due" :class="{ 'detail-task-card__due--overdue': isOverdue(t.data_fim || t.prazo) }" x-text="formatDate(t.data_fim || t.prazo)"></span>
@@ -1808,6 +1810,7 @@
                           </div>
                           <div class="task-board__card-title">
                             <span x-text="t.titulo"></span>
+                            <span class="task-auto-badge" x-show="t.auto_gerada">Auto</span>
                             <span class="task-recurring-badge" x-show="t.recorrencia && t.recorrencia !== 'nenhuma'" :title="'Recorrente: ' + recorrenciaLabel(t.recorrencia)">
                               <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                             </span>
@@ -1895,7 +1898,7 @@
                   <div class="task-list__row" :class="{ 'task-list__row--done': t.status === 'concluida', 'task-list__row--overdue': t.status === 'pendente' && isOverdue(t.data_fim || t.prazo), 'task-list__row--mine': isMyTask(t) }" @click="openTaskDetail(t.id)">
                     <div class="task-list__col task-list__col--check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
                     <div class="task-list__col task-list__col--title">
-                      <div class="task-list__title" x-text="t.titulo"></div>
+                      <div class="task-list__title"><span x-text="t.titulo"></span><span class="task-auto-badge" x-show="t.auto_gerada">Auto</span></div>
                       <div class="task-list__tags" x-show="t.tags?.length"><template x-for="tag in (t.tags||[]).slice(0,2)" :key="tag.id||tag.name||tag"><span class="task-tag" :style="tag.color ? 'background:'+tag.color+'22;color:'+tag.color+';border-color:'+tag.color+'55' : ''" x-text="tag.name||tag"></span></template></div>
                       <div x-show="t.parent_task_id" style="font-size:10px;color:#94a3b8">subtarefa</div>
                     </div>
@@ -1992,7 +1995,7 @@
                     </div>
                   </div>
                   <div class="op-drawer__body">
-                  <h2 class="op-drawer__title" x-text="activeTaskDetail.titulo"></h2>
+                  <h2 class="op-drawer__title"><span x-text="activeTaskDetail.titulo"></span><span class="task-auto-badge" x-show="activeTaskDetail.auto_gerada">Auto</span></h2>
                   <!-- Parent task breadcrumb -->
                   <div x-show="activeTaskDetail.parent_task_id" class="task-drawer__parent">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
