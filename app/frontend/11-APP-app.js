@@ -5386,6 +5386,24 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       };
     },
 
+    // ===================== WA GROUP BOARD — Kanban por wa_status =====================
+
+    waGroupBoard() {
+      const mentees = this.data.mentees;
+      return {
+        aguardando:   mentees.filter(m => !m.wa_status || m.wa_status === 'aguardando'),
+        em_andamento: mentees.filter(m => m.wa_status === 'em_andamento'),
+        bloqueado:    mentees.filter(m => m.wa_status === 'bloqueado'),
+        resolvido:    mentees.filter(m => m.wa_status === 'resolvido'),
+      };
+    },
+
+    async setGroupStatus(menteeId, status) {
+      await this.patchMentee(menteeId, { wa_status: status });
+      const m = this.data.mentees.find(x => x.id === menteeId);
+      if (m) m.wa_status = status;
+    },
+
     _waHealthLabel(m) {
       const score = this.calcHealthScore(m).total;
       if (score >= 70) return 'verde';
