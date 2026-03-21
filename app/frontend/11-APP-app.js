@@ -771,7 +771,7 @@ function operon() {
       try {
         const res = await fetch(`${CONFIG.API_BASE}/api/financeiro/status`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.token}` },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
           body: JSON.stringify({ mentorado_id: menteeId, status: newStatus, observacao }),
         });
         if (res.ok) {
@@ -793,7 +793,7 @@ function operon() {
       try {
         const res = await fetch(`${CONFIG.API_BASE}/api/financeiro/nota`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.token}` },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
           body: JSON.stringify({ mentorado_id: this.finNoteModal.menteeId, observacao: this.finNoteModal.text.trim() }),
         });
         if (res.ok) {
@@ -5029,6 +5029,12 @@ function operon() {
     // --- Inbox View ---
 
     async openWaInbox(menteeId, menteeNome) {
+      // Clean up any previous inbox session before overwriting
+      if (this.ui.waInbox?.presenceInterval) clearInterval(this.ui.waInbox.presenceInterval);
+      if (this.ui.waInbox?.presencePollInterval) clearInterval(this.ui.waInbox.presencePollInterval);
+      if (this.ui.waInbox?.mentoradoId && this.ui.waInbox.mentoradoId !== menteeId) {
+        await this.clearWaPresence(this.ui.waInbox.mentoradoId);
+      }
       this.ui.waInbox = {
         open: true, mentoradoId: menteeId, mentoradoNome: menteeNome || '',
         messages: [], loading: true, cursor: null, hasMore: true,
@@ -5068,11 +5074,14 @@ function operon() {
           .select('id,sender_name,is_from_team,content_type,content_text,timestamp,topic_id')
           .eq('mentorado_id', menteeId)
           .order('timestamp', { ascending: false })
+          .order('id', { ascending: false })
           .limit(50);
         if (error) throw error;
+        if (this.ui.waInbox.mentoradoId !== menteeId) return; // stale guard
         const msgs = (data || []).reverse();
         this.ui.waInbox.messages = msgs;
-        this.ui.waInbox.cursor   = msgs.length ? msgs[0].timestamp : null;
+        // composite cursor: { timestamp, id } — stable even when timestamps tie
+        this.ui.waInbox.cursor   = msgs.length ? { timestamp: msgs[0].timestamp, id: msgs[0].id } : null;
         this.ui.waInbox.hasMore  = (data?.length || 0) === 50;
       } catch (e) {
         console.error('[Spalla] loadInboxMessages error:', e);
@@ -5090,13 +5099,16 @@ function operon() {
         const { data, error } = await sb.from('wa_messages')
           .select('id,sender_name,is_from_team,content_type,content_text,timestamp,topic_id')
           .eq('mentorado_id', mentoradoId)
-          .lt('timestamp', cursor)
+          // composite cursor: (ts < cur.ts) OR (ts = cur.ts AND id < cur.id)
+          .or(`timestamp.lt.${cursor.timestamp},and(timestamp.eq.${cursor.timestamp},id.lt.${cursor.id})`)
           .order('timestamp', { ascending: false })
+          .order('id', { ascending: false })
           .limit(50);
         if (error) throw error;
+        if (this.ui.waInbox.mentoradoId !== mentoradoId) return; // stale guard
         const older = (data || []).reverse();
         this.ui.waInbox.messages = [...older, ...this.ui.waInbox.messages];
-        this.ui.waInbox.cursor   = older.length ? older[0].timestamp : cursor;
+        this.ui.waInbox.cursor   = older.length ? { timestamp: older[0].timestamp, id: older[0].id } : cursor;
         this.ui.waInbox.hasMore  = (data?.length || 0) === 50;
       } catch (e) {
         console.error('[Spalla] loadMoreInboxMessages error:', e);
@@ -5114,7 +5126,7 @@ function operon() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.auth.token}`,
+            'Authorization': `Bearer ${this.auth.accessToken}`,
           },
           body: JSON.stringify({
             mentorado_id: mentoradoId,
@@ -5131,7 +5143,7 @@ function operon() {
       try {
         await fetch(
           `${CONFIG.API_BASE}/api/wa/presence?mentorado_id=${mentoradoId}&user_email=${email}`,
-          { method: 'DELETE', headers: { 'Authorization': `Bearer ${this.auth.token}` } }
+          { method: 'DELETE', headers: { 'Authorization': `Bearer ${this.auth.accessToken}` } }
         );
       } catch (e) { /* best-effort */ }
     },
@@ -5141,7 +5153,7 @@ function operon() {
       try {
         const resp = await fetch(
           `${CONFIG.API_BASE}/api/wa/presence/${mentoradoId}`,
-          { headers: { 'Authorization': `Bearer ${this.auth.token}` } }
+          { headers: { 'Authorization': `Bearer ${this.auth.accessToken}` } }
         );
         if (!resp.ok) return;
         const all = await resp.json();
@@ -5190,7 +5202,7 @@ function operon() {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.auth.token}`,
+            'Authorization': `Bearer ${this.auth.accessToken}`,
           },
           body: JSON.stringify(updates),
         });
@@ -5333,7 +5345,7 @@ function operon() {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.auth.token}`,
+            'Authorization': `Bearer ${this.auth.accessToken}`,
           },
           body: JSON.stringify({ ids, updates: { fase_jornada: fase } }),
         });

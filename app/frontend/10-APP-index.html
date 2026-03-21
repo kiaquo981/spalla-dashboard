@@ -29,7 +29,7 @@
     @keyframes sla-pulse { 0%,100%{opacity:1}50%{opacity:.55} }
 
     /* WA Inbox Drawer */
-    .wa-inbox-drawer { position:fixed;top:0;right:0;width:420px;height:100vh;background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);z-index:300;display:flex;flex-direction:column;transition:transform .2s; }
+    .wa-inbox-drawer { position:fixed;top:0;right:0;width:min(420px,100vw);height:100vh;background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);z-index:300;display:flex;flex-direction:column;transition:transform .2s; }
     .wa-inbox-header { display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #e2e8f0;gap:8px; }
     .wa-inbox-header strong { font-size:15px;font-weight:600;color:#1e293b; }
     .wa-inbox-messages { flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:6px;background:#f8fafc; }
@@ -5331,9 +5331,13 @@
            x-show="ui.waInbox.open"
            x-transition.opacity
            @click.self="closeWaInbox()"
+           @keydown.escape.window="closeWaInbox()"
            style="display:none">
         <div class="wa-inbox-drawer"
              x-show="ui.waInbox.open"
+             role="dialog"
+             aria-modal="true"
+             aria-labelledby="wa-inbox-title"
              x-transition:enter="transition ease-out duration-200"
              x-transition:enter-start="transform translate-x-full"
              x-transition:enter-end="transform translate-x-0"
@@ -5344,7 +5348,7 @@
           <!-- Header -->
           <div class="wa-inbox-header">
             <div style="flex:1;min-width:0">
-              <strong x-text="ui.waInbox.mentoradoNome || 'Conversa'"></strong>
+              <strong id="wa-inbox-title" x-text="ui.waInbox.mentoradoNome || 'Conversa'"></strong>
               <div x-show="ui.waInbox.others.length > 0" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
                 <template x-for="u in ui.waInbox.others" :key="u.user_email">
                   <span class="collision-badge" x-text="(u.user_name || u.user_email) + ' também está aqui'"></span>
@@ -5388,10 +5392,11 @@
           <div class="wa-inbox-input-wrap">
             <div x-show="ui.waCanned.show" class="canned-dropdown">
               <template x-for="r in ui.waCanned.filtered" :key="r.shortcode">
-                <div class="canned-item" @click="selectCannedResponse(r)">
+                <button type="button" class="canned-item" @click="selectCannedResponse(r)"
+                        @keydown.enter="selectCannedResponse(r)" @keydown.space.prevent="selectCannedResponse(r)">
                   <span class="canned-shortcode" x-text="r.shortcode"></span>
                   <span class="canned-name" x-text="r.name"></span>
-                </div>
+                </button>
               </template>
             </div>
             <input type="text"
