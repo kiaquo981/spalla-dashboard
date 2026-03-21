@@ -25,7 +25,6 @@ CREATE OR REPLACE VIEW public.vw_wa_mentee_inbox AS
 SELECT
   m.id                                            AS mentorado_id,
   m.nome                                          AS nome,
-  m.foto_url                                      AS foto_url,
   m.fase_jornada                                  AS fase_jornada,
   m.grupo_whatsapp_id                             AS group_jid,
   m.snoozed_until,
