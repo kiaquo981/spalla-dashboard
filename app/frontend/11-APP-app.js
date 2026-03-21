@@ -192,6 +192,10 @@ function operon() {
       waPortfolioFaseFilter: '',        // '' | 'onboarding' | 'execucao' | 'resultado' | 'renovacao'
       waPortfolioHealthFilter: '',      // '' | 'verde' | 'amarelo' | 'vermelho'
       waFaseDropdownId: null,           // id of mentee with open fase dropdown
+      // WA Management — Notas Estruturadas
+      notesDrawer: { open: false, menteeId: null, menteeNome: '', tipo: 'livre' },
+      notesSaving: false,
+      notesForm: { conteudo: '', tags: '' },
       // Reminders
       reminderModal: false,
       reminderFilter: 'ativo', // ativo | concluido | all
@@ -266,6 +270,7 @@ function operon() {
       taskTags: [],             // god_task_tags — all available tags
       fieldDefs: [],            // applicable god_task_field_defs for current modal
       finDetailLogs: [],        // financial logs for mentee detail tab
+      menteeNotes: [],          // notes for current notes drawer
     },
 
     // --- Financeiro (CFO Payments View) ---
@@ -4982,6 +4987,86 @@ function operon() {
       dt.setDate(dt.getDate() + dias);
       await this.patchMentee(menteeId, { snoozed_until: dt.toISOString() });
       this.toast(`Mentorado snoozeado por ${dias} dias`, 'success');
+    },
+
+    // ===================== NOTAS ESTRUTURADAS =====================
+
+    openNotesDrawer(menteeId, menteeNome) {
+      this.ui.notesDrawer = { open: true, menteeId, menteeNome: menteeNome || '', tipo: 'livre' };
+      this.ui.notesForm = { conteudo: '', tags: '' };
+      this.loadMenteeNotes(menteeId);
+    },
+
+    closeNotesDrawer() {
+      this.ui.notesDrawer = { open: false, menteeId: null, menteeNome: '', tipo: 'livre' };
+      this.ui.notesForm = { conteudo: '', tags: '' };
+      this.data.menteeNotes = [];
+    },
+
+    async loadMenteeNotes(menteeId) {
+      if (!menteeId) return;
+      try {
+        const { data, error } = await sb
+          .from('mentee_notes')
+          .select('id,tipo,conteudo,tags,created_at,author_name')
+          .eq('mentee_id', menteeId)
+          .order('created_at', { ascending: false })
+          .limit(20);
+        if (error) throw error;
+        this.data.menteeNotes = data || [];
+      } catch (e) {
+        console.error('loadMenteeNotes error:', e);
+        this.data.menteeNotes = [];
+      }
+    },
+
+    async postMenteeNote(menteeId, tipo, conteudo, tags) {
+      if (!conteudo?.trim()) {
+        this.toast('Escreva algo antes de salvar.', 'warning');
+        return false;
+      }
+      this.ui.notesSaving = true;
+      try {
+        const tagsArr = tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+        const { error } = await sb.from('mentee_notes').insert({
+          mentee_id: menteeId,
+          tipo,
+          conteudo: conteudo.trim(),
+          tags: tagsArr,
+        });
+        if (error) throw error;
+        this.toast('Nota salva!', 'success');
+        this.ui.notesForm = { conteudo: '', tags: '' };
+        this.ui.notesDrawer.tipo = 'livre';
+        await this.loadMenteeNotes(menteeId);
+        return true;
+      } catch (e) {
+        console.error('postMenteeNote error:', e);
+        this.toast('Erro ao salvar nota.', 'error');
+        return false;
+      } finally {
+        this.ui.notesSaving = false;
+      }
+    },
+
+    _notesTipoLabel(tipo) {
+      const map = {
+        'checkpoint_mensal': 'Checkpoint Mensal',
+        'feedback_aula': 'Feedback de Aula',
+        'registro_ligacao': 'Registro de Ligação',
+        'livre': 'Nota Livre',
+      };
+      return map[tipo] || tipo;
+    },
+
+    _notesTipoPlaceholder(tipo) {
+      const map = {
+        'checkpoint_mensal': 'Progresso (1-5), bloqueios encontrados, próximos passos acordados...',
+        'feedback_aula': 'Participou? Entregou tarefa? Observações sobre o engajamento...',
+        'registro_ligacao': 'Duração, tópicos discutidos, decisões tomadas, follow-ups prometidos...',
+        'livre': 'Escreva sua nota...',
+      };
+      return map[tipo] || 'Escreva sua nota...';
     },
 
     async openWaTopic(topic) {

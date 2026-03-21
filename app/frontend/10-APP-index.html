@@ -5200,6 +5200,107 @@
 
       </main>
 
+      <!-- Notes Drawer — Global (slides in from right, all pages) -->
+      <div class="op-drawer-overlay"
+           x-show="ui.notesDrawer.open"
+           x-transition.opacity
+           @click.self="closeNotesDrawer()"
+           style="display:none">
+        <div class="op-drawer op-drawer--right"
+             x-show="ui.notesDrawer.open"
+             x-transition:enter="op-slide-right-enter"
+             x-transition:enter-start="transform:translateX(100%);opacity:0"
+             x-transition:enter-end="transform:translateX(0);opacity:1"
+             x-transition:leave="op-slide-right-leave"
+             x-transition:leave-start="transform:translateX(0);opacity:1"
+             x-transition:leave-end="transform:translateX(100%);opacity:0"
+             style="width:420px;max-width:96vw;display:flex;flex-direction:column"
+             @click.stop>
+
+          <!-- Drawer Header -->
+          <div class="op-drawer__header" style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid var(--op-border)">
+            <div>
+              <div style="font-size:.75rem;color:var(--op-muted);font-weight:500;text-transform:uppercase;letter-spacing:.05em">Notas</div>
+              <div style="font-weight:600;color:var(--op-text)" x-text="ui.notesDrawer.menteeNome || 'Mentorado'"></div>
+            </div>
+            <button class="op-btn op-btn--ghost op-btn--sm" @click="closeNotesDrawer()" aria-label="Fechar">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+
+          <!-- New Note Form -->
+          <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--op-border)">
+            <div style="font-size:.8rem;font-weight:600;color:var(--op-text);margin-bottom:.5rem">Nova Nota</div>
+
+            <!-- Tipo selector -->
+            <div style="display:flex;flex-wrap:wrap;gap:.375rem;margin-bottom:.75rem">
+              <template x-for="tipo in ['livre','checkpoint_mensal','feedback_aula','registro_ligacao']" :key="tipo">
+                <button
+                  class="op-tag"
+                  :style="ui.notesDrawer.tipo === tipo ? 'background:var(--op-accent);color:#fff;border-color:var(--op-accent)' : ''"
+                  @click="ui.notesDrawer.tipo = tipo"
+                  x-text="_notesTipoLabel(tipo)"
+                  style="cursor:pointer;font-size:.72rem;padding:.2rem .55rem">
+                </button>
+              </template>
+            </div>
+
+            <!-- Textarea -->
+            <textarea
+              class="op-input"
+              x-model="ui.notesForm.conteudo"
+              :placeholder="_notesTipoPlaceholder(ui.notesDrawer.tipo)"
+              rows="4"
+              style="width:100%;resize:vertical;font-size:.85rem">
+            </textarea>
+
+            <!-- Tags input -->
+            <input
+              type="text"
+              class="op-input"
+              x-model="ui.notesForm.tags"
+              placeholder="Tags (separadas por vírgula)"
+              style="margin-top:.5rem;font-size:.82rem;width:100%">
+
+            <!-- Save button -->
+            <button
+              class="op-btn op-btn--primary op-btn--sm"
+              style="margin-top:.625rem;width:100%"
+              :disabled="ui.notesSaving || !ui.notesForm.conteudo?.trim()"
+              @click="postMenteeNote(ui.notesDrawer.menteeId, ui.notesDrawer.tipo, ui.notesForm.conteudo, ui.notesForm.tags)">
+              <span x-show="!ui.notesSaving">Salvar nota</span>
+              <span x-show="ui.notesSaving">Salvando...</span>
+            </button>
+          </div>
+
+          <!-- Notes Timeline -->
+          <div style="flex:1;overflow-y:auto;padding:1rem 1.25rem">
+            <div style="font-size:.8rem;font-weight:600;color:var(--op-text);margin-bottom:.75rem">Histórico</div>
+
+            <!-- Empty state -->
+            <div x-show="data.menteeNotes.length === 0" style="text-align:center;padding:2rem 0;color:var(--op-muted);font-size:.85rem">
+              Nenhuma nota ainda.<br>Adicione a primeira acima.
+            </div>
+
+            <!-- Notes list -->
+            <template x-for="note in data.menteeNotes" :key="note.id">
+              <div style="margin-bottom:.875rem;padding:.75rem;background:var(--op-surface-2,#f9f7f4);border-radius:8px;border-left:3px solid var(--op-accent)">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.375rem">
+                  <span class="op-tag" style="font-size:.68rem;padding:.1rem .4rem" x-text="_notesTipoLabel(note.tipo)"></span>
+                  <span style="font-size:.7rem;color:var(--op-muted)" x-text="new Date(note.created_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'})"></span>
+                </div>
+                <div style="font-size:.82rem;color:var(--op-text);white-space:pre-wrap;line-height:1.5" x-text="note.conteudo"></div>
+                <div x-show="note.tags?.length" style="margin-top:.375rem;display:flex;flex-wrap:wrap;gap:.25rem">
+                  <template x-for="tag in (note.tags || [])" :key="tag">
+                    <span class="op-tag" style="font-size:.67rem;padding:.1rem .35rem;background:var(--op-surface-3,#eee)" x-text="tag"></span>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+
       <!-- Task Modal — Global (outside pages so visible on all pages) -->
       <div class="modal-overlay" x-show="ui.taskModal" x-transition.opacity @click.self="closeTaskModal()" role="dialog" aria-modal="true">
         <div class="modal modal--lg">
