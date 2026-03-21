@@ -2589,7 +2589,7 @@ def _handle_mentees_triage(self):
             log_error('Notes', f'POST note failed: {e}')
             self._send_json({'error': str(e)}, 500)
 
-    def _handle_list_events(self):    def _handle_list_events(self):
+    def _handle_list_events(self):
         result = list_calendar_events()
         self._send_json(result)
 
