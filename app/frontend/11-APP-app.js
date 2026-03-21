@@ -238,8 +238,18 @@ function operon() {
       waFaseDropdownId: null,           // id of mentee with open fase dropdown
       // WA Management — Notas Estruturadas
       notesDrawer: { open: false, menteeId: null, menteeNome: '', tipo: 'livre' },
+      notesDrawerTab: 'notes',   // I-5: 'notes' | 'files'
       notesSaving: false,
       notesForm: { conteudo: '', tags: '' },
+      // I-2: triage scores lazy-load state
+      triageLoaded: false,
+      // I-4: Copilot Contextual
+      copilotOpen: false,
+      copilotMenteeId: null,
+      copilotMenteeNome: '',
+      copilotInput: '',
+      copilotLoading: false,
+      copilotHistory: [],  // [{role, content}]
       // WA Management — Bulk Selection
       waBulkMode: false,             // bulk select mode on/off
       waBulkFase: '',                // fase to apply in bulk
@@ -352,6 +362,12 @@ function operon() {
       menteeNotes: [],          // notes for current notes drawer
       waSelectedMentees: [],    // IDs selected in bulk mode
       digestData: null,         // loaded digest for current mentee
+// I-2: server-side triage scores, keyed by mentee id
+      triageScores: {},        // I-2: keyed by mentee id
+      menteeLabels: {},        // I-1: keyed by mentee id → [{slug,name,color,count}]
+      waLabelsSummary: [],     // I-1: global label counts
+      // I-5: files for current notes drawer mentee
+      menteeFiles: { docs: [], media: [], loading: false },
       // WA DM v2 (S9-B)
       waCannedAll: [],          // cache de canned responses
       // S9-C
@@ -5229,9 +5245,15 @@ function operon() {
         list = list.filter(m => this._waHealthLabel(m) === this.ui.waPortfolioHealthFilter);
       }
       if (this.ui.waPortfolioView === 'inbox') {
+        // I-2: lazy-load triage scores on first inbox access
+        if (!this.ui.triageLoaded) this.loadMenteesTriage();
         list.sort((a, b) => this._waPriorityScore(b) - this._waPriorityScore(a));
       } else {
         list.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+        // I-1: lazy-load labels for each visible mentee in carteira view
+        list.forEach(m => {
+          if (!this.data.menteeLabels?.[m.id]) this.loadMenteeLabels(m.id);
+        });
       }
       return list;
     },
@@ -5254,6 +5276,10 @@ function operon() {
     },
 
     _waPriorityScore(m) {
+      // I-2: use server triage score when available
+      const server = this.data.triageScores?.[m.id];
+      if (server?.score != null) return server.score;
+      // fallback: client-side calculation
       let score = 0;
       const h = m.horas_sem_resposta_equipe || 0;
       if (h > 72) score += 40;
@@ -5265,6 +5291,166 @@ function operon() {
       if (m.risco_churn === 'alto') score += 15;
       else if (m.risco_churn === 'medio') score += 5;
       return score;
+    },
+
+    // ===================== I-2: Server Triage Score =====================
+
+    waTriageBadge(score) {
+      if (score >= 60) return { color: '#b91c1c', bg: '#fee2e2', text: 'Crítico' };
+      if (score >= 30) return { color: '#92400e', bg: '#fef3c7', text: 'Atenção' };
+      return { color: '#065f46', bg: '#d1fae5', text: 'OK' };
+    },
+
+    async loadMenteesTriage() {
+      if (this.ui.triageLoaded) return;
+      try {
+        const res = await fetch('/api/mentees/triage', {
+          headers: { 'Authorization': `Bearer ${this.authToken}` },
+        });
+        if (!res.ok) return;
+        const rows = await res.json();
+        const map = {};
+        for (const r of (rows || [])) {
+          if (r.id) map[r.id] = r;
+        }
+        this.data.triageScores = map;
+        this.ui.triageLoaded = true;
+      } catch (e) {
+        console.warn('[Spalla] loadMenteesTriage error:', e);
+      }
+    },
+
+    // ===================== I-5: Mentee Files =====================
+
+    async loadMenteeFiles(menteeId) {
+      if (!menteeId) return;
+      this.data.menteeFiles = { docs: [], media: [], loading: true };
+      try {
+        const [docsRes, mediaRes] = await Promise.all([
+          fetch(`/api/storage/files?entidade_tipo=mentorado&entidade_id=${menteeId}`, {
+            headers: { 'Authorization': `Bearer ${this.authToken}` },
+          }),
+          fetch(`/api/wa/media?mentee_id=${menteeId}`, {
+            headers: { 'Authorization': `Bearer ${this.authToken}` },
+          }),
+        ]);
+        const docs = docsRes.ok ? await docsRes.json() : [];
+        const mediaJson = mediaRes.ok ? await mediaRes.json() : { media: [] };
+        this.data.menteeFiles = {
+          docs: Array.isArray(docs) ? docs : [],
+          media: mediaJson?.media || [],
+          loading: false,
+        };
+      } catch (e) {
+        console.warn('[Spalla] loadMenteeFiles error:', e);
+        this.data.menteeFiles = { docs: [], media: [], loading: false };
+      }
+    },
+
+    _fileTypeIcon(mime, msgType) {
+      if (msgType === 'audioMessage') return '🎵';
+      if (msgType === 'videoMessage') return '🎬';
+      if (msgType === 'imageMessage') return '🖼️';
+      if (!mime) return '📄';
+      if (mime.includes('pdf')) return '📋';
+      if (mime.includes('spreadsheet') || mime.includes('excel')) return '📊';
+      if (mime.includes('word') || mime.includes('document')) return '📝';
+      if (mime.includes('zip') || mime.includes('rar')) return '🗜️';
+      return '📄';
+    },
+
+    _fileMediaLabel(msgType) {
+      const labels = {
+        audioMessage: 'Áudio',
+        videoMessage: 'Vídeo',
+        documentMessage: 'Documento',
+        imageMessage: 'Imagem',
+      };
+      return labels[msgType] || msgType || 'Arquivo';
+    },
+
+    // ===================== WA LABEL SUMMARY (I-1) =====================
+
+    waMsgLabelBadge(slug) {
+      // Color map fallback if not fetched yet
+      const colors = {
+        revisao:   { bg: '#e0e7ff', color: '#4338ca' },
+        demanda:   { bg: '#fee2e2', color: '#b91c1c' },
+        plano:     { bg: '#ffedd5', color: '#c2410c' },
+        duvida:    { bg: '#dbeafe', color: '#1d4ed8' },
+        call:      { bg: '#ede9fe', color: '#6d28d9' },
+      };
+      return colors[slug] || { bg: '#f3f4f6', color: '#374151' };
+    },
+
+    async loadMenteeLabels(menteeId) {
+      if (!menteeId || this.data.menteeLabels?.[menteeId]) return;
+      try {
+        const res = await fetch(`/api/wa/labels/summary?mentee_id=${menteeId}&days=30`, {
+          headers: { 'Authorization': `Bearer ${this.authToken}` },
+        });
+        if (res.ok) {
+          const labels = await res.json();
+          if (Array.isArray(labels)) {
+            this.data.menteeLabels = { ...this.data.menteeLabels, [menteeId]: labels.slice(0, 3) };
+          }
+        }
+      } catch (e) {
+        console.warn('[Spalla] loadMenteeLabels error:', e);
+      }
+    },
+
+    // ===================== COPILOT CONTEXTUAL (I-4) =====================
+
+    openCopilot(menteeId, menteeNome) {
+      this.ui.copilotOpen = true;
+      this.ui.copilotMenteeId = menteeId || null;
+      this.ui.copilotMenteeNome = menteeNome || '';
+      this.ui.copilotInput = '';
+      this.ui.copilotHistory = [];
+    },
+
+    closeCopilot() {
+      this.ui.copilotOpen = false;
+      this.ui.copilotMenteeId = null;
+      this.ui.copilotMenteeNome = '';
+      this.ui.copilotInput = '';
+      this.ui.copilotHistory = [];
+    },
+
+    async sendCopilotMessage() {
+      const msg = (this.ui.copilotInput || '').trim();
+      if (!msg || this.ui.copilotLoading) return;
+
+      this.ui.copilotHistory.push({ role: 'user', content: msg });
+      this.ui.copilotInput = '';
+      this.ui.copilotLoading = true;
+
+      try {
+        const res = await fetch('/api/copilot', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.authToken}`,
+          },
+          body: JSON.stringify({
+            mentee_id: this.ui.copilotMenteeId,
+            message: msg,
+            history: this.ui.copilotHistory.slice(-6),
+          }),
+        });
+        const data = await res.json();
+        const reply = data.reply || data.error || 'Erro ao obter resposta.';
+        this.ui.copilotHistory.push({ role: 'assistant', content: reply });
+      } catch (e) {
+        this.ui.copilotHistory.push({ role: 'assistant', content: 'Erro de conexão.' });
+      } finally {
+        this.ui.copilotLoading = false;
+        this.$nextTick(() => {
+          const el = document.getElementById('copilot-messages');
+          if (el) el.scrollTop = el.scrollHeight;
+        });
+      }
     },
 
     _waFaseLabel(fase) {
@@ -5734,13 +5920,17 @@ function operon() {
     openNotesDrawer(menteeId, menteeNome) {
       this.ui.notesDrawer = { open: true, menteeId, menteeNome: menteeNome || '', tipo: 'livre' };
       this.ui.notesForm = { conteudo: '', tags: '' };
+      this.ui.notesDrawerTab = 'notes';
+      this.data.menteeFiles = { docs: [], media: [], loading: false };
       this.loadMenteeNotes(menteeId);
     },
 
     closeNotesDrawer() {
       this.ui.notesDrawer = { open: false, menteeId: null, menteeNome: '', tipo: 'livre' };
       this.ui.notesForm = { conteudo: '', tags: '' };
+      this.ui.notesDrawerTab = 'notes';
       this.data.menteeNotes = [];
+      this.data.menteeFiles = { docs: [], media: [], loading: false };
     },
 
     async loadMenteeNotes(menteeId) {
