@@ -1493,6 +1493,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_mentees_triage()
         elif self.path.startswith('/api/wa/media'):
             self._handle_wa_media()
+        elif self.path.startswith('/api/wa/labels/summary'):
+            self._handle_wa_labels_summary()
         elif self.path.startswith('/api/wa/inbox'):
             self._handle_wa_inbox()
         elif re.match(r'^/api/wa/presence/(\d+)$', self.path):
@@ -1793,6 +1795,59 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
         except Exception as e:
             log_error('Copilot', f'_handle_copilot failed: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_wa_labels_summary(self):
+        """GET /api/wa/labels/summary — Topic-type label counts.
+        Params: mentee_id (optional) — filter by mentee; days (default 30)
+        Returns: [{ slug, name, color, icon, count }] sorted by count desc.
+        """
+        try:
+            parsed = urllib.parse.urlparse(self.path)
+            params = urllib.parse.parse_qs(parsed.query)
+            mentee_id = params.get('mentee_id', [None])[0]
+            days = int(params.get('days', ['30'])[0])
+
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+            # Fetch topic types (static lookup)
+            types = supabase_request('GET',
+                'wa_topic_types?select=id,slug,name,color,icon&order=sort_order.asc')
+            if not isinstance(types, list):
+                types = []
+            type_map = {t['id']: t for t in types}
+
+            # Count topics per type within timeframe
+            qs = (f'wa_topics?select=type_id,status'
+                  f'&last_message_at=gte.{urllib.parse.quote(cutoff)}'
+                  f'&type_id=not.is.null')
+            if mentee_id:
+                qs += f'&mentorado_id=eq.{mentee_id}'
+            topics = supabase_request('GET', qs)
+            if not isinstance(topics, list):
+                topics = []
+
+            counts = {}
+            for t in topics:
+                tid = t.get('type_id')
+                if tid:
+                    counts[tid] = counts.get(tid, 0) + 1
+
+            result = []
+            for tid, cnt in counts.items():
+                tt = type_map.get(tid, {})
+                if tt:
+                    result.append({
+                        'slug': tt.get('slug', ''),
+                        'name': tt.get('name', ''),
+                        'color': tt.get('color', '#6b7280'),
+                        'icon': tt.get('icon', ''),
+                        'count': cnt,
+                    })
+            result.sort(key=lambda x: x['count'], reverse=True)
+            self._send_json(result)
+        except Exception as e:
+            log_error('WaLabels', f'_handle_wa_labels_summary failed: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_wa_inbox(self):

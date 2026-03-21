@@ -5408,6 +5408,19 @@
                     </div>
                   </div>
 
+                  <!-- I-1: WA Label badges (top topic types, last 30d) -->
+                  <template x-if="data.menteeLabels?.[m.id]?.length">
+                    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">
+                      <template x-for="lbl in (data.menteeLabels[m.id] || []).slice(0,3)" :key="lbl.slug">
+                        <span style="font-size:10px;padding:1px 6px;border-radius:var(--r-full);font-weight:600;white-space:nowrap"
+                              :style="{ background: lbl.color + '22', color: lbl.color, border: '1px solid ' + lbl.color + '55' }"
+                              :title="lbl.name + ': ' + lbl.count + ' tópicos (30d)'"
+                              x-text="lbl.name">
+                        </span>
+                      </template>
+                    </div>
+                  </template>
+
                   <!-- Quick actions -->
                   <div style="display:flex;gap:6px;flex-wrap:wrap">
                     <button class="btn btn--ghost btn--sm"

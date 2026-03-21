@@ -363,7 +363,9 @@ function operon() {
       waSelectedMentees: [],    // IDs selected in bulk mode
       digestData: null,         // loaded digest for current mentee
       // I-2: server-side triage scores, keyed by mentee id
-      triageScores: {},
+      triageScores: {},        // I-2: keyed by mentee id
+      menteeLabels: {},        // I-1: keyed by mentee id → [{slug,name,color,count}]
+      waLabelsSummary: [],     // I-1: global label counts
       // I-5: files for current notes drawer mentee
       menteeFiles: { docs: [], media: [], loading: false },
       // WA DM v2 (S9-B)
@@ -5248,6 +5250,10 @@ function operon() {
         list.sort((a, b) => this._waPriorityScore(b) - this._waPriorityScore(a));
       } else {
         list.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+        // I-1: lazy-load labels for each visible mentee in carteira view
+        list.forEach(m => {
+          if (!this.data.menteeLabels?.[m.id]) this.loadMenteeLabels(m.id);
+        });
       }
       return list;
     },
@@ -5361,6 +5367,37 @@ function operon() {
         imageMessage: 'Imagem',
       };
       return labels[msgType] || msgType || 'Arquivo';
+    },
+
+    // ===================== WA LABEL SUMMARY (I-1) =====================
+
+    waMsgLabelBadge(slug) {
+      // Color map fallback if not fetched yet
+      const colors = {
+        revisao:   { bg: '#e0e7ff', color: '#4338ca' },
+        demanda:   { bg: '#fee2e2', color: '#b91c1c' },
+        plano:     { bg: '#ffedd5', color: '#c2410c' },
+        duvida:    { bg: '#dbeafe', color: '#1d4ed8' },
+        call:      { bg: '#ede9fe', color: '#6d28d9' },
+      };
+      return colors[slug] || { bg: '#f3f4f6', color: '#374151' };
+    },
+
+    async loadMenteeLabels(menteeId) {
+      if (!menteeId || this.data.menteeLabels?.[menteeId]) return;
+      try {
+        const res = await fetch(`/api/wa/labels/summary?mentee_id=${menteeId}&days=30`, {
+          headers: { 'Authorization': `Bearer ${this.authToken}` },
+        });
+        if (res.ok) {
+          const labels = await res.json();
+          if (Array.isArray(labels)) {
+            this.data.menteeLabels = { ...this.data.menteeLabels, [menteeId]: labels.slice(0, 3) };
+          }
+        }
+      } catch (e) {
+        console.warn('[Spalla] loadMenteeLabels error:', e);
+      }
     },
 
     // ===================== COPILOT CONTEXTUAL (I-4) =====================
