@@ -362,7 +362,7 @@ function operon() {
       menteeNotes: [],          // notes for current notes drawer
       waSelectedMentees: [],    // IDs selected in bulk mode
       digestData: null,         // loaded digest for current mentee
-      // I-2: server-side triage scores, keyed by mentee id
+// I-2: server-side triage scores, keyed by mentee id
       triageScores: {},        // I-2: keyed by mentee id
       menteeLabels: {},        // I-1: keyed by mentee id → [{slug,name,color,count}]
       waLabelsSummary: [],     // I-1: global label counts

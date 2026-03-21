@@ -1489,7 +1489,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'storage_search': bool(OPENAI_API_KEY),
             })
         # ===== WA DM v2 (S9-A) =====
-        elif self.path == '/api/mentees/triage':
+elif self.path == '/api/mentees/triage':
             self._handle_mentees_triage()
         elif self.path.startswith('/api/wa/media'):
             self._handle_wa_media()
@@ -1543,7 +1543,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         # ===== WA DM v2 (S9-A) =====
         elif self.path == '/api/wa/presence':
             self._handle_wa_presence_post()
-        # ===== Intelligence Layer (SPEC-6.1) =====
+# ===== Intelligence Layer (SPEC-6.1) =====
         elif self.path == '/api/copilot':
             self._handle_copilot()
         else:
@@ -1566,7 +1566,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     # ===== WA DM v2 HANDLERS (S9-A) =====
 
-    def _handle_mentees_triage(self):
+def _handle_mentees_triage(self):
         """GET /api/mentees/triage — Server-side triage score per mentee.
         Uses vw_wa_mentee_inbox + wa_topics to compute priority scores.
         Returns: [{ id, nome, score, level, factors }] sorted by score desc.
@@ -1849,7 +1849,6 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             log_error('WaLabels', f'_handle_wa_labels_summary failed: {e}')
             self._send_json({'error': str(e)}, 500)
-
     def _handle_wa_inbox(self):
         """
         GET /api/wa/inbox
