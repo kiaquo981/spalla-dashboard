@@ -200,6 +200,9 @@ function operon() {
       waBulkMode: false,             // bulk select mode on/off
       waBulkFase: '',                // fase to apply in bulk
       waBulkApplying: false,         // loading state for bulk apply
+      // WA Management — AI Group Digest
+      digestModal: { open: false, menteeId: null, menteeNome: '' },
+      digestLoading: false,
       // Reminders
       reminderModal: false,
       reminderFilter: 'ativo', // ativo | concluido | all
@@ -276,6 +279,7 @@ function operon() {
       finDetailLogs: [],        // financial logs for mentee detail tab
       menteeNotes: [],          // notes for current notes drawer
       waSelectedMentees: [],    // IDs selected in bulk mode
+      digestData: null,         // loaded digest for current mentee
     },
 
     // --- Financeiro (CFO Payments View) ---
@@ -5128,6 +5132,65 @@ function operon() {
       }
     },
 
+
+    // ===================== WA MANAGEMENT — AI GROUP DIGEST =====================
+
+    openDigestModal(menteeId, menteeNome) {
+      this.ui.digestModal = { open: true, menteeId, menteeNome: menteeNome || '' };
+      this.data.digestData = null;
+      this.loadMenteeDigest(menteeId);
+    },
+
+    closeDigestModal() {
+      this.ui.digestModal = { open: false, menteeId: null, menteeNome: '' };
+      this.data.digestData = null;
+    },
+
+    async loadMenteeDigest(menteeId) {
+      if (!menteeId) return;
+      this.ui.digestLoading = true;
+      try {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - 7);
+        const { data: topicos, error } = await sb
+          .from('vw_wa_topic_board')
+          .select('id,title,summary,status,type_name,type_slug,type_color,type_icon,confidence,last_message_at,msgs_awaiting_response,task_titulo,task_status')
+          .eq('mentorado_id', menteeId)
+          .gte('last_message_at', cutoff.toISOString())
+          .order('last_message_at', { ascending: false });
+        if (error) throw error;
+        const list = topicos || [];
+        this.data.digestData = {
+          topicos: list,
+          sentimento: this._digestSentimentoGeral(list),
+          precisaAtencao: list.filter(t => t.status === 'pending_action' || (t.msgs_awaiting_response || 0) > 0),
+          actionItems: list.filter(t => t.task_titulo && t.task_status && t.task_status !== 'concluido'),
+          total: list.length,
+        };
+      } catch (e) {
+        console.error('[Spalla] loadMenteeDigest error:', e);
+        this.data.digestData = { topicos: [], sentimento: 'neutro', precisaAtencao: [], actionItems: [], total: 0 };
+      } finally {
+        this.ui.digestLoading = false;
+      }
+    },
+
+    _digestSentimentoGeral(topicos) {
+      if (!topicos || topicos.length === 0) return 'neutro';
+      const negativos = ['problema', 'bloqueio', 'risco', 'conflito', 'atencao', 'urgente'];
+      const positivos = ['progresso', 'conquista', 'resultado', 'aprovacao', 'entrega', 'sucesso'];
+      let score = 0;
+      topicos.forEach(t => {
+        const slug = (t.type_slug || '').toLowerCase();
+        if (negativos.some(n => slug.includes(n))) score -= 1;
+        else if (positivos.some(p => slug.includes(p))) score += 1;
+        if ((t.msgs_awaiting_response || 0) > 2) score -= 1;
+        if (t.status === 'pending_action') score -= 1;
+      });
+      if (score < 0) return 'atencao';
+      if (score > 0) return 'positivo';
+      return 'neutro';
+    },
 
     async openWaTopic(topic) {
       this.ui.waTopicDetail = topic;

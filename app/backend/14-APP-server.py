@@ -1544,11 +1544,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': 'Not found'}, 404)
 
     def do_PATCH(self):
-        # bulk MUST come before individual to avoid /api/mentees/bulk matching \d+
+        # bulk MUST come before individual to avoid /api/mentees/bulk matching UUID
         if self.path == '/api/mentees/bulk':
             self._handle_bulk_patch_mentees()
         else:
-            _m = re.match(r'^/api/mentees/(\d+)$', self.path)
+            _m = re.match(r'^/api/mentees/([0-9a-f-]+)$', self.path)
             if _m:
                 self._handle_patch_mentee(_m.group(1))
             else:
@@ -1844,7 +1844,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     def _handle_bulk_patch_mentees(self):
         """PATCH /api/mentees/bulk — update fase_jornada for multiple mentees at once
-        Body: { ids: [1, 2, 3], updates: { fase_jornada: 'execucao' } }
+        Body: { ids: [uuid1, uuid2, ...], updates: { fase_jornada: 'execucao' } }
         """
         try:
             auth_header = self.headers.get('Authorization', '')
@@ -1881,7 +1881,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': f'Invalid fase_jornada: {updates["fase_jornada"]}'}, 400)
                 return
 
-            # PostgREST IN filter: id=in.(1,2,3)
+            # PostgREST IN filter: id=in.(uuid1,uuid2,...)
             ids_csv = ','.join(str(i) for i in ids)
             result = supabase_request(
                 'PATCH',
@@ -1893,6 +1893,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             log_error('BulkPatch', f'_handle_bulk_patch_mentees failed: {e}')
             self._send_json({'error': str(e)}, 500)
+
 
     def _handle_list_events(self):
         result = list_calendar_events()
