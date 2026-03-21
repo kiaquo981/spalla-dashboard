@@ -5356,6 +5356,15 @@
                 <option value="amarelo">🟡 Atenção</option>
                 <option value="vermelho">🔴 Crítico</option>
               </select>
+              <!-- AND/OR compound filter logic toggle (S6.7) -->
+              <template x-if="ui.waPortfolioFaseFilter && ui.waPortfolioHealthFilter">
+                <button @click="ui.waFilterLogic = ui.waFilterLogic === 'AND' ? 'OR' : 'AND'"
+                        style="padding:4px 10px;border-radius:var(--r-full);border:1px solid var(--neutral-200);font-size:11px;font-weight:700;cursor:pointer;background:white"
+                        :style="ui.waFilterLogic === 'OR' ? 'background:#eff6ff;border-color:#93c5fd;color:#1e40af' : 'color:var(--text-secondary)'"
+                        x-text="ui.waFilterLogic"
+                        title="Lógica do filtro: AND = todos os critérios / OR = qualquer critério">
+                </button>
+              </template>
             </div>
           </div>
 
@@ -5400,8 +5409,8 @@
 
           <!-- Carteira Grid -->
           <div :style="ui.waPortfolioView === 'carteira' && data.mentees.length ? 'display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px' : 'display:none'">
-            <template x-for="m in waPortfolioMentees()" :key="m.id">
-              <div class="card" style="padding:0;overflow:visible;position:relative">
+            <template x-for="(m, $index) in waPortfolioMentees()" :key="m.id">
+              <div class="card" :class="{ 'card--focused': ui.waFocusedIdx === $index }" style="padding:0;overflow:visible;position:relative">
                 <!-- Health indicator bar -->
                 <div style="height:3px;border-radius:var(--r-lg) var(--r-lg) 0 0"
                      :style="{ background: _waHealthLabel(m) === 'verde' ? '#22c55e' : _waHealthLabel(m) === 'amarelo' ? '#eab308' : '#ef4444' }">
@@ -5632,6 +5641,7 @@
             </template>
             <div style="margin-top:8px;font-size:11px;color:var(--text-secondary);text-align:right">
               <span x-text="waPortfolioMentees().length"></span> mentorados · ordenados por prioridade
+              <span style="font-size:11px;color:var(--text-tertiary);margin-left:8px">J/K navega · E abre chat · N nota · S snooze · X seleciona</span>
             </div>
           </div>
 
