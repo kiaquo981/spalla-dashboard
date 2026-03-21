@@ -1462,6 +1462,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._proxy_evolution('GET')
         elif self.path == '/api/mentees':
             self._handle_get_mentees()
+        elif re.match(r'^/api/mentees/(\d+)/notes$', self.path):
+            _m = re.match(r'^/api/mentees/(\d+)/notes$', self.path)
+            self._handle_get_notes(_m.group(1))
         elif self.path.startswith('/api/calendar/events'):
             self._handle_list_events()
         elif self.path == '/api/calls/upcoming':
@@ -1500,7 +1503,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_POST(self):
-        if self.path == '/api/auth/register':
+        _notes_post = re.match(r'^/api/mentees/(\d+)/notes$', self.path)
+        if _notes_post:
+            self._handle_post_note(_notes_post.group(1))
+        elif self.path == '/api/auth/register':
             self._handle_auth_register()
         elif self.path == '/api/auth/login':
             self._handle_auth_login()
@@ -1788,6 +1794,68 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def _handle_get_mentees(self):
         result = get_mentees_with_email()
         self._send_json(result if isinstance(result, list) else [result])
+
+    def _handle_get_notes(self, mentee_id):
+        """GET /api/mentees/{id}/notes — list notes for a mentee"""
+        try:
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Unauthorized'}, 401)
+                return
+            token = auth_header[7:]
+            payload = verify_jwt_token(token)
+            if not payload or payload.get('type') == 'refresh':
+                self._send_json({'error': 'Invalid token'}, 401)
+                return
+
+            notes = supabase_request(
+                'GET',
+                f'mentee_notes?select=*&mentorado_id=eq.{mentee_id}&order=created_at.desc'
+            )
+            self._send_json(notes if isinstance(notes, list) else [])
+        except Exception as e:
+            log_error('Notes', f'GET notes failed: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_post_note(self, mentee_id):
+        """POST /api/mentees/{id}/notes — create a note for a mentee"""
+        try:
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Unauthorized'}, 401)
+                return
+            token = auth_header[7:]
+            payload = verify_jwt_token(token)
+            if not payload or payload.get('type') == 'refresh':
+                self._send_json({'error': 'Invalid token'}, 401)
+                return
+            email = payload.get('email', '')
+
+            body = json.loads(self._read_body())
+            tipo = body.get('tipo', '')
+            valid_types = {'checkpoint_mensal', 'feedback_aula', 'registro_ligacao', 'nota_livre'}
+            if tipo not in valid_types:
+                self._send_json(
+                    {'error': f'Invalid tipo. Must be one of: {", ".join(sorted(valid_types))}'},
+                    400
+                )
+                return
+
+            note = {
+                'mentorado_id': int(mentee_id),
+                'consultor_id': email,
+                'tipo': tipo,
+                'conteudo': body.get('conteudo', {}),
+                'tags': body.get('tags', []),
+            }
+            result = supabase_request('POST', 'mentee_notes', note)
+            if isinstance(result, dict) and 'error' in result:
+                self._send_json({'error': result['error']}, 500)
+                return
+            self._send_json(result, 201)
+        except Exception as e:
+            log_error('Notes', f'POST note failed: {e}')
+            self._send_json({'error': str(e)}, 500)
 
     def _handle_list_events(self):
         result = list_calendar_events()
