@@ -257,6 +257,12 @@ function operon() {
         show: false,
       },
       waMessageInput: '',
+      // S9-C: Task Extraction + Triage + Saved Segments
+      waTaskExtract: { open: false, msg: null, titulo: '', prioridade: 'normal', data_fim: '', saving: false },
+      waTriageLoading: false,
+      waTriageAssigning: null,
+      waSavedSegmentActive: null,
+      waSaveSegmentModal: { open: false, name: '' },
     },
 
     // --- Data ---
@@ -300,6 +306,10 @@ function operon() {
       digestData: null,         // loaded digest for current mentee
       // WA DM v2 (S9-B)
       waCannedAll: [],          // cache de canned responses
+      // S9-C
+      waTriageTopics: [],
+      waTriageCount: 0,
+      waSavedSegments: [],
     },
 
     // --- Financeiro (CFO Payments View) ---
@@ -5195,6 +5205,141 @@ function operon() {
     },
 
     // ===================== END WA DM v2 — S9-B =====================
+
+    // === WA TASK EXTRACTION (S9-C) ===
+
+    openWaTaskExtract(msg) {
+      const titulo = (msg?.content_text || '').slice(0, 80);
+      this.ui.waTaskExtract = { open: true, msg, titulo, prioridade: 'normal', data_fim: '', saving: false };
+    },
+
+    closeWaTaskExtract() {
+      this.ui.waTaskExtract = { open: false, msg: null, titulo: '', prioridade: 'normal', data_fim: '', saving: false };
+    },
+
+    async submitWaTaskExtract() {
+      const { msg, titulo, prioridade, data_fim } = this.ui.waTaskExtract;
+      if (!titulo.trim()) { this.toast('Título obrigatório', 'warning'); return; }
+      this.ui.waTaskExtract.saving = true;
+      try {
+        const mentoradoId = this.ui.waInbox?.mentoradoId || null;
+        const mentee      = (this.data.mentees || []).find(m => m.id === mentoradoId);
+        const payload = {
+          titulo:            titulo.trim(),
+          status:            'pendente',
+          prioridade,
+          mentorado_id:      mentoradoId,
+          mentorado_nome:    mentee?.nome || null,
+          source_message_id: msg?.id           || null,
+          source_topic_id:   msg?.topic_id     || null,
+          data_fim:          data_fim          || null,
+          created_by:        this.auth?.currentUser?.email || null,
+        };
+        const { error } = await sb.from('god_tasks').insert(payload);
+        if (error) throw error;
+        this.toast('Tarefa criada!', 'success');
+        this.closeWaTaskExtract();
+      } catch (e) {
+        console.error('[Spalla] submitWaTaskExtract error:', e);
+        this.toast('Erro ao criar tarefa: ' + e.message, 'error');
+      } finally {
+        this.ui.waTaskExtract.saving = false;
+      }
+    },
+
+    // === WA TRIAGE (S9-C) ===
+
+    async loadWaTriage() {
+      this.ui.waTriageLoading = true;
+      try {
+        const { data, error } = await sb
+          .from('wa_topics')
+          .select('id,group_jid,title,summary,last_message_at,message_count,status')
+          .is('mentorado_id', null)
+          .neq('status', 'archived')
+          .order('last_message_at', { ascending: false });
+        if (error) throw error;
+        this.data.waTriageTopics = data || [];
+        this.data.waTriageCount  = (data || []).length;
+      } catch (e) {
+        console.error('[Spalla] loadWaTriage error:', e);
+        this.data.waTriageTopics = [];
+        this.data.waTriageCount  = 0;
+      } finally {
+        this.ui.waTriageLoading = false;
+      }
+    },
+
+    async assignWaTriageTopic(topicId, groupJid, mentoradoId) {
+      if (!mentoradoId) return;
+      this.ui.waTriageAssigning = topicId;
+      try {
+        const { error } = await sb.from('wa_topics')
+          .update({ mentorado_id: parseInt(mentoradoId, 10) })
+          .eq('id', topicId);
+        if (error) throw error;
+        await this.patchMentee(parseInt(mentoradoId, 10), { grupo_whatsapp_id: groupJid });
+        this.toast('Tópico vinculado!', 'success');
+        this.data.waTriageTopics = this.data.waTriageTopics.filter(t => t.id !== topicId);
+        this.data.waTriageCount  = this.data.waTriageTopics.length;
+      } catch (e) {
+        console.error('[Spalla] assignWaTriageTopic error:', e);
+        this.toast('Erro ao vincular: ' + e.message, 'error');
+      } finally {
+        this.ui.waTriageAssigning = null;
+      }
+    },
+
+    // === WA SAVED SEGMENTS (S9-C) ===
+
+    async loadWaSavedSegments() {
+      const email = this.auth?.currentUser?.email || '';
+      try {
+        const { data } = await sb.from('wa_saved_segments')
+          .select('id,name,filters,is_shared,owner_email')
+          .or(`is_shared.eq.true,owner_email.eq.${email}`)
+          .order('created_at', { ascending: false });
+        this.data.waSavedSegments = data || [];
+      } catch (e) {
+        this.data.waSavedSegments = [];
+      }
+    },
+
+    applyWaSegment(segment) {
+      this.ui.waSavedSegmentActive      = segment.id;
+      const f = segment.filters || {};
+      this.ui.waPortfolioFaseFilter     = f.fase_jornada  || '';
+      this.ui.waPortfolioHealthFilter   = f.health_status || '';
+    },
+
+    clearWaSegment() {
+      this.ui.waSavedSegmentActive    = null;
+      this.ui.waPortfolioFaseFilter   = '';
+      this.ui.waPortfolioHealthFilter = '';
+    },
+
+    async saveCurrentWaSegment() {
+      const name = (this.ui.waSaveSegmentModal.name || '').trim();
+      if (!name) { this.toast('Nome obrigatório', 'warning'); return; }
+      const filters = {};
+      if (this.ui.waPortfolioFaseFilter)   filters.fase_jornada  = this.ui.waPortfolioFaseFilter;
+      if (this.ui.waPortfolioHealthFilter) filters.health_status = this.ui.waPortfolioHealthFilter;
+      const { error } = await sb.from('wa_saved_segments').insert({
+        name, filters, is_shared: false,
+        owner_email: this.auth?.currentUser?.email || '',
+      });
+      if (error) { this.toast('Erro ao salvar filtro', 'error'); return; }
+      this.toast('Filtro salvo!', 'success');
+      this.ui.waSaveSegmentModal = { open: false, name: '' };
+      await this.loadWaSavedSegments();
+    },
+
+    async deleteWaSegment(id) {
+      const { error } = await sb.from('wa_saved_segments').delete().eq('id', id);
+      if (error) { this.toast('Erro ao remover', 'error'); return; }
+      this.data.waSavedSegments = this.data.waSavedSegments.filter(s => s.id !== id);
+      if (this.ui.waSavedSegmentActive === id) this.clearWaSegment();
+    },
 
     async patchMentee(menteeId, updates) {
       try {

@@ -61,6 +61,25 @@
     .wa-inbox-input-wrap { position:relative;padding:12px 16px;border-top:1px solid #e2e8f0;background:#fff; }
     .wa-inbox-input-wrap input { width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box; }
     .wa-inbox-input-wrap input:focus { border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.1); }
+
+        /* === S9-C: Task Extraction + Triage + Segments === */
+    .triage-item { display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:12px 16px;border-bottom:1px solid #f1f5f9; }
+    .triage-info { flex:1;min-width:0; }
+    .triage-jid  { font-size:11px;color:#94a3b8;font-family:monospace;display:block;margin-bottom:2px; }
+    .triage-title { font-size:13px;font-weight:600;color:#1e293b;display:block; }
+    .triage-meta  { font-size:11px;color:#64748b;display:block;margin-top:2px; }
+    .triage-summary { font-size:12px;color:#475569;margin:4px 0 0; }
+    .triage-action { flex-shrink:0; }
+    .triage-count-badge { background:#ef4444;color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:4px; }
+    .segments-row { display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px; }
+    .segment-chip { display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:16px;background:#f1f5f9;color:#475569;font-size:12px;font-weight:500;cursor:pointer;border:1px solid #e2e8f0;transition:all .15s; }
+    .segment-chip:hover { background:#e2e8f0; }
+    .segment-chip.chip-active { background:#dbeafe;color:#1d4ed8;border-color:#93c5fd; }
+    .chip-delete { background:none;border:none;color:inherit;cursor:pointer;padding:0 2px;opacity:.6; }
+    .chip-delete:hover { opacity:1; }
+    .segment-save-btn { font-size:12px;color:#3b82f6;background:none;border:1px dashed #93c5fd;padding:4px 10px;border-radius:16px;cursor:pointer; }
+    .segment-clear-btn { font-size:12px;color:#64748b;background:none;border:none;cursor:pointer; }
+    .extract-source { padding:8px 12px;background:#f8fafc;border-radius:6px;border-left:3px solid #3b82f6; }
   </style>
 </head>
 <body>
@@ -5070,7 +5089,24 @@
                 <button class="topics-view-btn" :class="{ active: ui.waPortfolioView === 'inbox' }" @click="ui.waPortfolioView = 'inbox'" title="Priority Inbox">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
                 </button>
+                <button class="topics-view-btn" :class="{ active: ui.waPortfolioView === 'triage' }" @click="ui.waPortfolioView = 'triage'; loadWaTriage()" title="Triage" style="position:relative">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 3H3v7l6.29 6.29c.94.94 2.48.94 3.42 0l3.58-3.58c.94-.94.94-2.48 0-3.42L10 3z"/><line x1="6" y1="6" x2="6.01" y2="6"/></svg>
+                  <span x-show="data.waTriageCount > 0" class="triage-count-badge" x-text="data.waTriageCount" style="position:absolute;top:-4px;right:-4px;min-width:14px;height:14px;line-height:14px;text-align:center;font-size:9px"></span>
+                </button>
               </div>
+              <!-- Saved Segment chips (S9-C) -->
+              <template x-if="data.waSavedSegments.length > 0 || ui.waPortfolioFaseFilter || ui.waPortfolioHealthFilter">
+                <div class="segments-row" x-init="loadWaSavedSegments()">
+                  <template x-for="s in data.waSavedSegments" :key="s.id">
+                    <div class="segment-chip" :class="ui.waSavedSegmentActive === s.id ? 'chip-active' : ''" @click="applyWaSegment(s)">
+                      <span x-text="s.name"></span>
+                      <button x-show="s.owner_email === auth?.currentUser?.email" @click.stop="deleteWaSegment(s.id)" class="chip-delete" title="Remover filtro">✕</button>
+                    </div>
+                  </template>
+                  <button x-show="(ui.waPortfolioFaseFilter || ui.waPortfolioHealthFilter) && !ui.waSavedSegmentActive" class="segment-save-btn" @click="ui.waSaveSegmentModal = { open: true, name: '' }">+ Salvar filtro</button>
+                  <button x-show="ui.waSavedSegmentActive" class="segment-clear-btn" @click="clearWaSegment()">× Limpar</button>
+                </div>
+              </template>
               <!-- Fase filter -->
               <select class="filter-select" x-model="ui.waPortfolioFaseFilter" style="font-size:13px;padding:4px 8px;border:1px solid var(--neutral-200);border-radius:var(--r-md);background:white;cursor:pointer">
                 <option value="">Todas as fases</option>
@@ -5321,8 +5357,106 @@
             </div>
           </div>
 
+          <!-- Triage View (S9-C) -->
+          <div x-show="ui.waPortfolioView === 'triage'" style="margin-top:4px">
+            <div x-show="ui.waTriageLoading" style="padding:24px;text-align:center;color:var(--text-secondary)">Carregando tópicos...</div>
+            <div x-show="!ui.waTriageLoading && data.waTriageTopics.length === 0" style="padding:40px;text-align:center;color:var(--text-secondary)">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 12px;display:block;opacity:.4"><path d="M10 3H3v7l6.29 6.29c.94.94 2.48.94 3.42 0l3.58-3.58c.94-.94.94-2.48 0-3.42L10 3z"/><line x1="6" y1="6" x2="6.01" y2="6"/></svg>
+              Nenhum tópico pendente de vinculação
+            </div>
+            <template x-for="t in data.waTriageTopics" :key="t.id">
+              <div class="triage-item">
+                <div class="triage-info">
+                  <span class="triage-jid" x-text="t.group_jid"></span>
+                  <span class="triage-title" x-text="t.title || 'Sem título'"></span>
+                  <span class="triage-meta">
+                    <span x-text="(t.message_count || 0) + ' mensagens'"></span>
+                    <span x-show="t.last_message_at" x-text="' · ' + _waInboxMsgTime(t.last_message_at)"></span>
+                  </span>
+                  <p x-show="t.summary" class="triage-summary" x-text="(t.summary || '').slice(0, 120)"></p>
+                </div>
+                <div class="triage-action">
+                  <select @change="assignWaTriageTopic(t.id, t.group_jid, $event.target.value)"
+                          :disabled="ui.waTriageAssigning === t.id"
+                          class="filter-select" style="width:200px">
+                    <option value="">Vincular a mentorado...</option>
+                    <template x-for="m in data.mentees" :key="m.id">
+                      <option :value="m.id" x-text="m.nome"></option>
+                    </template>
+                  </select>
+                  <div x-show="ui.waTriageAssigning === t.id" style="font-size:11px;color:var(--text-secondary);margin-top:4px">Vinculando...</div>
+                </div>
+              </div>
+            </template>
+          </div>
+
         </div>
         <!-- ===== END PAGE: WA MANAGEMENT ===== -->
+
+        <!-- Modal: WA Task Extraction (S9-C) -->
+        <div x-show="ui.waTaskExtract.open" class="modal-overlay" x-transition.opacity
+             @click.self="closeWaTaskExtract()" @keydown.escape.window="closeWaTaskExtract()" style="display:none">
+          <div class="modal-card" style="max-width:480px">
+            <div class="modal-header">
+              <h3>Criar Tarefa da Conversa</h3>
+              <button @click="closeWaTaskExtract()">✕</button>
+            </div>
+            <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+              <div class="extract-source" x-show="ui.waTaskExtract.msg?.content_text">
+                <span style="font-size:11px;color:#64748b;font-weight:500">MENSAGEM ORIGEM</span>
+                <p style="font-size:13px;color:#374151;margin:4px 0 0"
+                   x-text="(ui.waTaskExtract.msg?.content_text || '').slice(0, 140)"></p>
+              </div>
+              <div>
+                <label style="font-size:12px;font-weight:500;color:#374151">Título</label>
+                <input type="text" x-model="ui.waTaskExtract.titulo" placeholder="Descreva a tarefa..."
+                       maxlength="200" class="form-input" style="width:100%;margin-top:4px" autofocus />
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div>
+                  <label style="font-size:12px;font-weight:500;color:#374151">Prioridade</label>
+                  <select x-model="ui.waTaskExtract.prioridade" class="form-input" style="width:100%;margin-top:4px">
+                    <option value="baixa">Baixa</option>
+                    <option value="normal">Normal</option>
+                    <option value="alta">Alta</option>
+                    <option value="urgente">Urgente</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size:12px;font-weight:500;color:#374151">Data limite</label>
+                  <input type="date" x-model="ui.waTaskExtract.data_fim" class="form-input" style="width:100%;margin-top:4px" />
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn-secondary" @click="closeWaTaskExtract()">Cancelar</button>
+              <button class="btn-primary" @click="submitWaTaskExtract()"
+                      :disabled="ui.waTaskExtract.saving || !ui.waTaskExtract.titulo.trim()">
+                <span x-text="ui.waTaskExtract.saving ? 'Salvando...' : 'Criar Tarefa'"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal: Salvar Segment (S9-C) -->
+        <div x-show="ui.waSaveSegmentModal.open" class="modal-overlay" x-transition.opacity
+             @click.self="ui.waSaveSegmentModal.open = false" @keydown.escape.window="ui.waSaveSegmentModal.open = false" style="display:none">
+          <div class="modal-card" style="max-width:360px">
+            <div class="modal-header">
+              <h3>Salvar filtro atual</h3>
+              <button @click="ui.waSaveSegmentModal.open = false">✕</button>
+            </div>
+            <div class="modal-body">
+              <input type="text" x-model="ui.waSaveSegmentModal.name"
+                     placeholder="Ex: Onboarding em risco" class="form-input" style="width:100%"
+                     @keydown.enter="saveCurrentWaSegment()" autofocus />
+            </div>
+            <div class="modal-footer">
+              <button class="btn-secondary" @click="ui.waSaveSegmentModal.open = false">Cancelar</button>
+              <button class="btn-primary" @click="saveCurrentWaSegment()">Salvar</button>
+            </div>
+          </div>
+        </div>
 
       </main>
 
