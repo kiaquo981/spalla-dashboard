@@ -62,6 +62,16 @@
     .wa-inbox-input-wrap input { width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box; }
     .wa-inbox-input-wrap input:focus { border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.1); }
 
+    /* === WA QUICK REPLIES (Wave 2 F2.3) === */
+    .wa-quick-btn { padding:5px 10px;border-radius:6px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;font-size:12px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:4px; }
+    .wa-quick-btn:hover { background:#ede9fe;color:#7c3aed;border-color:#c4b5fd; }
+    .wa-quick-btn:focus-visible { outline:2px solid #7c3aed;outline-offset:2px; }
+    .wa-quick-dropdown { position:absolute;bottom:100%;left:0;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:240px;z-index:100;overflow:hidden;margin-bottom:4px; }
+    .wa-quick-item { padding:10px 14px;cursor:pointer;font-size:13px;color:#334155;display:flex;align-items:center;gap:8px;transition:background .1s; }
+    .wa-quick-item:hover { background:#f8fafc; }
+    .wa-quick-item__label { font-weight:500; }
+    .wa-quick-wrap { position:relative;display:inline-block; }
+
         /* === S9-C: Task Extraction + Triage + Segments === */
     .triage-item { display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:12px 16px;border-bottom:1px solid #f1f5f9; }
     .triage-info { flex:1;min-width:0; }
@@ -95,6 +105,8 @@
     .trend--down { color:#ef4444; }
     /* Sidebar alert badge */
     .sidebar-alert-badge { background:#ef4444;color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:auto;line-height:1.4; }
+    /* === TASK TEMPLATES BADGE (Wave 2 F2.1) === */
+    .task-auto-badge { display:inline-block;font-size:10px;background:#e0f2fe;color:#0369a1;border-radius:8px;padding:1px 6px;font-weight:600;margin-left:4px; }
     /* === TIMELINE UNIFICADA (Wave 1 F1.2) === */
     .timeline-wrap { padding:16px 0; }
     .timeline-filters { display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px; }
@@ -113,6 +125,32 @@
     .timeline-item__title { font-size:13px;font-weight:600;color:#1e293b; }
     .timeline-item__desc { font-size:12px;color:#64748b;margin-top:2px; }
     .timeline-empty { text-align:center;padding:32px;color:#94a3b8;font-size:14px; }
+    /* === TEAM DASHBOARD (Wave 2 F2.2) === */
+    .team-view { padding:24px; }
+    .team-view__header { display:flex;align-items:center;justify-content:space-between;margin-bottom:20px; }
+    .team-view__title { font-size:18px;font-weight:700;color:#1e293b; }
+    .team-toggle { display:flex;gap:4px;background:#f1f5f9;border-radius:8px;padding:3px; }
+    .team-toggle-btn { padding:5px 12px;border-radius:6px;border:none;background:none;font-size:12px;font-weight:500;cursor:pointer;color:#64748b; }
+    .team-toggle-btn.active { background:#fff;color:#1e293b;box-shadow:0 1px 3px rgba(0,0,0,.1); }
+    .team-perf-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px; }
+    .team-perf-card { background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px; }
+    .team-perf-card__name { font-size:14px;font-weight:700;color:#1e293b;margin-bottom:12px; }
+    .team-perf-card__stats { display:grid;grid-template-columns:1fr 1fr;gap:8px; }
+    .team-stat { background:#f8fafc;border-radius:8px;padding:8px;text-align:center; }
+    .team-stat__val { font-size:20px;font-weight:700;color:#3b82f6; }
+    .team-stat__lbl { font-size:11px;color:#64748b;margin-top:2px; }
+    .team-stat--warn .team-stat__val { color:#f59e0b; }
+    .team-ranking { display:flex;flex-direction:column;gap:10px; }
+    .team-rank-row { display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px; }
+    .team-rank-pos { font-size:20px;font-weight:800;color:#94a3b8;min-width:28px; }
+    .team-rank-pos--1 { color:#f59e0b; }
+    .team-rank-pos--2 { color:#94a3b8; }
+    .team-rank-pos--3 { color:#cd7c33; }
+    .team-rank-name { flex:1;font-weight:600;color:#1e293b; }
+    .team-rank-bar-wrap { flex:2;background:#f1f5f9;border-radius:4px;height:8px;overflow:hidden; }
+    .team-rank-bar { height:100%;background:#3b82f6;border-radius:4px;transition:width .4s ease; }
+    .team-rank-val { font-size:13px;font-weight:700;color:#3b82f6;min-width:36px;text-align:right; }
+    .team-perf-empty { text-align:center;padding:48px;color:#94a3b8; }
   </style>
 </head>
 <body>
@@ -976,7 +1014,7 @@
                     <div class="detail-task-card" @click="openTaskDetail(t.id)">
                       <div class="detail-task-card__check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
                       <div class="detail-task-card__body">
-                        <div class="detail-task-card__title" x-text="t.titulo"></div>
+                        <div class="detail-task-card__title"><span x-text="t.titulo"></span><span class="task-auto-badge" x-show="t.auto_gerada">Auto</span></div>
                         <div class="detail-task-card__meta">
                           <span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span>
                           <span x-show="t.data_fim || t.prazo" class="detail-task-card__due" :class="{ 'detail-task-card__due--overdue': isOverdue(t.data_fim || t.prazo) }" x-text="formatDate(t.data_fim || t.prazo)"></span>
@@ -1010,7 +1048,7 @@
                     <div class="detail-task-card" @click="openTaskDetail(t.id)">
                       <div class="detail-task-card__check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
                       <div class="detail-task-card__body">
-                        <div class="detail-task-card__title" x-text="t.titulo"></div>
+                        <div class="detail-task-card__title"><span x-text="t.titulo"></span><span class="task-auto-badge" x-show="t.auto_gerada">Auto</span></div>
                         <div class="detail-task-card__meta">
                           <span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span>
                           <span class="badge badge--sm badge--neutral" x-text="t.responsavel"></span>
@@ -1055,7 +1093,7 @@
                     <div class="detail-task-card" @click="openTaskDetail(t.id)">
                       <div class="detail-task-card__check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
                       <div class="detail-task-card__body">
-                        <div class="detail-task-card__title" x-text="t.titulo"></div>
+                        <div class="detail-task-card__title"><span x-text="t.titulo"></span><span class="task-auto-badge" x-show="t.auto_gerada">Auto</span></div>
                         <div class="detail-task-card__meta">
                           <span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span>
                           <span x-show="t.data_fim || t.prazo" class="detail-task-card__due" :class="{ 'detail-task-card__due--overdue': isOverdue(t.data_fim || t.prazo) }" x-text="formatDate(t.data_fim || t.prazo)"></span>
@@ -1772,6 +1810,7 @@
                           </div>
                           <div class="task-board__card-title">
                             <span x-text="t.titulo"></span>
+                            <span class="task-auto-badge" x-show="t.auto_gerada">Auto</span>
                             <span class="task-recurring-badge" x-show="t.recorrencia && t.recorrencia !== 'nenhuma'" :title="'Recorrente: ' + recorrenciaLabel(t.recorrencia)">
                               <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                             </span>
@@ -1859,7 +1898,7 @@
                   <div class="task-list__row" :class="{ 'task-list__row--done': t.status === 'concluida', 'task-list__row--overdue': t.status === 'pendente' && isOverdue(t.data_fim || t.prazo), 'task-list__row--mine': isMyTask(t) }" @click="openTaskDetail(t.id)">
                     <div class="task-list__col task-list__col--check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
                     <div class="task-list__col task-list__col--title">
-                      <div class="task-list__title" x-text="t.titulo"></div>
+                      <div class="task-list__title"><span x-text="t.titulo"></span><span class="task-auto-badge" x-show="t.auto_gerada">Auto</span></div>
                       <div class="task-list__tags" x-show="t.tags?.length"><template x-for="tag in (t.tags||[]).slice(0,2)" :key="tag.id||tag.name||tag"><span class="task-tag" :style="tag.color ? 'background:'+tag.color+'22;color:'+tag.color+';border-color:'+tag.color+'55' : ''" x-text="tag.name||tag"></span></template></div>
                       <div x-show="t.parent_task_id" style="font-size:10px;color:#94a3b8">subtarefa</div>
                     </div>
@@ -1956,7 +1995,7 @@
                     </div>
                   </div>
                   <div class="op-drawer__body">
-                  <h2 class="op-drawer__title" x-text="activeTaskDetail.titulo"></h2>
+                  <h2 class="op-drawer__title"><span x-text="activeTaskDetail.titulo"></span><span class="task-auto-badge" x-show="activeTaskDetail.auto_gerada">Auto</span></h2>
                   <!-- Parent task breadcrumb -->
                   <div x-show="activeTaskDetail.parent_task_id" class="task-drawer__parent">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
@@ -4583,51 +4622,66 @@
         </div>
 
         <!-- ===== PAGE: EQUIPE ===== -->
+        <!-- ===== PAGE: EQUIPE (Wave 2 F2.2 — Team Performance) ===== -->
         <div class="page-content" x-show="ui.page === 'equipe'" x-transition>
-          <div class="page-header"><h2>Dashboard da Equipe</h2></div>
-          <div class="op-grid op-grid-cols-3" style="gap:16px">
-            <template x-for="member in teamStats" :key="member.name">
-              <div class="op-card team-card" @click="taskAssignee = member.name; navigate('tasks')">
-                <div class="team-card__header">
-                  <div class="avatar avatar--md avatar--brand" :style="'background:' + avatarGradient(member.name)" x-text="avatarInitials(member.name)"></div>
-                  <div>
-                    <div class="team-card__name" x-text="member.name"></div>
-                    <div class="team-card__role" x-text="member.id"></div>
-                  </div>
-                  <span class="badge badge--sm" x-show="member.carga >= 85" :class="'badge--danger'">SOBRECARGA</span>
-                </div>
-                <div class="team-card__metrics">
-                  <div class="team-card__metric">
-                    <span class="team-card__metric-val" x-text="member.pendentes"></span>
-                    <span class="team-card__metric-label">Pendentes</span>
-                  </div>
-                  <div class="team-card__metric">
-                    <span class="team-card__metric-val" x-text="member.emAndamento"></span>
-                    <span class="team-card__metric-label">Em andamento</span>
-                  </div>
-                  <div class="team-card__metric">
-                    <span class="team-card__metric-val team-card__metric-val--danger" x-text="member.atrasadas" x-show="member.atrasadas > 0"></span>
-                    <span class="team-card__metric-label" x-show="member.atrasadas > 0">Atrasadas</span>
-                  </div>
-                  <div class="team-card__metric">
-                    <span class="team-card__metric-val team-card__metric-val--success" x-text="member.concluidas7d"></span>
-                    <span class="team-card__metric-label">Concl. 7d</span>
-                  </div>
-                </div>
-                <div class="team-card__footer">
-                  <span class="team-card__mentees">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                    <span x-text="member.mentorados + ' mentorados'"></span>
-                  </span>
-                  <div class="team-card__load">
-                    <div class="team-card__load-bar">
-                      <div class="team-card__load-fill" :style="'width:' + Math.min(member.carga, 100) + '%'" :class="'team-card__load-fill--' + member.cargaStatus"></div>
-                    </div>
-                    <span class="team-card__load-val" x-text="member.carga + '%'"></span>
-                  </div>
-                </div>
+          <div class="team-view">
+            <div class="team-view__header">
+              <h2 class="team-view__title">Performance da Equipe</h2>
+              <div class="team-toggle" role="group" aria-label="Modo de visualizacao">
+                <button type="button" class="team-toggle-btn" :class="{ active: ui.teamView === 'cards' }"
+                        :aria-pressed="ui.teamView === 'cards'" @click="ui.teamView = 'cards'">Cards</button>
+                <button type="button" class="team-toggle-btn" :class="{ active: ui.teamView === 'ranking' }"
+                        :aria-pressed="ui.teamView === 'ranking'" @click="ui.teamView = 'ranking'">Ranking</button>
               </div>
-            </template>
+            </div>
+
+            <!-- Empty state -->
+            <div class="team-perf-empty" x-show="!data.teamPerformance.length">
+              <p>Nenhum dado de equipe encontrado.</p>
+            </div>
+
+            <!-- Cards view -->
+            <div class="team-perf-grid" x-show="data.teamPerformance.length && ui.teamView === 'cards'">
+              <template x-for="member in data.teamPerformance" :key="member.name">
+                <div class="team-perf-card">
+                  <div class="team-perf-card__name" x-text="member.name"></div>
+                  <div class="team-perf-card__stats">
+                    <div class="team-stat">
+                      <div class="team-stat__val" x-text="member.tasksDone"></div>
+                      <div class="team-stat__lbl">Tarefas feitas</div>
+                    </div>
+                    <div class="team-stat" :class="{ 'team-stat--warn': member.tasksPending > 5 }">
+                      <div class="team-stat__val" x-text="member.tasksPending"></div>
+                      <div class="team-stat__lbl">Pendentes</div>
+                    </div>
+                    <div class="team-stat">
+                      <div class="team-stat__val" x-text="member.mentorados"></div>
+                      <div class="team-stat__lbl">Mentorados</div>
+                    </div>
+                    <div class="team-stat">
+                      <div class="team-stat__val" x-text="member.calls30d"></div>
+                      <div class="team-stat__lbl">Calls 30d</div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <!-- Ranking view -->
+            <div class="team-ranking" x-show="data.teamPerformance.length && ui.teamView === 'ranking'">
+              <template x-for="(member, idx) in data.teamPerformance" :key="member.name">
+                <div class="team-rank-row">
+                  <span class="team-rank-pos" :class="'team-rank-pos--' + (idx + 1)" x-text="idx + 1"></span>
+                  <span class="team-rank-name" x-text="member.name"></span>
+                  <div class="team-rank-bar-wrap" aria-hidden="true">
+                    <div class="team-rank-bar"
+                         :style="'width:' + Math.round((member.tasksDone / (data.teamPerformance[0]?.tasksDone || 1)) * 100) + '%'">
+                    </div>
+                  </div>
+                  <span class="team-rank-val" x-text="member.tasksDone + ' tasks'"></span>
+                </div>
+              </template>
+            </div>
           </div>
         </div>
 
@@ -5622,7 +5676,7 @@
             </template>
           </div>
 
-          <!-- Input / Canned responses -->
+          <!-- Input / Canned responses / Quick Replies -->
           <div class="wa-inbox-input-wrap">
             <div x-show="ui.waCanned.show" class="canned-dropdown">
               <template x-for="r in ui.waCanned.filtered" :key="r.shortcode">
@@ -5633,12 +5687,37 @@
                 </button>
               </template>
             </div>
-            <input type="text"
-                   x-model="ui.waMessageInput"
-                   @keyup="onWaInputKeyup(ui.waMessageInput)"
-                   @keydown.escape="ui.waCanned.show = false"
-                   placeholder="Digite / para respostas rápidas..."
-                   autocomplete="off" />
+            <div style="display:flex;align-items:center;gap:8px">
+              <input type="text" style="flex:1"
+                     x-model="ui.waMessageInput"
+                     @keyup="onWaInputKeyup(ui.waMessageInput)"
+                     @keydown.escape="ui.waCanned.show = false; ui.waQuickRepliesOpen = false"
+                     placeholder="Digite / para respostas rápidas..."
+                     autocomplete="off" />
+              <!-- Quick Reply Templates (Wave 2 F2.3) -->
+              <div class="wa-quick-wrap">
+                <button type="button" class="wa-quick-btn"
+                        @click="ui.waQuickRepliesOpen = !ui.waQuickRepliesOpen"
+                        :aria-expanded="ui.waQuickRepliesOpen"
+                        aria-label="Templates de resposta rápida">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                  Templates
+                </button>
+                <div class="wa-quick-dropdown" x-show="ui.waQuickRepliesOpen" x-cloak
+                     @click.outside="ui.waQuickRepliesOpen = false"
+                     @keydown.escape.window="ui.waQuickRepliesOpen = false">
+                  <template x-for="tpl in WA_QUICK_REPLY_TEMPLATES" :key="tpl.id">
+                    <div class="wa-quick-item" role="button" tabindex="0"
+                         @click="applyQuickReply(tpl)"
+                         @keydown.enter="applyQuickReply(tpl)">
+                      <span class="wa-quick-item__label" x-text="tpl.label"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
           </div>
 
         </div>
