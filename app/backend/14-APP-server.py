@@ -1598,6 +1598,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             query += '&' + '&'.join(filters)
 
         result = supabase_request('GET', query)
+        if isinstance(result, dict) and result.get('error'):
+            self._send_json({'error': 'upstream error', 'detail': result.get('message', str(result))}, 502)
+            return
         self._send_json(result if isinstance(result, list) else [])
 
     def _handle_wa_presence_post(self):
@@ -1634,14 +1637,26 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             'user_name': user_name,
         })
 
+        if isinstance(updated, dict) and updated.get('error'):
+            self._send_json({'error': 'presence update failed', 'detail': updated.get('message', str(updated))}, 502)
+            return
+
         # If no row was updated, INSERT (first heartbeat for this user+mentee)
         if isinstance(updated, list) and len(updated) == 0:
-            supabase_request('POST', 'wa_presence', {
+            inserted = supabase_request('POST', 'wa_presence', {
                 'mentorado_id': mentorado_id,
                 'user_email':   user_email,
                 'user_name':    user_name,
                 'last_seen':    ts_now,
             })
+            # accept duplicate-key (race condition) as success; propagate other errors
+            if isinstance(inserted, dict) and inserted.get('error'):
+                code = inserted.get('code', '')
+                if code != '23505':  # 23505 = unique_violation (concurrent insert won)
+                    self._send_json({'error': 'presence insert failed', 'detail': inserted.get('message', str(inserted))}, 502)
+                    return
+                # re-PATCH to ensure last_seen is updated after race
+                supabase_request('PATCH', patch_path, {'last_seen': ts_now, 'user_name': user_name})
 
         self._send_json({'ok': True})
 
@@ -1660,12 +1675,15 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': 'mentorado_id and user_email required'}, 400)
             return
 
-        supabase_request(
+        result = supabase_request(
             'DELETE',
             f'wa_presence'
             f'?mentorado_id=eq.{mentorado_id}'
             f'&user_email=eq.{urllib.parse.quote(user_email)}'
         )
+        if isinstance(result, dict) and result.get('error'):
+            self._send_json({'error': 'presence delete failed', 'detail': result.get('message', str(result))}, 502)
+            return
         self._send_json({'ok': True})
 
     def _handle_wa_presence_get(self, mentorado_id):
@@ -1685,6 +1703,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             f'&last_seen=gte.{urllib.parse.quote(cutoff)}'
             f'&select=user_email,user_name,last_seen'
         )
+        if isinstance(result, dict) and result.get('error'):
+            self._send_json({'error': 'upstream error', 'detail': result.get('message', str(result))}, 502)
+            return
         self._send_json(result if isinstance(result, list) else [])
 
     # ===== END WA DM v2 HANDLERS =====

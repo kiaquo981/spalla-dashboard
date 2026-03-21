@@ -11,6 +11,8 @@
 --   - god_tasks   (has mentorado_id, status)
 -- =====================================================
 
+BEGIN;
+
 SET search_path = "case", public;
 
 -- =====================================================
@@ -37,19 +39,20 @@ SELECT
   -- Unread: inbound msgs after last team response (mentorado waiting on team)
   COALESCE(unread.cnt, 0)                         AS unread_count,
 
-  -- SLA: hours since last inbound message without a team reply
+  -- SLA: hours since last inbound that still has no team reply after it
+  --      pending_inbound = NULL when team already replied → verde/no alert
   ROUND(
-    EXTRACT(EPOCH FROM (now() - last_inbound.ts)) / 3600.0,
+    EXTRACT(EPOCH FROM (now() - pending_inbound.ts)) / 3600.0,
     1
   )                                               AS horas_sem_resposta_equipe,
 
   -- Health status: snoozed > vermelho > amarelo > verde
   CASE
     WHEN m.snoozed_until IS NOT NULL AND m.snoozed_until > now() THEN 'snoozed'
-    WHEN last_inbound.ts IS NOT NULL
-         AND EXTRACT(EPOCH FROM (now() - last_inbound.ts)) / 3600 > 72 THEN 'vermelho'
-    WHEN last_inbound.ts IS NOT NULL
-         AND EXTRACT(EPOCH FROM (now() - last_inbound.ts)) / 3600 > 48 THEN 'amarelo'
+    WHEN pending_inbound.ts IS NOT NULL
+         AND EXTRACT(EPOCH FROM (now() - pending_inbound.ts)) / 3600 > 72 THEN 'vermelho'
+    WHEN pending_inbound.ts IS NOT NULL
+         AND EXTRACT(EPOCH FROM (now() - pending_inbound.ts)) / 3600 > 48 THEN 'amarelo'
     ELSE 'verde'
   END                                             AS health_status,
 
@@ -84,15 +87,22 @@ LEFT JOIN LATERAL (
     )
 ) unread ON true
 
--- Last inbound timestamp for SLA calculation
+-- Pending inbound: last inbound that has NO team reply after it
+--   NULL when team already responded → SLA timer stops → health = verde
 LEFT JOIN LATERAL (
   SELECT timestamp AS ts
   FROM public.wa_messages
   WHERE mentorado_id = m.id
     AND is_from_team = false
+    AND timestamp > COALESCE(
+      (SELECT MAX(timestamp)
+       FROM public.wa_messages
+       WHERE mentorado_id = m.id AND is_from_team = true),
+      '1970-01-01'::timestamptz
+    )
   ORDER BY timestamp DESC
   LIMIT 1
-) last_inbound ON true
+) pending_inbound ON true
 
 -- Open topics (excluding resolved/archived)
 LEFT JOIN LATERAL (
@@ -336,3 +346,5 @@ CREATE INDEX IF NOT EXISTS idx_god_tasks_source_topic
 CREATE INDEX IF NOT EXISTS idx_god_tasks_source_message
   ON public.god_tasks (source_message_id)
   WHERE source_message_id IS NOT NULL;
+
+COMMIT;
