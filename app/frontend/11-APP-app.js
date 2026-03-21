@@ -238,8 +238,18 @@ function operon() {
       waFaseDropdownId: null,           // id of mentee with open fase dropdown
       // WA Management — Notas Estruturadas
       notesDrawer: { open: false, menteeId: null, menteeNome: '', tipo: 'livre' },
+      notesDrawerTab: 'notes',   // I-5: 'notes' | 'files'
       notesSaving: false,
       notesForm: { conteudo: '', tags: '' },
+      // I-2: triage scores lazy-load state
+      triageLoaded: false,
+      // I-4: Copilot Contextual
+      copilotOpen: false,
+      copilotMenteeId: null,
+      copilotMenteeNome: '',
+      copilotInput: '',
+      copilotLoading: false,
+      copilotHistory: [],  // [{role, content}]
       // WA Management — Bulk Selection
       waBulkMode: false,             // bulk select mode on/off
       waBulkFase: '',                // fase to apply in bulk
@@ -352,6 +362,12 @@ function operon() {
       menteeNotes: [],          // notes for current notes drawer
       waSelectedMentees: [],    // IDs selected in bulk mode
       digestData: null,         // loaded digest for current mentee
+// I-2: server-side triage scores, keyed by mentee id
+      triageScores: {},        // I-2: keyed by mentee id
+      menteeLabels: {},        // I-1: keyed by mentee id → [{slug,name,color,count}]
+      waLabelsSummary: [],     // I-1: global label counts
+      // I-5: files for current notes drawer mentee
+      menteeFiles: { docs: [], media: [], loading: false },
       // WA DM v2 (S9-B)
       waCannedAll: [],          // cache de canned responses
       // S9-C
@@ -361,6 +377,11 @@ function operon() {
       timeline: [],
       teamPerformance: [],
     },
+
+    // --- F2.5 — In-app notifications ---
+    notifications: [],
+    notificationsOpen: false,
+    notificationsUnread: 0,
 
     // --- Financeiro (CFO Payments View) ---
     financeiro: null,
@@ -423,6 +444,7 @@ function operon() {
       newTag: '',
       recorrencia: 'nenhuma',
       dia_recorrencia: null,
+      recorrencia_ativa: true,
       fieldValues: {},         // { fieldId: <value> } for custom fields
     },
 
@@ -950,7 +972,9 @@ function operon() {
 
     async _checkRecurringTasks() {
       const recurring = this.data.tasks.filter(t =>
-        t.recorrencia && t.recorrencia !== 'nenhuma' && t.status === 'concluida'
+        t.recorrencia && t.recorrencia !== 'nenhuma' &&
+        t.recorrencia_ativa !== false &&
+        t.status === 'concluida'
       );
       for (const task of recurring) {
         const nextDate = this._calcNextOccurrence(task);
@@ -1850,6 +1874,8 @@ function operon() {
         this.loadDemoData();
       }
       this.ui.loading = false;
+      // F2.5 — rebuild notifications after dashboard data loads
+      this._buildNotifications();
       // Auto-refresh disabled — only WhatsApp polling active
       // if (this.supabaseConnected) this.startDataRefresh();
     },
@@ -1862,6 +1888,76 @@ function operon() {
       this.data.alerts = data || [];
     },
 
+// === IN-APP NOTIFICATIONS (Wave 2 F2.5) ===
+    _buildNotifications() {
+      const notifs = [];
+      const now = new Date();
+
+      // Alert: mentees without contact > 3 days
+      (this.data.mentees || []).forEach(m => {
+        const lastContact = m.ultimo_contato ? new Date(m.ultimo_contato) : null;
+        if (!lastContact) return;
+        const days = Math.floor((now - lastContact) / 86400000);
+        if (days >= 3) {
+          notifs.push({
+            id: `health-${m.id}`,
+            type: 'health',
+            icon: '⚠️',
+            title: `${m.nome} sem contato há ${days}d`,
+            body: m.fase_jornada ? `Fase: ${m.fase_jornada}` : 'Mentorado em risco',
+            menteeId: m.id,
+            createdAt: new Date(now - days * 86400000).toISOString(),
+            read: false,
+            color: days >= 7 ? '#ef4444' : '#f59e0b',
+          });
+        }
+      });
+
+      // Alert: overdue tasks (data_fim < today, status != concluida)
+      (this.data.tasks || []).forEach(t => {
+        if (!t.data_fim || t.status === 'concluida' || t.status === 'cancelada') return;
+        const due = new Date(t.data_fim);
+        if (due < now) {
+          const days = Math.floor((now - due) / 86400000);
+          notifs.push({
+            id: `task-${t.id}`,
+            type: 'task',
+            icon: '📋',
+            title: `Tarefa vencida: ${(t.titulo || '').slice(0, 40)}`,
+            body: `Venceu há ${days}d${t.mentorado_nome ? ` — ${t.mentorado_nome}` : ''}`,
+            menteeId: t.mentorado_id,
+            createdAt: t.data_fim,
+            read: false,
+            color: '#f59e0b',
+          });
+        }
+      });
+
+      // Sort: by date desc
+      notifs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      // Preserve read state from existing notifications
+      const readIds = new Set((this.notifications || []).filter(n => n.read).map(n => n.id));
+      notifs.forEach(n => { if (readIds.has(n.id)) n.read = true; });
+
+      this.notifications = notifs.slice(0, 20); // cap at 20
+      this.notificationsUnread = this.notifications.filter(n => !n.read).length;
+    },
+
+    markNotificationRead(id) {
+      const n = this.notifications.find(n => n.id === id);
+      if (n) { n.read = true; this.notificationsUnread = this.notifications.filter(n => !n.read).length; }
+    },
+
+    markAllNotificationsRead() {
+      this.notifications.forEach(n => n.read = true);
+      this.notificationsUnread = 0;
+    },
+
+    toggleNotifications() {
+      this.notificationsOpen = !this.notificationsOpen;
+      if (this.notificationsOpen) this._buildNotifications();
+    },
     // === TEAM PERFORMANCE (Wave 2 F2.2) ===
     async loadTeamPerformance() {
       if (!sb) return;
@@ -3805,6 +3901,8 @@ function operon() {
             }));
             this._autoCategorize();
             this._cacheTasksLocal();
+this._buildNotifications(); // F2.5 — refresh notification bell after tasks load
+            this._checkRecurringTasks();
             return;
           }
         } catch (e) { console.warn('[Spalla] Tasks fetch error, falling back:', e.message); }
@@ -3812,7 +3910,7 @@ function operon() {
       // Fallback: localStorage
       try {
         const raw = localStorage.getItem(CONFIG.TASKS_STORAGE_KEY);
-        if (raw) { const parsed = JSON.parse(raw); if (parsed.length > 0) { this.data.tasks = parsed; this._autoCategorize(); return; } }
+        if (raw) { const parsed = JSON.parse(raw); if (parsed.length > 0) { this.data.tasks = parsed; this._autoCategorize(); this._checkRecurringTasks(); return; } }
       } catch (e) {}
       this.data.tasks = DEMO_TASKS;
       this._cacheTasksLocal();
@@ -3983,6 +4081,7 @@ function operon() {
           list_id: task.list_id || '',
           recorrencia: task.recorrencia || 'nenhuma',
           dia_recorrencia: task.dia_recorrencia || null,
+          recorrencia_ativa: task.recorrencia_ativa !== false,
           newSubtask: '',
           newCheckItem: '',
           newComment: '',
@@ -3992,7 +4091,7 @@ function operon() {
         this.ui.taskEditId = task.id;
         this.loadFieldDefs(task.space_id, task.list_id, task.id);
       } else {
-        this.taskForm = { titulo: '', descricao: '', responsavel: '', acompanhante: '', mentorado_nome: '', prioridade: 'normal', prazo: '', data_inicio: '', data_fim: '', doc_link: '', subtasks: [], checklist: [], comments: [], attachments: [], tags: [], parent_task_id: null, space_id: 'space_jornada', list_id: '', recorrencia: 'nenhuma', dia_recorrencia: null, newSubtask: '', newCheckItem: '', newComment: '', newTag: '', fieldValues: {} };
+        this.taskForm = { titulo: '', descricao: '', responsavel: '', acompanhante: '', mentorado_nome: '', prioridade: 'normal', prazo: '', data_inicio: '', data_fim: '', doc_link: '', subtasks: [], checklist: [], comments: [], attachments: [], tags: [], parent_task_id: null, space_id: 'space_jornada', list_id: '', recorrencia: 'nenhuma', dia_recorrencia: null, recorrencia_ativa: true, newSubtask: '', newCheckItem: '', newComment: '', newTag: '', fieldValues: {} };
         this.ui.taskEditId = null;
         this.loadFieldDefs('space_jornada', null, null);
       }
@@ -5229,9 +5328,15 @@ function operon() {
         list = list.filter(m => this._waHealthLabel(m) === this.ui.waPortfolioHealthFilter);
       }
       if (this.ui.waPortfolioView === 'inbox') {
+        // I-2: lazy-load triage scores on first inbox access
+        if (!this.ui.triageLoaded) this.loadMenteesTriage();
         list.sort((a, b) => this._waPriorityScore(b) - this._waPriorityScore(a));
       } else {
         list.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+        // I-1: lazy-load labels for each visible mentee in carteira view
+        list.forEach(m => {
+          if (!this.data.menteeLabels?.[m.id]) this.loadMenteeLabels(m.id);
+        });
       }
       return list;
     },
@@ -5254,6 +5359,10 @@ function operon() {
     },
 
     _waPriorityScore(m) {
+      // I-2: use server triage score when available
+      const server = this.data.triageScores?.[m.id];
+      if (server?.score != null) return server.score;
+      // fallback: client-side calculation
       let score = 0;
       const h = m.horas_sem_resposta_equipe || 0;
       if (h > 72) score += 40;
@@ -5265,6 +5374,166 @@ function operon() {
       if (m.risco_churn === 'alto') score += 15;
       else if (m.risco_churn === 'medio') score += 5;
       return score;
+    },
+
+    // ===================== I-2: Server Triage Score =====================
+
+    waTriageBadge(score) {
+      if (score >= 60) return { color: '#b91c1c', bg: '#fee2e2', text: 'Crítico' };
+      if (score >= 30) return { color: '#92400e', bg: '#fef3c7', text: 'Atenção' };
+      return { color: '#065f46', bg: '#d1fae5', text: 'OK' };
+    },
+
+    async loadMenteesTriage() {
+      if (this.ui.triageLoaded) return;
+      try {
+        const res = await fetch('/api/mentees/triage', {
+          headers: { 'Authorization': `Bearer ${this.authToken}` },
+        });
+        if (!res.ok) return;
+        const rows = await res.json();
+        const map = {};
+        for (const r of (rows || [])) {
+          if (r.id) map[r.id] = r;
+        }
+        this.data.triageScores = map;
+        this.ui.triageLoaded = true;
+      } catch (e) {
+        console.warn('[Spalla] loadMenteesTriage error:', e);
+      }
+    },
+
+    // ===================== I-5: Mentee Files =====================
+
+    async loadMenteeFiles(menteeId) {
+      if (!menteeId) return;
+      this.data.menteeFiles = { docs: [], media: [], loading: true };
+      try {
+        const [docsRes, mediaRes] = await Promise.all([
+          fetch(`/api/storage/files?entidade_tipo=mentorado&entidade_id=${menteeId}`, {
+            headers: { 'Authorization': `Bearer ${this.authToken}` },
+          }),
+          fetch(`/api/wa/media?mentee_id=${menteeId}`, {
+            headers: { 'Authorization': `Bearer ${this.authToken}` },
+          }),
+        ]);
+        const docs = docsRes.ok ? await docsRes.json() : [];
+        const mediaJson = mediaRes.ok ? await mediaRes.json() : { media: [] };
+        this.data.menteeFiles = {
+          docs: Array.isArray(docs) ? docs : [],
+          media: mediaJson?.media || [],
+          loading: false,
+        };
+      } catch (e) {
+        console.warn('[Spalla] loadMenteeFiles error:', e);
+        this.data.menteeFiles = { docs: [], media: [], loading: false };
+      }
+    },
+
+    _fileTypeIcon(mime, msgType) {
+      if (msgType === 'audioMessage') return '🎵';
+      if (msgType === 'videoMessage') return '🎬';
+      if (msgType === 'imageMessage') return '🖼️';
+      if (!mime) return '📄';
+      if (mime.includes('pdf')) return '📋';
+      if (mime.includes('spreadsheet') || mime.includes('excel')) return '📊';
+      if (mime.includes('word') || mime.includes('document')) return '📝';
+      if (mime.includes('zip') || mime.includes('rar')) return '🗜️';
+      return '📄';
+    },
+
+    _fileMediaLabel(msgType) {
+      const labels = {
+        audioMessage: 'Áudio',
+        videoMessage: 'Vídeo',
+        documentMessage: 'Documento',
+        imageMessage: 'Imagem',
+      };
+      return labels[msgType] || msgType || 'Arquivo';
+    },
+
+    // ===================== WA LABEL SUMMARY (I-1) =====================
+
+    waMsgLabelBadge(slug) {
+      // Color map fallback if not fetched yet
+      const colors = {
+        revisao:   { bg: '#e0e7ff', color: '#4338ca' },
+        demanda:   { bg: '#fee2e2', color: '#b91c1c' },
+        plano:     { bg: '#ffedd5', color: '#c2410c' },
+        duvida:    { bg: '#dbeafe', color: '#1d4ed8' },
+        call:      { bg: '#ede9fe', color: '#6d28d9' },
+      };
+      return colors[slug] || { bg: '#f3f4f6', color: '#374151' };
+    },
+
+    async loadMenteeLabels(menteeId) {
+      if (!menteeId || this.data.menteeLabels?.[menteeId]) return;
+      try {
+        const res = await fetch(`/api/wa/labels/summary?mentee_id=${menteeId}&days=30`, {
+          headers: { 'Authorization': `Bearer ${this.authToken}` },
+        });
+        if (res.ok) {
+          const labels = await res.json();
+          if (Array.isArray(labels)) {
+            this.data.menteeLabels = { ...this.data.menteeLabels, [menteeId]: labels.slice(0, 3) };
+          }
+        }
+      } catch (e) {
+        console.warn('[Spalla] loadMenteeLabels error:', e);
+      }
+    },
+
+    // ===================== COPILOT CONTEXTUAL (I-4) =====================
+
+    openCopilot(menteeId, menteeNome) {
+      this.ui.copilotOpen = true;
+      this.ui.copilotMenteeId = menteeId || null;
+      this.ui.copilotMenteeNome = menteeNome || '';
+      this.ui.copilotInput = '';
+      this.ui.copilotHistory = [];
+    },
+
+    closeCopilot() {
+      this.ui.copilotOpen = false;
+      this.ui.copilotMenteeId = null;
+      this.ui.copilotMenteeNome = '';
+      this.ui.copilotInput = '';
+      this.ui.copilotHistory = [];
+    },
+
+    async sendCopilotMessage() {
+      const msg = (this.ui.copilotInput || '').trim();
+      if (!msg || this.ui.copilotLoading) return;
+
+      this.ui.copilotHistory.push({ role: 'user', content: msg });
+      this.ui.copilotInput = '';
+      this.ui.copilotLoading = true;
+
+      try {
+        const res = await fetch('/api/copilot', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.authToken}`,
+          },
+          body: JSON.stringify({
+            mentee_id: this.ui.copilotMenteeId,
+            message: msg,
+            history: this.ui.copilotHistory.slice(-6),
+          }),
+        });
+        const data = await res.json();
+        const reply = data.reply || data.error || 'Erro ao obter resposta.';
+        this.ui.copilotHistory.push({ role: 'assistant', content: reply });
+      } catch (e) {
+        this.ui.copilotHistory.push({ role: 'assistant', content: 'Erro de conexão.' });
+      } finally {
+        this.ui.copilotLoading = false;
+        this.$nextTick(() => {
+          const el = document.getElementById('copilot-messages');
+          if (el) el.scrollTop = el.scrollHeight;
+        });
+      }
     },
 
     _waFaseLabel(fase) {
@@ -5734,13 +6003,17 @@ function operon() {
     openNotesDrawer(menteeId, menteeNome) {
       this.ui.notesDrawer = { open: true, menteeId, menteeNome: menteeNome || '', tipo: 'livre' };
       this.ui.notesForm = { conteudo: '', tags: '' };
+      this.ui.notesDrawerTab = 'notes';
+      this.data.menteeFiles = { docs: [], media: [], loading: false };
       this.loadMenteeNotes(menteeId);
     },
 
     closeNotesDrawer() {
       this.ui.notesDrawer = { open: false, menteeId: null, menteeNome: '', tipo: 'livre' };
       this.ui.notesForm = { conteudo: '', tags: '' };
+      this.ui.notesDrawerTab = 'notes';
       this.data.menteeNotes = [];
+      this.data.menteeFiles = { docs: [], media: [], loading: false };
     },
 
     async loadMenteeNotes(menteeId) {
