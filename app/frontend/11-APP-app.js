@@ -186,6 +186,23 @@ function operon() {
       waTopicDetail: null,
       waTopicMessages: [],
       waTopicsLoading: false,
+      // WA Management — Carteira
+      waPortfolioLoading: false,
+      waPortfolioView: 'carteira',      // 'carteira' | 'inbox'
+      waPortfolioFaseFilter: '',        // '' | 'onboarding' | 'execucao' | 'resultado' | 'renovacao'
+      waPortfolioHealthFilter: '',      // '' | 'verde' | 'amarelo' | 'vermelho'
+      waFaseDropdownId: null,           // id of mentee with open fase dropdown
+      // WA Management — Notas Estruturadas
+      notesDrawer: { open: false, menteeId: null, menteeNome: '', tipo: 'livre' },
+      notesSaving: false,
+      notesForm: { conteudo: '', tags: '' },
+      // WA Management — Bulk Selection
+      waBulkMode: false,             // bulk select mode on/off
+      waBulkFase: '',                // fase to apply in bulk
+      waBulkApplying: false,         // loading state for bulk apply
+      // WA Management — AI Group Digest
+      digestModal: { open: false, menteeId: null, menteeNome: '' },
+      digestLoading: false,
       // Reminders
       reminderModal: false,
       reminderFilter: 'ativo', // ativo | concluido | all
@@ -260,6 +277,9 @@ function operon() {
       taskTags: [],             // god_task_tags — all available tags
       fieldDefs: [],            // applicable god_task_field_defs for current modal
       finDetailLogs: [],        // financial logs for mentee detail tab
+      menteeNotes: [],          // notes for current notes drawer
+      waSelectedMentees: [],    // IDs selected in bulk mode
+      digestData: null,         // loaded digest for current mentee
     },
 
     // --- Financeiro (CFO Payments View) ---
@@ -1901,6 +1921,7 @@ function operon() {
       'equipe': 'equipe',
       'whatsapp': 'whatsapp',
       'wa-topics': 'wa_topics',
+      'wa-management': 'wa_management',
       'reminders': 'reminders',
       'dossies': 'dossies',
       'planos-acao': 'planos_acao',
@@ -4860,6 +4881,315 @@ function operon() {
         }
         return true;
       });
+    },
+
+    // ===================== WA MANAGEMENT — CARTEIRA =====================
+
+    waPortfolioMentees() {
+      let list = [...this.data.mentees];
+      if (this.ui.waPortfolioFaseFilter) {
+        list = list.filter(m => m.fase_jornada === this.ui.waPortfolioFaseFilter);
+      }
+      if (this.ui.waPortfolioHealthFilter) {
+        list = list.filter(m => this._waHealthLabel(m) === this.ui.waPortfolioHealthFilter);
+      }
+      if (this.ui.waPortfolioView === 'inbox') {
+        list.sort((a, b) => this._waPriorityScore(b) - this._waPriorityScore(a));
+      } else {
+        list.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+      }
+      return list;
+    },
+
+    waPortfolioKpis() {
+      const all = this.data.mentees;
+      return {
+        total: all.length,
+        verde: all.filter(m => this._waHealthLabel(m) === 'verde').length,
+        amarelo: all.filter(m => this._waHealthLabel(m) === 'amarelo').length,
+        vermelho: all.filter(m => this._waHealthLabel(m) === 'vermelho').length,
+      };
+    },
+
+    _waHealthLabel(m) {
+      const score = this.calcHealthScore(m);
+      if (score >= 70) return 'verde';
+      if (score >= 40) return 'amarelo';
+      return 'vermelho';
+    },
+
+    _waPriorityScore(m) {
+      let score = 0;
+      const h = m.horas_sem_resposta_equipe || 0;
+      if (h > 72) score += 40;
+      else if (h > 48) score += 25;
+      else if (h > 24) score += 10;
+      if (m.fase_jornada === 'onboarding' || m.fase_jornada === 'renovacao') score += 20;
+      score += Math.min(20, (m.pendencias_count || 0) * 5);
+      score += Math.min(10, (m.msgs_pendentes_resposta || 0));
+      if (m.risco_churn === 'alto') score += 15;
+      else if (m.risco_churn === 'medio') score += 5;
+      return score;
+    },
+
+    _waFaseLabel(fase) {
+      const labels = {
+        onboarding: 'Onboarding',
+        execucao: 'Execução',
+        resultado: 'Resultado',
+        renovacao: 'Renovação',
+        encerrado: 'Encerrado',
+      };
+      return labels[fase] || fase || '—';
+    },
+
+    _waFaseBadgeStyle(fase) {
+      const styles = {
+        onboarding: 'background:#dbeafe;color:#1e40af',
+        execucao: 'background:#d1fae5;color:#065f46',
+        resultado: 'background:#ede9fe;color:#5b21b6',
+        renovacao: 'background:#fef3c7;color:#92400e',
+        encerrado: 'background:#f1f5f9;color:#64748b',
+      };
+      return styles[fase] || 'background:#f1f5f9;color:#64748b';
+    },
+
+    _waUltimoContato(m) {
+      const h = m.horas_sem_resposta_equipe;
+      if (h == null) return '—';
+      if (h < 1) return 'Agora';
+      if (h < 24) return `${Math.floor(h)}h atrás`;
+      const d = Math.floor(h / 24);
+      if (d === 1) return 'Ontem';
+      return `${d}d atrás`;
+    },
+
+    async patchMentee(menteeId, updates) {
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/mentees/${menteeId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.auth.token}`,
+          },
+          body: JSON.stringify(updates),
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const result = await resp.json();
+        const idx = this.data.mentees.findIndex(m => m.id === menteeId);
+        if (idx !== -1) this.data.mentees[idx] = { ...this.data.mentees[idx], ...updates };
+        return result;
+      } catch (e) {
+        this.toast('Erro ao atualizar mentorado: ' + e.message, 'error');
+        throw e;
+      }
+    },
+
+    async changeFaseMentee(menteeId, novaFase) {
+      await this.patchMentee(menteeId, { fase_jornada: novaFase });
+      this.ui.waFaseDropdownId = null;
+      this.toast(`Fase atualizada para ${this._waFaseLabel(novaFase)}`, 'success');
+    },
+
+    async snoozeMentee(menteeId, dias) {
+      const dt = new Date();
+      dt.setDate(dt.getDate() + dias);
+      await this.patchMentee(menteeId, { snoozed_until: dt.toISOString() });
+      this.toast(`Mentorado snoozeado por ${dias} dias`, 'success');
+    },
+
+    // ===================== NOTAS ESTRUTURADAS =====================
+
+    openNotesDrawer(menteeId, menteeNome) {
+      this.ui.notesDrawer = { open: true, menteeId, menteeNome: menteeNome || '', tipo: 'livre' };
+      this.ui.notesForm = { conteudo: '', tags: '' };
+      this.loadMenteeNotes(menteeId);
+    },
+
+    closeNotesDrawer() {
+      this.ui.notesDrawer = { open: false, menteeId: null, menteeNome: '', tipo: 'livre' };
+      this.ui.notesForm = { conteudo: '', tags: '' };
+      this.data.menteeNotes = [];
+    },
+
+    async loadMenteeNotes(menteeId) {
+      if (!menteeId) return;
+      try {
+        const { data, error } = await sb
+          .from('mentee_notes')
+          .select('id,tipo,conteudo,tags,created_at,author_name')
+          .eq('mentee_id', menteeId)
+          .order('created_at', { ascending: false })
+          .limit(20);
+        if (error) throw error;
+        this.data.menteeNotes = data || [];
+      } catch (e) {
+        console.error('loadMenteeNotes error:', e);
+        this.data.menteeNotes = [];
+      }
+    },
+
+    async postMenteeNote(menteeId, tipo, conteudo, tags) {
+      if (!conteudo?.trim()) {
+        this.toast('Escreva algo antes de salvar.', 'warning');
+        return false;
+      }
+      this.ui.notesSaving = true;
+      try {
+        const tagsArr = tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+        const { error } = await sb.from('mentee_notes').insert({
+          mentee_id: menteeId,
+          tipo,
+          conteudo: conteudo.trim(),
+          tags: tagsArr,
+        });
+        if (error) throw error;
+        this.toast('Nota salva!', 'success');
+        this.ui.notesForm = { conteudo: '', tags: '' };
+        this.ui.notesDrawer.tipo = 'livre';
+        await this.loadMenteeNotes(menteeId);
+        return true;
+      } catch (e) {
+        console.error('postMenteeNote error:', e);
+        this.toast('Erro ao salvar nota.', 'error');
+        return false;
+      } finally {
+        this.ui.notesSaving = false;
+      }
+    },
+
+    _notesTipoLabel(tipo) {
+      const map = {
+        'checkpoint_mensal': 'Checkpoint Mensal',
+        'feedback_aula': 'Feedback de Aula',
+        'registro_ligacao': 'Registro de Ligação',
+        'livre': 'Nota Livre',
+      };
+      return map[tipo] || tipo;
+    },
+
+    _notesTipoPlaceholder(tipo) {
+      const map = {
+        'checkpoint_mensal': 'Progresso (1-5), bloqueios encontrados, próximos passos acordados...',
+        'feedback_aula': 'Participou? Entregou tarefa? Observações sobre o engajamento...',
+        'registro_ligacao': 'Duração, tópicos discutidos, decisões tomadas, follow-ups prometidos...',
+        'livre': 'Escreva sua nota...',
+      };
+      return map[tipo] || 'Escreva sua nota...';
+    },
+
+    // ===================== WA MANAGEMENT — BULK SELECTION =====================
+
+    toggleBulkSelect(menteeId) {
+      const idx = this.data.waSelectedMentees.indexOf(menteeId);
+      if (idx === -1) {
+        this.data.waSelectedMentees.push(menteeId);
+      } else {
+        this.data.waSelectedMentees.splice(idx, 1);
+      }
+    },
+
+    isBulkSelected(menteeId) {
+      return this.data.waSelectedMentees.includes(menteeId);
+    },
+
+    clearBulkSelection() {
+      this.data.waSelectedMentees = [];
+      this.ui.waBulkFase = '';
+      this.ui.waBulkMode = false;
+    },
+
+    selectAllBulk() {
+      const visible = this.waPortfolioMentees ? this.waPortfolioMentees() : (this.data.mentees || []);
+      this.data.waSelectedMentees = visible.map(m => m.id);
+    },
+
+    async bulkUpdateFase(fase) {
+      if (!fase || this.data.waSelectedMentees.length === 0) return;
+      const ids = [...this.data.waSelectedMentees];
+      this.ui.waBulkApplying = true;
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/mentees/bulk`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.auth.token}`,
+          },
+          body: JSON.stringify({ ids, updates: { fase_jornada: fase } }),
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        ids.forEach(id => {
+          const m = (this.data.mentees || []).find(x => x.id === id);
+          if (m) m.fase_jornada = fase;
+        });
+        this.toast(`${ids.length} mentorado(s) movido(s) para ${this._waFaseLabel(fase)}`, 'success');
+        this.clearBulkSelection();
+      } catch (e) {
+        console.error('bulkUpdateFase error:', e);
+        this.toast('Erro ao aplicar bulk update.', 'error');
+      } finally {
+        this.ui.waBulkApplying = false;
+      }
+    },
+
+
+    // ===================== WA MANAGEMENT — AI GROUP DIGEST =====================
+
+    openDigestModal(menteeId, menteeNome) {
+      this.ui.digestModal = { open: true, menteeId, menteeNome: menteeNome || '' };
+      this.data.digestData = null;
+      this.loadMenteeDigest(menteeId);
+    },
+
+    closeDigestModal() {
+      this.ui.digestModal = { open: false, menteeId: null, menteeNome: '' };
+      this.data.digestData = null;
+    },
+
+    async loadMenteeDigest(menteeId) {
+      if (!menteeId) return;
+      this.ui.digestLoading = true;
+      try {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - 7);
+        const { data: topicos, error } = await sb
+          .from('vw_wa_topic_board')
+          .select('id,title,summary,status,type_name,type_slug,type_color,type_icon,confidence,last_message_at,msgs_awaiting_response,task_titulo,task_status')
+          .eq('mentorado_id', menteeId)
+          .gte('last_message_at', cutoff.toISOString())
+          .order('last_message_at', { ascending: false });
+        if (error) throw error;
+        const list = topicos || [];
+        this.data.digestData = {
+          topicos: list,
+          sentimento: this._digestSentimentoGeral(list),
+          precisaAtencao: list.filter(t => t.status === 'pending_action' || (t.msgs_awaiting_response || 0) > 0),
+          actionItems: list.filter(t => t.task_titulo && t.task_status && t.task_status !== 'concluido'),
+          total: list.length,
+        };
+      } catch (e) {
+        console.error('[Spalla] loadMenteeDigest error:', e);
+        this.data.digestData = { topicos: [], sentimento: 'neutro', precisaAtencao: [], actionItems: [], total: 0 };
+      } finally {
+        this.ui.digestLoading = false;
+      }
+    },
+
+    _digestSentimentoGeral(topicos) {
+      if (!topicos || topicos.length === 0) return 'neutro';
+      const negativos = ['problema', 'bloqueio', 'risco', 'conflito', 'atencao', 'urgente'];
+      const positivos = ['progresso', 'conquista', 'resultado', 'aprovacao', 'entrega', 'sucesso'];
+      let score = 0;
+      topicos.forEach(t => {
+        const slug = (t.type_slug || '').toLowerCase();
+        if (negativos.some(n => slug.includes(n))) score -= 1;
+        else if (positivos.some(p => slug.includes(p))) score += 1;
+        if ((t.msgs_awaiting_response || 0) > 2) score -= 1;
+        if (t.status === 'pending_action') score -= 1;
+      });
+      if (score < 0) return 'atencao';
+      if (score > 0) return 'positivo';
+      return 'neutro';
     },
 
     async openWaTopic(topic) {
