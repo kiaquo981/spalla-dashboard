@@ -17,6 +17,50 @@
     #loading-fallback span { animation:pulse 1.5s infinite; }
     @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.5} }
     @keyframes spin { from{transform:rotate(0deg)}to{transform:rotate(360deg)} }
+
+    /* ===== S9-B: WA DM v2 — Inbox, SLA, Canned, Presence ===== */
+
+    /* SLA Badges */
+    .sla-badge  { display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;line-height:1.4; }
+    .sla-green  { background:#dcfce7;color:#166534; }
+    .sla-yellow { background:#fef9c3;color:#854d0e; }
+    .sla-red    { background:#fee2e2;color:#991b1b;animation:sla-pulse 2s ease-in-out infinite; }
+    .sla-none   { background:#f1f5f9;color:#94a3b8; }
+    @keyframes sla-pulse { 0%,100%{opacity:1}50%{opacity:.55} }
+
+    /* WA Inbox Drawer */
+    .wa-inbox-drawer { position:fixed;top:0;right:0;width:420px;height:100vh;background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);z-index:300;display:flex;flex-direction:column;transition:transform .2s; }
+    .wa-inbox-header { display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #e2e8f0;gap:8px; }
+    .wa-inbox-header strong { font-size:15px;font-weight:600;color:#1e293b; }
+    .wa-inbox-messages { flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:6px;background:#f8fafc; }
+    .wa-load-more-btn { align-self:center;font-size:12px;color:#3b82f6;background:none;border:1px solid #bfdbfe;border-radius:16px;padding:4px 14px;cursor:pointer;margin-bottom:8px; }
+    .wa-load-more-btn:hover { background:#eff6ff; }
+    .wa-msg-wrapper { display:flex;flex-direction:column;max-width:78%; }
+    .wa-msg-team    { align-self:flex-end;align-items:flex-end; }
+    .wa-msg-mentee  { align-self:flex-start;align-items:flex-start; }
+    .wa-msg-sender  { font-size:11px;color:#64748b;font-weight:500;margin-bottom:2px; }
+    .wa-msg-time    { font-size:10px;color:#94a3b8;margin-top:2px; }
+    .wa-msg-bubble-wrap { position:relative;display:flex;align-items:flex-start;gap:4px; }
+    .wa-msg-bubble  { padding:8px 12px;border-radius:12px;font-size:13px;line-height:1.55;word-break:break-word; }
+    .wa-msg-team   .wa-msg-bubble { background:#3b82f6;color:#fff;border-bottom-right-radius:3px; }
+    .wa-msg-mentee .wa-msg-bubble { background:#fff;color:#1e293b;border-bottom-left-radius:3px;border:1px solid #e2e8f0; }
+    .wa-topic-badge { align-self:center;font-size:10px;background:#ede9fe;color:#6d28d9;padding:2px 8px;border-radius:8px;margin:10px 0 2px;font-weight:500; }
+    .wa-extract-btn { opacity:0;font-size:13px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;color:#3b82f6;padding:2px 6px;transition:opacity .15s;flex-shrink:0;margin-top:4px; }
+    .wa-msg-wrapper:hover .wa-extract-btn { opacity:1; }
+    .wa-inbox-empty { text-align:center;color:#94a3b8;font-size:13px;padding:32px 16px; }
+
+    /* Collision badge */
+    .collision-badge { font-size:11px;background:#fef9c3;color:#92400e;border-radius:8px;padding:3px 8px;font-weight:500; }
+
+    /* Canned responses dropdown */
+    .canned-dropdown  { position:absolute;bottom:100%;left:0;right:0;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.1);max-height:220px;overflow-y:auto;z-index:100;margin-bottom:4px; }
+    .canned-item      { display:flex;align-items:center;gap:10px;padding:8px 14px;cursor:pointer;border-bottom:1px solid #f8fafc;transition:background .1s; }
+    .canned-item:hover { background:#f8fafc; }
+    .canned-shortcode { font-size:12px;font-weight:700;color:#3b82f6;font-family:monospace;min-width:110px; }
+    .canned-name      { font-size:12px;color:#475569; }
+    .wa-inbox-input-wrap { position:relative;padding:12px 16px;border-top:1px solid #e2e8f0;background:#fff; }
+    .wa-inbox-input-wrap input { width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box; }
+    .wa-inbox-input-wrap input:focus { border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.1); }
   </style>
 </head>
 <body>
@@ -5140,10 +5184,18 @@
                   </div>
 
                   <!-- Stats row -->
-                  <div style="display:flex;gap:16px;margin-bottom:12px;font-size:12px;color:var(--text-secondary)">
+                  <div style="display:flex;gap:16px;margin-bottom:12px;font-size:12px;color:var(--text-secondary);align-items:flex-start">
                     <div>
                       <span style="display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Último contato</span>
                       <span style="font-weight:500;color:var(--text-primary)" x-text="_waUltimoContato(m)"></span>
+                    </div>
+                    <!-- S9-B: SLA badge (visível quando há horas_sem_resposta_equipe da view) -->
+                    <div x-show="m.horas_sem_resposta_equipe != null">
+                      <span style="display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">SLA</span>
+                      <span class="sla-badge"
+                            :class="_waSlaTimerClass(m.horas_sem_resposta_equipe)"
+                            x-text="_waSlaTimerText(m.horas_sem_resposta_equipe)">
+                      </span>
                     </div>
                     <div x-show="m.msgs_pendentes_resposta > 0">
                       <span style="display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Msgs pendentes</span>
@@ -5162,6 +5214,14 @@
                             style="font-size:11px;padding:4px 8px">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                       Chat
+                    </button>
+                    <!-- S9-B: Inbox 1:1 -->
+                    <button class="btn btn--ghost btn--sm"
+                            @click="openWaInbox(m.id, m.nome)"
+                            title="Inbox 1:1 — histórico de mensagens"
+                            style="font-size:11px;padding:4px 8px">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><polyline points="3 9 12 15 21 9"/></svg>
+                      Inbox
                     </button>
                     <button class="btn btn--ghost btn--sm"
                             @click="openDetail(m.id)"
@@ -5265,6 +5325,86 @@
         <!-- ===== END PAGE: WA MANAGEMENT ===== -->
 
       </main>
+
+      <!-- ===== S9-B: WA Inbox Drawer — Global ===== -->
+      <div class="op-drawer-overlay"
+           x-show="ui.waInbox.open"
+           x-transition.opacity
+           @click.self="closeWaInbox()"
+           style="display:none">
+        <div class="wa-inbox-drawer"
+             x-show="ui.waInbox.open"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="transform translate-x-full"
+             x-transition:enter-end="transform translate-x-0"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="transform translate-x-0"
+             x-transition:leave-end="transform translate-x-full">
+
+          <!-- Header -->
+          <div class="wa-inbox-header">
+            <div style="flex:1;min-width:0">
+              <strong x-text="ui.waInbox.mentoradoNome || 'Conversa'"></strong>
+              <div x-show="ui.waInbox.others.length > 0" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
+                <template x-for="u in ui.waInbox.others" :key="u.user_email">
+                  <span class="collision-badge" x-text="(u.user_name || u.user_email) + ' também está aqui'"></span>
+                </template>
+              </div>
+            </div>
+            <button @click="closeWaInbox()"
+                    style="background:none;border:none;cursor:pointer;color:#64748b;font-size:18px;padding:4px;flex-shrink:0"
+                    title="Fechar">✕</button>
+          </div>
+
+          <!-- Messages -->
+          <div class="wa-inbox-messages" id="waInboxMessages">
+            <button x-show="ui.waInbox.hasMore && !ui.waInbox.loading"
+                    class="wa-load-more-btn"
+                    @click="loadMoreInboxMessages()">↑ Carregar mais</button>
+            <div x-show="ui.waInbox.loading && ui.waInbox.messages.length === 0"
+                 class="wa-inbox-empty">Carregando mensagens...</div>
+            <div x-show="!ui.waInbox.loading && ui.waInbox.messages.length === 0"
+                 class="wa-inbox-empty">Nenhuma mensagem encontrada.</div>
+            <template x-for="(msg, idx) in ui.waInbox.messages" :key="msg.id">
+              <div>
+                <div x-show="_waInboxShouldShowTopic(ui.waInbox.messages, idx)"
+                     class="wa-topic-badge">tópico</div>
+                <div class="wa-msg-wrapper" :class="msg.is_from_team ? 'wa-msg-team' : 'wa-msg-mentee'">
+                  <span class="wa-msg-sender" x-show="!msg.is_from_team"
+                        x-text="msg.sender_name || 'Mentorado'"></span>
+                  <div class="wa-msg-bubble-wrap">
+                    <div class="wa-msg-bubble" x-text="msg.content_text || '[mídia]'"></div>
+                    <!-- Task extraction (S9-C registers openWaTaskExtract) -->
+                    <button class="wa-extract-btn" title="Criar tarefa"
+                            @click="typeof openWaTaskExtract === 'function' && openWaTaskExtract(msg)">⊕</button>
+                  </div>
+                  <span class="wa-msg-time" x-text="_waInboxMsgTime(msg.timestamp)"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Input / Canned responses -->
+          <div class="wa-inbox-input-wrap">
+            <div x-show="ui.waCanned.show" class="canned-dropdown">
+              <template x-for="r in ui.waCanned.filtered" :key="r.shortcode">
+                <div class="canned-item" @click="selectCannedResponse(r)">
+                  <span class="canned-shortcode" x-text="r.shortcode"></span>
+                  <span class="canned-name" x-text="r.name"></span>
+                </div>
+              </template>
+            </div>
+            <input type="text"
+                   x-model="ui.waMessageInput"
+                   @keyup="onWaInputKeyup(ui.waMessageInput)"
+                   @keydown.escape="ui.waCanned.show = false"
+                   placeholder="Digite / para respostas rápidas..."
+                   autocomplete="off" />
+          </div>
+
+        </div>
+      </div>
+      <!-- ===== END S9-B: WA Inbox Drawer ===== -->
 
       <!-- Notes Drawer — Global (slides in from right, all pages) -->
       <div class="op-drawer-overlay"
@@ -5755,5 +5895,6 @@
       }, 2000);
     });
   </script>
+
 </body>
 </html>

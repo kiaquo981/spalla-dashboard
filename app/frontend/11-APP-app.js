@@ -239,6 +239,24 @@ function operon() {
       expandedCall: null,
       scheduleModal: false,
       scheduling: false,
+      // WA DM v2 — Inbox (S9-B)
+      waInbox: {
+        open: false,
+        mentoradoId: null,
+        mentoradoNome: '',
+        messages: [],
+        loading: false,
+        cursor: null,               // timestamp da msg mais antiga carregada
+        hasMore: true,
+        presenceInterval: null,
+        presencePollInterval: null,
+        others: [],                 // outros usuários vendo agora (collision)
+      },
+      waCanned: {
+        filtered: [],
+        show: false,
+      },
+      waMessageInput: '',
     },
 
     // --- Data ---
@@ -280,6 +298,8 @@ function operon() {
       menteeNotes: [],          // notes for current notes drawer
       waSelectedMentees: [],    // IDs selected in bulk mode
       digestData: null,         // loaded digest for current mentee
+      // WA DM v2 (S9-B)
+      waCannedAll: [],          // cache de canned responses
     },
 
     // --- Financeiro (CFO Payments View) ---
@@ -4965,6 +4985,204 @@ function operon() {
       if (d === 1) return 'Ontem';
       return `${d}d atrás`;
     },
+
+    // ===================== WA DM v2 — S9-B =====================
+
+    // --- SLA Timer helpers ---
+
+    _waSlaTimerClass(horas) {
+      if (horas == null || horas < 0) return 'sla-none';
+      if (horas > 72) return 'sla-red';
+      if (horas > 48) return 'sla-yellow';
+      return 'sla-green';
+    },
+
+    _waSlaTimerText(horas) {
+      if (horas == null || horas < 0) return '—';
+      if (horas < 1) return `${Math.round(horas * 60)}m`;
+      if (horas < 24) return `${Math.round(horas)}h`;
+      const d = Math.floor(horas / 24);
+      const h = Math.round(horas % 24);
+      return h > 0 ? `${d}d ${h}h` : `${d}d`;
+    },
+
+    // Formata timestamp ISO para exibição no chat ("14:32", "ontem", "seg 18 mar")
+    _waInboxMsgTime(ts) {
+      if (!ts) return '';
+      const d = new Date(ts);
+      const now = new Date();
+      const diffH = (now - d) / 3600000;
+      if (diffH < 24 && d.getDate() === now.getDate()) {
+        return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      }
+      if (diffH < 48) return 'ontem';
+      return d.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' });
+    },
+
+    // Returns true when topic badge should be shown (topic changes between consecutive msgs)
+    _waInboxShouldShowTopic(messages, index) {
+      if (index === 0) return !!messages[index].topic_id;
+      return messages[index].topic_id &&
+             messages[index].topic_id !== messages[index - 1].topic_id;
+    },
+
+    // --- Inbox View ---
+
+    async openWaInbox(menteeId, menteeNome) {
+      this.ui.waInbox = {
+        open: true, mentoradoId: menteeId, mentoradoNome: menteeNome || '',
+        messages: [], loading: true, cursor: null, hasMore: true,
+        presenceInterval: null, presencePollInterval: null, others: [],
+      };
+      this.ui.waMessageInput = '';
+      this.ui.waCanned.show = false;
+      await this.loadInboxMessages(menteeId);
+      await this.loadCannedResponses();
+      await this.sendWaPresence(menteeId);
+      this.ui.waInbox.presenceInterval = setInterval(
+        () => this.sendWaPresence(menteeId), 30000
+      );
+      this.ui.waInbox.presencePollInterval = setInterval(
+        () => this.pollWaPresence(menteeId), 15000
+      );
+    },
+
+    async closeWaInbox() {
+      const { mentoradoId, presenceInterval, presencePollInterval } = this.ui.waInbox;
+      clearInterval(presenceInterval);
+      clearInterval(presencePollInterval);
+      if (mentoradoId) await this.clearWaPresence(mentoradoId);
+      this.ui.waInbox = {
+        open: false, mentoradoId: null, mentoradoNome: '',
+        messages: [], loading: false, cursor: null, hasMore: true,
+        presenceInterval: null, presencePollInterval: null, others: [],
+      };
+      this.ui.waCanned.show = false;
+      this.ui.waMessageInput = '';
+    },
+
+    async loadInboxMessages(menteeId) {
+      this.ui.waInbox.loading = true;
+      try {
+        const { data, error } = await sb.from('wa_messages')
+          .select('id,sender_name,is_from_team,content_type,content_text,timestamp,topic_id')
+          .eq('mentorado_id', menteeId)
+          .order('timestamp', { ascending: false })
+          .limit(50);
+        if (error) throw error;
+        const msgs = (data || []).reverse();
+        this.ui.waInbox.messages = msgs;
+        this.ui.waInbox.cursor   = msgs.length ? msgs[0].timestamp : null;
+        this.ui.waInbox.hasMore  = (data?.length || 0) === 50;
+      } catch (e) {
+        console.error('[Spalla] loadInboxMessages error:', e);
+        this.ui.waInbox.messages = [];
+      } finally {
+        this.ui.waInbox.loading = false;
+      }
+    },
+
+    async loadMoreInboxMessages() {
+      const { mentoradoId, cursor, loading, hasMore } = this.ui.waInbox;
+      if (!mentoradoId || !cursor || loading || !hasMore) return;
+      this.ui.waInbox.loading = true;
+      try {
+        const { data, error } = await sb.from('wa_messages')
+          .select('id,sender_name,is_from_team,content_type,content_text,timestamp,topic_id')
+          .eq('mentorado_id', mentoradoId)
+          .lt('timestamp', cursor)
+          .order('timestamp', { ascending: false })
+          .limit(50);
+        if (error) throw error;
+        const older = (data || []).reverse();
+        this.ui.waInbox.messages = [...older, ...this.ui.waInbox.messages];
+        this.ui.waInbox.cursor   = older.length ? older[0].timestamp : cursor;
+        this.ui.waInbox.hasMore  = (data?.length || 0) === 50;
+      } catch (e) {
+        console.error('[Spalla] loadMoreInboxMessages error:', e);
+      } finally {
+        this.ui.waInbox.loading = false;
+      }
+    },
+
+    // --- Presence ---
+
+    async sendWaPresence(mentoradoId) {
+      if (!mentoradoId) return;
+      try {
+        await fetch(`${CONFIG.API_BASE}/api/wa/presence`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.auth.token}`,
+          },
+          body: JSON.stringify({
+            mentorado_id: mentoradoId,
+            user_email: this.auth?.currentUser?.email || '',
+            user_name:  this.auth?.currentUser?.name  || this.auth?.currentUser?.email || '',
+          }),
+        });
+      } catch (e) { /* best-effort */ }
+    },
+
+    async clearWaPresence(mentoradoId) {
+      if (!mentoradoId) return;
+      const email = encodeURIComponent(this.auth?.currentUser?.email || '');
+      try {
+        await fetch(
+          `${CONFIG.API_BASE}/api/wa/presence?mentorado_id=${mentoradoId}&user_email=${email}`,
+          { method: 'DELETE', headers: { 'Authorization': `Bearer ${this.auth.token}` } }
+        );
+      } catch (e) { /* best-effort */ }
+    },
+
+    async pollWaPresence(mentoradoId) {
+      if (!mentoradoId) return;
+      try {
+        const resp = await fetch(
+          `${CONFIG.API_BASE}/api/wa/presence/${mentoradoId}`,
+          { headers: { 'Authorization': `Bearer ${this.auth.token}` } }
+        );
+        if (!resp.ok) return;
+        const all = await resp.json();
+        const myEmail = this.auth?.currentUser?.email || '';
+        this.ui.waInbox.others = (Array.isArray(all) ? all : [])
+          .filter(u => u.user_email !== myEmail);
+      } catch (e) { /* silencioso */ }
+    },
+
+    // --- Canned Responses ---
+
+    async loadCannedResponses() {
+      if (this.data.waCannedAll?.length > 0) return; // já em cache
+      try {
+        const { data } = await sb.from('wa_canned_responses')
+          .select('shortcode,name,content,category')
+          .order('shortcode');
+        this.data.waCannedAll = data || [];
+      } catch (e) {
+        this.data.waCannedAll = [];
+      }
+    },
+
+    onWaInputKeyup(value) {
+      if (value && value.startsWith('/')) {
+        const q = value.slice(1).toLowerCase();
+        this.ui.waCanned.filtered = (this.data.waCannedAll || []).filter(r =>
+          r.shortcode.slice(1).includes(q) || r.name.toLowerCase().includes(q)
+        );
+        this.ui.waCanned.show = this.ui.waCanned.filtered.length > 0;
+      } else {
+        this.ui.waCanned.show = false;
+      }
+    },
+
+    selectCannedResponse(r) {
+      this.ui.waMessageInput = r.content;
+      this.ui.waCanned.show  = false;
+    },
+
+    // ===================== END WA DM v2 — S9-B =====================
 
     async patchMentee(menteeId, updates) {
       try {
