@@ -1898,7 +1898,7 @@
                   <div class="task-list__row" :class="{ 'task-list__row--done': t.status === 'concluida', 'task-list__row--overdue': t.status === 'pendente' && isOverdue(t.data_fim || t.prazo), 'task-list__row--mine': isMyTask(t) }" @click="openTaskDetail(t.id)">
                     <div class="task-list__col task-list__col--check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
                     <div class="task-list__col task-list__col--title">
-                      <div class="task-list__title"><span x-text="t.titulo"></span><span class="task-auto-badge" x-show="t.auto_gerada">Auto</span></div>
+                      <div class="task-list__title"><span x-text="t.titulo"></span><span class="task-auto-badge" x-show="t.auto_gerada">Auto</span><span class="task-recurring-badge" x-show="t.recorrencia && t.recorrencia !== 'nenhuma'" :title="'Recorrente: ' + recorrenciaLabel(t.recorrencia)"><svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span></div>
                       <div class="task-list__tags" x-show="t.tags?.length"><template x-for="tag in (t.tags||[]).slice(0,2)" :key="tag.id||tag.name||tag"><span class="task-tag" :style="tag.color ? 'background:'+tag.color+'22;color:'+tag.color+';border-color:'+tag.color+'55' : ''" x-text="tag.name||tag"></span></template></div>
                       <div x-show="t.parent_task_id" style="font-size:10px;color:#94a3b8">subtarefa</div>
                     </div>

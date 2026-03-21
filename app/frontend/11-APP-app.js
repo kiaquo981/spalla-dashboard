@@ -439,6 +439,7 @@ function operon() {
       newTag: '',
       recorrencia: 'nenhuma',
       dia_recorrencia: null,
+      recorrencia_ativa: true,
       fieldValues: {},         // { fieldId: <value> } for custom fields
     },
 
@@ -966,7 +967,9 @@ function operon() {
 
     async _checkRecurringTasks() {
       const recurring = this.data.tasks.filter(t =>
-        t.recorrencia && t.recorrencia !== 'nenhuma' && t.status === 'concluida'
+        t.recorrencia && t.recorrencia !== 'nenhuma' &&
+        t.recorrencia_ativa !== false &&
+        t.status === 'concluida'
       );
       for (const task of recurring) {
         const nextDate = this._calcNextOccurrence(task);
@@ -3821,6 +3824,7 @@ function operon() {
             }));
             this._autoCategorize();
             this._cacheTasksLocal();
+            this._checkRecurringTasks();
             return;
           }
         } catch (e) { console.warn('[Spalla] Tasks fetch error, falling back:', e.message); }
@@ -3828,7 +3832,7 @@ function operon() {
       // Fallback: localStorage
       try {
         const raw = localStorage.getItem(CONFIG.TASKS_STORAGE_KEY);
-        if (raw) { const parsed = JSON.parse(raw); if (parsed.length > 0) { this.data.tasks = parsed; this._autoCategorize(); return; } }
+        if (raw) { const parsed = JSON.parse(raw); if (parsed.length > 0) { this.data.tasks = parsed; this._autoCategorize(); this._checkRecurringTasks(); return; } }
       } catch (e) {}
       this.data.tasks = DEMO_TASKS;
       this._cacheTasksLocal();
@@ -3999,6 +4003,7 @@ function operon() {
           list_id: task.list_id || '',
           recorrencia: task.recorrencia || 'nenhuma',
           dia_recorrencia: task.dia_recorrencia || null,
+          recorrencia_ativa: task.recorrencia_ativa !== false,
           newSubtask: '',
           newCheckItem: '',
           newComment: '',
@@ -4008,7 +4013,7 @@ function operon() {
         this.ui.taskEditId = task.id;
         this.loadFieldDefs(task.space_id, task.list_id, task.id);
       } else {
-        this.taskForm = { titulo: '', descricao: '', responsavel: '', acompanhante: '', mentorado_nome: '', prioridade: 'normal', prazo: '', data_inicio: '', data_fim: '', doc_link: '', subtasks: [], checklist: [], comments: [], attachments: [], tags: [], parent_task_id: null, space_id: 'space_jornada', list_id: '', recorrencia: 'nenhuma', dia_recorrencia: null, newSubtask: '', newCheckItem: '', newComment: '', newTag: '', fieldValues: {} };
+        this.taskForm = { titulo: '', descricao: '', responsavel: '', acompanhante: '', mentorado_nome: '', prioridade: 'normal', prazo: '', data_inicio: '', data_fim: '', doc_link: '', subtasks: [], checklist: [], comments: [], attachments: [], tags: [], parent_task_id: null, space_id: 'space_jornada', list_id: '', recorrencia: 'nenhuma', dia_recorrencia: null, recorrencia_ativa: true, newSubtask: '', newCheckItem: '', newComment: '', newTag: '', fieldValues: {} };
         this.ui.taskEditId = null;
         this.loadFieldDefs('space_jornada', null, null);
       }
