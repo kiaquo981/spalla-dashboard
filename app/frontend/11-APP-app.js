@@ -5373,6 +5373,33 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       return 'vermelho';
     },
 
+    // Wave 3.2 — Churn Risk (0-100). Pure client-side from existing fields.
+    calcChurnRisk(m) {
+      let risk = 0;
+      // Signal 1: Days without call (strongest predictor)
+      const dc = m.dias_desde_call ?? 999;
+      if (dc > 60) risk += 35;
+      else if (dc > 45) risk += 25;
+      else if (dc > 30) risk += 15;
+      else if (dc > 21) risk += 5;
+      // Signal 2: WA engagement (radio silence = churn signal)
+      const wa7d = m.whatsapp_7d || 0;
+      if (wa7d === 0) risk += 25;
+      else if (wa7d <= 2) risk += 15;
+      else if (wa7d <= 5) risk += 5;
+      // Signal 3: Overdue tasks accumulating
+      const late = m.tarefas_atrasadas || 0;
+      if (late >= 5) risk += 20;
+      else if (late >= 3) risk += 12;
+      else if (late >= 1) risk += 5;
+      // Signal 4: Financial stress
+      if (m.status_financeiro === 'atrasado') risk += 15;
+      if (m.contrato_assinado === false) risk += 8;
+      // Signal 5: Critical phases with low engagement (onboarding/renovacao are highest-risk moments)
+      if (['onboarding', 'renovacao'].includes(m.fase_jornada) && dc > 21) risk += 10;
+      return Math.min(100, risk);
+    },
+
     _waPriorityScore(m) {
       // I-2: use server triage score when available
       const server = this.data.triageScores?.[m.id];
