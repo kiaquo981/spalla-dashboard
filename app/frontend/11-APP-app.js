@@ -264,6 +264,7 @@ function operon() {
       waSavedSegmentActive: null,
       waSaveSegmentModal: { open: false, name: '' },
       alertsDismissed: [],
+      timelineFilter: '',
     },
 
     // --- Data ---
@@ -311,6 +312,7 @@ function operon() {
       waTriageTopics: [],
       waTriageCount: 0,
       waSavedSegments: [],
+      timeline: [],
     },
 
     // --- Financeiro (CFO Payments View) ---
@@ -5404,6 +5406,27 @@ function operon() {
       if (error) { this.toast('Erro ao remover', 'error'); return; }
       this.data.waSavedSegments = this.data.waSavedSegments.filter(s => s.id !== id);
       if (this.ui.waSavedSegmentActive === id) this.clearWaSegment();
+    },
+
+    // === TIMELINE UNIFICADA (Wave 1 F1.2) ===
+    async loadTimeline(menteeId) {
+      if (!sb || !menteeId) return;
+      this._timelineReqId = (this._timelineReqId || 0) + 1;
+      const reqId = this._timelineReqId;
+      this.data.timeline = [];
+      try {
+        const { data, error } = await sb
+          .from('vw_god_timeline')
+          .select('*')
+          .eq('mentorado_id', menteeId)
+          .order('data', { ascending: false })
+          .limit(50);
+        if (reqId !== this._timelineReqId) return; // stale response
+        if (error) { console.warn('[Spalla] loadTimeline:', error.message); return; }
+        this.data.timeline = data || [];
+      } catch (e) {
+        if (reqId === this._timelineReqId) console.warn('[Spalla] loadTimeline exception:', e);
+      }
     },
 
     async patchMentee(menteeId, updates) {

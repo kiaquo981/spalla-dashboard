@@ -95,6 +95,24 @@
     .trend--down { color:#ef4444; }
     /* Sidebar alert badge */
     .sidebar-alert-badge { background:#ef4444;color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:auto;line-height:1.4; }
+    /* === TIMELINE UNIFICADA (Wave 1 F1.2) === */
+    .timeline-wrap { padding:16px 0; }
+    .timeline-filters { display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px; }
+    .timeline-filter-btn { padding:4px 12px;border-radius:14px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;transition:all .15s; }
+    .timeline-filter-btn.active { background:#ede9fe;color:#7c3aed;border-color:#c4b5fd; }
+    .timeline-list { position:relative;padding-left:28px; }
+    .timeline-list::before { content:'';position:absolute;left:10px;top:0;bottom:0;width:2px;background:#e2e8f0; }
+    .timeline-item { position:relative;margin-bottom:20px; }
+    .timeline-dot { position:absolute;left:-24px;top:4px;width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 2px currentColor; }
+    .timeline-dot--call { color:#3b82f6; }
+    .timeline-dot--task { color:#8b5cf6; }
+    .timeline-dot--wa { color:#10b981; }
+    .timeline-dot--financeiro { color:#f59e0b; }
+    .timeline-dot--default { color:#94a3b8; }
+    .timeline-item__date { font-size:11px;color:#94a3b8;margin-bottom:2px; }
+    .timeline-item__title { font-size:13px;font-weight:600;color:#1e293b; }
+    .timeline-item__desc { font-size:12px;color:#64748b;margin-top:2px; }
+    .timeline-empty { text-align:center;padding:32px;color:#94a3b8;font-size:14px; }
   </style>
 </head>
 <body>
@@ -669,6 +687,11 @@
               <button class="op-tab" :class="{ active: ui.activeDetailTab === 'financeiro' }" @click="ui.activeDetailTab = 'financeiro'; loadFinDetailLogs()" x-show="isCfoUser">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                 Financeiro
+              </button>
+              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'timeline' }" @click="ui.activeDetailTab = 'timeline'; loadTimeline(data.detail?.profile?.id)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                Timeline
+                <span class="op-tab__count" x-show="data.timeline.length" x-text="data.timeline.length"></span>
               </button>
             </div>
 
@@ -1404,6 +1427,39 @@
                     </button>
                   </div>
                 </template>
+              </div>
+            </div>
+
+            <!-- ===== TAB: TIMELINE UNIFICADA (Wave 1 F1.2) ===== -->
+            <div class="op-tab-content" x-show="ui.activeDetailTab === 'timeline'" x-cloak>
+              <div class="timeline-wrap">
+                <!-- Type filters -->
+                <div class="timeline-filters" role="group" aria-label="Filtrar eventos">
+                  <button type="button" class="timeline-filter-btn" :class="{ active: ui.timelineFilter === '' }" :aria-pressed="ui.timelineFilter === ''" @click="ui.timelineFilter = ''">Todos</button>
+                  <button type="button" class="timeline-filter-btn" :class="{ active: ui.timelineFilter === 'call' }" :aria-pressed="ui.timelineFilter === 'call'" @click="ui.timelineFilter = 'call'">Calls</button>
+                  <button type="button" class="timeline-filter-btn" :class="{ active: ui.timelineFilter === 'task' }" :aria-pressed="ui.timelineFilter === 'task'" @click="ui.timelineFilter = 'task'">Tarefas</button>
+                  <button type="button" class="timeline-filter-btn" :class="{ active: ui.timelineFilter === 'wa' }" :aria-pressed="ui.timelineFilter === 'wa'" @click="ui.timelineFilter = 'wa'">WhatsApp</button>
+                  <button type="button" class="timeline-filter-btn" :class="{ active: ui.timelineFilter === 'financeiro' }" :aria-pressed="ui.timelineFilter === 'financeiro'" @click="ui.timelineFilter = 'financeiro'">Financeiro</button>
+                </div>
+                <!-- Empty state: no data at all -->
+                <div class="timeline-empty" x-show="!data.timeline.length">
+                  Nenhum evento encontrado.
+                </div>
+                <!-- Empty state: filter returns no results -->
+                <div class="timeline-empty" x-show="data.timeline.length && ui.timelineFilter && !data.timeline.filter(i => i.tipo === ui.timelineFilter).length">
+                  Sem eventos para este filtro.
+                </div>
+                <!-- Timeline items -->
+                <div class="timeline-list" x-show="data.timeline.length">
+                  <template x-for="item in data.timeline.filter(i => !ui.timelineFilter || i.tipo === ui.timelineFilter)" :key="(item.id ? String(item.id) : '') + '-' + (item.tipo || '') + '-' + (item.data || '')">
+                    <div class="timeline-item">
+                      <div class="timeline-dot" :class="'timeline-dot--' + (item.tipo || 'default')"></div>
+                      <div class="timeline-item__date" x-text="item.data ? new Date(item.data).toLocaleDateString('pt-BR', { day:'2-digit', month:'short', year:'numeric' }) : ''"></div>
+                      <div class="timeline-item__title" x-text="item.titulo || item.tipo"></div>
+                      <div class="timeline-item__desc" x-show="item.descricao" x-text="item.descricao"></div>
+                    </div>
+                  </template>
+                </div>
               </div>
             </div>
 
