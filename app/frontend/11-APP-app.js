@@ -1888,7 +1888,7 @@ function operon() {
       this.data.alerts = data || [];
     },
 
-    // === IN-APP NOTIFICATIONS (Wave 2 F2.5) ===
+// === IN-APP NOTIFICATIONS (Wave 2 F2.5) ===
     _buildNotifications() {
       const notifs = [];
       const now = new Date();
@@ -1958,7 +1958,6 @@ function operon() {
       this.notificationsOpen = !this.notificationsOpen;
       if (this.notificationsOpen) this._buildNotifications();
     },
-
     // === TEAM PERFORMANCE (Wave 2 F2.2) ===
     async loadTeamPerformance() {
       if (!sb) return;
