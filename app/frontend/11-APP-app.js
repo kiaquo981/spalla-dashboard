@@ -1812,6 +1812,99 @@ function operon() {
       return '';
     },
 
+    // === EXPORT CSV (Wave 1 F1.3) ===
+    exportDashboardCsv() {
+      let url;
+      try {
+        const rows = [['Nome','Fase','Risco','Engagement (%)','Dias sem Call','Msgs Pendentes','Financeiro','Contrato','Consultor','Cohort']];
+        for (const m of this.filteredMentees) {
+          rows.push([
+            m.nome || '',
+            m.fase_jornada || '',
+            m.risco_churn || '',
+            m.engagement_score ?? '',
+            m.dias_desde_call ?? '',
+            m.msgs_pendentes_resposta ?? 0,
+            m.status_financeiro || '',
+            m.contrato_assinado ? 'Sim' : 'Não',
+            m.consultor_responsavel || '',
+            m.cohort || '',
+          ]);
+        }
+        const csv = rows.map(r => r.map(v => `"${(v ?? '').toString().replace(/"/g, '""')}"`).join(',')).join('\n');
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `spalla-mentorados-${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        this.toast(`${this.filteredMentees.length} mentorados exportados`, 'success');
+      } catch (e) {
+        console.warn('[Spalla] exportDashboardCsv:', e);
+        this.toast('Erro ao exportar CSV', 'error');
+      } finally {
+        if (url) URL.revokeObjectURL(url);
+      }
+    },
+
+    exportDetailCsv() {
+      let url;
+      try {
+        const p = this.data.detail?.profile || {};
+        const ph = this.data.detail?.phase || {};
+        const fin = this.data.detail?.financial || {};
+        const calls = this.data.detail?.last_calls || [];
+        const profile = [
+          ['Campo', 'Valor'],
+          ['Nome', p.nome || ''],
+          ['Instagram', p.instagram || ''],
+          ['Fase', ph.fase_jornada || ''],
+          ['Risco', ph.risco_churn || ''],
+          ['Marco', ph.marco_atual || ''],
+          ['Engagement', (ph.engagement_score || 0) + '%'],
+          ['Implementacao', (ph.implementation_score || 0) + '%'],
+          ['Cohort', p.cohort || ''],
+          ['Consultor', p.consultor_responsavel || ''],
+          ['Total Vendido', fin.faturamento_atual || 0],
+          ['Qtd Vendas', fin.qtd_vendas_total || 0],
+          ['Status Financeiro', fin.status_financeiro || ''],
+          ['Contrato', p.contrato_assinado ? 'Sim' : 'Não'],
+          ['Dias desde Call', ph.dias_desde_call ?? ''],
+          ['Msgs Pendentes', ph.msgs_pendentes_resposta ?? 0],
+        ];
+        const callsRows = [
+          [],
+          ['--- CALLS ---'],
+          ['Data', 'Tipo', 'Duração (min)', 'Status'],
+          ...calls.map(c => [
+            c.data_call ? new Date(c.data_call).toLocaleDateString('pt-BR') : '',
+            c.tipo_call || '',
+            c.duracao || c.duracao_minutos || '',
+            c.status_call || '',
+          ]),
+        ];
+        const allRows = [...profile, ...callsRows];
+        const csv = allRows.map(r => r.map(v => `"${(v ?? '').toString().replace(/"/g, '""')}"`).join(',')).join('\n');
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const nome = (p.nome || 'mentorado').toLowerCase().replace(/\s+/g, '-');
+        a.download = `spalla-${nome}-${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        this.toast('Perfil exportado', 'success');
+      } catch (e) {
+        console.warn('[Spalla] exportDetailCsv:', e);
+        this.toast('Erro ao exportar perfil', 'error');
+      } finally {
+        if (url) URL.revokeObjectURL(url);
+      }
+    },
+
     _enrichMenteesWithCalls() {
       if (!this.data.mentees?.length) return;
       // Recalculate dias_desde_call using real Supabase calls
