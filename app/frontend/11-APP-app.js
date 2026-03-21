@@ -378,6 +378,11 @@ function operon() {
       teamPerformance: [],
     },
 
+    // --- F2.5 — In-app notifications ---
+    notifications: [],
+    notificationsOpen: false,
+    notificationsUnread: 0,
+
     // --- Financeiro (CFO Payments View) ---
     financeiro: null,
     finFilter: '',
@@ -1869,6 +1874,8 @@ function operon() {
         this.loadDemoData();
       }
       this.ui.loading = false;
+      // F2.5 — rebuild notifications after dashboard data loads
+      this._buildNotifications();
       // Auto-refresh disabled — only WhatsApp polling active
       // if (this.supabaseConnected) this.startDataRefresh();
     },
@@ -1879,6 +1886,77 @@ function operon() {
       const { data, error } = await sb.rpc('fn_god_alerts');
       if (error) { console.warn('[Spalla] loadAlerts:', error.message); return; }
       this.data.alerts = data || [];
+    },
+
+    // === IN-APP NOTIFICATIONS (Wave 2 F2.5) ===
+    _buildNotifications() {
+      const notifs = [];
+      const now = new Date();
+
+      // Alert: mentees without contact > 3 days
+      (this.data.mentees || []).forEach(m => {
+        const lastContact = m.ultimo_contato ? new Date(m.ultimo_contato) : null;
+        if (!lastContact) return;
+        const days = Math.floor((now - lastContact) / 86400000);
+        if (days >= 3) {
+          notifs.push({
+            id: `health-${m.id}`,
+            type: 'health',
+            icon: '⚠️',
+            title: `${m.nome} sem contato há ${days}d`,
+            body: m.fase_jornada ? `Fase: ${m.fase_jornada}` : 'Mentorado em risco',
+            menteeId: m.id,
+            createdAt: new Date(now - days * 86400000).toISOString(),
+            read: false,
+            color: days >= 7 ? '#ef4444' : '#f59e0b',
+          });
+        }
+      });
+
+      // Alert: overdue tasks (data_fim < today, status != concluida)
+      (this.data.tasks || []).forEach(t => {
+        if (!t.data_fim || t.status === 'concluida' || t.status === 'cancelada') return;
+        const due = new Date(t.data_fim);
+        if (due < now) {
+          const days = Math.floor((now - due) / 86400000);
+          notifs.push({
+            id: `task-${t.id}`,
+            type: 'task',
+            icon: '📋',
+            title: `Tarefa vencida: ${(t.titulo || '').slice(0, 40)}`,
+            body: `Venceu há ${days}d${t.mentorado_nome ? ` — ${t.mentorado_nome}` : ''}`,
+            menteeId: t.mentorado_id,
+            createdAt: t.data_fim,
+            read: false,
+            color: '#f59e0b',
+          });
+        }
+      });
+
+      // Sort: by date desc
+      notifs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      // Preserve read state from existing notifications
+      const readIds = new Set((this.notifications || []).filter(n => n.read).map(n => n.id));
+      notifs.forEach(n => { if (readIds.has(n.id)) n.read = true; });
+
+      this.notifications = notifs.slice(0, 20); // cap at 20
+      this.notificationsUnread = this.notifications.filter(n => !n.read).length;
+    },
+
+    markNotificationRead(id) {
+      const n = this.notifications.find(n => n.id === id);
+      if (n) { n.read = true; this.notificationsUnread = this.notifications.filter(n => !n.read).length; }
+    },
+
+    markAllNotificationsRead() {
+      this.notifications.forEach(n => n.read = true);
+      this.notificationsUnread = 0;
+    },
+
+    toggleNotifications() {
+      this.notificationsOpen = !this.notificationsOpen;
+      if (this.notificationsOpen) this._buildNotifications();
     },
 
     // === TEAM PERFORMANCE (Wave 2 F2.2) ===
@@ -3824,6 +3902,7 @@ function operon() {
             }));
             this._autoCategorize();
             this._cacheTasksLocal();
+this._buildNotifications(); // F2.5 — refresh notification bell after tasks load
             this._checkRecurringTasks();
             return;
           }
