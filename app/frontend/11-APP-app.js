@@ -2019,6 +2019,26 @@ function operon() {
       return (this.visibleAlerts || []).filter(a => a.severidade === 'critico').length;
     },
 
+    get alertsAltoCount() {
+      return (this.visibleAlerts || []).filter(a => a.severidade === 'alto').length;
+    },
+
+    get alertsMedioCount() {
+      return (this.visibleAlerts || []).filter(a => a.severidade === 'medio').length;
+    },
+
+    get alertsCriticos() {
+      return (this.visibleAlerts || []).filter(a => a.severidade === 'critico');
+    },
+
+    get alertsAlto() {
+      return (this.visibleAlerts || []).filter(a => a.severidade === 'alto');
+    },
+
+    get alertsMedio() {
+      return (this.visibleAlerts || []).filter(a => a.severidade === 'medio');
+    },
+
     // === KPI TRENDS (Wave 1 F1.4) ===
     _maybeUpdateKpiSnapshot() {
       try {
