@@ -1523,7 +1523,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'storage_search': bool(OPENAI_API_KEY),
             })
         # ===== WA DM v2 (S9-A) =====
-elif self.path == '/api/mentees/triage':
+        elif self.path == '/api/mentees/triage':
             self._handle_mentees_triage()
         elif self.path.startswith('/api/wa/media'):
             self._handle_wa_media()
@@ -1588,7 +1588,8 @@ elif self.path == '/api/mentees/triage':
         elif self.path == '/api/financial/update-status':
             self._handle_financial_update_status()
         elif self.path == '/api/financial/add-note':
-            self._handle_financial_add_note()        else:
+            self._handle_financial_add_note()
+        else:
             self._send_json({'error': 'Not found'}, 404)
 
     def do_PUT(self):
@@ -1610,74 +1611,74 @@ elif self.path == '/api/mentees/triage':
 
     # ===== WA DM v2 HANDLERS (S9-A) =====
 
-def _handle_mentees_triage(self):
-        """GET /api/mentees/triage — Server-side triage score per mentee.
-        Uses vw_wa_mentee_inbox + wa_topics to compute priority scores.
-        Returns: [{ id, nome, score, level, factors }] sorted by score desc.
-        """
-        try:
-            inbox = supabase_request('GET',
-                'vw_wa_mentee_inbox?select=*&order=horas_sem_resposta_equipe.desc.nullslast')
-            if not isinstance(inbox, list):
-                inbox = []
+    def _handle_mentees_triage(self):
+            """GET /api/mentees/triage — Server-side triage score per mentee.
+            Uses vw_wa_mentee_inbox + wa_topics to compute priority scores.
+            Returns: [{ id, nome, score, level, factors }] sorted by score desc.
+            """
+            try:
+                inbox = supabase_request('GET',
+                    'vw_wa_mentee_inbox?select=*&order=horas_sem_resposta_equipe.desc.nullslast')
+                if not isinstance(inbox, list):
+                    inbox = []
 
-            cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-            topics = supabase_request('GET',
-                f'wa_topics?select=group_jid,sentiment&sentiment=in.(negativo,critico)'
-                f'&last_message_at=gte.{cutoff}')
-            if not isinstance(topics, list):
-                topics = []
+                cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+                topics = supabase_request('GET',
+                    f'wa_topics?select=group_jid,sentiment&sentiment=in.(negativo,critico)'
+                    f'&last_message_at=gte.{cutoff}')
+                if not isinstance(topics, list):
+                    topics = []
 
-            neg_jids = {t['group_jid'] for t in topics if t.get('group_jid')}
+                neg_jids = {t['group_jid'] for t in topics if t.get('group_jid')}
 
-            results = []
-            for m in inbox:
-                score = 0
-                factors = []
+                results = []
+                for m in inbox:
+                    score = 0
+                    factors = []
 
-                h = m.get('horas_sem_resposta_equipe') or 0
-                if h > 72:
-                    score += 40; factors.append('sem_contato_72h')
-                elif h > 48:
-                    score += 25; factors.append('sem_contato_48h')
-                elif h > 24:
-                    score += 10; factors.append('sem_contato_24h')
+                    h = m.get('horas_sem_resposta_equipe') or 0
+                    if h > 72:
+                        score += 40; factors.append('sem_contato_72h')
+                    elif h > 48:
+                        score += 25; factors.append('sem_contato_48h')
+                    elif h > 24:
+                        score += 10; factors.append('sem_contato_24h')
 
-                fase = m.get('fase_jornada', '')
-                if fase in ('onboarding', 'renovacao'):
-                    score += 20; factors.append(f'fase_critica_{fase}')
+                    fase = m.get('fase_jornada', '')
+                    if fase in ('onboarding', 'renovacao'):
+                        score += 20; factors.append(f'fase_critica_{fase}')
 
-                tarefas = m.get('tarefas_pendentes') or 0
-                score += min(20, tarefas * 5)
-                if tarefas > 0:
-                    factors.append(f'{tarefas}_tarefas')
+                    tarefas = m.get('tarefas_pendentes') or 0
+                    score += min(20, tarefas * 5)
+                    if tarefas > 0:
+                        factors.append(f'{tarefas}_tarefas')
 
-                unread = m.get('msgs_pendentes_resposta') or 0
-                score += min(10, unread)
-                if unread > 0:
-                    factors.append(f'{unread}_msgs_nao_lidas')
+                    unread = m.get('msgs_pendentes_resposta') or 0
+                    score += min(10, unread)
+                    if unread > 0:
+                        factors.append(f'{unread}_msgs_nao_lidas')
 
-                jid = m.get('grupo_whatsapp_id') or m.get('group_jid') or ''
-                if jid in neg_jids:
-                    score += 15; factors.append('sentimento_negativo')
+                    jid = m.get('grupo_whatsapp_id') or m.get('group_jid') or ''
+                    if jid in neg_jids:
+                        score += 15; factors.append('sentimento_negativo')
 
-                if m.get('health_status') == 'vermelho':
-                    score += 10
+                    if m.get('health_status') == 'vermelho':
+                        score += 10
 
-                level = 'critico' if score >= 60 else 'atencao' if score >= 30 else 'ok'
-                results.append({
-                    'id': m.get('id'),
-                    'nome': m.get('nome'),
-                    'score': score,
-                    'level': level,
-                    'factors': factors,
-                })
+                    level = 'critico' if score >= 60 else 'atencao' if score >= 30 else 'ok'
+                    results.append({
+                        'id': m.get('id'),
+                        'nome': m.get('nome'),
+                        'score': score,
+                        'level': level,
+                        'factors': factors,
+                    })
 
-            results.sort(key=lambda x: x['score'], reverse=True)
-            self._send_json(results)
-        except Exception as e:
-            log_error('Triage', f'_handle_mentees_triage failed: {e}')
-            self._send_json({'error': str(e)}, 500)
+                results.sort(key=lambda x: x['score'], reverse=True)
+                self._send_json(results)
+            except Exception as e:
+                log_error('Triage', f'_handle_mentees_triage failed: {e}')
+                self._send_json({'error': str(e)}, 500)
 
     def _handle_wa_media(self):
         """GET /api/wa/media?mentee_id={id} — WA media files for a mentee.
