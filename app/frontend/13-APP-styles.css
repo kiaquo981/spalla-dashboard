@@ -6430,3 +6430,9 @@ img { max-width: 100%; display: block; }
     grid-template-columns: 1fr;
   }
 }
+
+/* S6.7 — Keyboard navigation focus ring for carteira cards */
+.card--focused {
+  outline: 2px solid var(--primary, #7c3aed);
+  outline-offset: 2px;
+}

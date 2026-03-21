@@ -235,6 +235,8 @@ function operon() {
       waPortfolioView: 'carteira',      // 'carteira' | 'inbox'
       waPortfolioFaseFilter: '',        // '' | 'onboarding' | 'execucao' | 'resultado' | 'renovacao'
       waPortfolioHealthFilter: '',      // '' | 'verde' | 'amarelo' | 'vermelho'
+      waFilterLogic: 'AND',             // 'AND' | 'OR' — compound filter logic
+      waFocusedIdx: -1,                 // keyboard navigation: index in waPortfolioMentees()
       waFaseDropdownId: null,           // id of mentee with open fase dropdown
       // WA Management — Notas Estruturadas
       notesDrawer: { open: false, menteeId: null, menteeNome: '', tipo: 'livre' },
@@ -3372,6 +3374,7 @@ function operon() {
       this.ui.page = page;
       this.ui.mobileMenuOpen = false;
       if (page === 'financeiro') this.loadFinanceiro();
+      if (page === 'carteira') this.initWaKeyboardShortcuts();
       localStorage.setItem('spalla_page', page);
       // Update URL without reload
       const route = this._pageToRoute(page);
@@ -5321,11 +5324,23 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     waPortfolioMentees() {
       let list = [...this.data.mentees];
-      if (this.ui.waPortfolioFaseFilter) {
-        list = list.filter(m => m.fase_jornada === this.ui.waPortfolioFaseFilter);
-      }
-      if (this.ui.waPortfolioHealthFilter) {
-        list = list.filter(m => this._waHealthLabel(m) === this.ui.waPortfolioHealthFilter);
+      const hasFase   = !!this.ui.waPortfolioFaseFilter;
+      const hasHealth = !!this.ui.waPortfolioHealthFilter;
+      const bothActive = hasFase && hasHealth;
+      if (bothActive && this.ui.waFilterLogic === 'OR') {
+        // OR: mentee matches if it satisfies ANY of the active filters
+        list = list.filter(m =>
+          m.fase_jornada === this.ui.waPortfolioFaseFilter ||
+          this._waHealthLabel(m) === this.ui.waPortfolioHealthFilter
+        );
+      } else {
+        // AND (default): apply each active filter sequentially
+        if (hasFase) {
+          list = list.filter(m => m.fase_jornada === this.ui.waPortfolioFaseFilter);
+        }
+        if (hasHealth) {
+          list = list.filter(m => this._waHealthLabel(m) === this.ui.waPortfolioHealthFilter);
+        }
       }
       if (this.ui.waPortfolioView === 'inbox') {
         // I-2: lazy-load triage scores on first inbox access
@@ -6080,6 +6095,69 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         'livre': 'Escreva sua nota...',
       };
       return map[tipo] || 'Escreva sua nota...';
+    },
+
+    // ===================== WA MANAGEMENT — KEYBOARD SHORTCUTS (S6.7) =====================
+
+    initWaKeyboardShortcuts() {
+      if (this._waKbdListener) return; // prevent double registration
+      this._waKbdListener = (e) => {
+        // Guard 1: only on carteira page
+        if (this.ui.page !== 'carteira') return;
+        // Guard 2: ignore when typing in inputs
+        const tag = document.activeElement?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        // Guard 3: ignore when modals are open
+        if (this.ui.notesDrawer?.open || this.ui.digestModal?.open || this.ui.taskModal) return;
+
+        const mentees = this.waPortfolioMentees ? this.waPortfolioMentees() : (this.data.mentees || []);
+        const len = mentees.length;
+        if (!len) return;
+
+        switch (e.key) {
+          case 'j':
+          case 'ArrowDown':
+            e.preventDefault();
+            this.ui.waFocusedIdx = Math.min((this.ui.waFocusedIdx ?? -1) + 1, len - 1);
+            break;
+          case 'k':
+          case 'ArrowUp':
+            e.preventDefault();
+            this.ui.waFocusedIdx = Math.max((this.ui.waFocusedIdx ?? 0) - 1, 0);
+            break;
+          case 'e': {
+            const m = mentees[this.ui.waFocusedIdx ?? 0];
+            if (m) this.navigate('whatsapp');
+            break;
+          }
+          case 'n': {
+            const m = mentees[this.ui.waFocusedIdx ?? 0];
+            if (m && this.openNotesDrawer) this.openNotesDrawer(m.id, m.nome);
+            break;
+          }
+          case 's': {
+            const m = mentees[this.ui.waFocusedIdx ?? 0];
+            if (m && this.snoozeMentee) this.snoozeMentee(m.id, 1);
+            break;
+          }
+          case 'x': {
+            const m = mentees[this.ui.waFocusedIdx ?? 0];
+            if (m) {
+              const idx = this.data.waSelectedMentees.indexOf(m.id);
+              if (idx === -1) {
+                this.data.waSelectedMentees.push(m.id);
+              } else {
+                this.data.waSelectedMentees.splice(idx, 1);
+              }
+            }
+            break;
+          }
+          case 'Escape':
+            this.ui.waFocusedIdx = -1;
+            break;
+        }
+      };
+      document.addEventListener('keydown', this._waKbdListener);
     },
 
     // ===================== WA MANAGEMENT — BULK SELECTION =====================
