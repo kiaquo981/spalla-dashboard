@@ -729,6 +729,7 @@
                   </div>
                   <div class="mc-card__identity">
                     <span class="mc-card__name" x-text="m.nome"></span>
+                    <span class="badge badge--sm" :class="m.consultor_responsavel === 'Lara' ? 'badge--info' : 'badge--neutral'" x-text="m.consultor_responsavel" x-show="m.consultor_responsavel" style="font-size:10px;padding:1px 6px;margin-left:4px"></span>
                     <template x-if="m.instagram">
                       <a :href="'https://instagram.com/' + (m.instagram || '').replace(/^@/, '')" target="_blank" rel="noopener noreferrer" class="mc-card__handle" style="text-decoration:none;color:inherit" @click.stop>
                         <span x-text="'@' + (m.instagram || '').replace(/^@/, '')"></span>
@@ -835,6 +836,7 @@
                   <span class="badge" :class="'badge--' + riskClass(data.detail?.phase?.risco_churn)" x-text="riskLabel(data.detail?.phase?.risco_churn)"></span>
                   <span class="badge badge--neutral" x-text="data.detail?.profile?.cohort"></span>
                   <span class="badge badge--neutral" x-text="data.detail?.phase?.marco_atual"></span>
+                  <span class="badge badge--info" x-text="'Consultor: ' + data.detail?.profile?.consultor_responsavel" x-show="data.detail?.profile?.consultor_responsavel" style="font-size:11px"></span>
                 </div>
                 <div class="detail-hero__meta" x-show="data.detail?.profile?.instagram">
                   <a :href="'https://instagram.com/' + (data.detail?.profile?.instagram || '').replace(/^@/, '')" target="_blank" rel="noopener noreferrer" style="text-decoration:none;color:inherit" @click.stop>
@@ -2385,6 +2387,7 @@
                     <div class="ag-upcoming__meta" x-text="formatDateFull(sc.data) + ' ' + (sc.horario || '') + ' — ' + sc.tipo"></div>
                   </div>
                   <a x-show="sc.zoom_url" :href="sc.zoom_url" target="_blank" rel="noopener" class="ag-upcoming__zoom" @click.stop>Zoom</a>
+                  <button class="ag-upcoming__cancel" @click.stop="cancelScheduledCall(sc)" title="Cancelar call" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px;padding:4px 8px;">✕</button>
                 </div>
               </template>
             </div>
@@ -2417,11 +2420,14 @@
                        :class="{'ag-calendar__day--other': !day.currentMonth, 'ag-calendar__day--today': day.isToday, 'ag-calendar__day--selected': day.dateStr === ui.selectedCalDate, 'ag-calendar__day--has-calls': day.calls > 0}"
                        @click="ui.selectedCalDate = day.dateStr">
                     <span class="ag-calendar__day-num" x-text="day.num"></span>
-                    <div class="ag-calendar__day-dots" x-show="day.calls > 0">
-                      <template x-for="i in Math.min(day.calls, 3)" :key="i">
+                    <div class="ag-calendar__day-dots" x-show="day.calls > 0 || day.gcalEvents > 0">
+                      <template x-for="i in Math.min(day.calls, 3)" :key="'c'+i">
                         <span class="ag-calendar__dot"></span>
                       </template>
                       <span class="ag-calendar__dot-more" x-show="day.calls > 3" x-text="'+' + (day.calls - 3)"></span>
+                      <template x-for="i in Math.min(day.gcalEvents, 2)" :key="'g'+i">
+                        <span class="ag-calendar__dot" style="background:#3b82f6"></span>
+                      </template>
                     </div>
                   </div>
                 </template>
@@ -2559,8 +2565,17 @@
                 <label>Notas / Pauta (opcional)</label>
                 <textarea x-model="scheduleForm.notas" placeholder="Pauta da call, topicos a discutir..." class="modal__textarea" rows="3"></textarea>
               </div>
+              <!-- GCal conflict warning -->
+              <div x-show="ui.gcalConflict" class="modal__alert" style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#92400e">
+                <strong>Conflito de horario!</strong>
+                <span x-text="'Evento \"' + (ui.gcalConflict?.summary || '') + '\" no Google Calendar proximo deste horario.'"></span>
+                <div style="margin-top:8px;display:flex;gap:8px">
+                  <button class="btn btn--sm" @click="ui.gcalConflict = null; ui._conflictConfirmed = true; scheduleCall()" style="font-size:12px">Continuar assim mesmo</button>
+                  <button class="btn btn--sm" @click="ui.gcalConflict = null" style="font-size:12px">Alterar horario</button>
+                </div>
+              </div>
               <div class="modal__footer">
-                <button class="btn" @click="ui.scheduleModal = false">Cancelar</button>
+                <button class="btn" @click="ui.scheduleModal = false; ui.gcalConflict = null">Cancelar</button>
                 <button class="btn btn--brand" @click="scheduleCall()" :disabled="ui.scheduling || getScheduleBlock(scheduleForm.mentorado)" :title="getScheduleBlock(scheduleForm.mentorado)?.title || ''">
                   <span x-show="!ui.scheduling" x-text="getScheduleBlock(scheduleForm.mentorado) ? 'Bloqueado' : 'Agendar Call'"></span>
                   <span x-show="ui.scheduling">Agendando...</span>
@@ -4772,17 +4787,17 @@
 
           <h3 class="docs-section-title">Dossies por Mentorado</h3>
           <div class="docs-grid">
-            <template x-for="d in DOSSIER_PIPELINE.filter(x => x.titulo || x.docs?.length)" :key="d.nome">
+            <!-- Data now from ds_producoes/ds_documentos via Supabase — see page "Produção de Dossiês" -->
+            <template x-for="p in data.dsProducoes.filter(x => x.mentorado_nome)" :key="p.producao_id">
               <div class="doc-card">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                <div class="doc-card__title" x-text="d.nome"></div>
+                <div class="doc-card__title" x-text="p.mentorado_nome"></div>
                 <div class="doc-card__desc">
-                  <template x-if="d.titulo"><a :href="dossierSearchUrl(d.titulo)" target="_blank" rel="noopener" class="dossier-row__doc-link" x-text="d.titulo"></a></template>
-                  <template x-if="d.docs?.length">
-                    <template x-for="doc in d.docs" :key="doc.titulo"><div class="doc-card__sub"><a :href="dossierSearchUrl(doc.titulo)" target="_blank" rel="noopener" class="dossier-row__doc-link" x-text="doc.titulo"></a></div></template>
-                  </template>
+                  <template x-if="p.oferta_estagio"><div class="doc-card__sub">Oferta: <span x-text="p.oferta_estagio"></span></div></template>
+                  <template x-if="p.funil_estagio"><div class="doc-card__sub">Funil: <span x-text="p.funil_estagio"></span></div></template>
+                  <template x-if="p.conteudo_estagio"><div class="doc-card__sub">Conteúdo: <span x-text="p.conteudo_estagio"></span></div></template>
                 </div>
-                <span class="badge badge--sm" :class="'badge--' + dossierStatusConfig(d.status).color" x-text="dossierStatusConfig(d.status).label"></span>
+                <span class="badge badge--sm" :class="'badge--' + dossierStatusConfig(p.status).color" x-text="dossierStatusConfig(p.status).label"></span>
               </div>
             </template>
           </div>
@@ -5157,6 +5172,49 @@
                 <span class="settings-user-info__label">Email</span>
                 <span x-text="auth.currentUser?.email || 'Nao informado'"></span>
               </div>
+            </div>
+          </div>
+
+          <!-- Password Change Section -->
+          <div class="settings-section" style="margin-top:24px">
+            <div class="settings-section__header">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <div>
+                <h3>Alterar Senha</h3>
+                <p class="settings-section__desc">Troque sua senha de acesso ao sistema</p>
+              </div>
+            </div>
+            <div class="settings-password" x-data="{ pwCurrent: '', pwNew: '', pwConfirm: '', pwLoading: false, pwMsg: '', pwSuccess: false }">
+              <div class="settings-password__field">
+                <label>Senha atual</label>
+                <input type="password" x-model="pwCurrent" placeholder="Digite sua senha atual">
+              </div>
+              <div class="settings-password__field">
+                <label>Nova senha</label>
+                <input type="password" x-model="pwNew" placeholder="Minimo 6 caracteres">
+              </div>
+              <div class="settings-password__field">
+                <label>Confirmar nova senha</label>
+                <input type="password" x-model="pwConfirm" placeholder="Repita a nova senha">
+              </div>
+              <div x-show="pwMsg" class="settings-password__msg" :class="pwSuccess ? 'settings-password__msg--success' : 'settings-password__msg--error'" x-text="pwMsg" x-transition></div>
+              <button class="btn btn--primary settings-password__btn" :disabled="pwLoading || !pwCurrent || !pwNew || !pwConfirm"
+                @click="
+                  pwSuccess = false;
+                  if (pwNew !== pwConfirm) { pwMsg = 'As senhas nao conferem'; return; }
+                  if (pwNew.length < 6) { pwMsg = 'A nova senha deve ter no minimo 6 caracteres'; return; }
+                  pwLoading = true; pwMsg = '';
+                  fetch(CONFIG.API_BASE + '/api/auth/change-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('spalla_access_token') || '') },
+                    body: JSON.stringify({ current_password: pwCurrent, new_password: pwNew })
+                  }).then(r => r.json()).then(d => {
+                    if (d.success) { pwSuccess = true; pwMsg = 'Senha alterada com sucesso!'; pwCurrent = ''; pwNew = ''; pwConfirm = ''; }
+                    else { pwMsg = d.error || 'Erro ao alterar senha'; }
+                  }).catch(() => { pwMsg = 'Erro de conexao com o servidor'; }).finally(() => { pwLoading = false; });
+                ">
+                <span x-text="pwLoading ? 'Alterando...' : 'Alterar Senha'"></span>
+              </button>
             </div>
           </div>
         </div>
@@ -5897,8 +5955,7 @@
               <button class="btn-secondary" @click="closeWaTaskExtract()">Cancelar</button>
               <button class="btn-primary" @click="submitWaTaskExtract()"
                       :disabled="ui.waTaskExtract.saving || !ui.waTaskExtract.titulo.trim()">
-                <span x-text="ui.waTaskExtract.saving ? 'Salvando...' : 'Criar Tarefa'"></span>
-              </button>
+                <span x-text="ui.waTaskExtract.saving ? 'Salvando...' : 'Criar Tarefa'"></span>              </button>
             </div>
           </div>
         </div>

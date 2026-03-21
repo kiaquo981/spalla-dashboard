@@ -323,7 +323,8 @@ function operon() {
       alertsDismissed: [],
       timelineFilter: '',
       teamView: 'cards', // 'cards' | 'ranking'
-    },
+      gcalConflict: null,
+      checkingConflict: false,    },
 
     // --- Data ---
     data: {
@@ -339,6 +340,7 @@ function operon() {
       waTopics: [],
       waTopicTypes: [],
       scheduledCalls: [],
+      gcalEvents: [],
       pendencias: [],
       paPlanos: [],       // vw_pa_pipeline data
       paMenteePa: null,   // full PA for current mentee detail
@@ -909,6 +911,13 @@ function operon() {
       }
     },
 
+    get myCarteira() {
+      const name = (this.auth.currentUser?.full_name || '').toLowerCase();
+      if (name.includes('lara')) return 'Lara';
+      if (name.includes('heitor')) return 'Heitor';
+      return null;
+    },
+
     todayStr() { return new Date().toISOString().split('T')[0]; },
 
     _filterTasks(tasks) {
@@ -1321,18 +1330,8 @@ function operon() {
       };
     },
 
-    // Dossiers: filtered
-    get filteredDossiers() {
-      if (this.ui.dossierFilter === 'all') return DOSSIER_PIPELINE;
-      const statusMap = {
-        enviado: ['enviado'],
-        em_revisao: ['em_revisao', 'ajustar', 'ajustando', 'aprovado_enviar', 'revisao_kaique', 'revisao_mariza', 'revisao_queila'],
-        producao_ia: ['producao_ia'],
-        nao_iniciado: ['nao_iniciado', 'onboarding', 'pausado'],
-      };
-      const statuses = statusMap[this.ui.dossierFilter] || [this.ui.dossierFilter];
-      return DOSSIER_PIPELINE.filter(d => statuses.includes(d.status));
-    },
+    // Dossiers: DEPRECATED — data now from ds_producoes/ds_documentos via Supabase
+    get filteredDossiers() { return []; },
 
     // Reminders: filtered
     get filteredReminders() {
@@ -1448,6 +1447,7 @@ function operon() {
           this._loadWaProfilePics();
           // Fetch schedule-related data from backend API
           this.fetchUpcomingCalls();
+          this.fetchGcalEvents();
           // Fetch Instagram profiles from Apify (background, non-blocking)
           this.updateInstagramProfiles();
           // Load WhatsApp per-user session + start health check
@@ -6668,6 +6668,12 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       (this.allCallsGlobal || []).forEach(c => {
         if (c.data) { callMap[c.data] = (callMap[c.data] || 0) + 1; }
       });
+      // Build gcal event count map
+      const gcalMap = {};
+      (this.data.gcalEvents || []).forEach(e => {
+        const d = (e.start || '').substring(0, 10);
+        if (d) { gcalMap[d] = (gcalMap[d] || 0) + 1; }
+      });
 
       const days = [];
       // Previous month days
@@ -6677,12 +6683,12 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         const m2 = month === 0 ? 11 : month - 1;
         const y2 = month === 0 ? year - 1 : year;
         const ds = `${y2}-${String(m2+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-        days.push({ key: ds, num: d, currentMonth: false, isToday: ds === todayStr, dateStr: ds, calls: callMap[ds] || 0 });
+        days.push({ key: ds, num: d, currentMonth: false, isToday: ds === todayStr, dateStr: ds, calls: callMap[ds] || 0, gcalEvents: gcalMap[ds] || 0 });
       }
       // Current month days
       for (let d = 1; d <= lastDay.getDate(); d++) {
         const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-        days.push({ key: ds, num: d, currentMonth: true, isToday: ds === todayStr, dateStr: ds, calls: callMap[ds] || 0 });
+        days.push({ key: ds, num: d, currentMonth: true, isToday: ds === todayStr, dateStr: ds, calls: callMap[ds] || 0, gcalEvents: gcalMap[ds] || 0 });
       }
       // Next month days to fill grid (6 rows)
       const remaining = 42 - days.length;
@@ -6690,7 +6696,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         const m2 = month === 11 ? 0 : month + 1;
         const y2 = month === 11 ? year + 1 : year;
         const ds = `${y2}-${String(m2+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-        days.push({ key: ds, num: d, currentMonth: false, isToday: ds === todayStr, dateStr: ds, calls: callMap[ds] || 0 });
+        days.push({ key: ds, num: d, currentMonth: false, isToday: ds === todayStr, dateStr: ds, calls: callMap[ds] || 0, gcalEvents: gcalMap[ds] || 0 });
       }
       return days;
     },
@@ -6724,6 +6730,21 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         return;
       }
 
+      // Check for Google Calendar conflicts before proceeding
+      this.ui.gcalConflict = null;
+      if (f.data && f.horario && this.data.gcalEvents?.length) {
+        const slotStart = new Date(`${f.data}T${f.horario}:00`).getTime();
+        const margin = 30 * 60000; // ±30 minutes
+        const conflict = this.data.gcalEvents.find(e => {
+          const eStart = new Date(e.start).getTime();
+          return Math.abs(eStart - slotStart) < margin;
+        });
+        if (conflict && !this.ui._conflictConfirmed) {
+          this.ui.gcalConflict = { summary: conflict.summary, start: conflict.start };
+          return; // User must confirm or change time
+        }
+      }
+
       this.ui.scheduling = true;
 
       try {
@@ -6747,6 +6768,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         // First: Create Zoom meeting + Google Calendar event on backend
         let zoomUrl = null;
         let calendarUrl = null;
+        let gcalEventId = null;
         try {
           const zoomRes = await fetch(`${CONFIG.API_BASE}/api/zoom/create-meeting`, {
             method: 'POST',
@@ -6782,6 +6804,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           });
           const calData = await calRes.json();
           if (calData.html_link) calendarUrl = calData.html_link;
+          if (calData.event_id) gcalEventId = calData.event_id;
         } catch (e) {
           console.warn('[Schedule] Calendar creation warning:', e.message);
         }
@@ -6791,19 +6814,21 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           this.toast('Supabase não conectado', 'error');
           return;
         }
+        const insertObj = {
+          mentorado_id: menteeId,
+          data_call: `${f.data}T${f.horario}:00`,
+          duracao_minutos: parseInt(f.duracao) || 60,
+          tipo: f.tipo || 'acompanhamento',
+          status_call: 'agendada',
+          participantes: JSON.stringify([f.email || '']),
+          observacoes_equipe: f.notas || '',
+          link_gravacao: zoomUrl || null,
+          zoom_topic: titulo,
+        };
+        if (gcalEventId) insertObj.google_calendar_event_id = gcalEventId;
         const { data: callData, error } = await sb
           .from('calls_mentoria')
-          .insert({
-            mentorado_id: menteeId,
-            data_call: `${f.data}T${f.horario}:00`,
-            duracao_minutos: parseInt(f.duracao) || 60,
-            tipo: f.tipo || 'acompanhamento',
-            status_call: 'agendada',
-            participantes: JSON.stringify([f.email || '']),
-            observacoes_equipe: f.notas || '',
-            link_gravacao: zoomUrl || null,
-            zoom_topic: titulo,
-          })
+          .insert(insertObj)
           .select();
 
         if (error) throw error;
@@ -6823,10 +6848,13 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         });
 
         this.ui.scheduleModal = false;
+        this.ui.gcalConflict = null;
+        this.ui._conflictConfirmed = false;
         this.scheduleForm = { mentorado: '', mentorado_id: '', tipo: 'acompanhamento', data: '', horario: '10:00', duracao: 60, email: '', notas: '' };
 
-        // Refresh upcoming calls
+        // Refresh upcoming calls + gcal events
         this.fetchUpcomingCalls();
+        this.fetchGcalEvents();
 
       } catch (err) {
         console.error('[Schedule]', err);
@@ -6891,12 +6919,59 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
             duracao: c.duracao_minutos || 60,
             status: c.status_call || 'agendada',
             zoom_url: c.link_gravacao || null,
+            google_calendar_event_id: c.google_calendar_event_id || null,
           };
         });
       } catch (e) {
       }
     },
 
+
+    async cancelScheduledCall(sc) {
+      if (!confirm(`Cancelar call com ${sc.mentorado}?`)) return;
+      try {
+        if (!sb) return;
+        // Update status in Supabase
+        const { error } = await sb
+          .from('calls_mentoria')
+          .update({ status_call: 'cancelada' })
+          .eq('id', sc.id);
+        if (error) throw error;
+
+        // Delete from Google Calendar if event_id exists
+        if (sc.google_calendar_event_id) {
+          try {
+            await fetch(`${CONFIG.API_BASE}/api/calendar/event/${sc.google_calendar_event_id}`, { method: 'DELETE' });
+          } catch (e) {
+            console.warn('[Schedule] GCal delete warning:', e.message);
+          }
+        }
+
+        this.toast('Call cancelada', 'success');
+        this.fetchUpcomingCalls();
+        this.fetchGcalEvents();
+      } catch (e) {
+        console.error('[Schedule] Cancel error:', e);
+        this.toast('Erro ao cancelar: ' + e.message, 'error');
+      }
+    },
+
+    async fetchGcalEvents() {
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/calendar/events`);
+        const result = await res.json();
+        this.data.gcalEvents = (result.events || []).map(e => ({
+          id: e.id,
+          summary: e.summary || '',
+          start: e.start?.dateTime || e.start?.date || '',
+          end: e.end?.dateTime || e.end?.date || '',
+          htmlLink: e.htmlLink || '',
+        }));
+      } catch (e) {
+        console.warn('[GCal] fetchGcalEvents error:', e.message);
+        this.data.gcalEvents = [];
+      }
+    },
 
     async updateInstagramProfiles() {
       /**
@@ -6940,12 +7015,14 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       return DOSSIER_STATUS_CONFIG[status] || DOSSIER_STATUS_CONFIG.nao_iniciado;
     },
 
+    // DEPRECATED: stats now computed from dsProducoes (Supabase data)
     dossierStats() {
-      const total = DOSSIER_PIPELINE.length;
-      const enviados = DOSSIER_PIPELINE.filter(d => d.status === 'enviado').length;
-      const emRevisao = DOSSIER_PIPELINE.filter(d => ['em_revisao', 'ajustar', 'ajustando', 'aprovado_enviar', 'revisao_kaique', 'revisao_mariza', 'revisao_queila'].includes(d.status)).length;
-      const producaoIa = DOSSIER_PIPELINE.filter(d => d.status === 'producao_ia').length;
-      const naoIniciado = DOSSIER_PIPELINE.filter(d => ['nao_iniciado', 'onboarding', 'pausado'].includes(d.status)).length;
+      const prods = this.data.dsProducoes;
+      const total = prods.length;
+      const enviados = prods.filter(p => p.status === 'enviado' || p.status === 'finalizado').length;
+      const emRevisao = prods.filter(p => p.status === 'revisao').length;
+      const producaoIa = prods.filter(p => p.status === 'producao').length;
+      const naoIniciado = prods.filter(p => ['nao_iniciado', 'call_estrategia', 'pausado'].includes(p.status)).length;
       return { total, enviados, emRevisao, producaoIa, naoIniciado };
     },
 

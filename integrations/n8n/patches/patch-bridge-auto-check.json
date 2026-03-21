@@ -31,54 +31,28 @@
       "name": "Tem Ação Concluída?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [
-        1488,
-        3280
-      ],
+      "position": [1488, 3280],
       "notes": "CONECTAR: Detectar Ação Concluída → Este IF → (true) Auto-Check Tarefas"
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/bridge_auto_check_task",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ p_mentorado_id: $('Processar Classificação').item.json.mentorado_id, p_acao_concluida: $json.choices ? JSON.parse($json.choices[0].message.content).acao_concluida : ($json.acao_concluida || ''), p_evidencia: $json.choices ? JSON.parse($json.choices[0].message.content).evidencia : ($json.evidencia || null), p_interacao_id: $('Salvar Interação').item.json.id || null }) }}",
-        "options": {
-          "response": {
-            "response": {
-              "neverError": true
-            }
-          }
-        }
+        "operation": "executeQuery",
+        "query": "SELECT bridge_auto_check_task(\n  {{ $('Processar Classificação').item.json.mentorado_id }},\n  '{{ ($json.choices ? JSON.parse($json.choices[0].message.content).acao_concluida : ($json.acao_concluida || '')).replace(/'/g, \"''\") }}',\n  {{ ($json.choices ? JSON.parse($json.choices[0].message.content).evidencia : $json.evidencia) ? \"'\" + ($json.choices ? JSON.parse($json.choices[0].message.content).evidencia : $json.evidencia).replace(/'/g, \"''\") + \"'\" : 'NULL' }},\n  NULL\n);",
+        "options": {}
       },
       "id": "b1c2d3e4-0011-4000-8000-000000000011",
       "name": "Auto-Check Tarefas",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1712,
-        3180
-      ],
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1712, 3180],
+      "credentials": {
+        "postgres": {
+          "id": "vVXQE04tisGHZsFJ",
+          "name": "Postgres | case"
+        }
+      },
       "continueOnFail": true,
-      "notes": "Chama bridge_auto_check_task via RPC. Dá check automático em god_tasks quando mentorado reporta conclusão."
+      "notes": "Chama bridge_auto_check_task via Postgres. p_interacao_id = NULL (uuid, difícil passar do contexto)."
     }
   ],
   "connections": {

@@ -43,7 +43,7 @@ ZOOM_CLIENT_ID = os.environ.get('ZOOM_CLIENT_ID', '')
 ZOOM_CLIENT_SECRET = os.environ.get('ZOOM_CLIENT_SECRET', '')
 
 # Google Service Account
-GOOGLE_SA_PATH = os.path.expanduser('~/.config/google/credentials.json')
+GOOGLE_SA_PATH = os.environ.get('GOOGLE_SA_PATH', os.path.expanduser('~/.config/google/credentials.json'))
 
 # Supabase
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
@@ -120,8 +120,7 @@ def create_jwt_token(email, user_id, role='equipe', expiry_minutes=ACCESS_TOKEN_
     payload = {
         'email': email,
         'user_id': user_id,
-        'role': role,
-        'exp': datetime.now(timezone.utc) + timedelta(minutes=expiry_minutes),
+        'role': role,        'exp': datetime.now(timezone.utc) + timedelta(minutes=expiry_minutes),
         'iat': datetime.now(timezone.utc)
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
@@ -311,27 +310,37 @@ _gcal_service = None
 
 
 def get_gcal_service():
-    """Initialize Google Calendar API service using service account"""
+    """Initialize Google Calendar API service using service account.
+    Supports GOOGLE_SA_JSON (base64-encoded JSON) for Docker environments
+    or GOOGLE_SA_PATH (file path) for local development.
+    """
     global _gcal_service
     if _gcal_service:
         return _gcal_service
 
     try:
+        import base64
         from google.oauth2 import service_account
         from googleapiclient.discovery import build
 
-        if not os.path.exists(GOOGLE_SA_PATH):
-            print(f'[GCal] Service account not found at {GOOGLE_SA_PATH}')
+        SCOPES = ['https://www.googleapis.com/auth/calendar']
+        sa_json = os.environ.get('GOOGLE_SA_JSON', '')
+
+        if sa_json:
+            info = json.loads(base64.b64decode(sa_json))
+            credentials = service_account.Credentials.from_service_account_info(
+                info, scopes=SCOPES
+            )
+            print('[GCal] using GOOGLE_SA_JSON')
+        elif os.path.exists(GOOGLE_SA_PATH):
+            credentials = service_account.Credentials.from_service_account_file(
+                GOOGLE_SA_PATH, scopes=SCOPES
+            )
+            print(f'[GCal] using GOOGLE_SA_PATH: {GOOGLE_SA_PATH}')
+        else:
+            print(f'[GCal] No credentials found (GOOGLE_SA_JSON not set, {GOOGLE_SA_PATH} not found)')
             return None
 
-        SCOPES = ['https://www.googleapis.com/auth/calendar']
-        credentials = service_account.Credentials.from_service_account_file(
-            GOOGLE_SA_PATH, scopes=SCOPES
-        )
-
-        # If GOOGLE_CALENDAR_ID is not the service account's own calendar,
-        # we need to impersonate the user (requires domain-wide delegation)
-        # For now, use the service account's own calendar or a shared one
         _gcal_service = build('calendar', 'v3', credentials=credentials)
         return _gcal_service
     except Exception as e:
@@ -407,6 +416,26 @@ def list_calendar_events(time_min=None, time_max=None, max_results=50):
         ).execute()
         return {'events': result.get('items', [])}
     except Exception as e:
+        return {'error': str(e)}
+
+
+def delete_calendar_event(event_id):
+    """Delete a Google Calendar event by ID"""
+    if not event_id:
+        return {'skipped': True, 'reason': 'no event_id provided'}
+
+    service = get_gcal_service()
+    if not service:
+        return {'error': 'Google Calendar not configured'}
+
+    try:
+        service.events().delete(
+            calendarId=GOOGLE_CALENDAR_ID,
+            eventId=event_id
+        ).execute()
+        return {'deleted': True, 'event_id': event_id}
+    except Exception as e:
+        print(f'[GCal] Delete event error: {e}')
         return {'error': str(e)}
 
 
@@ -1460,8 +1489,13 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_auth_me()
         elif self.path.startswith('/api/evolution/'):
             self._proxy_evolution('GET')
+        elif self.path == '/api/mentees/portfolio':
+            self._handle_get_portfolio()
         elif self.path == '/api/mentees':
             self._handle_get_mentees()
+        elif re.match(r'^/api/mentees/(\d+)/notes$', self.path):
+            _m = re.match(r'^/api/mentees/(\d+)/notes$', self.path)
+            self._handle_get_notes(_m.group(1))
         elif self.path.startswith('/api/calendar/events'):
             self._handle_list_events()
         elif self.path == '/api/calls/upcoming':
@@ -1489,7 +1523,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'storage_search': bool(OPENAI_API_KEY),
             })
         # ===== WA DM v2 (S9-A) =====
-elif self.path == '/api/mentees/triage':
+        elif self.path == '/api/mentees/triage':
             self._handle_mentees_triage()
         elif self.path.startswith('/api/wa/media'):
             self._handle_wa_media()
@@ -1512,7 +1546,10 @@ elif self.path == '/api/mentees/triage':
         super().end_headers()
 
     def do_POST(self):
-        if self.path == '/api/auth/register':
+        _notes_post = re.match(r'^/api/mentees/(\d+)/notes$', self.path)
+        if _notes_post:
+            self._handle_post_note(_notes_post.group(1))
+        elif self.path == '/api/auth/register':
             self._handle_auth_register()
         elif self.path == '/api/auth/login':
             self._handle_auth_login()
@@ -1546,6 +1583,12 @@ elif self.path == '/api/mentees/triage':
 # ===== Intelligence Layer (SPEC-6.1) =====
         elif self.path == '/api/copilot':
             self._handle_copilot()
+        elif self.path == '/api/ds/update-stage':
+            self._handle_ds_update_stage()
+        elif self.path == '/api/financial/update-status':
+            self._handle_financial_update_status()
+        elif self.path == '/api/financial/add-note':
+            self._handle_financial_add_note()
         else:
             self._send_json({'error': 'Not found'}, 404)
 
@@ -1556,7 +1599,9 @@ elif self.path == '/api/mentees/triage':
             self._send_json({'error': 'Not found'}, 404)
 
     def do_DELETE(self):
-        if self.path.startswith('/api/evolution/'):
+        if self.path.startswith('/api/calendar/event/'):
+            self._handle_delete_calendar_event()
+        elif self.path.startswith('/api/evolution/'):
             self._proxy_evolution('DELETE')
         # ===== WA DM v2 (S9-A) =====
         elif self.path.startswith('/api/wa/presence'):
@@ -1566,74 +1611,74 @@ elif self.path == '/api/mentees/triage':
 
     # ===== WA DM v2 HANDLERS (S9-A) =====
 
-def _handle_mentees_triage(self):
-        """GET /api/mentees/triage — Server-side triage score per mentee.
-        Uses vw_wa_mentee_inbox + wa_topics to compute priority scores.
-        Returns: [{ id, nome, score, level, factors }] sorted by score desc.
-        """
-        try:
-            inbox = supabase_request('GET',
-                'vw_wa_mentee_inbox?select=*&order=horas_sem_resposta_equipe.desc.nullslast')
-            if not isinstance(inbox, list):
-                inbox = []
+    def _handle_mentees_triage(self):
+            """GET /api/mentees/triage — Server-side triage score per mentee.
+            Uses vw_wa_mentee_inbox + wa_topics to compute priority scores.
+            Returns: [{ id, nome, score, level, factors }] sorted by score desc.
+            """
+            try:
+                inbox = supabase_request('GET',
+                    'vw_wa_mentee_inbox?select=*&order=horas_sem_resposta_equipe.desc.nullslast')
+                if not isinstance(inbox, list):
+                    inbox = []
 
-            cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-            topics = supabase_request('GET',
-                f'wa_topics?select=group_jid,sentiment&sentiment=in.(negativo,critico)'
-                f'&last_message_at=gte.{cutoff}')
-            if not isinstance(topics, list):
-                topics = []
+                cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+                topics = supabase_request('GET',
+                    f'wa_topics?select=group_jid,sentiment&sentiment=in.(negativo,critico)'
+                    f'&last_message_at=gte.{cutoff}')
+                if not isinstance(topics, list):
+                    topics = []
 
-            neg_jids = {t['group_jid'] for t in topics if t.get('group_jid')}
+                neg_jids = {t['group_jid'] for t in topics if t.get('group_jid')}
 
-            results = []
-            for m in inbox:
-                score = 0
-                factors = []
+                results = []
+                for m in inbox:
+                    score = 0
+                    factors = []
 
-                h = m.get('horas_sem_resposta_equipe') or 0
-                if h > 72:
-                    score += 40; factors.append('sem_contato_72h')
-                elif h > 48:
-                    score += 25; factors.append('sem_contato_48h')
-                elif h > 24:
-                    score += 10; factors.append('sem_contato_24h')
+                    h = m.get('horas_sem_resposta_equipe') or 0
+                    if h > 72:
+                        score += 40; factors.append('sem_contato_72h')
+                    elif h > 48:
+                        score += 25; factors.append('sem_contato_48h')
+                    elif h > 24:
+                        score += 10; factors.append('sem_contato_24h')
 
-                fase = m.get('fase_jornada', '')
-                if fase in ('onboarding', 'renovacao'):
-                    score += 20; factors.append(f'fase_critica_{fase}')
+                    fase = m.get('fase_jornada', '')
+                    if fase in ('onboarding', 'renovacao'):
+                        score += 20; factors.append(f'fase_critica_{fase}')
 
-                tarefas = m.get('tarefas_pendentes') or 0
-                score += min(20, tarefas * 5)
-                if tarefas > 0:
-                    factors.append(f'{tarefas}_tarefas')
+                    tarefas = m.get('tarefas_pendentes') or 0
+                    score += min(20, tarefas * 5)
+                    if tarefas > 0:
+                        factors.append(f'{tarefas}_tarefas')
 
-                unread = m.get('msgs_pendentes_resposta') or 0
-                score += min(10, unread)
-                if unread > 0:
-                    factors.append(f'{unread}_msgs_nao_lidas')
+                    unread = m.get('msgs_pendentes_resposta') or 0
+                    score += min(10, unread)
+                    if unread > 0:
+                        factors.append(f'{unread}_msgs_nao_lidas')
 
-                jid = m.get('grupo_whatsapp_id') or m.get('group_jid') or ''
-                if jid in neg_jids:
-                    score += 15; factors.append('sentimento_negativo')
+                    jid = m.get('grupo_whatsapp_id') or m.get('group_jid') or ''
+                    if jid in neg_jids:
+                        score += 15; factors.append('sentimento_negativo')
 
-                if m.get('health_status') == 'vermelho':
-                    score += 10
+                    if m.get('health_status') == 'vermelho':
+                        score += 10
 
-                level = 'critico' if score >= 60 else 'atencao' if score >= 30 else 'ok'
-                results.append({
-                    'id': m.get('id'),
-                    'nome': m.get('nome'),
-                    'score': score,
-                    'level': level,
-                    'factors': factors,
-                })
+                    level = 'critico' if score >= 60 else 'atencao' if score >= 30 else 'ok'
+                    results.append({
+                        'id': m.get('id'),
+                        'nome': m.get('nome'),
+                        'score': score,
+                        'level': level,
+                        'factors': factors,
+                    })
 
-            results.sort(key=lambda x: x['score'], reverse=True)
-            self._send_json(results)
-        except Exception as e:
-            log_error('Triage', f'_handle_mentees_triage failed: {e}')
-            self._send_json({'error': str(e)}, 500)
+                results.sort(key=lambda x: x['score'], reverse=True)
+                self._send_json(results)
+            except Exception as e:
+                log_error('Triage', f'_handle_mentees_triage failed: {e}')
+                self._send_json({'error': str(e)}, 500)
 
     def _handle_wa_media(self):
         """GET /api/wa/media?mentee_id={id} — WA media files for a mentee.
@@ -2012,7 +2057,13 @@ def _handle_mentees_triage(self):
                 self._handle_patch_mentee(_m.group(1))
             else:
                 self._send_json({'error': 'Not found'}, 404)
-
+    def _handle_delete_calendar_event(self):
+        try:
+            event_id = self.path.split('/')[-1]
+            result = delete_calendar_event(event_id)
+            self._send_json(result)
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
     # ===== SCHEDULE CALL (main orchestrator) =====
     def _handle_schedule_call(self):
         """
@@ -2131,8 +2182,8 @@ def _handle_mentees_triage(self):
             body = json.loads(self._read_body())
             result = create_calendar_event(
                 summary=body.get('summary', ''),
-                start_iso=body.get('start', ''),
-                end_iso=body.get('end', ''),
+                start_iso=body.get('start_iso') or body.get('start', ''),
+                end_iso=body.get('end_iso') or body.get('end', ''),
                 description=body.get('description', ''),
                 attendees=body.get('attendees', []),
                 location=body.get('location', '')
@@ -2255,6 +2306,125 @@ def _handle_mentees_triage(self):
             print(f'[Instance UUID] Error: {e}')
             self._send_json({'error': str(e)}, 500)
 
+    def _handle_get_portfolio(self):
+        """GET /api/mentees/portfolio — carteira do consultor com health/priority scores"""
+        try:
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Unauthorized'}, 401)
+                return
+            token = auth_header[7:]
+            payload = verify_jwt_token(token)
+            if not payload or payload.get('type') == 'refresh':
+                self._send_json({'error': 'Invalid token'}, 401)
+                return
+            email = payload.get('email', '')
+
+            # Fetch mentees assigned to this consultant
+            mentees = supabase_request(
+                'GET',
+                f'mentorados?select=id,nome,email,instagram,fase_jornada,cohort,ativo,consultor_responsavel,snoozed_until,whatsapp_7d,whatsapp_30d'
+                f'&ativo=eq.true&consultor_responsavel=eq.{urllib.parse.quote(email)}&order=nome'
+            )
+            if isinstance(mentees, dict) and 'error' in mentees:
+                self._send_json({'error': mentees['error']}, 500)
+                return
+            if not isinstance(mentees, list):
+                mentees = []
+
+            # Fetch all wa_topics for health signals (one call, then group by mentee name)
+            topics_raw = supabase_request(
+                'GET',
+                'vw_wa_topic_board?select=group_jid,mentorado_nome,status,type_slug,last_message_at&order=last_message_at.desc'
+            )
+            topics_by_nome = {}
+            if isinstance(topics_raw, list):
+                for t in topics_raw:
+                    nome = t.get('mentorado_nome') or ''
+                    if nome not in topics_by_nome:
+                        topics_by_nome[nome] = []
+                    topics_by_nome[nome].append(t)
+
+            now = datetime.now(timezone.utc)
+            result = []
+            for m in mentees:
+                nome = m.get('nome', '')
+                mtopics = topics_by_nome.get(nome, [])
+
+                unread_count = m.get('whatsapp_7d') or 0
+                last_activity = None
+                negative_topics = 0
+
+                for t in mtopics:
+                    lma = t.get('last_message_at')
+                    if lma:
+                        if last_activity is None or lma > last_activity:
+                            last_activity = lma
+                    if t.get('type_slug') in ('problema', 'risco', 'reclamacao', 'negativo'):
+                        negative_topics += 1
+
+                # Health: green/yellow/red based on days since last activity
+                health = 'green'
+                days_since = None
+                if last_activity:
+                    try:
+                        ldt = datetime.fromisoformat(last_activity.replace('Z', '+00:00'))
+                        days_since = (now - ldt).days
+                        if days_since > 14:
+                            health = 'red'
+                        elif days_since > 7:
+                            health = 'yellow'
+                    except Exception:
+                        pass
+                else:
+                    health = 'red'
+
+                if negative_topics > 0 and health == 'green':
+                    health = 'yellow'
+
+                # Check snooze
+                snoozed = False
+                snoozed_until = m.get('snoozed_until')
+                if snoozed_until:
+                    try:
+                        su = datetime.fromisoformat(snoozed_until.replace('Z', '+00:00'))
+                        if su > now:
+                            snoozed = True
+                    except Exception:
+                        pass
+
+                # Priority score for inbox ordering (higher = more urgent)
+                priority = 0
+                if not snoozed:
+                    if health == 'red':
+                        priority += 30
+                    elif health == 'yellow':
+                        priority += 10
+                    if m.get('fase_jornada') in ('onboarding', 'renovacao'):
+                        priority += 20
+                    priority += min((unread_count or 0) // 5, 15)
+                    if negative_topics > 0:
+                        priority += 10
+
+                result.append({
+                    **m,
+                    'health': health,
+                    'snoozed': snoozed,
+                    'days_since_activity': days_since,
+                    'unread_count': unread_count,
+                    'negative_topics': negative_topics,
+                    'priority_score': priority,
+                    'recent_topics': mtopics[:3],
+                })
+
+            # Sort by priority descending (snoozed go to bottom)
+            result.sort(key=lambda x: (x['snoozed'], -x['priority_score']))
+            self._send_json(result)
+
+        except Exception as e:
+            log_error('Portfolio', f'_handle_get_portfolio failed: {e}')
+            self._send_json({'error': str(e)}, 500)
+
     def _handle_get_mentees(self):
         result = get_mentees_with_email()
         self._send_json(result if isinstance(result, list) else [result])
@@ -2345,7 +2515,6 @@ def _handle_mentees_triage(self):
                 self._send_json({'error': f'Invalid fase_jornada: {updates["fase_jornada"]}'}, 400)
                 return
 
-            # PostgREST IN filter: id=in.(uuid1,uuid2,...)
             ids_csv = ','.join(str(i) for i in ids)
             result = supabase_request(
                 'PATCH',
@@ -2358,6 +2527,68 @@ def _handle_mentees_triage(self):
             log_error('BulkPatch', f'_handle_bulk_patch_mentees failed: {e}')
             self._send_json({'error': str(e)}, 500)
 
+    def _handle_get_notes(self, mentee_id):
+        """GET /api/mentees/{id}/notes — list notes for a mentee"""
+        try:
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Unauthorized'}, 401)
+                return
+            token = auth_header[7:]
+            payload = verify_jwt_token(token)
+            if not payload or payload.get('type') == 'refresh':
+                self._send_json({'error': 'Invalid token'}, 401)
+                return
+
+            notes = supabase_request(
+                'GET',
+                f'mentee_notes?select=*&mentorado_id=eq.{mentee_id}&order=created_at.desc'
+            )
+            self._send_json(notes if isinstance(notes, list) else [])
+        except Exception as e:
+            log_error('Notes', f'GET notes failed: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_post_note(self, mentee_id):
+        """POST /api/mentees/{id}/notes — create a note for a mentee"""
+        try:
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Unauthorized'}, 401)
+                return
+            token = auth_header[7:]
+            payload = verify_jwt_token(token)
+            if not payload or payload.get('type') == 'refresh':
+                self._send_json({'error': 'Invalid token'}, 401)
+                return
+
+            email = payload.get('email', '')
+
+            body = json.loads(self._read_body())
+            tipo = body.get('tipo', '')
+            valid_types = {'checkpoint_mensal', 'feedback_aula', 'registro_ligacao', 'nota_livre'}
+            if tipo not in valid_types:
+                self._send_json(
+                    {'error': f'Invalid tipo. Must be one of: {", ".join(sorted(valid_types))}'},
+                    400
+                )
+                return
+
+            note = {
+                'mentorado_id': int(mentee_id),
+                'consultor_id': email,
+                'tipo': tipo,
+                'conteudo': body.get('conteudo', {}),
+                'tags': body.get('tags', []),
+            }
+            result = supabase_request('POST', 'mentee_notes', note)
+            if isinstance(result, dict) and 'error' in result:
+                self._send_json({'error': result['error']}, 500)
+                return
+            self._send_json(result, 201)
+        except Exception as e:
+            log_error('Notes', f'POST note failed: {e}')
+            self._send_json({'error': str(e)}, 500)
 
     def _handle_list_events(self):
         result = list_calendar_events()
@@ -2415,6 +2646,167 @@ def _handle_mentees_triage(self):
             'last_result': _sheets_last_result,
             'payments_sheet': PAYMENTS_SHEET_ID,
             'contracts_sheet': CONTRACTS_SHEET_ID,
+        })
+
+    # ===== DOSSIÊ PRODUCTION SYSTEM =====
+
+    # CR-C1: Role-based auth — only team members can mutate pipeline
+    DS_ALLOWED_ROLES = ('admin', 'team')
+
+    def _ds_check_auth(self):
+        """Verify JWT token + role for DS endpoints. Returns payload or None (sends 401/403)."""
+        auth_header = self.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            self._send_json({'error': 'Missing or invalid token'}, 401)
+            return None
+        payload = verify_jwt_token(auth_header[7:])
+        if not payload or payload.get('type') == 'refresh':
+            self._send_json({'error': 'Invalid or expired token'}, 401)
+            return None
+        # Check role — require explicit role in JWT, no fallback
+        role = payload.get('role')
+        if not role or role not in self.DS_ALLOWED_ROLES:
+            self._send_json({'error': 'Insufficient permissions — JWT must contain role (admin or team)'}, 403)
+            return None
+        return payload
+
+    # CR-M1: State machine — valid stage transitions
+    DS_VALID_TRANSITIONS = {
+        'pendente': ('producao_ia',),
+        'producao_ia': ('revisao_mariza',),
+        'revisao_mariza': ('revisao_kaique', 'producao_ia'),  # can send back
+        'revisao_kaique': ('revisao_queila', 'revisao_mariza'),  # can send back
+        'revisao_queila': ('aprovado', 'revisao_kaique'),  # can send back
+        'aprovado': ('enviado',),
+        'enviado': ('finalizado', 'ajustes'),
+        'finalizado': (),
+        'ajustes': ('revisao_mariza',),
+    }
+
+    def _handle_ds_update_stage(self):
+        """Update ds_documentos stage and create ds_eventos audit trail.
+        POST /api/ds/update-stage
+        Body: { mentorado_slug: str, dossie_tipo: str, estagio: str }
+        Requires: Bearer JWT token with role in DS_ALLOWED_ROLES
+        Returns: 200 {ok, mentorado, tipo, estagio, responsavel}
+        Errors: 400 (validation), 401 (auth), 403 (role), 404 (not found), 409 (invalid transition), 500 (server)
+        """
+        auth = self._ds_check_auth()
+        if not auth:
+            return
+
+        try:
+            body = json.loads(self._read_body())
+        except Exception:
+            self._send_json({'error': 'Invalid JSON'}, 400)
+            return
+
+        slug = body.get('mentorado_slug', '')
+        tipo = body.get('dossie_tipo', '')
+        estagio = body.get('estagio', '')
+
+        if not slug or not tipo or not estagio:
+            self._send_json({'error': 'mentorado_slug, dossie_tipo, and estagio are required'}, 400)
+            return
+
+        valid_tipos = ('oferta', 'funil', 'conteudo')
+        if tipo not in valid_tipos:
+            self._send_json({'error': f'dossie_tipo must be one of {valid_tipos}'}, 400)
+            return
+
+        valid_estagios = tuple(self.DS_VALID_TRANSITIONS.keys())
+        if estagio not in valid_estagios:
+            self._send_json({'error': f'estagio must be one of {valid_estagios}'}, 400)
+            return
+
+        # Sanitize slug: only allow alphanumeric, spaces, hyphens, accented chars
+        safe_slug = re.sub(r'[^a-zA-ZÀ-ÿ0-9\s\-]', '', slug).strip()
+        if not safe_slug or len(safe_slug) < 2:
+            self._send_json({'error': 'Invalid mentorado_slug'}, 400)
+            return
+
+        # Find mentorado (slug is sanitized, safe for ILIKE)
+        mentee = supabase_request('GET',
+            f'mentorados?nome=ilike.*{urllib.parse.quote(safe_slug)}*&select=id,nome&limit=5')
+        if isinstance(mentee, dict) and mentee.get('error'):
+            self._send_json({'error': f'Database error looking up mentorado: {mentee["error"]}'}, 500)
+            return
+        if not mentee:
+            self._send_json({'error': f'Mentorado not found: {safe_slug}'}, 404)
+            return
+        if len(mentee) > 1:
+            names = [m['nome'] for m in mentee]
+            self._send_json({'error': f'Ambiguous slug — {len(mentee)} matches: {names}. Be more specific.'}, 400)
+            return
+        mentorado_id = mentee[0]['id']
+        mentorado_nome = mentee[0]['nome']
+
+        # CR-M2: Find document via active producao (not cancelled/finalizado)
+        docs = supabase_request('GET',
+            f'ds_documentos?mentorado_id=eq.{mentorado_id}&tipo=eq.{tipo}'
+            f'&producao_id=not.is.null&select=id,producao_id,estagio_atual'
+            f'&order=created_at.desc&limit=1')
+        if isinstance(docs, dict) and docs.get('error'):
+            self._send_json({'error': f'Database error looking up document: {docs["error"]}'}, 500)
+            return
+        if not docs:
+            self._send_json({'error': f'Document not found: {mentorado_nome} / {tipo}'}, 404)
+            return
+        doc = docs[0]
+
+        # CR-M1: Validate state transition
+        current_stage = doc['estagio_atual']
+        allowed_next = self.DS_VALID_TRANSITIONS.get(current_stage, ())
+        if estagio not in allowed_next:
+            self._send_json({
+                'error': f'Invalid transition: {current_stage} → {estagio}',
+                'allowed': list(allowed_next),
+            }, 409)
+            return
+
+        # Determine next responsavel
+        responsavel_map = {
+            'producao_ia': 'Mariza',
+            'revisao_mariza': 'Mariza',
+            'revisao_kaique': 'Kaique',
+            'revisao_queila': 'Queila',
+        }
+        responsavel = responsavel_map.get(estagio)
+
+        # Update document stage
+        update = {'estagio_atual': estagio, 'estagio_desde': datetime.now(timezone.utc).isoformat()}
+        if estagio == 'producao_ia':
+            update['data_producao_ia'] = datetime.now(timezone.utc).isoformat()
+        if responsavel:
+            update['responsavel_atual'] = responsavel
+
+        result = supabase_request('PATCH', f'ds_documentos?id=eq.{doc["id"]}', update)
+        if isinstance(result, dict) and result.get('error'):
+            self._send_json({'error': f'Failed to update document: {result["error"]}'}, 500)
+            return
+
+        # Create audit event
+        evt_result = supabase_request('POST', 'ds_eventos', {
+            'producao_id': doc['producao_id'],
+            'documento_id': doc['id'],
+            'mentorado_id': mentorado_id,
+            'tipo_evento': 'estagio_change',
+            'de_valor': current_stage,
+            'para_valor': estagio,
+            'responsavel': responsavel or 'pipeline-auto',
+            'descricao': f'{tipo} → {estagio} (via API)',
+        })
+        audit_ok = not (isinstance(evt_result, dict) and evt_result.get('error'))
+        if not audit_ok:
+            log_error('DS', 'Failed to create audit event', evt_result['error'])
+
+        self._send_json({
+            'ok': True,
+            'mentorado': mentorado_nome,
+            'tipo': tipo,
+            'estagio': estagio,
+            'responsavel': responsavel,
+            'audit_event': audit_ok,
         })
 
     def _handle_sheets_sync(self):
