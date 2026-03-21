@@ -90,13 +90,31 @@
     .segment-save-btn { font-size:12px;color:#3b82f6;background:none;border:1px dashed #93c5fd;padding:4px 10px;border-radius:16px;cursor:pointer; }
     .segment-clear-btn { font-size:12px;color:#64748b;background:none;border:none;cursor:pointer; }
     .extract-source { padding:8px 12px;background:#f8fafc;border-radius:6px;border-left:3px solid #3b82f6; }
-    /* === ALERTS BAR (Wave 1 F1.1) === */
-    .alerts-bar { display:flex;flex-wrap:wrap;gap:6px;padding:6px 24px;background:#fff7f7;border-bottom:1px solid #fee2e2; }
-    .alert-chip { display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:500; }
+    /* === ALERTS BAR (Wave 1 F1.1) — compact 1-row + expandable panel === */
+    .alerts-bar { display:flex;align-items:center;gap:12px;padding:7px 24px;background:#fff7f7;border-bottom:1px solid #fecaca;flex-wrap:nowrap;min-height:36px; }
+    .alerts-bar__counts { display:flex;gap:6px;flex-shrink:0; }
+    .alerts-count-badge { display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap; }
+    .alerts-count-badge--critico { background:#fee2e2;color:#dc2626; }
+    .alerts-count-badge--alto { background:#fff7ed;color:#d97706; }
+    .alerts-count-badge--medio { background:#fefce8;color:#ca8a04; }
+    .alerts-bar__preview { display:flex;gap:6px;align-items:center;flex:1;overflow:hidden;min-width:0; }
+    .alerts-bar__name { font-size:12px;color:#b91c1c;font-weight:500;white-space:nowrap; }
+    .alerts-bar__name::after { content:'·';margin-left:6px;opacity:.4; }
+    .alerts-bar__name:last-of-type::after { content:''; }
+    .alerts-bar__overflow { font-size:11px;color:#6b7280;white-space:nowrap;flex-shrink:0; }
+    .alerts-bar__toggle { margin-left:auto;flex-shrink:0;font-size:11px;color:#6b7280;background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:3px 10px;cursor:pointer;white-space:nowrap;transition:background .15s; }
+    .alerts-bar__toggle:hover { background:#f3f4f6; }
+    /* Expandable panel */
+    .alerts-panel { padding:12px 24px 16px;background:#fff7f7;border-bottom:1px solid #fecaca; }
+    .alerts-panel__group-label { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af;margin-bottom:7px;margin-top:4px; }
+    .alerts-panel__chips { display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px; }
+    .alerts-panel__chips:last-child { margin-bottom:0; }
+    /* Chips (used inside panel) */
+    .alert-chip { display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500; }
     .alert-chip--critico { background:#fee2e2;color:#dc2626; }
     .alert-chip--alto { background:#fff7ed;color:#d97706; }
     .alert-chip--medio { background:#fefce8;color:#ca8a04; }
-    .alert-chip__dismiss { background:none;border:none;cursor:pointer;opacity:.5;font-size:14px;line-height:1;padding:0 0 0 2px; }
+    .alert-chip__dismiss { background:none;border:none;cursor:pointer;opacity:.4;font-size:13px;line-height:1;padding:0 0 0 2px; }
     .alert-chip__dismiss:hover { opacity:1; }
     .alert-chip__dismiss:focus-visible { outline:2px solid currentColor;outline-offset:2px;opacity:1; }
     /* KPI trend arrows (Wave 1 F1.4) */
@@ -454,14 +472,84 @@
             </div>
           </div>
 
-          <!-- Alerts Bar (Wave 1 F1.1) -->
-          <div class="alerts-bar" role="status" aria-live="polite" aria-atomic="false" x-show="!ui.loading && visibleAlerts.length > 0" x-cloak>
-            <template x-for="alert in visibleAlerts" :key="(alert.mentorado_id || '') + '-' + (alert.alerta_tipo || '')">
-              <div class="alert-chip" :class="'alert-chip--' + (alert.severidade || 'medio')">
-                <span x-text="alert.mentorado_nome + ' · ' + alert.descricao"></span>
-                <button type="button" class="alert-chip__dismiss" @click="dismissAlert(alert)" :aria-label="'Dispensar alerta: ' + alert.mentorado_nome">×</button>
+          <!-- Alerts Bar (Wave 1 F1.1) — compact summary + expandable panel -->
+          <div x-show="!ui.loading && visibleAlerts.length > 0" x-cloak>
+
+            <!-- 1-row summary bar -->
+            <div class="alerts-bar" role="status" aria-live="polite">
+              <div class="alerts-bar__counts">
+                <span x-show="criticalAlertCount > 0" class="alerts-count-badge alerts-count-badge--critico">
+                  <span style="font-size:8px">●</span> <span x-text="criticalAlertCount"></span> críticos
+                </span>
+                <span x-show="alertsAltoCount > 0" class="alerts-count-badge alerts-count-badge--alto">
+                  <span style="font-size:8px">●</span> <span x-text="alertsAltoCount"></span> altos
+                </span>
+                <span x-show="alertsMedioCount > 0" class="alerts-count-badge alerts-count-badge--medio">
+                  <span style="font-size:8px">●</span> <span x-text="alertsMedioCount"></span> médios
+                </span>
               </div>
-            </template>
+
+              <div class="alerts-bar__preview">
+                <template x-for="a in alertsCriticos.slice(0,4)" :key="(a.mentorado_id||'')+(a.alerta_tipo||'')">
+                  <span class="alerts-bar__name" x-text="a.mentorado_nome.split(' ')[0]"></span>
+                </template>
+                <span x-show="alertsCriticos.length > 4" class="alerts-bar__overflow" x-text="'+' + (alertsCriticos.length - 4) + ' mais'"></span>
+              </div>
+
+              <button type="button" class="alerts-bar__toggle"
+                      @click="ui.alertsExpanded = !ui.alertsExpanded"
+                      :aria-expanded="ui.alertsExpanded ? 'true' : 'false'">
+                <span x-text="ui.alertsExpanded ? 'Recolher' : 'Ver todos (' + visibleAlerts.length + ')'"></span>
+                <span x-text="ui.alertsExpanded ? '↑' : '↓'" style="margin-left:4px"></span>
+              </button>
+            </div>
+
+            <!-- Expandable panel (grouped by severity) -->
+            <div class="alerts-panel" x-show="ui.alertsExpanded" x-cloak>
+
+              <template x-if="alertsCriticos.length > 0">
+                <div>
+                  <div class="alerts-panel__group-label">Críticos</div>
+                  <div class="alerts-panel__chips">
+                    <template x-for="alert in alertsCriticos" :key="(alert.mentorado_id||'')+(alert.alerta_tipo||'')+'c'">
+                      <div class="alert-chip alert-chip--critico">
+                        <span x-text="alert.mentorado_nome + ' · ' + alert.descricao"></span>
+                        <button type="button" class="alert-chip__dismiss" @click="dismissAlert(alert)" :aria-label="'Dispensar: ' + alert.mentorado_nome">×</button>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+
+              <template x-if="alertsAlto.length > 0">
+                <div>
+                  <div class="alerts-panel__group-label">Altos</div>
+                  <div class="alerts-panel__chips">
+                    <template x-for="alert in alertsAlto" :key="(alert.mentorado_id||'')+(alert.alerta_tipo||'')+'a'">
+                      <div class="alert-chip alert-chip--alto">
+                        <span x-text="alert.mentorado_nome + ' · ' + alert.descricao"></span>
+                        <button type="button" class="alert-chip__dismiss" @click="dismissAlert(alert)" :aria-label="'Dispensar: ' + alert.mentorado_nome">×</button>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+
+              <template x-if="alertsMedio.length > 0">
+                <div>
+                  <div class="alerts-panel__group-label">Médios</div>
+                  <div class="alerts-panel__chips">
+                    <template x-for="alert in alertsMedio" :key="(alert.mentorado_id||'')+(alert.alerta_tipo||'')+'m'">
+                      <div class="alert-chip alert-chip--medio">
+                        <span x-text="alert.mentorado_nome + ' · ' + alert.descricao"></span>
+                        <button type="button" class="alert-chip__dismiss" @click="dismissAlert(alert)" :aria-label="'Dispensar: ' + alert.mentorado_nome">×</button>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+
+            </div>
           </div>
 
           <!-- KPI Cards -->
@@ -5454,10 +5542,13 @@
                         </div>
                       </div>
                     </div>
-                    <!-- Health dot -->
-                    <div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:4px"
-                         :style="{ background: _waHealthLabel(m) === 'verde' ? '#22c55e' : _waHealthLabel(m) === 'amarelo' ? '#eab308' : '#ef4444' }"
-                         :title="'Saúde: ' + _waHealthLabel(m)">
+                    <!-- Wave 3.1: Health Score badge (numeric) -->
+                    <div x-data="{ _hs: calcHealthScore(m) }" style="flex-shrink:0;margin-top:2px">
+                      <div style="font-size:12px;font-weight:700;padding:3px 9px;border-radius:var(--r-full);line-height:1.3;cursor:default;letter-spacing:-.3px"
+                           :style="_hs.color === 'success' ? 'background:#dcfce7;color:#15803d' : _hs.color === 'warning' ? 'background:#fef9c3;color:#92400e' : 'background:#fee2e2;color:#b91c1c'"
+                           :title="'Health Score: ' + _hs.total + '/100 | WA: ' + _hs.breakdown['WhatsApp'].score + '/' + _hs.breakdown['WhatsApp'].max + ' | Calls: ' + _hs.breakdown['Calls'].score + '/' + _hs.breakdown['Calls'].max + ' | Tarefas: ' + _hs.breakdown['Tarefas'].score + '/' + _hs.breakdown['Tarefas'].max + ' | Vendas: ' + _hs.breakdown['Vendas'].score + '/' + _hs.breakdown['Vendas'].max"
+                           x-text="_hs.total">
+                      </div>
                     </div>
                   </div>
 
@@ -5493,6 +5584,15 @@
                               x-text="waTriageBadge(data.triageScores[m.id].score).text">
                         </span>
                       </template>
+                    </div>
+                    <!-- Wave 3.2: Churn Risk badge (shown when risk > 50%) -->
+                    <div x-show="calcChurnRisk(m) > 50">
+                      <span style="display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Churn</span>
+                      <span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:var(--r-full)"
+                            :style="calcChurnRisk(m) >= 70 ? 'background:#fee2e2;color:#b91c1c' : 'background:#fef3c7;color:#92400e'"
+                            :title="'Probabilidade de abandono estimada: ' + calcChurnRisk(m) + '%'"
+                            x-text="calcChurnRisk(m) + '%'">
+                      </span>
                     </div>
                   </div>
 
