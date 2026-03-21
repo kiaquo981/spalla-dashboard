@@ -243,6 +243,13 @@ function operon() {
       notesForm: { conteudo: '', tags: '' },
       // I-2: triage scores lazy-load state
       triageLoaded: false,
+      // I-4: Copilot Contextual
+      copilotOpen: false,
+      copilotMenteeId: null,
+      copilotMenteeNome: '',
+      copilotInput: '',
+      copilotLoading: false,
+      copilotHistory: [],  // [{role, content}]
       // WA Management — Bulk Selection
       waBulkMode: false,             // bulk select mode on/off
       waBulkFase: '',                // fase to apply in bulk
@@ -5354,6 +5361,59 @@ function operon() {
         imageMessage: 'Imagem',
       };
       return labels[msgType] || msgType || 'Arquivo';
+    },
+
+    // ===================== COPILOT CONTEXTUAL (I-4) =====================
+
+    openCopilot(menteeId, menteeNome) {
+      this.ui.copilotOpen = true;
+      this.ui.copilotMenteeId = menteeId || null;
+      this.ui.copilotMenteeNome = menteeNome || '';
+      this.ui.copilotInput = '';
+      this.ui.copilotHistory = [];
+    },
+
+    closeCopilot() {
+      this.ui.copilotOpen = false;
+      this.ui.copilotMenteeId = null;
+      this.ui.copilotMenteeNome = '';
+      this.ui.copilotInput = '';
+      this.ui.copilotHistory = [];
+    },
+
+    async sendCopilotMessage() {
+      const msg = (this.ui.copilotInput || '').trim();
+      if (!msg || this.ui.copilotLoading) return;
+
+      this.ui.copilotHistory.push({ role: 'user', content: msg });
+      this.ui.copilotInput = '';
+      this.ui.copilotLoading = true;
+
+      try {
+        const res = await fetch('/api/copilot', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.authToken}`,
+          },
+          body: JSON.stringify({
+            mentee_id: this.ui.copilotMenteeId,
+            message: msg,
+            history: this.ui.copilotHistory.slice(-6),
+          }),
+        });
+        const data = await res.json();
+        const reply = data.reply || data.error || 'Erro ao obter resposta.';
+        this.ui.copilotHistory.push({ role: 'assistant', content: reply });
+      } catch (e) {
+        this.ui.copilotHistory.push({ role: 'assistant', content: 'Erro de conexão.' });
+      } finally {
+        this.ui.copilotLoading = false;
+        this.$nextTick(() => {
+          const el = document.getElementById('copilot-messages');
+          if (el) el.scrollTop = el.scrollHeight;
+        });
+      }
     },
 
     _waFaseLabel(fase) {

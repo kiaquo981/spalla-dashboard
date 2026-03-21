@@ -5438,6 +5438,13 @@
                       Notas
                     </button>
                     <button class="btn btn--ghost btn--sm"
+                            @click="openCopilot(m.id, m.nome)"
+                            title="Copiloto IA contextual"
+                            style="font-size:11px;padding:4px 8px;color:var(--op-primary)">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><circle cx="9" cy="10" r="1" fill="currentColor"/><circle cx="12" cy="10" r="1" fill="currentColor"/><circle cx="15" cy="10" r="1" fill="currentColor"/></svg>
+                      IA
+                    </button>
+                    <button class="btn btn--ghost btn--sm"
                             @click="snoozeMentee(m.id, 3)"
                             title="Snooze 3 dias"
                             style="font-size:11px;padding:4px 8px">
@@ -5519,6 +5526,12 @@
                               @click="openNotesDrawer(m.id, m.nome)"
                               style="font-size:11px;padding:4px 8px" title="Notas">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      </button>
+                      <button class="btn btn--ghost btn--sm"
+                              @click="openCopilot(m.id, m.nome)"
+                              style="font-size:11px;padding:4px 8px;color:var(--op-primary)" title="Copiloto IA">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 9h8M8 13h5"/></svg>
+                        IA
                       </button>
                     </div>
                   </div>
@@ -5917,6 +5930,84 @@
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 8px;display:block;opacity:.3"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
               Nenhum arquivo encontrado.
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Copilot IA Contextual (I-4) — Floating chat panel, right side -->
+      <div style="position:fixed;bottom:24px;right:24px;z-index:300;display:flex;flex-direction:column;align-items:flex-end;gap:8px"
+           x-data>
+
+        <!-- Floating trigger button (when closed) -->
+        <button x-show="!ui.copilotOpen"
+                @click="openCopilot(null, '')"
+                style="width:48px;height:48px;border-radius:50%;background:var(--op-primary);color:#fff;border:none;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center"
+                title="Abrir Copiloto IA">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><circle cx="9" cy="10" r="1" fill="currentColor"/><circle cx="12" cy="10" r="1" fill="currentColor"/><circle cx="15" cy="10" r="1" fill="currentColor"/></svg>
+        </button>
+
+        <!-- Chat panel -->
+        <div x-show="ui.copilotOpen"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity:0;transform:translateY(12px) scale(.97)"
+             x-transition:enter-end="opacity:1;transform:translateY(0) scale(1)"
+             style="display:none;width:360px;height:480px;background:var(--op-surface);border:1px solid var(--op-border);border-radius:var(--r-xl);box-shadow:0 8px 32px rgba(0,0,0,.15);display:flex;flex-direction:column;overflow:hidden">
+
+          <!-- Header -->
+          <div style="padding:12px 16px;border-bottom:1px solid var(--op-border);display:flex;align-items:center;justify-content:space-between;background:var(--op-primary);color:#fff;border-radius:var(--r-xl) var(--r-xl) 0 0">
+            <div style="display:flex;flex-direction:column">
+              <span style="font-size:13px;font-weight:600">Copiloto IA</span>
+              <span x-show="ui.copilotMenteeNome"
+                    style="font-size:11px;opacity:.8"
+                    x-text="'contexto: ' + ui.copilotMenteeNome"></span>
+              <span x-show="!ui.copilotMenteeNome"
+                    style="font-size:11px;opacity:.8">sem mentorado selecionado</span>
+            </div>
+            <button @click="closeCopilot()"
+                    style="background:none;border:none;cursor:pointer;color:#fff;padding:4px;line-height:1;font-size:16px">✕</button>
+          </div>
+
+          <!-- Messages -->
+          <div id="copilot-messages"
+               style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px">
+            <template x-if="ui.copilotHistory.length === 0">
+              <div style="text-align:center;padding:32px 16px;color:var(--text-secondary);font-size:12px;line-height:1.6">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 8px;display:block;opacity:.4"><circle cx="12" cy="12" r="10"/><path d="M8 9h8M8 13h5"/></svg>
+                Olá! Posso ajudar com estratégias para o seu mentorado, análise de progresso, sugestões de abordagem e muito mais.
+              </div>
+            </template>
+            <template x-for="(turn, idx) in ui.copilotHistory" :key="idx">
+              <div :style="turn.role === 'user'
+                    ? 'align-self:flex-end;max-width:80%;background:var(--op-primary);color:#fff;padding:8px 12px;border-radius:12px 12px 2px 12px;font-size:12px;line-height:1.5'
+                    : 'align-self:flex-start;max-width:85%;background:var(--op-surface-raised,var(--op-border));padding:8px 12px;border-radius:12px 12px 12px 2px;font-size:12px;line-height:1.5;color:var(--op-text)'"
+                   x-text="turn.content">
+              </div>
+            </template>
+            <template x-if="ui.copilotLoading">
+              <div style="align-self:flex-start;padding:8px 12px;background:var(--op-surface-raised,var(--op-border));border-radius:12px;font-size:12px;color:var(--text-secondary)">
+                <span style="letter-spacing:2px">···</span>
+              </div>
+            </template>
+          </div>
+
+          <!-- Input -->
+          <div style="padding:10px 12px;border-top:1px solid var(--op-border);display:flex;gap:8px;align-items:flex-end">
+            <textarea x-model="ui.copilotInput"
+                      @keydown.enter.prevent="if(!$event.shiftKey) sendCopilotMessage()"
+                      placeholder="Digite sua pergunta… (Enter para enviar)"
+                      rows="2"
+                      style="flex:1;resize:none;border:1px solid var(--op-border);border-radius:var(--r-md);padding:6px 10px;font-size:12px;background:var(--op-bg);color:var(--op-text);outline:none;font-family:inherit;line-height:1.4"></textarea>
+            <button @click="sendCopilotMessage()"
+                    :disabled="!ui.copilotInput.trim() || ui.copilotLoading"
+                    style="padding:8px 14px;border-radius:var(--r-md);background:var(--op-primary);color:#fff;border:none;cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap;opacity:var(--btn-opacity,1)"
+                    :style="{ opacity: (!ui.copilotInput.trim() || ui.copilotLoading) ? '.5' : '1' }">
+              <template x-if="!ui.copilotLoading">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </template>
+              <template x-if="ui.copilotLoading">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+              </template>
+            </button>
           </div>
         </div>
       </div>

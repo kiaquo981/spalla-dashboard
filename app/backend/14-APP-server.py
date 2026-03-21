@@ -1541,6 +1541,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         # ===== WA DM v2 (S9-A) =====
         elif self.path == '/api/wa/presence':
             self._handle_wa_presence_post()
+        # ===== Intelligence Layer (SPEC-6.1) =====
+        elif self.path == '/api/copilot':
+            self._handle_copilot()
         else:
             self._send_json({'error': 'Not found'}, 404)
 
@@ -1632,8 +1635,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     def _handle_wa_media(self):
         """GET /api/wa/media?mentee_id={id} — WA media files for a mentee.
-        Fetches image/audio/video/document messages from wa_message_queue.
-        Returns: { media: [{ id, message_type, url, created_at, from_me }] }
+        Queries wa_message_queue (raw JSONB payloads) and extracts media in Python.
+        Returns: { media: [{ id, message_type, url, mimetype, created_at, from_me }] }
         """
         try:
             parsed = urllib.parse.urlparse(self.path)
@@ -1654,17 +1657,142 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'media': []})
                 return
 
-            media_types = 'imageMessage,audioMessage,videoMessage,documentMessage'
+            # Fetch recent queue rows for this group (payload is raw Evolution API JSON)
             rows = supabase_request('GET',
-                f'wa_message_queue?select=id,message_type,url,created_at,from_me'
+                f'wa_message_queue?select=id,payload,created_at'
                 f'&group_jid=eq.{urllib.parse.quote(group_jid)}'
-                f'&message_type=in.({media_types})'
-                f'&order=created_at.desc&limit=100')
+                f'&order=created_at.desc&limit=200')
 
-            media = [r for r in (rows if isinstance(rows, list) else []) if r.get('url')]
+            MEDIA_TYPES = {'imageMessage', 'audioMessage', 'videoMessage', 'documentMessage'}
+            media = []
+            for r in (rows if isinstance(rows, list) else []):
+                payload = r.get('payload') or {}
+                data = payload.get('data', payload)  # Evolution API wraps in 'data'
+                msg_type = data.get('messageType', '')
+                if msg_type not in MEDIA_TYPES:
+                    continue
+                msg_content = data.get('message', {}).get(msg_type, {})
+                url = msg_content.get('url') or msg_content.get('directPath', '')
+                if not url:
+                    continue
+                media.append({
+                    'id': r.get('id'),
+                    'message_type': msg_type,
+                    'url': url,
+                    'mimetype': msg_content.get('mimetype', ''),
+                    'created_at': r.get('created_at'),
+                    'from_me': data.get('key', {}).get('fromMe', False),
+                })
+
             self._send_json({'media': media})
         except Exception as e:
             log_error('WaMedia', f'_handle_wa_media failed: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_copilot(self):
+        """POST /api/copilot — Contextual AI assistant for a mentee.
+        Body: { mentee_id: int, message: str, history?: [{role, content}] }
+        Enriches system prompt with mentee context (fase, saúde, tópicos WA, notas recentes).
+        Returns: { reply: str, context_used: bool }
+        """
+        try:
+            body = self._read_json_body()
+            mentee_id = body.get('mentee_id')
+            user_message = (body.get('message') or '').strip()
+            history = body.get('history') or []
+
+            if not user_message:
+                self._send_json({'error': 'message is required'}, 400)
+                return
+
+            if not OPENAI_API_KEY:
+                self._send_json({'error': 'OPENAI_API_KEY not configured'}, 503)
+                return
+
+            # ── Build context block ─────────────────────────────────────────
+            context_lines = []
+            context_used = False
+
+            if mentee_id:
+                try:
+                    # Mentee profile + inbox snapshot
+                    inbox = supabase_request('GET',
+                        f'vw_wa_mentee_inbox?mentorado_id=eq.{mentee_id}&limit=1')
+                    if isinstance(inbox, list) and inbox:
+                        m = inbox[0]
+                        context_lines.append(f'Mentorado: {m.get("nome", "?")}')
+                        context_lines.append(f'Fase: {m.get("fase_jornada", "?")}')
+                        context_lines.append(f'Saúde WA: {m.get("health_status", "?")}')
+                        horas = m.get('horas_sem_resposta_equipe')
+                        if horas is not None:
+                            context_lines.append(f'Horas sem resposta da equipe: {horas}h')
+                        context_lines.append(f'Msgs não lidas: {m.get("unread_count", 0)}')
+                        context_lines.append(f'Tarefas abertas: {m.get("active_tasks_count", 0)}')
+                        last_msg = m.get('last_message')
+                        if last_msg:
+                            sender = 'Equipe' if m.get('last_message_is_team') else m.get('nome', 'Mentorado')
+                            context_lines.append(f'Última msg ({sender}): "{last_msg[:120]}"')
+
+                    # Recent WA topics (last 5, last 7 days)
+                    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+                    topics = supabase_request('GET',
+                        f'wa_topics?mentorado_id=eq.{mentee_id}'
+                        f'&last_message_at=gte.{urllib.parse.quote(cutoff)}'
+                        f'&order=last_message_at.desc&limit=5'
+                        f'&select=title,sentiment,message_count,last_message_at')
+                    if isinstance(topics, list) and topics:
+                        context_lines.append('\nTópicos WA recentes (7 dias):')
+                        for t in topics:
+                            sent = t.get('sentiment', '')
+                            sent_label = f' [{sent}]' if sent and sent != 'neutral' else ''
+                            context_lines.append(f'  • {t.get("title", "?")} ({t.get("message_count", 0)} msgs){sent_label}')
+
+                    # Recent notes (last 3)
+                    notes = supabase_request('GET',
+                        f'mentee_notes?mentorado_id=eq.{mentee_id}'
+                        f'&order=created_at.desc&limit=3'
+                        f'&select=tipo,conteudo,created_at')
+                    if isinstance(notes, list) and notes:
+                        context_lines.append('\nNotas recentes:')
+                        for n in notes:
+                            preview = (n.get('conteudo') or '')[:100]
+                            context_lines.append(f'  • [{n.get("tipo", "nota")}] {preview}')
+
+                    context_used = bool(context_lines)
+                except Exception as ctx_err:
+                    log_error('Copilot', f'Context fetch failed (non-fatal): {ctx_err}')
+
+            # ── System prompt ───────────────────────────────────────────────
+            system_prompt = (
+                'Você é o Copiloto do Consultor do CASE Mentoring. '
+                'Ajuda consultores a gerir seus mentorados com clareza e objetividade. '
+                'Responda em português. Seja direto e prático.'
+            )
+            if context_lines:
+                system_prompt += '\n\n=== CONTEXTO DO MENTORADO ===\n' + '\n'.join(context_lines)
+
+            # ── Build messages ──────────────────────────────────────────────
+            messages = [{'role': 'system', 'content': system_prompt}]
+            # Append up to 6 history turns to keep context window small
+            for turn in history[-6:]:
+                role = turn.get('role', 'user')
+                content = turn.get('content', '')
+                if role in ('user', 'assistant') and content:
+                    messages.append({'role': role, 'content': content})
+            messages.append({'role': 'user', 'content': user_message})
+
+            result = _openai_request('chat/completions', body={
+                'model': 'gpt-4o-mini',
+                'messages': messages,
+                'max_tokens': 600,
+                'temperature': 0.4,
+            })
+
+            reply = result.get('choices', [{}])[0].get('message', {}).get('content', '')
+            self._send_json({'reply': reply, 'context_used': context_used})
+
+        except Exception as e:
+            log_error('Copilot', f'_handle_copilot failed: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_wa_inbox(self):
