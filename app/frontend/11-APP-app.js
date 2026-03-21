@@ -263,6 +263,7 @@ function operon() {
       waTriageAssigning: null,
       waSavedSegmentActive: null,
       waSaveSegmentModal: { open: false, name: '' },
+      alertsDismissed: [],
     },
 
     // --- Data ---
@@ -1731,6 +1732,8 @@ function operon() {
           // Recalculate dias_desde_call with real call data
           if (this._supabaseCalls?.length) this._enrichMenteesWithCalls();
           this.supabaseConnected = true;
+          this.loadAlerts().catch(e => console.warn('[Spalla] Alerts:', e));
+          this._maybeUpdateKpiSnapshot();
           this.toast('Dados carregados do Supabase', 'success');
         } catch (e) {
           console.error('[Spalla] Fetch error:', e);
@@ -1743,6 +1746,68 @@ function operon() {
       this.ui.loading = false;
       // Auto-refresh disabled — only WhatsApp polling active
       // if (this.supabaseConnected) this.startDataRefresh();
+    },
+
+    // === ALERTS BAR (Wave 1 F1.1) ===
+    async loadAlerts() {
+      if (!sb) return;
+      const { data, error } = await sb.rpc('fn_god_alerts');
+      if (error) { console.warn('[Spalla] loadAlerts:', error.message); return; }
+      this.data.alerts = data || [];
+    },
+
+    _alertKey(alert) {
+      return `${alert.mentorado_id || ''}-${alert.alerta_tipo || ''}`;
+    },
+
+    dismissAlert(alert) {
+      const key = this._alertKey(alert);
+      if (!(this.ui.alertsDismissed || []).includes(key)) {
+        this.ui.alertsDismissed = [...(this.ui.alertsDismissed || []), key];
+      }
+    },
+
+    get visibleAlerts() {
+      const dismissed = this.ui.alertsDismissed || [];
+      return (this.data.alerts || []).filter(a => !dismissed.includes(this._alertKey(a)));
+    },
+
+    get criticalAlertCount() {
+      return (this.visibleAlerts || []).filter(a => a.severidade === 'critico').length;
+    },
+
+    // === KPI TRENDS (Wave 1 F1.4) ===
+    _maybeUpdateKpiSnapshot() {
+      try {
+        const stored = JSON.parse(localStorage.getItem('spalla_kpi_snapshot') || 'null');
+        const now = Date.now();
+        if (!stored || !Number.isFinite(stored.ts) || (now - stored.ts) > 7 * 24 * 60 * 60 * 1000) {
+          localStorage.setItem('spalla_kpi_snapshot', JSON.stringify({
+            ts: now,
+            kpis: { ...this.kpis },
+          }));
+        }
+      } catch (e) { /* noop */ }
+    },
+
+    kpiTrend(key) {
+      try {
+        const stored = JSON.parse(localStorage.getItem('spalla_kpi_snapshot') || 'null');
+        if (!stored?.kpis) return '';
+        const prev = stored.kpis[key];
+        const curr = this.kpis[key];
+        if (prev == null || curr == null) return '';
+        if (curr > prev) return '▲';
+        if (curr < prev) return '▼';
+        return '';
+      } catch (e) { return ''; }
+    },
+
+    kpiTrendClass(key) {
+      const t = this.kpiTrend(key);
+      if (t === '▲') return 'trend--up';
+      if (t === '▼') return 'trend--down';
+      return '';
     },
 
     _enrichMenteesWithCalls() {
