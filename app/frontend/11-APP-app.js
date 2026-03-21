@@ -297,6 +297,7 @@ function operon() {
       waSaveSegmentModal: { open: false, name: '' },
       alertsDismissed: [],
       timelineFilter: '',
+      teamView: 'cards', // 'cards' | 'ranking'
     },
 
     // --- Data ---
@@ -345,6 +346,7 @@ function operon() {
       waTriageCount: 0,
       waSavedSegments: [],
       timeline: [],
+      teamPerformance: [],
     },
 
     // --- Financeiro (CFO Payments View) ---
@@ -1823,6 +1825,7 @@ function operon() {
           if (this._supabaseCalls?.length) this._enrichMenteesWithCalls();
           this.supabaseConnected = true;
           this.loadAlerts().catch(e => console.warn('[Spalla] Alerts:', e));
+          this.loadTeamPerformance().catch(e => console.warn('[Spalla] TeamPerf:', e));
           this._maybeUpdateKpiSnapshot();
           this.toast('Dados carregados do Supabase', 'success');
         } catch (e) {
@@ -1844,6 +1847,45 @@ function operon() {
       const { data, error } = await sb.rpc('fn_god_alerts');
       if (error) { console.warn('[Spalla] loadAlerts:', error.message); return; }
       this.data.alerts = data || [];
+    },
+
+    // === TEAM PERFORMANCE (Wave 2 F2.2) ===
+    async loadTeamPerformance() {
+      if (!sb) return;
+      const { data: tasks, error: tErr } = await sb
+        .from('god_tasks')
+        .select('responsavel, status, updated_at, created_at')
+        .not('responsavel', 'is', null);
+      const { data: mentees, error: mErr } = await sb
+        .from('mentorados')
+        .select('consultor_responsavel, id');
+      const { data: calls, error: cErr } = await sb
+        .from('calls_mentoria')
+        .select('responsavel_call, data_call, status_call')
+        .gte('data_call', new Date(Date.now() - 30*24*60*60*1000).toISOString());
+      if (tErr || mErr) { console.warn('[Spalla] loadTeamPerformance:', tErr?.message || mErr?.message); return; }
+      // Agregar por responsavel
+      const byMember = {};
+      for (const t of (tasks || [])) {
+        const name = t.responsavel || 'Sem responsavel';
+        if (!byMember[name]) byMember[name] = { name, tasksDone: 0, tasksPending: 0, mentorados: 0, calls30d: 0 };
+        if (t.status === 'concluida' || t.status === 'done') byMember[name].tasksDone++;
+        else byMember[name].tasksPending++;
+      }
+      for (const m of (mentees || [])) {
+        const name = m.consultor_responsavel || 'Sem responsavel';
+        if (!byMember[name]) byMember[name] = { name, tasksDone: 0, tasksPending: 0, mentorados: 0, calls30d: 0 };
+        byMember[name].mentorados++;
+      }
+      for (const c of (calls || [])) {
+        const name = c.responsavel_call || '';
+        if (!name) continue;
+        if (!byMember[name]) byMember[name] = { name, tasksDone: 0, tasksPending: 0, mentorados: 0, calls30d: 0 };
+        if (c.status_call === 'realizada') byMember[name].calls30d++;
+      }
+      this.data.teamPerformance = Object.values(byMember)
+        .filter(m => m.name && m.name !== 'Sem responsavel')
+        .sort((a, b) => b.tasksDone - a.tasksDone);
     },
 
     _alertKey(alert) {
