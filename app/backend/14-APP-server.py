@@ -1488,6 +1488,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'openai_configured': bool(OPENAI_API_KEY),
                 'storage_search': bool(OPENAI_API_KEY),
             })
+        # ===== WA DM v2 (S9-A) =====
+        elif self.path.startswith('/api/wa/inbox'):
+            self._handle_wa_inbox()
+        elif re.match(r'^/api/wa/presence/(\d+)$', self.path):
+            _m = re.match(r'^/api/wa/presence/(\d+)$', self.path)
+            self._handle_wa_presence_get(_m.group(1))
         else:
             super().do_GET()
 
@@ -1528,6 +1534,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_storage_test()
         elif self.path == '/api/storage/reprocess':
             self._handle_storage_reprocess()
+        # ===== WA DM v2 (S9-A) =====
+        elif self.path == '/api/wa/presence':
+            self._handle_wa_presence_post()
         else:
             self._send_json({'error': 'Not found'}, 404)
 
@@ -1540,8 +1549,145 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def do_DELETE(self):
         if self.path.startswith('/api/evolution/'):
             self._proxy_evolution('DELETE')
+        # ===== WA DM v2 (S9-A) =====
+        elif self.path.startswith('/api/wa/presence'):
+            self._handle_wa_presence_delete()
         else:
             self._send_json({'error': 'Not found'}, 404)
+
+    # ===== WA DM v2 HANDLERS (S9-A) =====
+
+    def _handle_wa_inbox(self):
+        """
+        GET /api/wa/inbox
+        Returns vw_wa_mentee_inbox rows with optional filters.
+        Params:
+          health_status: verde | amarelo | vermelho | snoozed
+          fase_jornada:  onboarding | execucao | resultado | renovacao
+          search:        ilike match on nome
+          sort:          sla_desc (default) | unread_desc | last_message_desc
+        """
+        parsed = urllib.parse.urlparse(self.path)
+        params = urllib.parse.parse_qs(parsed.query)
+
+        filters = []
+
+        health = params.get('health_status', [None])[0]
+        if health:
+            filters.append(f'health_status=eq.{urllib.parse.quote(health)}')
+
+        fase = params.get('fase_jornada', [None])[0]
+        if fase:
+            filters.append(f'fase_jornada=eq.{urllib.parse.quote(fase)}')
+
+        search = params.get('search', [None])[0]
+        if search:
+            filters.append(f'nome=ilike.*{urllib.parse.quote(search)}*')
+
+        sort = params.get('sort', ['sla_desc'])[0]
+        sort_map = {
+            'sla_desc':          'horas_sem_resposta_equipe.desc.nullslast',
+            'unread_desc':       'unread_count.desc.nullslast',
+            'last_message_desc': 'last_message_at.desc.nullslast',
+        }
+        order = sort_map.get(sort, 'horas_sem_resposta_equipe.desc.nullslast')
+        filters.append(f'order={order}')
+
+        query = 'vw_wa_mentee_inbox?select=*'
+        if filters:
+            query += '&' + '&'.join(filters)
+
+        result = supabase_request('GET', query)
+        self._send_json(result if isinstance(result, list) else [])
+
+    def _handle_wa_presence_post(self):
+        """
+        POST /api/wa/presence
+        Body: { mentorado_id, user_email, user_name }
+        Upserts wa_presence row — heartbeat every 30s from frontend.
+        Uses PATCH-then-INSERT pattern (avoids custom Prefer header).
+        """
+        try:
+            body = json.loads(self._read_body())
+        except Exception:
+            self._send_json({'error': 'Invalid JSON'}, 400)
+            return
+
+        mentorado_id = body.get('mentorado_id')
+        user_email   = body.get('user_email', '').strip()
+        user_name    = body.get('user_name', '').strip()
+
+        if not mentorado_id or not user_email:
+            self._send_json({'error': 'mentorado_id and user_email required'}, 400)
+            return
+
+        ts_now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S+00:00')
+
+        # Try UPDATE first (row already exists)
+        patch_path = (
+            f'wa_presence'
+            f'?mentorado_id=eq.{mentorado_id}'
+            f'&user_email=eq.{urllib.parse.quote(user_email)}'
+        )
+        updated = supabase_request('PATCH', patch_path, {
+            'last_seen': ts_now,
+            'user_name': user_name,
+        })
+
+        # If no row was updated, INSERT (first heartbeat for this user+mentee)
+        if isinstance(updated, list) and len(updated) == 0:
+            supabase_request('POST', 'wa_presence', {
+                'mentorado_id': mentorado_id,
+                'user_email':   user_email,
+                'user_name':    user_name,
+                'last_seen':    ts_now,
+            })
+
+        self._send_json({'ok': True})
+
+    def _handle_wa_presence_delete(self):
+        """
+        DELETE /api/wa/presence?mentorado_id=X&user_email=Y
+        Clears presence when user closes the mentee chat/drawer.
+        """
+        parsed = urllib.parse.urlparse(self.path)
+        params = urllib.parse.parse_qs(parsed.query)
+
+        mentorado_id = params.get('mentorado_id', [None])[0]
+        user_email   = (params.get('user_email', [None])[0] or '').strip()
+
+        if not mentorado_id or not user_email:
+            self._send_json({'error': 'mentorado_id and user_email required'}, 400)
+            return
+
+        supabase_request(
+            'DELETE',
+            f'wa_presence'
+            f'?mentorado_id=eq.{mentorado_id}'
+            f'&user_email=eq.{urllib.parse.quote(user_email)}'
+        )
+        self._send_json({'ok': True})
+
+    def _handle_wa_presence_get(self, mentorado_id):
+        """
+        GET /api/wa/presence/{mentorado_id}
+        Returns active presence entries (last_seen within 60s).
+        Used by frontend to show collision badge.
+        """
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(seconds=60)
+        ).strftime('%Y-%m-%dT%H:%M:%S+00:00')
+
+        result = supabase_request(
+            'GET',
+            f'wa_presence'
+            f'?mentorado_id=eq.{mentorado_id}'
+            f'&last_seen=gte.{urllib.parse.quote(cutoff)}'
+            f'&select=user_email,user_name,last_seen'
+        )
+        self._send_json(result if isinstance(result, list) else [])
+
+    # ===== END WA DM v2 HANDLERS =====
 
     def do_PATCH(self):
         # bulk MUST come before individual to avoid /api/mentees/bulk matching UUID
