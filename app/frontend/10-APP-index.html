@@ -4785,17 +4785,17 @@
 
           <h3 class="docs-section-title">Dossies por Mentorado</h3>
           <div class="docs-grid">
-            <template x-for="d in DOSSIER_PIPELINE.filter(x => x.titulo || x.docs?.length)" :key="d.nome">
+            <!-- Data now from ds_producoes/ds_documentos via Supabase — see page "Produção de Dossiês" -->
+            <template x-for="p in data.dsProducoes.filter(x => x.mentorado_nome)" :key="p.producao_id">
               <div class="doc-card">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                <div class="doc-card__title" x-text="d.nome"></div>
+                <div class="doc-card__title" x-text="p.mentorado_nome"></div>
                 <div class="doc-card__desc">
-                  <template x-if="d.titulo"><a :href="dossierSearchUrl(d.titulo)" target="_blank" rel="noopener" class="dossier-row__doc-link" x-text="d.titulo"></a></template>
-                  <template x-if="d.docs?.length">
-                    <template x-for="doc in d.docs" :key="doc.titulo"><div class="doc-card__sub"><a :href="dossierSearchUrl(doc.titulo)" target="_blank" rel="noopener" class="dossier-row__doc-link" x-text="doc.titulo"></a></div></template>
-                  </template>
+                  <template x-if="p.oferta_estagio"><div class="doc-card__sub">Oferta: <span x-text="p.oferta_estagio"></span></div></template>
+                  <template x-if="p.funil_estagio"><div class="doc-card__sub">Funil: <span x-text="p.funil_estagio"></span></div></template>
+                  <template x-if="p.conteudo_estagio"><div class="doc-card__sub">Conteúdo: <span x-text="p.conteudo_estagio"></span></div></template>
                 </div>
-                <span class="badge badge--sm" :class="'badge--' + dossierStatusConfig(d.status).color" x-text="dossierStatusConfig(d.status).label"></span>
+                <span class="badge badge--sm" :class="'badge--' + dossierStatusConfig(p.status).color" x-text="dossierStatusConfig(p.status).label"></span>
               </div>
             </template>
           </div>
