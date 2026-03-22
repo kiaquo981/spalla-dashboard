@@ -392,6 +392,30 @@ function operon() {
       waSavedSegments: [],
       timeline: [],
       teamPerformance: [],
+      // Command Center static data
+      projects: [
+        { id: 'spalla', nome: 'Spalla Dashboard', desc: 'Hub central da operação CASE', status: 'em_andamento', responsavel: 'Kaique', progresso: 72, github: 'https://github.com/case-company/spalla-dashboard', icon: '⚡' },
+        { id: 'dossie-pipeline', nome: 'Pipeline de Dossiê', desc: 'Download → Dossiê Final automatizado', status: 'em_andamento', responsavel: 'Kaique', progresso: 45, github: 'https://github.com/case-company/dossie-pipeline', icon: '📋' },
+        { id: 'wa-management', nome: 'WA Management', desc: 'Gestão consultiva de grupos WhatsApp', status: 'em_andamento', responsavel: 'Kaique', progresso: 60, github: 'https://github.com/case-company/spalla-dashboard', icon: '💬' },
+        { id: 'queila-brain', nome: 'Queila Brain', desc: 'Clone cognitivo — 235 aulas transcritas', status: 'em_andamento', responsavel: 'Kaique', progresso: 80, github: 'https://github.com/case-company/queila-brain', icon: '🧠' },
+        { id: 'clarinha', nome: 'Clarinha IA', desc: 'Assistente IA para mentorados', status: 'em_andamento', responsavel: 'Heitor', progresso: 35, github: 'https://github.com/case-company/clarinha', icon: '🤖' },
+        { id: 'frankflow', nome: 'FrankFlow', desc: 'Automação N8N de workflows CASE', status: 'em_andamento', responsavel: 'Hugo', progresso: 50, github: 'https://github.com/case-company/frankflow-deploy', icon: '🔄' },
+        { id: 'content-workflow', nome: 'Workflow de Conteúdo', desc: 'PROCESSO: Novo modelo com IA', status: 'em_andamento', responsavel: 'Queila + Kaique', progresso: 20, github: null, icon: '✍️' },
+        { id: 'dossies', nome: 'Dossiês C1/C2', desc: '140 tarefas de entregáveis para mentorados', status: 'planejado', responsavel: 'Mariza + Kaique', progresso: 5, github: null, icon: '📄' },
+      ],
+      sprints: [
+        { id: 'S1', nome: 'Sprint 1', inicio: '2026-03-16', fim: '2026-03-22', status: 'ativo', total: 7, concluidas: 2, highlights: ['WA Management modal fix', 'Mentee Groups migração', 'PR #108 merged'] },
+        { id: 'S2', nome: 'Sprint 2', inicio: '2026-03-23', fim: '2026-03-29', status: 'planejado', total: 225, concluidas: 0, highlights: [] },
+        { id: 'S3', nome: 'Sprint 3', inicio: '2026-03-30', fim: '2026-04-05', status: 'planejado', total: 230, concluidas: 0, highlights: [] },
+      ],
+      repos: [
+        { nome: 'Spalla Dashboard', desc: 'Hub operacional CASE', url: 'https://spalla-dashboard.vercel.app', github: 'https://github.com/case-company/spalla-dashboard', stack: ['Python', 'Alpine.js', 'Supabase'], status: 'live', color: '#7c3aed' },
+        { nome: 'Queila Brain', desc: 'Cognitive clone pipeline', url: null, github: 'https://github.com/case-company/queila-brain', stack: ['Python', 'Claude AI'], status: 'dev', color: '#0ea5e9' },
+        { nome: 'FrankFlow', desc: 'N8N workflows CASE', url: null, github: 'https://github.com/case-company/frankflow-deploy', stack: ['N8N', 'Docker'], status: 'live', color: '#f59e0b' },
+        { nome: 'Clarinha IA', desc: 'Assistente para mentorados', url: null, github: 'https://github.com/case-company/clarinha', stack: ['FastAPI', 'Claude'], status: 'dev', color: '#10b981' },
+        { nome: 'BU-CASE Repo', desc: 'Repositório central BU-CASE', url: null, github: 'https://github.com/case-company/bu-case', stack: ['Docs', 'Scripts'], status: 'live', color: '#6366f1' },
+        { nome: 'Dossie Pipeline', desc: 'Automação de dossiês', url: null, github: 'https://github.com/case-company/dossie-pipeline', stack: ['Python', 'AI'], status: 'dev', color: '#ec4899' },
+      ],
     },
 
     // --- F2.5 — In-app notifications ---
@@ -2403,11 +2427,61 @@ function operon() {
       }
     },
 
+    // ===================== COMMAND CENTER COMPUTED =====================
+
+    ccTasksByStatus() {
+      const tasks = this.data.tasks || [];
+      return {
+        backlog:    tasks.filter(t => t.status === 'pendente'),
+        inProgress: tasks.filter(t => t.status === 'em_andamento'),
+        review:     tasks.filter(t => t.status === 'revisao' || t.status === 'em_revisao'),
+        done:       tasks.filter(t => t.status === 'concluida' || t.status === 'concluído'),
+      };
+    },
+
+    ccTasksByMember() {
+      const tasks = this.data.tasks || [];
+      const map = {};
+      tasks.forEach(t => {
+        const name = (t.responsavel || 'Sem responsável').split(' ')[0];
+        map[name] = (map[name] || 0) + 1;
+      });
+      return map;
+    },
+
+    ccSprintProgress() {
+      const sprint = (this.data.sprints || []).find(s => s.status === 'ativo');
+      if (!sprint || !sprint.total) return 0;
+      return Math.round((sprint.concluidas / sprint.total) * 100);
+    },
+
+    ccRecentActivity() {
+      const tasks = [...(this.data.tasks || [])];
+      return tasks
+        .filter(t => t.updated_at || t.created_at)
+        .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
+        .slice(0, 8)
+        .map(t => ({
+          text: t.titulo || t.nome || 'Tarefa',
+          who: (t.responsavel || '?').split(' ')[0],
+          time: t.updated_at || t.created_at,
+          status: t.status,
+        }));
+    },
+
+    navigateWithFilter(page, filter) {
+      this.navigate(page);
+      if (filter) {
+        this.$nextTick(() => { this.ui.taskFilter = filter; });
+      }
+    },
+
     // ===================== NAVIGATION =====================
 
     // Deep-link route map (pathname → page name)
     _routeMap: {
       'welcome-flow': 'welcome_flow',
+      'command-center': 'command_center',
       'dashboard': 'dashboard',
       'kanban': 'kanban',
       'tasks': 'tasks',
