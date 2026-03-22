@@ -2961,6 +2961,14 @@
                     </div>
                   </div>
 
+                  <!-- Open in WhatsApp -->
+                  <div class="topic-drawer__section" x-show="ui.waTopicDetail.group_jid">
+                    <button class="btn btn--ghost btn--sm" style="width:100%;justify-content:center;gap:6px" @click="openTopicChat(ui.waTopicDetail); ui.waTopicDetail = null">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                      Abrir conversa no WhatsApp
+                    </button>
+                  </div>
+
                   <!-- Convert to task -->
                   <div class="topic-drawer__section" x-show="ui.waTopicDetail.status !== 'converted_task'">
                     <div class="topic-drawer__section-label">Ações</div>
@@ -2985,7 +2993,10 @@
                         </div>
                       </template>
                     </div>
-                    <div x-show="ui.waTopicMessages.length === 0" style="color:var(--text-muted);font-size:13px;padding:8px 0">Nenhuma mensagem processada ainda.</div>
+                    <div x-show="ui.waTopicMessages.length === 0" style="color:var(--text-muted);font-size:13px;padding:8px 0">
+                      Mensagens do tópico não processadas ainda.
+                      <span x-show="ui.waTopicDetail.group_jid"> Use o botão acima para abrir a conversa ao vivo.</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -5795,7 +5806,7 @@
                   <!-- Quick actions: 3 primary only -->
                   <div style="display:flex;gap:6px;margin-top:2px">
                     <button class="btn btn--ghost btn--sm"
-                            @click="navigate('whatsapp'); ui.waActiveChat = m.grupo_whatsapp_id || null"
+                            @click="openMenteeChat(m)"
                             title="Abrir conversa no WhatsApp"
                             style="font-size:11px;padding:4px 10px">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -5881,7 +5892,7 @@
                     <!-- Quick actions: Chat · Nota · Digest -->
                     <div style="display:flex;gap:4px">
                       <button class="btn btn--ghost btn--sm"
-                              @click="navigate('whatsapp'); ui.waActiveChat = m.grupo_whatsapp_id || null"
+                              @click="openMenteeChat(m)"
                               style="font-size:11px;padding:4px 8px" title="Abrir conversa no WhatsApp">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                         Chat
