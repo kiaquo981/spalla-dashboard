@@ -394,21 +394,21 @@ function operon() {
       teamPerformance: [],
       // Command Center static data
       projects: [
-        { id: 'spalla', nome: 'Spalla Dashboard', desc: 'Hub central da operação CASE', status: 'em_andamento', responsavel: 'Kaique', progresso: 72, github: 'https://github.com/case-company/spalla-dashboard', icon: '⚡' },
-        { id: 'dossie-pipeline', nome: 'Pipeline de Dossiê', desc: 'Download → Dossiê Final automatizado', status: 'em_andamento', responsavel: 'Kaique', progresso: 45, github: 'https://github.com/case-company/dossie-pipeline', icon: '📋' },
-        { id: 'wa-management', nome: 'WA Management', desc: 'Gestão consultiva de grupos WhatsApp', status: 'em_andamento', responsavel: 'Kaique', progresso: 60, github: 'https://github.com/case-company/spalla-dashboard', icon: '💬' },
-        { id: 'content-workflow', nome: 'Workflow de Conteúdo', desc: 'PROCESSO: Novo modelo com IA', status: 'em_andamento', responsavel: 'Queila + Kaique', progresso: 20, github: null, icon: '✍️' },
-        { id: 'dossies', nome: 'Dossiês C1/C2', desc: '140 tarefas de entregáveis para mentorados', status: 'planejado', responsavel: 'Mariza + Kaique', progresso: 5, github: null, icon: '📄' },
+        { id: 'spalla', nome: 'Spalla', desc: 'Plataforma operacional da mentoria', status: 'em_andamento', responsavel: 'Kaique', progresso: 72, url: 'https://spalla-dashboard.vercel.app', icon: '⚡' },
+        { id: 'hub-case', nome: 'Hub CASE', desc: 'Central de gestão e acompanhamento', status: 'em_andamento', responsavel: 'Kaique', progresso: 35, url: null, icon: '🏠' },
+        { id: 'social-case', nome: 'Social CASE', desc: 'Conteúdo e presença digital', status: 'em_andamento', responsavel: 'Queila + Kaique', progresso: 20, url: null, icon: '📱' },
+        { id: 'grupos-wa', nome: 'Grupos WhatsApp', desc: 'Acompanhamento consultivo dos mentorados', status: 'em_andamento', responsavel: 'Kaique', progresso: 60, url: null, icon: '💬' },
+        { id: 'mentorados', nome: 'Mentorados', desc: 'Dossiês e entregáveis ativos', status: 'em_andamento', responsavel: 'Mariza + Kaique', progresso: 15, url: null, icon: '📄' },
       ],
       sprints: [
-        { id: 'S1', nome: 'Sprint 1', inicio: '2026-03-16', fim: '2026-03-22', status: 'ativo', total: 7, concluidas: 2, highlights: ['WA Management modal fix', 'Mentee Groups migração', 'PR #108 merged'] },
+        { id: 'S1', nome: 'Sprint 1', inicio: '2026-03-16', fim: '2026-03-22', status: 'ativo', total: 7, concluidas: 2, highlights: ['Visão de grupos WhatsApp no ar', 'Agenda de sessões integrada', 'Dashboard de mentorados atualizado'] },
         { id: 'S2', nome: 'Sprint 2', inicio: '2026-03-23', fim: '2026-03-29', status: 'planejado', total: 225, concluidas: 0, highlights: [] },
         { id: 'S3', nome: 'Sprint 3', inicio: '2026-03-30', fim: '2026-04-05', status: 'planejado', total: 230, concluidas: 0, highlights: [] },
       ],
-      repos: [
-        { nome: 'Spalla Dashboard', desc: 'Hub operacional CASE', url: 'https://spalla-dashboard.vercel.app', github: 'https://github.com/case-company/spalla-dashboard', stack: ['Python', 'Alpine.js', 'Supabase'], status: 'live', color: '#7c3aed' },
-        { nome: 'BU-CASE Repo', desc: 'Repositório central BU-CASE', url: null, github: 'https://github.com/case-company/bu-case', stack: ['Docs', 'Scripts'], status: 'live', color: '#6366f1' },
-        { nome: 'Dossie Pipeline', desc: 'Automação de dossiês', url: null, github: 'https://github.com/case-company/dossie-pipeline', stack: ['Python', 'AI'], status: 'dev', color: '#ec4899' },
+      ferramentas: [
+        { nome: 'Spalla', desc: 'Plataforma em produção', url: 'https://spalla-dashboard.vercel.app', tags: ['ao vivo'], status: 'live', color: '#7c3aed' },
+        { nome: 'ClickUp', desc: 'Gestão de tarefas e sprints', url: 'https://app.clickup.com', tags: ['tarefas'], status: 'live', color: '#6366f1' },
+        { nome: 'n8n', desc: 'Automações e fluxos de trabalho', url: null, tags: ['automação'], status: 'live', color: '#ea580c' },
       ],
     },
 
