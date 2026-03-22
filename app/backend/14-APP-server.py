@@ -1476,6 +1476,104 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    # ===== CLICKUP COMMAND CENTER =====
+    def _handle_clickup_command_center(self):
+        """GET /api/clickup/command-center — Sprint tasks, team summary, activity from ClickUp"""
+        token = os.environ.get('CLICKUP_API_TOKEN', '')
+        if not token:
+            self._send_json({'error': 'CLICKUP_API_TOKEN not configured'}, 500)
+            return
+
+        # Sprint list IDs (from CLAUDE.md)
+        sprint_lists = [
+            {'id': 'S1', 'list_id': '901113377455', 'nome': 'Sprint 1', 'inicio': '2026-03-16', 'fim': '2026-03-22'},
+            {'id': 'S2', 'list_id': '901113377456', 'nome': 'Sprint 2', 'inicio': '2026-03-23', 'fim': '2026-03-29'},
+            {'id': 'S3', 'list_id': '901113377457', 'nome': 'Sprint 3', 'inicio': '2026-03-30', 'fim': '2026-04-05'},
+        ]
+
+        today_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+        active = next(
+            (s for s in sprint_lists if s['inicio'] <= today_str <= s['fim']),
+            sprint_lists[0]
+        )
+
+        headers = {'Authorization': token, 'Content-Type': 'application/json'}
+
+        def clickup_get(url):
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return json.loads(r.read())
+
+        def normalize_status(raw):
+            s = (raw or '').lower().strip()
+            if s in ('to do', 'open', 'backlog', 'pendente', 'not started'):
+                return 'backlog'
+            if s in ('in progress', 'em andamento', 'doing', 'in_progress'):
+                return 'em_andamento'
+            if s in ('review', 'em revisão', 'in review', 'revisão', 'em_revisao', 'em revisao'):
+                return 'em_revisao'
+            if s in ('done', 'complete', 'concluída', 'concluido', 'closed', 'complete'):
+                return 'concluida'
+            return 'backlog'
+
+        try:
+            data = clickup_get(
+                f"https://api.clickup.com/api/v2/list/{active['list_id']}/task"
+                f"?include_closed=true&subtasks=false&page=0"
+            )
+        except Exception as e:
+            self._send_json({'error': f'ClickUp API error: {e}'}, 502)
+            return
+
+        tasks = data.get('tasks', [])
+        by_status = {'backlog': [], 'em_andamento': [], 'em_revisao': [], 'concluida': []}
+        by_member = {}
+        activity = []
+
+        for t in tasks:
+            status = normalize_status(t.get('status', {}).get('status', ''))
+            nome = t.get('name', '')
+            assignees = t.get('assignees', [])
+            updated_ms = int(t.get('date_updated') or 0)
+
+            task_obj = {
+                'id': t.get('id'),
+                'titulo': nome,
+                'status': status,
+                'responsavel': ', '.join(a.get('username', '') or a.get('email', '') for a in assignees),
+                'url': t.get('url', ''),
+                'atualizado_ms': updated_ms,
+            }
+            by_status.setdefault(status, []).append(task_obj)
+
+            for a in assignees:
+                name = (a.get('username') or a.get('email') or 'Desconhecido').split('@')[0]
+                by_member[name] = by_member.get(name, 0) + 1
+
+            if updated_ms:
+                activity.append({
+                    'who': ', '.join((a.get('username') or '').split('@')[0] for a in assignees) or 'Sistema',
+                    'text': nome,
+                    'time': datetime.fromtimestamp(updated_ms / 1000, tz=timezone.utc).isoformat(),
+                    'url': t.get('url', ''),
+                })
+
+        activity.sort(key=lambda x: x['time'], reverse=True)
+
+        self._send_json({
+            'sprint': {
+                'id': active['id'],
+                'nome': active['nome'],
+                'inicio': active['inicio'],
+                'fim': active['fim'],
+            },
+            'total': len(tasks),
+            'by_status': by_status,
+            'by_member': by_member,
+            'activity': activity[:25],
+            'concluidas': len(by_status.get('concluida', [])),
+        })
+
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -1540,6 +1638,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         elif re.match(r'^/api/mentee-groups/(\d+)/members$', self.path):
             _m = re.match(r'^/api/mentee-groups/(\d+)/members$', self.path)
             self._handle_get_group_members(_m.group(1))
+        elif self.path == '/api/clickup/command-center':
+            self._handle_clickup_command_center()
         else:
             super().do_GET()
 

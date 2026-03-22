@@ -6603,9 +6603,8 @@ img { max-width: 100%; display: block; }
   font-size: var(--text-xs, 12px);
   color: var(--neutral-800);
   line-height: 1.4;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .cc-activity-item__time {
