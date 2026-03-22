@@ -5062,7 +5062,7 @@
           <h3 class="docs-section-title">Transcricoes de Calls</h3>
           <div class="docs-grid">
             <template x-for="m in data.mentees.filter(m => m.total_calls > 0 || m.qtd_calls > 0)" :key="m.id">
-              <div class="doc-card" style="cursor:pointer" @click="loadMenteeDetail(m.id); ui.activeDetailTab = 'agenda'">
+              <div class="doc-card" style="cursor:pointer" @click="loadMenteeDetail(m.id); ui.activeDetailTab = 'calls'">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                 <div class="doc-card__title" x-text="m.nome"></div>
                 <div class="doc-card__desc" x-text="`${m.total_calls || m.qtd_calls || 0} call(s) registradas`"></div>
@@ -5099,7 +5099,7 @@
               <template x-for="member in teamStats" :key="member.name">
                 <div class="team-perf-card" x-data="{ expanded: false }">
                   <!-- Header row — click to expand -->
-                  <div class="team-perf-card__header" @click="expanded = !expanded" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;width:100%">
+                  <button class="team-perf-card__header" @click="expanded = !expanded" :aria-expanded="expanded.toString()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;width:100%;background:none;border:none;padding:0;text-align:left">
                     <div class="team-perf-card__name" x-text="member.name"></div>
                     <div style="display:flex;align-items:center;gap:8px">
                       <div class="team-carga-bar" style="width:64px;height:6px;border-radius:3px;background:var(--surface-alt);overflow:hidden">
@@ -5107,7 +5107,7 @@
                       </div>
                       <svg :style="`transform:rotate(${expanded?'180':'0'}deg);transition:.2s`" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
                     </div>
-                  </div>
+                  </button>
 
                   <!-- Stats row -->
                   <div class="team-perf-card__stats">
@@ -5138,7 +5138,7 @@
                     <!-- Em andamento -->
                     <div style="margin-bottom:8px">
                       <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px">Em andamento</div>
-                      <template x-for="t in data.tasks.filter(t => t.status === 'em_andamento' && t.responsavel?.toLowerCase().includes(member.name.toLowerCase())).slice(0,5)" :key="t.id">
+                      <template x-for="t in data.tasks.filter(t => t.status === 'em_andamento' && (t.responsavel||'').split(/[\s,+]+/).some(w=>w.toLowerCase()===member.name.toLowerCase())).slice(0,5)" :key="t.id">
                         <div style="display:flex;align-items:flex-start;gap:6px;padding:4px 0;border-bottom:1px solid var(--border)">
                           <span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;margin-top:5px;flex-shrink:0"></span>
                           <div>
@@ -5147,14 +5147,14 @@
                           </div>
                         </div>
                       </template>
-                      <div x-show="!data.tasks.filter(t => t.status === 'em_andamento' && t.responsavel?.toLowerCase().includes(member.name.toLowerCase())).length"
+                      <div x-show="!data.tasks.filter(t => t.status === 'em_andamento' && (t.responsavel||'').split(/[\s,+]+/).some(w=>w.toLowerCase()===member.name.toLowerCase())).length"
                            style="font-size:12px;color:var(--text-muted);font-style:italic">Nenhuma em andamento</div>
                     </div>
 
                     <!-- Pendentes (top 3) -->
                     <div style="margin-bottom:8px">
                       <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px">Proximas pendentes</div>
-                      <template x-for="t in data.tasks.filter(t => t.status === 'pendente' && t.responsavel?.toLowerCase().includes(member.name.toLowerCase())).slice(0,3)" :key="t.id">
+                      <template x-for="t in data.tasks.filter(t => t.status === 'pendente' && (t.responsavel||'').split(/[\s,+]+/).some(w=>w.toLowerCase()===member.name.toLowerCase())).slice(0,3)" :key="t.id">
                         <div style="display:flex;align-items:flex-start;gap:6px;padding:4px 0;border-bottom:1px solid var(--border)">
                           <span style="width:6px;height:6px;border-radius:50%;background:#9ca3af;margin-top:5px;flex-shrink:0"></span>
                           <div>
@@ -5163,14 +5163,14 @@
                           </div>
                         </div>
                       </template>
-                      <div x-show="!data.tasks.filter(t => t.status === 'pendente' && t.responsavel?.toLowerCase().includes(member.name.toLowerCase())).length"
+                      <div x-show="!data.tasks.filter(t => t.status === 'pendente' && (t.responsavel||'').split(/[\s,+]+/).some(w=>w.toLowerCase()===member.name.toLowerCase())).length"
                            style="font-size:12px;color:var(--text-muted);font-style:italic">Sem pendentes</div>
                     </div>
 
                     <!-- Concluidas 7d -->
                     <div>
                       <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px">Concluidas nos ultimos 7 dias</div>
-                      <template x-for="t in data.tasks.filter(t => { if (t.status !== 'concluida' || !t.updated_at || !t.responsavel?.toLowerCase().includes(member.name.toLowerCase())) return false; const week = new Date(); week.setDate(week.getDate()-7); return new Date(t.updated_at) >= week; }).slice(0,5)" :key="t.id">
+                      <template x-for="t in data.tasks.filter(t => { if (t.status !== 'concluida' || !t.updated_at || !(t.responsavel||'').split(/[\s,+]+/).some(w=>w.toLowerCase()===member.name.toLowerCase())) return false; const week = new Date(); week.setDate(week.getDate()-7); return new Date(t.updated_at) >= week; }).slice(0,5)" :key="t.id">
                         <div style="display:flex;align-items:flex-start;gap:6px;padding:4px 0;border-bottom:1px solid var(--border)">
                           <span style="width:6px;height:6px;border-radius:50%;background:#22c55e;margin-top:5px;flex-shrink:0"></span>
                           <div>
