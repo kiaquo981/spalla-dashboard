@@ -394,11 +394,51 @@ function operon() {
       teamPerformance: [],
       // Command Center static data
       projects: [
-        { id: 'spalla', nome: 'Spalla', desc: 'Plataforma operacional da mentoria', status: 'em_andamento', responsavel: 'Kaique', progresso: 72, url: 'https://spalla-dashboard.vercel.app', icon: '⚡' },
-        { id: 'hub-case', nome: 'Hub CASE', desc: 'Central de gestão e acompanhamento', status: 'em_andamento', responsavel: 'Kaique', progresso: 35, url: null, icon: '🏠' },
-        { id: 'social-case', nome: 'Social CASE', desc: 'Conteúdo e presença digital', status: 'em_andamento', responsavel: 'Queila + Kaique', progresso: 20, url: null, icon: '📱' },
-        { id: 'grupos-wa', nome: 'Grupos WhatsApp', desc: 'Acompanhamento consultivo dos mentorados', status: 'em_andamento', responsavel: 'Kaique', progresso: 60, url: null, icon: '💬' },
-        { id: 'mentorados', nome: 'Mentorados', desc: 'Dossiês e entregáveis ativos', status: 'em_andamento', responsavel: 'Mariza + Kaique', progresso: 15, url: null, icon: '📄' },
+        {
+          id: 'spalla', icon: '⚡', cor: '#7c3aed',
+          nome: 'Spalla Dashboard',
+          desc: 'Portal operacional da mentoria — gestão de mentorados, sprints, tasks e integrações ClickUp',
+          fase: 'Sprint 1 · Command Center ao vivo',
+          team: ['Kaique', 'Heitor'],
+          responsavel: 'Kaique', progresso: 72,
+          url: 'https://spalla-dashboard.vercel.app', status: 'em_andamento',
+        },
+        {
+          id: 'hub-case', icon: '🤖', cor: '#0ea5e9',
+          nome: 'Hub CASE AI',
+          desc: 'Central de agentes de IA para uso interno da equipe e acesso dos mentorados',
+          fase: 'Configurando onboarding e acesso por mentorado',
+          team: ['Kaique'],
+          responsavel: 'Kaique', progresso: 35,
+          url: 'https://hub.caseai.com.br/', status: 'em_andamento',
+        },
+        {
+          id: 'social-case', icon: '📱', cor: '#10b981',
+          nome: 'Social CASE',
+          desc: 'Calendário editorial + métricas das redes sociais — Queila e mentorados',
+          fase: 'Beta — definindo fluxo de acesso por mentorado',
+          team: ['Queila', 'Kaique'],
+          responsavel: 'Queila', progresso: 20,
+          url: 'http://social.caseai.com.br/', status: 'em_andamento',
+        },
+        {
+          id: 'grupos-wa', icon: '💬', cor: '#f59e0b',
+          nome: 'Acomp. WhatsApp',
+          desc: 'Suporte consultivo diário — grupos e DMs com mentorados ativos',
+          fase: 'Operacional · atendimento contínuo',
+          team: ['Kaique', 'Heitor', 'Mariza'],
+          responsavel: 'Kaique', progresso: 60,
+          url: null, status: 'em_andamento',
+        },
+        {
+          id: 'mentorados', icon: '📄', cor: '#ec4899',
+          nome: 'Dossiês e Entregas',
+          desc: 'Produção de dossiês de oferta, posicionamento e funil para mentorados ativos',
+          fase: 'Produção · 3 mentorados com dossiê em andamento',
+          team: ['Mariza', 'Kaique'],
+          responsavel: 'Mariza', progresso: 15,
+          url: null, status: 'em_andamento',
+        },
       ],
       sprints: [
         { id: 'S1', nome: 'Sprint 1', inicio: '2026-03-16', fim: '2026-03-22', status: 'ativo', total: 7, concluidas: 2, highlights: ['Visão de grupos WhatsApp no ar', 'Agenda de sessões integrada', 'Dashboard de mentorados atualizado'] },
@@ -2506,6 +2546,26 @@ function operon() {
           time: t.updated_at || t.created_at,
           status: t.status,
         }));
+    },
+
+    ccBlockers() {
+      // Prefer live ClickUp data with explicit blockers array
+      if (this.data.ccData?.blockers?.length) return this.data.ccData.blockers;
+      // Fallback: urgent/blocked tasks not yet done from live or static data
+      const inProgress = [
+        ...(this.data.ccData?.by_status?.em_andamento || []),
+        ...(this.data.ccData?.by_status?.em_revisao || []),
+        ...(this.data.ccData?.by_status?.backlog || []),
+      ];
+      const source = inProgress.length ? inProgress : (this.data.tasks || []);
+      return source
+        .filter(t => {
+          const s = (t.status || '').toLowerCase();
+          const p = (t.prioridade || '').toLowerCase();
+          return s === 'bloqueado' || p === 'urgente';
+        })
+        .slice(0, 6)
+        .map(t => ({ text: t.titulo || t.nome || 'Tarefa', who: (t.responsavel || t.assignee || '?').split(' ')[0], prioridade: t.prioridade || 'alta', url: t.url || null }));
     },
 
     async loadCommandCenterData() {

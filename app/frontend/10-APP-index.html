@@ -558,12 +558,13 @@
               </div>
             </div>
 
-            <!-- 3. RECENT ACTIVITY (1×tall) -->
-            <div class="bento-card bento-card--tall">
+            <!-- 3. RECENT ACTIVITY (2×2 hero) -->
+            <div class="bento-card bento-card--hero">
               <div class="bento-card__header">
-                <span class="bento-card__title">Atividade</span>
+                <span class="bento-card__title">Atividade Recente</span>
+                <span style="font-size:10px;color:var(--text-secondary)" x-text="ccRecentActivity().length + ' registros'"></span>
               </div>
-              <div class="bento-card__body">
+              <div class="bento-card__body" style="overflow-y:auto">
                 <div class="cc-activity-feed" x-show="ccRecentActivity().length">
                   <template x-for="(item, i) in ccRecentActivity()" :key="i">
                     <a class="cc-activity-item" :href="item.url || '#'" :target="item.url ? '_blank' : '_self'" rel="noopener" style="text-decoration:none;color:inherit;cursor:pointer">
@@ -595,20 +596,42 @@
             <div class="bento-card bento-card--full" style="grid-auto-rows:auto">
               <div class="bento-card__header">
                 <span class="bento-card__title">Projetos Ativos</span>
+                <span style="font-size:11px;color:var(--text-secondary)" x-text="data.projects.length + ' projetos'"></span>
               </div>
               <div class="bento-card__body" style="padding-bottom:1.25rem">
-                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.625rem">
+                <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:.75rem;align-items:start">
                   <template x-for="p in data.projects" :key="p.id">
-                    <div class="cc-project-card">
-                      <div class="cc-project-card__icon" x-text="p.icon"></div>
-                      <div class="cc-project-card__info">
-                        <div class="cc-project-card__name" x-text="p.nome"></div>
-                        <div class="cc-project-card__desc" x-text="p.responsavel"></div>
-                      </div>
-                      <div class="cc-project-card__progress">
-                        <span class="cc-project-card__pct" x-text="p.progresso + '%'"></span>
-                        <div class="cc-project-card__bar">
-                          <div class="cc-project-card__bar-fill" :style="'width:' + p.progresso + '%'"></div>
+                    <div class="cc-project-card-v2">
+                      <!-- colored accent bar -->
+                      <div style="height:4px;border-radius:4px 4px 0 0" :style="'background:' + p.cor"></div>
+                      <div style="padding:.75rem">
+                        <!-- header -->
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                          <span x-text="p.icon" style="font-size:18px;flex-shrink:0"></span>
+                          <span style="font-size:13px;font-weight:700;color:var(--neutral-900);line-height:1.2" x-text="p.nome"></span>
+                        </div>
+                        <!-- description -->
+                        <div style="font-size:11px;color:var(--text-secondary);line-height:1.45;margin-bottom:8px" x-text="p.desc"></div>
+                        <!-- current phase -->
+                        <div style="font-size:10px;font-weight:600;color:var(--primary);background:var(--primary-50,#f5f3ff);border-radius:4px;padding:3px 6px;margin-bottom:10px;line-height:1.3" x-text="'↳ ' + p.fase"></div>
+                        <!-- team -->
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+                          <div style="display:flex">
+                            <template x-for="(m, idx) in p.team" :key="m">
+                              <div style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;border:2px solid var(--surface)"
+                                   :style="'background:' + ['#7c3aed','#0ea5e9','#10b981','#f59e0b','#ec4899','#6366f1'][idx%6] + ';margin-left:' + (idx?'-6px':'0')"
+                                   :title="m" x-text="m.charAt(0)"></div>
+                            </template>
+                          </div>
+                          <span style="font-size:10px;color:var(--text-secondary)" x-text="p.team.join(' · ')"></span>
+                        </div>
+                        <!-- progress bar -->
+                        <div style="display:flex;align-items:center;gap:8px">
+                          <div style="flex:1;height:5px;background:var(--neutral-100);border-radius:99px;overflow:hidden">
+                            <div style="height:100%;border-radius:99px;transition:width .6s ease"
+                                 :style="'width:' + p.progresso + '%;background:' + p.cor"></div>
+                          </div>
+                          <span style="font-size:11px;font-weight:700;flex-shrink:0;min-width:2.5rem;text-align:right" :style="'color:' + p.cor" x-text="p.progresso + '%'"></span>
                         </div>
                       </div>
                     </div>
@@ -617,26 +640,60 @@
               </div>
             </div>
 
-            <!-- 5. TASK BOARD SNAPSHOT (wide 2×1) -->
-            <div class="bento-card bento-card--wide" style="height:auto;min-height:14rem">
+            <!-- 5. TASK BOARD SNAPSHOT (half 3×1) -->
+            <div class="bento-card bento-card--half" style="height:auto;min-height:14rem">
               <div class="bento-card__header">
-                <span class="bento-card__title">Tarefas</span>
+                <span class="bento-card__title">Tarefas do Sprint</span>
                 <button class="btn btn--ghost btn--xs" @click="navigate('tasks')" style="font-size:11px">Ver todas →</button>
               </div>
               <div class="bento-card__body" style="padding-bottom:.75rem">
                 <div class="cc-kanban">
-                  <template x-for="[status, label, color, dotColor] in [['backlog','Backlog','var(--text-secondary)','#94a3b8'],['inProgress','Em andamento','#f59e0b','#f59e0b'],['review','Revisão','#3b82f6','#3b82f6'],['done','Concluído','#10b981','#10b981']]" :key="status">
+                  <template x-for="[status, label, color, dotColor] in [['backlog','Backlog','var(--text-secondary)','#94a3b8'],['inProgress','Andamento','#f59e0b','#f59e0b'],['review','Revisão','#3b82f6','#3b82f6'],['done','Concluído','#10b981','#10b981']]" :key="status">
                     <div class="cc-kanban-col" @click="navigateWithFilter('tasks', status)">
                       <div class="cc-kanban-col__header">
                         <div class="cc-kanban-col__dot" :style="'background:' + dotColor"></div>
                         <div class="cc-kanban-col__label" x-text="label"></div>
                       </div>
                       <div class="cc-kanban-col__count" :style="'color:' + color" x-text="ccTasksByStatus()[status]?.length || 0"></div>
-                      <template x-for="t in (ccTasksByStatus()[status] || []).slice(0,2)" :key="t.id">
-                        <div class="cc-kanban-task" x-text="t.titulo || t.nome"></div>
+                      <template x-for="t in (ccTasksByStatus()[status] || []).slice(0,3)" :key="t.id">
+                        <div class="cc-kanban-task">
+                          <div style="font-size:11px;line-height:1.3;color:var(--neutral-800)" x-text="t.titulo || t.nome"></div>
+                          <div x-show="t.responsavel || t.assignee" style="font-size:10px;color:var(--text-secondary);margin-top:2px" x-text="(t.responsavel || t.assignee || '').split(' ')[0]"></div>
+                        </div>
                       </template>
                     </div>
                   </template>
+                </div>
+              </div>
+            </div>
+
+            <!-- 5b. BLOCKERS / EM RISCO (half 3×1) -->
+            <div class="bento-card bento-card--half" style="height:auto;min-height:14rem">
+              <div class="bento-card__header">
+                <span class="bento-card__title" style="color:#ef4444">⚠ Pendências</span>
+                <span style="font-size:10px;color:var(--text-secondary)" x-text="ccBlockers().length ? ccBlockers().length + ' itens' : 'nenhum'"></span>
+              </div>
+              <div class="bento-card__body" style="overflow-y:auto;padding-bottom:.75rem">
+                <!-- empty state -->
+                <div x-show="!ccBlockers().length" style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:6px;color:var(--text-secondary);padding:1rem 0">
+                  <span style="font-size:28px">✅</span>
+                  <span style="font-size:12px">Sem pendências críticas</span>
+                </div>
+                <!-- blocker list -->
+                <div x-show="ccBlockers().length" style="display:flex;flex-direction:column;gap:6px">
+                  <template x-for="(b, i) in ccBlockers()" :key="i">
+                    <a class="cc-blocker-item" :href="b.url || '#'" :target="b.url ? '_blank' : '_self'" rel="noopener">
+                      <div style="display:flex;align-items:flex-start;gap:8px">
+                        <span style="font-size:13px;flex-shrink:0" x-text="b.prioridade === 'urgente' ? '🔴' : '🟡'"></span>
+                        <div style="flex:1;min-width:0">
+                          <div style="font-size:12px;font-weight:600;color:var(--neutral-900);line-height:1.3;word-break:break-word" x-text="b.text"></div>
+                          <div x-show="b.who && b.who !== '?'" style="font-size:10px;color:var(--text-secondary);margin-top:2px" x-text="b.who"></div>
+                        </div>
+                      </div>
+                    </a>
+                  </template>
+                  <!-- link to tasks -->
+                  <button @click="navigate('tasks')" style="margin-top:4px;font-size:11px;color:var(--primary);background:none;border:none;cursor:pointer;text-align:left;padding:2px 0">Ver todas as tarefas →</button>
                 </div>
               </div>
             </div>
