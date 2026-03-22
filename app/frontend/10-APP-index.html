@@ -4772,6 +4772,7 @@
         <div class="page-content" x-show="ui.page === 'docs'" x-transition>
           <div class="page-header"><h2>Documentos Google Drive</h2></div>
 
+          <!-- Pastas principais -->
           <div class="docs-grid">
             <a class="doc-card doc-card--folder" href="https://drive.google.com/drive/folders/1kqgQ_PQpxEVdRWBYqYRYKA--EDB-5Vlt" target="_blank" rel="noopener">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
@@ -4785,26 +4786,47 @@
             </a>
           </div>
 
+          <!-- Dossiês por Mentorado — links diretos para Google Docs -->
           <h3 class="docs-section-title">Dossies por Mentorado</h3>
           <div class="docs-grid">
-            <!-- Data now from ds_producoes/ds_documentos via Supabase — see page "Produção de Dossiês" -->
             <template x-for="p in data.dsProducoes.filter(x => x.mentorado_nome)" :key="p.producao_id">
-              <div class="doc-card">
+              <div class="doc-card" style="gap:10px">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                 <div class="doc-card__title" x-text="p.mentorado_nome"></div>
-                <div class="doc-card__desc">
-                  <template x-if="p.oferta_estagio"><div class="doc-card__sub">Oferta: <span x-text="p.oferta_estagio"></span></div></template>
-                  <template x-if="p.funil_estagio"><div class="doc-card__sub">Funil: <span x-text="p.funil_estagio"></span></div></template>
-                  <template x-if="p.conteudo_estagio"><div class="doc-card__sub">Conteúdo: <span x-text="p.conteudo_estagio"></span></div></template>
+                <div style="display:flex;flex-direction:column;gap:6px;width:100%">
+                  <template x-for="doc in data.dsAllDocs.filter(d => d.producao_id === p.producao_id && d.link_doc)" :key="doc.id">
+                    <a :href="doc.link_doc" target="_blank" rel="noopener"
+                       style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--primary);text-decoration:none;padding:4px 8px;border-radius:6px;background:var(--surface-alt);hover:opacity:0.8"
+                       x-text="doc.titulo || doc.tipo">
+                    </a>
+                  </template>
+                  <template x-if="!data.dsAllDocs.filter(d => d.producao_id === p.producao_id && d.link_doc).length">
+                    <span style="font-size:12px;color:var(--text-muted)">Sem links cadastrados</span>
+                  </template>
                 </div>
-                <span class="badge badge--sm" :class="'badge--' + dossierStatusConfig(p.status).color" x-text="dossierStatusConfig(p.status).label"></span>
               </div>
             </template>
+          </div>
+
+          <!-- Transcricoes de Calls por Mentorado -->
+          <h3 class="docs-section-title">Transcricoes de Calls</h3>
+          <div class="docs-grid">
+            <template x-for="m in data.mentees.filter(m => m.total_calls > 0 || m.qtd_calls > 0)" :key="m.id">
+              <div class="doc-card" style="cursor:pointer" @click="loadMenteeDetail(m.id); ui.activeDetailTab = 'agenda'">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <div class="doc-card__title" x-text="m.nome"></div>
+                <div class="doc-card__desc" x-text="`${m.total_calls || m.qtd_calls || 0} call(s) registradas`"></div>
+                <span class="badge badge--sm badge--blue">Ver transcricoes →</span>
+              </div>
+            </template>
+            <div x-show="!data.mentees.filter(m => m.total_calls > 0 || m.qtd_calls > 0).length"
+                 style="color:var(--text-muted);font-size:14px;padding:16px">
+              Nenhum mentorado com calls registradas.
+            </div>
           </div>
         </div>
 
         <!-- ===== PAGE: EQUIPE ===== -->
-        <!-- ===== PAGE: EQUIPE (Wave 2 F2.2 — Team Performance) ===== -->
         <div class="page-content" x-show="ui.page === 'equipe'" x-transition>
           <div class="team-view">
             <div class="team-view__header">
@@ -4818,31 +4840,97 @@
             </div>
 
             <!-- Empty state -->
-            <div class="team-perf-empty" x-show="!data.teamPerformance.length">
+            <div class="team-perf-empty" x-show="!teamStats.length">
               <p>Nenhum dado de equipe encontrado.</p>
             </div>
 
-            <!-- Cards view -->
-            <div class="team-perf-grid" x-show="data.teamPerformance.length && ui.teamView === 'cards'">
-              <template x-for="member in data.teamPerformance" :key="member.name">
-                <div class="team-perf-card">
-                  <div class="team-perf-card__name" x-text="member.name"></div>
+            <!-- Cards view with drill-down -->
+            <div class="team-perf-grid" x-show="teamStats.length && ui.teamView === 'cards'">
+              <template x-for="member in teamStats" :key="member.name">
+                <div class="team-perf-card" x-data="{ expanded: false }">
+                  <!-- Header row — click to expand -->
+                  <div class="team-perf-card__header" @click="expanded = !expanded" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;width:100%">
+                    <div class="team-perf-card__name" x-text="member.name"></div>
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <div class="team-carga-bar" style="width:64px;height:6px;border-radius:3px;background:var(--surface-alt);overflow:hidden">
+                        <div :style="`width:${member.carga}%;height:100%;border-radius:3px;background:${member.cargaStatus==='danger'?'#ef4444':member.cargaStatus==='warning'?'#f59e0b':'#22c55e'}`"></div>
+                      </div>
+                      <svg :style="`transform:rotate(${expanded?'180':'0'}deg);transition:.2s`" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                  </div>
+
+                  <!-- Stats row -->
                   <div class="team-perf-card__stats">
                     <div class="team-stat">
-                      <div class="team-stat__val" x-text="member.tasksDone"></div>
-                      <div class="team-stat__lbl">Tarefas feitas</div>
+                      <div class="team-stat__val" x-text="member.emAndamento"></div>
+                      <div class="team-stat__lbl">Em andamento</div>
                     </div>
-                    <div class="team-stat" :class="{ 'team-stat--warn': member.tasksPending > 5 }">
-                      <div class="team-stat__val" x-text="member.tasksPending"></div>
+                    <div class="team-stat" :class="{ 'team-stat--warn': member.pendentes > 10 }">
+                      <div class="team-stat__val" x-text="member.pendentes"></div>
                       <div class="team-stat__lbl">Pendentes</div>
+                    </div>
+                    <div class="team-stat" :class="{ 'team-stat--warn': member.atrasadas > 0 }">
+                      <div class="team-stat__val" x-text="member.atrasadas"></div>
+                      <div class="team-stat__lbl">Atrasadas</div>
+                    </div>
+                    <div class="team-stat">
+                      <div class="team-stat__val" x-text="member.concluidas7d"></div>
+                      <div class="team-stat__lbl">Feitas 7d</div>
                     </div>
                     <div class="team-stat">
                       <div class="team-stat__val" x-text="member.mentorados"></div>
                       <div class="team-stat__lbl">Mentorados</div>
                     </div>
-                    <div class="team-stat">
-                      <div class="team-stat__val" x-text="member.calls30d"></div>
-                      <div class="team-stat__lbl">Calls 30d</div>
+                  </div>
+
+                  <!-- Drill-down: task list -->
+                  <div x-show="expanded" x-transition style="width:100%;margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+                    <!-- Em andamento -->
+                    <div style="margin-bottom:8px">
+                      <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px">Em andamento</div>
+                      <template x-for="t in data.tasks.filter(t => t.status === 'em_andamento' && t.responsavel?.toLowerCase().includes(member.name.toLowerCase())).slice(0,5)" :key="t.id">
+                        <div style="display:flex;align-items:flex-start;gap:6px;padding:4px 0;border-bottom:1px solid var(--border)">
+                          <span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;margin-top:5px;flex-shrink:0"></span>
+                          <div>
+                            <div style="font-size:13px;line-height:1.4" x-text="t.titulo || t.nome"></div>
+                            <div style="font-size:11px;color:var(--text-muted)" x-text="t.mentorado_nome || ''"></div>
+                          </div>
+                        </div>
+                      </template>
+                      <div x-show="!data.tasks.filter(t => t.status === 'em_andamento' && t.responsavel?.toLowerCase().includes(member.name.toLowerCase())).length"
+                           style="font-size:12px;color:var(--text-muted);font-style:italic">Nenhuma em andamento</div>
+                    </div>
+
+                    <!-- Pendentes (top 3) -->
+                    <div style="margin-bottom:8px">
+                      <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px">Proximas pendentes</div>
+                      <template x-for="t in data.tasks.filter(t => t.status === 'pendente' && t.responsavel?.toLowerCase().includes(member.name.toLowerCase())).slice(0,3)" :key="t.id">
+                        <div style="display:flex;align-items:flex-start;gap:6px;padding:4px 0;border-bottom:1px solid var(--border)">
+                          <span style="width:6px;height:6px;border-radius:50%;background:#9ca3af;margin-top:5px;flex-shrink:0"></span>
+                          <div>
+                            <div style="font-size:13px;line-height:1.4" x-text="t.titulo || t.nome"></div>
+                            <div style="font-size:11px;color:var(--text-muted)" x-text="t.mentorado_nome || ''"></div>
+                          </div>
+                        </div>
+                      </template>
+                      <div x-show="!data.tasks.filter(t => t.status === 'pendente' && t.responsavel?.toLowerCase().includes(member.name.toLowerCase())).length"
+                           style="font-size:12px;color:var(--text-muted);font-style:italic">Sem pendentes</div>
+                    </div>
+
+                    <!-- Concluidas 7d -->
+                    <div>
+                      <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px">Concluidas nos ultimos 7 dias</div>
+                      <template x-for="t in data.tasks.filter(t => { if (t.status !== 'concluida' || !t.updated_at || !t.responsavel?.toLowerCase().includes(member.name.toLowerCase())) return false; const week = new Date(); week.setDate(week.getDate()-7); return new Date(t.updated_at) >= week; }).slice(0,5)" :key="t.id">
+                        <div style="display:flex;align-items:flex-start;gap:6px;padding:4px 0;border-bottom:1px solid var(--border)">
+                          <span style="width:6px;height:6px;border-radius:50%;background:#22c55e;margin-top:5px;flex-shrink:0"></span>
+                          <div>
+                            <div style="font-size:13px;line-height:1.4" x-text="t.titulo || t.nome"></div>
+                            <div style="font-size:11px;color:var(--text-muted)" x-text="t.mentorado_nome || ''"></div>
+                          </div>
+                        </div>
+                      </template>
+                      <div x-show="member.concluidas7d === 0"
+                           style="font-size:12px;color:var(--text-muted);font-style:italic">Nenhuma concluida esta semana</div>
                     </div>
                   </div>
                 </div>
@@ -4850,17 +4938,22 @@
             </div>
 
             <!-- Ranking view -->
-            <div class="team-ranking" x-show="data.teamPerformance.length && ui.teamView === 'ranking'">
-              <template x-for="(member, idx) in data.teamPerformance" :key="member.name">
+            <div class="team-ranking" x-show="teamStats.length && ui.teamView === 'ranking'">
+              <template x-for="(member, idx) in [...teamStats].sort((a,b) => (b.emAndamento+b.concluidas7d)-(a.emAndamento+a.concluidas7d))" :key="member.name">
                 <div class="team-rank-row">
                   <span class="team-rank-pos" :class="'team-rank-pos--' + (idx + 1)" x-text="idx + 1"></span>
                   <span class="team-rank-name" x-text="member.name"></span>
-                  <div class="team-rank-bar-wrap" aria-hidden="true">
-                    <div class="team-rank-bar"
-                         :style="'width:' + Math.round((member.tasksDone / (data.teamPerformance[0]?.tasksDone || 1)) * 100) + '%'">
+                  <div style="flex:1;display:flex;gap:8px;align-items:center">
+                    <div class="team-rank-bar-wrap" aria-hidden="true" style="flex:1">
+                      <div class="team-rank-bar"
+                           :style="`width:${member.carga}%;background:${member.cargaStatus==='danger'?'#ef4444':member.cargaStatus==='warning'?'#f59e0b':'#22c55e'}`">
+                      </div>
+                    </div>
+                    <div style="font-size:11px;color:var(--text-muted);white-space:nowrap">
+                      <span x-text="member.emAndamento"></span> ativo · <span x-text="member.concluidas7d"></span> feitas
                     </div>
                   </div>
-                  <span class="team-rank-val" x-text="member.tasksDone + ' tasks'"></span>
+                  <span class="team-rank-val" x-text="member.pendentes + ' pend.'"></span>
                 </div>
               </template>
             </div>
@@ -4927,7 +5020,7 @@
                 <div class="fin-section-title">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                   Mentorados
-                  <span class="fin-count" x-text="`(${financialMentees.length})`"></span>
+                  <span class="fin-count" x-text="`(${filteredFinanceiro.length})`"></span>
                 </div>
                 <div class="fin-filters">
                   <button class="fin-filter-btn" :class="{ active: finFilter === '' }" @click="finFilter = ''">Todos</button>
@@ -4952,7 +5045,7 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <template x-for="m in financialMentees" :key="m.id">
+                    <template x-for="m in filteredFinanceiro" :key="m.id">
                       <tr :class="{ 'fin-row--alert': m.acao_pendente }">
                         <td>
                           <div class="fin-mentee">
@@ -5008,7 +5101,7 @@
                         </td>
                       </tr>
                     </template>
-                    <tr x-show="financialMentees.length === 0">
+                    <tr x-show="filteredFinanceiro.length === 0">
                       <td colspan="7" style="text-align:center;color:#6b7280;padding:2rem">Nenhum mentorado encontrado</td>
                     </tr>
                   </tbody>
