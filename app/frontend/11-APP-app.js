@@ -242,7 +242,18 @@ function operon() {
       notesDrawer: { open: false, menteeId: null, menteeNome: '', tipo: 'livre' },
       notesDrawerTab: 'notes',   // I-5: 'notes' | 'files'
       notesSaving: false,
-      notesForm: { conteudo: '', tags: '' },
+      notesForm: {
+        conteudo: '', tags: '',
+        progresso: 0, bloqueios: '', proximos_passos: '',
+        participou: false, entregou_tarefa: false, observacoes: '',
+        duracao: '', topicos: '', decisoes: '', followups: ''
+      },
+      // Groups / Pastas
+      groupsPanel: false,
+      groupsModal: { open: false, editing: null },
+      groupsForm: { nome: '', cor: '#6366f1', icon: '\u{1F4C1}' },
+      activeGroupFilter: null,
+      assignModal: { open: false, menteeId: null, menteeNome: '' },
       // I-2: triage scores lazy-load state
       triageLoaded: false,
       // I-4: Copilot Contextual
@@ -372,6 +383,7 @@ function operon() {
       waLabelsSummary: [],     // I-1: global label counts
       // I-5: files for current notes drawer mentee
       menteeFiles: { docs: [], media: [], loading: false },
+      groups: [],               // mentee_groups with member_ids
       // WA DM v2 (S9-B)
       waCannedAll: [],          // cache de canned responses
       // S9-C
@@ -1805,6 +1817,8 @@ function operon() {
           this.loadDsData();
           // Load OB onboarding data
           this.loadObData();
+          // Load mentee groups/pastas (non-blocking)
+          this.loadGroups();
 
           if (mentees.data?.length) {
             this.data.mentees = mentees.data;
@@ -5344,6 +5358,11 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     waPortfolioMentees() {
       let list = [...this.data.mentees];
+      // Filter by active group/pasta
+      if (this.ui.activeGroupFilter) {
+        const group = this.data.groups.find(g => g.id === this.ui.activeGroupFilter);
+        if (group) list = list.filter(m => group.member_ids?.includes(m.id));
+      }
       const hasFase   = !!this.ui.waPortfolioFaseFilter;
       const hasHealth = !!this.ui.waPortfolioHealthFilter;
       const bothActive = hasFase && hasHealth;
@@ -6082,7 +6101,12 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     openNotesDrawer(menteeId, menteeNome) {
       this.ui.notesDrawer = { open: true, menteeId, menteeNome: menteeNome || '', tipo: 'livre' };
-      this.ui.notesForm = { conteudo: '', tags: '' };
+      this.ui.notesForm = {
+        conteudo: '', tags: '',
+        progresso: 0, bloqueios: '', proximos_passos: '',
+        participou: false, entregou_tarefa: false, observacoes: '',
+        duracao: '', topicos: '', decisoes: '', followups: ''
+      };
       this.ui.notesDrawerTab = 'notes';
       this.data.menteeFiles = { docs: [], media: [], loading: false };
       this.loadMenteeNotes(menteeId);
@@ -6090,7 +6114,12 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     closeNotesDrawer() {
       this.ui.notesDrawer = { open: false, menteeId: null, menteeNome: '', tipo: 'livre' };
-      this.ui.notesForm = { conteudo: '', tags: '' };
+      this.ui.notesForm = {
+        conteudo: '', tags: '',
+        progresso: 0, bloqueios: '', proximos_passos: '',
+        participou: false, entregou_tarefa: false, observacoes: '',
+        duracao: '', topicos: '', decisoes: '', followups: ''
+      };
       this.ui.notesDrawerTab = 'notes';
       this.data.menteeNotes = [];
       this.data.menteeFiles = { docs: [], media: [], loading: false };
@@ -6099,47 +6128,66 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     async loadMenteeNotes(menteeId) {
       if (!menteeId) return;
       try {
-        const { data, error } = await sb
-          .from('mentee_notes')
-          .select('id,tipo,conteudo,tags,created_at,author_name')
-          .eq('mentee_id', menteeId)
-          .order('created_at', { ascending: false })
-          .limit(20);
-        if (error) throw error;
-        this.data.menteeNotes = data || [];
+        const res = await fetch(`/api/mentees/${menteeId}/notes`, {
+          headers: { 'Authorization': `Bearer ${this._getToken()}` }
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const notes = await res.json();
+        this.data.menteeNotes = (notes || []).map(n => ({
+          ...n,
+          _conteudo: (() => { try { return typeof n.conteudo === 'string' ? JSON.parse(n.conteudo) : n.conteudo; } catch { return { texto: n.conteudo }; } })()
+        }));
       } catch (e) {
         console.error('loadMenteeNotes error:', e);
         this.data.menteeNotes = [];
       }
     },
 
-    async postMenteeNote(menteeId, tipo, conteudo, tags) {
-      if (!conteudo?.trim()) {
-        this.toast('Escreva algo antes de salvar.', 'warning');
-        return false;
+    async postMenteeNote(menteeId, tipo) {
+      const f = this.ui.notesForm;
+      let conteudo;
+      if (tipo === 'checkpoint_mensal') {
+        if (!f.progresso || !f.proximos_passos?.trim()) {
+          this.toast('Preencha progresso e proximos passos.', 'warning'); return false;
+        }
+        conteudo = { progresso: f.progresso, bloqueios: f.bloqueios.trim(), proximos_passos: f.proximos_passos.trim() };
+      } else if (tipo === 'feedback_aula') {
+        if (!f.observacoes?.trim()) {
+          this.toast('Preencha as observacoes.', 'warning'); return false;
+        }
+        conteudo = { participou: f.participou, entregou_tarefa: f.entregou_tarefa, observacoes: f.observacoes.trim() };
+      } else if (tipo === 'registro_ligacao') {
+        if (!f.topicos?.trim()) {
+          this.toast('Preencha os topicos discutidos.', 'warning'); return false;
+        }
+        conteudo = { duracao: f.duracao.trim(), topicos: f.topicos.trim(), decisoes: f.decisoes.trim(), followups: f.followups.trim() };
+      } else {
+        if (!f.conteudo?.trim()) { this.toast('Escreva algo antes de salvar.', 'warning'); return false; }
+        conteudo = { texto: f.conteudo.trim() };
       }
       this.ui.notesSaving = true;
       try {
-        const tagsArr = tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [];
-        const { error } = await sb.from('mentee_notes').insert({
-          mentee_id: menteeId,
-          tipo,
-          conteudo: conteudo.trim(),
-          tags: tagsArr,
+        const tagsArr = f.tags ? f.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+        const res = await fetch(`/api/mentees/${menteeId}/notes`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${this._getToken()}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tipo, conteudo: JSON.stringify(conteudo), tags: tagsArr })
         });
-        if (error) throw error;
+        if (!res.ok) throw new Error(await res.text());
         this.toast('Nota salva!', 'success');
-        this.ui.notesForm = { conteudo: '', tags: '' };
-        this.ui.notesDrawer.tipo = 'livre';
+        this.ui.notesForm = {
+          conteudo: '', tags: '',
+          progresso: 0, bloqueios: '', proximos_passos: '',
+          participou: false, entregou_tarefa: false, observacoes: '',
+          duracao: '', topicos: '', decisoes: '', followups: ''
+        };
         await this.loadMenteeNotes(menteeId);
         return true;
       } catch (e) {
         console.error('postMenteeNote error:', e);
         this.toast('Erro ao salvar nota.', 'error');
         return false;
-      } finally {
-        this.ui.notesSaving = false;
-      }
+      } finally { this.ui.notesSaving = false; }
     },
 
     _notesTipoLabel(tipo) {
@@ -6160,6 +6208,75 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         'livre': 'Escreva sua nota...',
       };
       return map[tipo] || 'Escreva sua nota...';
+    },
+
+    _getToken() {
+      return localStorage.getItem('spalla_access_token') || localStorage.getItem('sb-access-token') || '';
+    },
+
+    // ===================== MENTEE GROUPS / PASTAS =====================
+
+    async loadGroups() {
+      try {
+        const res = await fetch('/api/mentee-groups', { headers: { 'Authorization': `Bearer ${this._getToken()}` } });
+        if (!res.ok) return;
+        this.data.groups = await res.json() || [];
+      } catch (e) { console.error('loadGroups error:', e); }
+    },
+
+    async createGroup() {
+      const f = this.ui.groupsForm;
+      if (!f.nome.trim()) { this.toast('Nome obrigatorio', 'warning'); return; }
+      try {
+        const res = await fetch('/api/mentee-groups', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${this._getToken()}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nome: f.nome.trim(), cor: f.cor, icon: f.icon })
+        });
+        if (!res.ok) throw new Error();
+        await this.loadGroups();
+        this.ui.groupsModal = { open: false, editing: null };
+        this.ui.groupsForm = { nome: '', cor: '#6366f1', icon: '\u{1F4C1}' };
+        this.toast('Pasta criada!', 'success');
+      } catch (e) { this.toast('Erro ao criar pasta', 'error'); }
+    },
+
+    async deleteGroup(groupId) {
+      try {
+        const res = await fetch(`/api/mentee-groups/${groupId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${this._getToken()}` }
+        });
+        if (!res.ok) throw new Error();
+        if (this.ui.activeGroupFilter === groupId) this.ui.activeGroupFilter = null;
+        await this.loadGroups();
+        this.toast('Pasta removida', 'success');
+      } catch (e) { this.toast('Erro ao remover pasta', 'error'); }
+    },
+
+    async toggleGroupMember(groupId, menteeId) {
+      const group = this.data.groups.find(g => g.id === groupId);
+      if (!group) return;
+      const isMember = group.member_ids?.includes(menteeId);
+      try {
+        if (isMember) {
+          await fetch(`/api/mentee-groups/${groupId}/members/${menteeId}`, {
+            method: 'DELETE', headers: { 'Authorization': `Bearer ${this._getToken()}` }
+          });
+        } else {
+          await fetch(`/api/mentee-groups/${groupId}/members`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${this._getToken()}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mentee_id: menteeId })
+          });
+        }
+        await this.loadGroups();
+      } catch (e) { this.toast('Erro ao atualizar pasta', 'error'); }
+    },
+
+    openAssignModal(menteeId, menteeNome) {
+      this.ui.assignModal = { open: true, menteeId, menteeNome: menteeNome || '' };
+      if (!this.data.groups.length) this.loadGroups();
     },
 
     // ===================== WA MANAGEMENT — KEYBOARD SHORTCUTS (S6.7) =====================

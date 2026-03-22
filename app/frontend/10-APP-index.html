@@ -5517,6 +5517,35 @@
             </div>
           </div>
 
+          <!-- Pastas / Group Filter Strip -->
+          <div x-show="data.groups.length > 0 || ui.groupsPanel" style="margin-bottom:.5rem;display:flex;align-items:center;gap:.375rem;flex-wrap:wrap">
+            <button
+              class="op-tag"
+              :style="!ui.activeGroupFilter ? 'background:var(--op-accent,#6366f1);color:#fff;border-color:var(--op-accent,#6366f1)' : ''"
+              @click="ui.activeGroupFilter = null"
+              style="cursor:pointer;font-size:.75rem;padding:.2rem .6rem">
+              Todos
+            </button>
+            <template x-for="g in data.groups" :key="g.id">
+              <button
+                class="op-tag"
+                :style="ui.activeGroupFilter === g.id ? `background:${g.cor};color:#fff;border-color:${g.cor}` : `border-color:${g.cor};color:${g.cor}`"
+                @click="ui.activeGroupFilter = (ui.activeGroupFilter === g.id ? null : g.id)"
+                style="cursor:pointer;font-size:.75rem;padding:.2rem .6rem;display:flex;align-items:center;gap:.25rem">
+                <span x-text="g.icon"></span>
+                <span x-text="g.nome"></span>
+                <span style="opacity:.7;font-size:.68rem" x-text="'(' + g.member_count + ')'"></span>
+              </button>
+            </template>
+            <button
+              class="op-btn op-btn--ghost op-btn--sm"
+              style="font-size:.72rem;padding:.2rem .5rem"
+              @click="ui.groupsModal = { open: true, editing: null }; ui.groupsForm = { nome: '', cor: '#6366f1', icon: '\u{1F4C1}' }"
+              title="Criar nova pasta">
+              + Pasta
+            </button>
+          </div>
+
           <!-- Health KPI Strip -->
           <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
             <template x-if="data.mentees.length">
@@ -5775,6 +5804,11 @@
                               style="font-size:11px;padding:4px 8px" title="Resumo IA dos últimos 7 dias">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                         Digest
+                      </button>
+                      <button class="btn btn--ghost btn--sm"
+                              @click.stop="openAssignModal(m.id, m.nome)"
+                              style="font-size:11px;padding:4px 8px" title="Adicionar a pasta">
+                        Pasta
                       </button>
                     </div>
                   </div>
@@ -6146,7 +6180,7 @@
                 <template x-for="tipo in ['livre','checkpoint_mensal','feedback_aula','registro_ligacao']" :key="tipo">
                   <button
                     class="op-tag"
-                    :style="ui.notesDrawer.tipo === tipo ? 'background:var(--accent-600);color:#fff;border-color:var(--accent-600)' : ''"
+                    :style="ui.notesDrawer.tipo === tipo ? 'background:var(--accent-600,#6366f1);color:#fff;border-color:var(--accent-600,#6366f1)' : ''"
                     @click="ui.notesDrawer.tipo = tipo"
                     x-text="_notesTipoLabel(tipo)"
                     style="cursor:pointer;font-size:.72rem;padding:.2rem .55rem">
@@ -6154,29 +6188,57 @@
                 </template>
               </div>
 
-              <!-- Textarea -->
-              <textarea
-                class="op-input"
-                x-model="ui.notesForm.conteudo"
-                :placeholder="_notesTipoPlaceholder(ui.notesDrawer.tipo)"
-                rows="4"
-                style="width:100%;resize:vertical;font-size:.85rem">
-              </textarea>
+              <!-- === NOTA LIVRE === -->
+              <div x-show="ui.notesDrawer.tipo === 'livre'">
+                <textarea class="op-input" x-model="ui.notesForm.conteudo" placeholder="Escreva uma observacao livre..." rows="4" style="width:100%;resize:vertical;font-size:.85rem"></textarea>
+              </div>
 
-              <!-- Tags input -->
-              <input
-                type="text"
-                class="op-input"
-                x-model="ui.notesForm.tags"
-                placeholder="Tags (separadas por vírgula)"
-                style="margin-top:.5rem;font-size:.82rem;width:100%">
+              <!-- === CHECKPOINT MENSAL === -->
+              <div x-show="ui.notesDrawer.tipo === 'checkpoint_mensal'">
+                <div style="margin-bottom:.625rem">
+                  <div style="font-size:.75rem;font-weight:600;color:var(--op-text);margin-bottom:.375rem">Progresso geral (1-5)</div>
+                  <div style="display:flex;gap:.375rem">
+                    <template x-for="n in [1,2,3,4,5]" :key="n">
+                      <button
+                        @click="ui.notesForm.progresso = n"
+                        :style="ui.notesForm.progresso >= n ? 'color:#f59e0b;font-size:1.25rem;background:none;border:none;cursor:pointer;padding:0' : 'color:#d1d5db;font-size:1.25rem;background:none;border:none;cursor:pointer;padding:0'">&#9733;</button>
+                    </template>
+                  </div>
+                </div>
+                <textarea class="op-input" x-model="ui.notesForm.bloqueios" placeholder="Bloqueios atuais (opcional)" rows="2" style="width:100%;resize:vertical;font-size:.82rem;margin-bottom:.5rem"></textarea>
+                <textarea class="op-input" x-model="ui.notesForm.proximos_passos" placeholder="Proximos passos *" rows="2" style="width:100%;resize:vertical;font-size:.82rem"></textarea>
+              </div>
+
+              <!-- === FEEDBACK DE AULA === -->
+              <div x-show="ui.notesDrawer.tipo === 'feedback_aula'">
+                <div style="display:flex;gap:1rem;margin-bottom:.625rem">
+                  <label style="display:flex;align-items:center;gap:.375rem;font-size:.82rem;cursor:pointer">
+                    <input type="checkbox" x-model="ui.notesForm.participou"> Participou da aula
+                  </label>
+                  <label style="display:flex;align-items:center;gap:.375rem;font-size:.82rem;cursor:pointer">
+                    <input type="checkbox" x-model="ui.notesForm.entregou_tarefa"> Entregou tarefa
+                  </label>
+                </div>
+                <textarea class="op-input" x-model="ui.notesForm.observacoes" placeholder="Observacoes sobre o desempenho *" rows="3" style="width:100%;resize:vertical;font-size:.82rem"></textarea>
+              </div>
+
+              <!-- === REGISTRO DE LIGACAO === -->
+              <div x-show="ui.notesDrawer.tipo === 'registro_ligacao'">
+                <input type="text" class="op-input" x-model="ui.notesForm.duracao" placeholder="Duracao (ex: 45 min)" style="width:100%;margin-bottom:.5rem;font-size:.82rem">
+                <textarea class="op-input" x-model="ui.notesForm.topicos" placeholder="Topicos discutidos *" rows="2" style="width:100%;resize:vertical;font-size:.82rem;margin-bottom:.5rem"></textarea>
+                <textarea class="op-input" x-model="ui.notesForm.decisoes" placeholder="Decisoes tomadas" rows="2" style="width:100%;resize:vertical;font-size:.82rem;margin-bottom:.5rem"></textarea>
+                <textarea class="op-input" x-model="ui.notesForm.followups" placeholder="Follow-ups / proximas acoes" rows="2" style="width:100%;resize:vertical;font-size:.82rem"></textarea>
+              </div>
+
+              <!-- Tags (all types) -->
+              <input type="text" class="op-input" x-model="ui.notesForm.tags" placeholder="Tags (separadas por virgula)" style="margin-top:.5rem;font-size:.82rem;width:100%">
 
               <!-- Save button -->
               <button
                 class="op-btn op-btn--primary op-btn--sm"
                 style="margin-top:.625rem;width:100%"
-                :disabled="ui.notesSaving || !ui.notesForm.conteudo?.trim()"
-                @click="postMenteeNote(ui.notesDrawer.menteeId, ui.notesDrawer.tipo, ui.notesForm.conteudo, ui.notesForm.tags)">
+                :disabled="ui.notesSaving"
+                @click="postMenteeNote(ui.notesDrawer.menteeId, ui.notesDrawer.tipo)">
                 <span x-show="!ui.notesSaving">Salvar nota</span>
                 <span x-show="ui.notesSaving">Salvando...</span>
               </button>
@@ -6198,7 +6260,26 @@
                     <span class="op-tag" style="font-size:.68rem;padding:.1rem .4rem" x-text="_notesTipoLabel(note.tipo)"></span>
                     <span style="font-size:.7rem;color:var(--op-muted)" x-text="new Date(note.created_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'})"></span>
                   </div>
-                  <div style="font-size:.82rem;color:var(--op-text);white-space:pre-wrap;line-height:1.5" x-text="note.conteudo"></div>
+                  <!-- nota_livre -->
+                  <div x-show="note.tipo === 'livre' || !note._conteudo" style="font-size:.82rem;color:var(--op-text);white-space:pre-wrap;line-height:1.5" x-text="note._conteudo?.texto || note.conteudo"></div>
+                  <!-- checkpoint_mensal -->
+                  <div x-show="note.tipo === 'checkpoint_mensal' && note._conteudo" style="font-size:.82rem;line-height:1.6">
+                    <div><span style="font-size:.85rem" x-text="'\u2605'.repeat(note._conteudo?.progresso||0) + '\u2606'.repeat(5-(note._conteudo?.progresso||0))"></span></div>
+                    <div x-show="note._conteudo?.bloqueios"><strong>Bloqueios:</strong> <span x-text="note._conteudo?.bloqueios"></span></div>
+                    <div><strong>Proximos passos:</strong> <span x-text="note._conteudo?.proximos_passos"></span></div>
+                  </div>
+                  <!-- feedback_aula -->
+                  <div x-show="note.tipo === 'feedback_aula' && note._conteudo" style="font-size:.82rem;line-height:1.6">
+                    <div><span x-text="note._conteudo?.participou ? 'Participou' : 'Nao participou'"></span> | <span x-text="note._conteudo?.entregou_tarefa ? 'Entregou tarefa' : 'Nao entregou'"></span></div>
+                    <div x-show="note._conteudo?.observacoes"><strong>Obs:</strong> <span x-text="note._conteudo?.observacoes"></span></div>
+                  </div>
+                  <!-- registro_ligacao -->
+                  <div x-show="note.tipo === 'registro_ligacao' && note._conteudo" style="font-size:.82rem;line-height:1.6">
+                    <div x-show="note._conteudo?.duracao"><strong>Duracao:</strong> <span x-text="note._conteudo?.duracao"></span></div>
+                    <div><strong>Topicos:</strong> <span x-text="note._conteudo?.topicos"></span></div>
+                    <div x-show="note._conteudo?.decisoes"><strong>Decisoes:</strong> <span x-text="note._conteudo?.decisoes"></span></div>
+                    <div x-show="note._conteudo?.followups"><strong>Follow-ups:</strong> <span x-text="note._conteudo?.followups"></span></div>
+                  </div>
                   <div x-show="note.tags?.length" style="margin-top:.375rem;display:flex;flex-wrap:wrap;gap:.25rem">
                     <template x-for="tag in (note.tags || [])" :key="tag">
                       <span class="op-tag" style="font-size:.67rem;padding:.1rem .35rem;background:var(--op-surface-3,#eee)" x-text="tag"></span>
@@ -6709,6 +6790,78 @@
       <template x-for="t in ui.toasts" :key="t.id">
         <div class="toast" :class="'toast--' + t.type" x-text="t.msg" x-transition></div>
       </template>
+    </div>
+
+    <!-- Groups Create Modal -->
+    <div x-show="ui.groupsModal.open" class="modal-overlay" x-transition.opacity @click.self="ui.groupsModal = { open: false, editing: null }" style="display:none;z-index:1100">
+      <div class="modal-card" style="max-width:360px;width:100%">
+        <div class="modal-header">
+          <h3 style="font-size:1rem;font-weight:600;margin:0">Nova Pasta</h3>
+          <button class="op-btn op-btn--ghost op-btn--sm" @click="ui.groupsModal = { open: false, editing: null }">&#10005;</button>
+        </div>
+        <div style="padding:1rem 1.25rem;display:flex;flex-direction:column;gap:.75rem">
+          <div>
+            <label style="font-size:.78rem;font-weight:600;color:var(--op-text);display:block;margin-bottom:.3rem">Nome *</label>
+            <input type="text" class="op-input" x-model="ui.groupsForm.nome" placeholder="Ex: Turma Julho, VIPs..." style="width:100%" @keydown.enter="createGroup()">
+          </div>
+          <div>
+            <label style="font-size:.78rem;font-weight:600;color:var(--op-text);display:block;margin-bottom:.3rem">Icone</label>
+            <div style="display:flex;gap:.375rem;flex-wrap:wrap">
+              <template x-for="ic in ['\u{1F4C1}','\u2B50','\u{1F3AF}','\u{1F525}','\u{1F48E}','\u{1F680}','\u26A1','\u{1F3C6}','\u{1F4BC}','\u{1F4CC}']" :key="ic">
+                <button
+                  @click="ui.groupsForm.icon = ic"
+                  :style="ui.groupsForm.icon === ic ? 'background:var(--op-surface-3,#eee);border:2px solid var(--op-accent);border-radius:6px;padding:4px 6px;cursor:pointer;font-size:1.1rem' : 'background:none;border:1px solid var(--op-border);border-radius:6px;padding:4px 6px;cursor:pointer;font-size:1.1rem'"
+                  x-text="ic">
+                </button>
+              </template>
+            </div>
+          </div>
+          <div>
+            <label style="font-size:.78rem;font-weight:600;color:var(--op-text);display:block;margin-bottom:.3rem">Cor</label>
+            <div style="display:flex;gap:.375rem;flex-wrap:wrap">
+              <template x-for="cor in ['#6366f1','#8b5cf6','#ec4899','#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#6b7280']" :key="cor">
+                <button
+                  @click="ui.groupsForm.cor = cor"
+                  :style="`background:${cor};width:24px;height:24px;border-radius:50%;border:${ui.groupsForm.cor === cor ? '3px solid #1a1a1a' : '2px solid transparent'};cursor:pointer`">
+                </button>
+              </template>
+            </div>
+          </div>
+          <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.25rem">
+            <button class="op-btn op-btn--ghost" @click="ui.groupsModal = { open: false, editing: null }">Cancelar</button>
+            <button class="op-btn op-btn--primary" @click="createGroup()" :disabled="!ui.groupsForm.nome.trim()">Criar Pasta</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Assign Mentee to Group Modal -->
+    <div x-show="ui.assignModal.open" class="modal-overlay" x-transition.opacity @click.self="ui.assignModal = { open: false, menteeId: null, menteeNome: '' }" style="display:none;z-index:1100">
+      <div class="modal-card" style="max-width:320px;width:100%">
+        <div class="modal-header">
+          <div>
+            <h3 style="font-size:1rem;font-weight:600;margin:0">Adicionar a Pasta</h3>
+            <p style="font-size:.78rem;color:var(--op-muted);margin:.2rem 0 0" x-text="ui.assignModal.menteeNome"></p>
+          </div>
+          <button class="op-btn op-btn--ghost op-btn--sm" @click="ui.assignModal = { open: false, menteeId: null, menteeNome: '' }">&#10005;</button>
+        </div>
+        <div style="padding:.75rem 1.25rem 1.25rem;display:flex;flex-direction:column;gap:.5rem">
+          <div x-show="data.groups.length === 0" style="text-align:center;padding:1.5rem;color:var(--op-muted);font-size:.85rem">
+            Nenhuma pasta criada ainda.<br>
+            <button class="op-btn op-btn--ghost op-btn--sm" style="margin-top:.5rem" @click="ui.assignModal.open=false; ui.groupsModal={open:true,editing:null}; ui.groupsForm={nome:'',cor:'#6366f1',icon:'\u{1F4C1}'}">+ Criar primeira pasta</button>
+          </div>
+          <template x-for="g in data.groups" :key="g.id">
+            <button
+              @click="toggleGroupMember(g.id, ui.assignModal.menteeId)"
+              style="display:flex;align-items:center;gap:.5rem;padding:.5rem .75rem;border-radius:8px;border:1px solid var(--op-border);background:var(--op-surface,#fff);cursor:pointer;text-align:left;width:100%"
+              :style="g.member_ids?.includes(ui.assignModal.menteeId) ? 'border-color:' + g.cor + ';background:' + g.cor + '18' : ''">
+              <span x-text="g.icon"></span>
+              <span style="font-size:.85rem;font-weight:500;flex:1" x-text="g.nome"></span>
+              <span x-show="g.member_ids?.includes(ui.assignModal.menteeId)" style="font-size:.75rem;opacity:.7">na pasta</span>
+            </button>
+          </template>
+        </div>
+      </div>
     </div>
 
   </div>
