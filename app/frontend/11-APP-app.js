@@ -397,8 +397,6 @@ function operon() {
         { id: 'spalla', nome: 'Spalla Dashboard', desc: 'Hub central da operação CASE', status: 'em_andamento', responsavel: 'Kaique', progresso: 72, github: 'https://github.com/case-company/spalla-dashboard', icon: '⚡' },
         { id: 'dossie-pipeline', nome: 'Pipeline de Dossiê', desc: 'Download → Dossiê Final automatizado', status: 'em_andamento', responsavel: 'Kaique', progresso: 45, github: 'https://github.com/case-company/dossie-pipeline', icon: '📋' },
         { id: 'wa-management', nome: 'WA Management', desc: 'Gestão consultiva de grupos WhatsApp', status: 'em_andamento', responsavel: 'Kaique', progresso: 60, github: 'https://github.com/case-company/spalla-dashboard', icon: '💬' },
-        { id: 'queila-brain', nome: 'Queila Brain', desc: 'Clone cognitivo — 235 aulas transcritas', status: 'em_andamento', responsavel: 'Kaique', progresso: 80, github: 'https://github.com/case-company/queila-brain', icon: '🧠' },
-        { id: 'frankflow', nome: 'FrankFlow', desc: 'Automação N8N de workflows CASE', status: 'em_andamento', responsavel: 'Hugo', progresso: 50, github: 'https://github.com/case-company/frankflow-deploy', icon: '🔄' },
         { id: 'content-workflow', nome: 'Workflow de Conteúdo', desc: 'PROCESSO: Novo modelo com IA', status: 'em_andamento', responsavel: 'Queila + Kaique', progresso: 20, github: null, icon: '✍️' },
         { id: 'dossies', nome: 'Dossiês C1/C2', desc: '140 tarefas de entregáveis para mentorados', status: 'planejado', responsavel: 'Mariza + Kaique', progresso: 5, github: null, icon: '📄' },
       ],
@@ -409,9 +407,6 @@ function operon() {
       ],
       repos: [
         { nome: 'Spalla Dashboard', desc: 'Hub operacional CASE', url: 'https://spalla-dashboard.vercel.app', github: 'https://github.com/case-company/spalla-dashboard', stack: ['Python', 'Alpine.js', 'Supabase'], status: 'live', color: '#7c3aed' },
-        { nome: 'Queila Brain', desc: 'Cognitive clone pipeline', url: null, github: 'https://github.com/case-company/queila-brain', stack: ['Python', 'Claude AI'], status: 'dev', color: '#0ea5e9' },
-        { nome: 'FrankFlow', desc: 'N8N workflows CASE', url: null, github: 'https://github.com/case-company/frankflow-deploy', stack: ['N8N', 'Docker'], status: 'live', color: '#f59e0b' },
-        { nome: 'Clarinha IA', desc: 'Assistente para mentorados', url: null, github: 'https://github.com/case-company/clarinha', stack: ['FastAPI', 'Claude'], status: 'dev', color: '#10b981' },
         { nome: 'BU-CASE Repo', desc: 'Repositório central BU-CASE', url: null, github: 'https://github.com/case-company/bu-case', stack: ['Docs', 'Scripts'], status: 'live', color: '#6366f1' },
         { nome: 'Dossie Pipeline', desc: 'Automação de dossiês', url: null, github: 'https://github.com/case-company/dossie-pipeline', stack: ['Python', 'AI'], status: 'dev', color: '#ec4899' },
       ],
