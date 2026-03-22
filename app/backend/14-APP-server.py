@@ -1534,6 +1534,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         elif re.match(r'^/api/wa/presence/(\d+)$', self.path):
             _m = re.match(r'^/api/wa/presence/(\d+)$', self.path)
             self._handle_wa_presence_get(_m.group(1))
+        # ===== Mentee Groups =====
+        elif self.path == '/api/mentee-groups':
+            self._handle_get_groups()
+        elif re.match(r'^/api/mentee-groups/(\d+)/members$', self.path):
+            _m = re.match(r'^/api/mentee-groups/(\d+)/members$', self.path)
+            self._handle_get_group_members(_m.group(1))
         else:
             super().do_GET()
 
@@ -1589,6 +1595,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_financial_update_status()
         elif self.path == '/api/financial/add-note':
             self._handle_financial_add_note()
+        # ===== Mentee Groups =====
+        elif self.path == '/api/mentee-groups':
+            self._handle_post_group()
+        elif re.match(r'^/api/mentee-groups/(\d+)/members$', self.path):
+            _m = re.match(r'^/api/mentee-groups/(\d+)/members$', self.path)
+            self._handle_post_group_member(_m.group(1))
         else:
             self._send_json({'error': 'Not found'}, 404)
 
@@ -1606,6 +1618,13 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         # ===== WA DM v2 (S9-A) =====
         elif self.path.startswith('/api/wa/presence'):
             self._handle_wa_presence_delete()
+        # ===== Mentee Groups =====
+        elif re.match(r'^/api/mentee-groups/(\d+)$', self.path):
+            _m = re.match(r'^/api/mentee-groups/(\d+)$', self.path)
+            self._handle_delete_group(_m.group(1))
+        elif re.match(r'^/api/mentee-groups/(\d+)/members/(\d+)$', self.path):
+            _m = re.match(r'^/api/mentee-groups/(\d+)/members/(\d+)$', self.path)
+            self._handle_delete_group_member(_m.group(1), _m.group(2))
         else:
             self._send_json({'error': 'Not found'}, 404)
 
@@ -2566,7 +2585,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
             body = json.loads(self._read_body())
             tipo = body.get('tipo', '')
-            valid_types = {'checkpoint_mensal', 'feedback_aula', 'registro_ligacao', 'nota_livre'}
+            valid_types = {'checkpoint_mensal', 'feedback_aula', 'registro_ligacao', 'livre', 'nota_livre'}
             if tipo not in valid_types:
                 self._send_json(
                     {'error': f'Invalid tipo. Must be one of: {", ".join(sorted(valid_types))}'},
@@ -2588,6 +2607,117 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json(result, 201)
         except Exception as e:
             log_error('Notes', f'POST note failed: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    # ===== MENTEE GROUPS =====
+
+    def _handle_get_groups(self):
+        """GET /api/mentee-groups — list all groups with member counts"""
+        try:
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Unauthorized'}, 401); return
+            token = auth_header[7:]
+            if not verify_jwt_token(token):
+                self._send_json({'error': 'Invalid token'}, 401); return
+            groups = supabase_request('GET', 'mentee_groups?select=*,mentee_group_members(mentee_id)&order=nome.asc')
+            if not isinstance(groups, list):
+                self._send_json([]); return
+            result = []
+            for g in groups:
+                members = g.pop('mentee_group_members', []) or []
+                g['member_count'] = len(members)
+                g['member_ids'] = [m['mentee_id'] for m in members]
+                result.append(g)
+            self._send_json(result)
+        except Exception as e:
+            log_error('Groups', f'GET groups failed: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_get_group_members(self, group_id):
+        """GET /api/mentee-groups/{id}/members — list members of a group"""
+        try:
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Unauthorized'}, 401); return
+            if not verify_jwt_token(auth_header[7:]):
+                self._send_json({'error': 'Invalid token'}, 401); return
+            members = supabase_request('GET', f'mentee_group_members?select=*&group_id=eq.{group_id}')
+            self._send_json(members if isinstance(members, list) else [])
+        except Exception as e:
+            log_error('Groups', f'GET group members failed: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_post_group(self):
+        """POST /api/mentee-groups — create a group"""
+        try:
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Unauthorized'}, 401); return
+            token = auth_header[7:]
+            payload = verify_jwt_token(token)
+            if not payload:
+                self._send_json({'error': 'Invalid token'}, 401); return
+            body = json.loads(self._read_body())
+            nome = body.get('nome', '').strip()
+            if not nome:
+                self._send_json({'error': 'nome is required'}, 400); return
+            group = {
+                'nome': nome,
+                'cor': body.get('cor', '#6366f1'),
+                'icon': body.get('icon', '\U0001f4c1'),
+                'created_by': payload.get('email', ''),
+            }
+            result = supabase_request('POST', 'mentee_groups', group)
+            self._send_json(result, 201)
+        except Exception as e:
+            log_error('Groups', f'POST group failed: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_delete_group(self, group_id):
+        """DELETE /api/mentee-groups/{id}"""
+        try:
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Unauthorized'}, 401); return
+            if not verify_jwt_token(auth_header[7:]):
+                self._send_json({'error': 'Invalid token'}, 401); return
+            supabase_request('DELETE', f'mentee_groups?id=eq.{group_id}')
+            self._send_json({'ok': True})
+        except Exception as e:
+            log_error('Groups', f'DELETE group failed: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_post_group_member(self, group_id):
+        """POST /api/mentee-groups/{id}/members — add mentee to group"""
+        try:
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Unauthorized'}, 401); return
+            if not verify_jwt_token(auth_header[7:]):
+                self._send_json({'error': 'Invalid token'}, 401); return
+            body = json.loads(self._read_body())
+            mentee_id = body.get('mentee_id')
+            if not mentee_id:
+                self._send_json({'error': 'mentee_id required'}, 400); return
+            result = supabase_request('POST', 'mentee_group_members', {'group_id': int(group_id), 'mentee_id': int(mentee_id)})
+            self._send_json(result, 201)
+        except Exception as e:
+            log_error('Groups', f'POST group member failed: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_delete_group_member(self, group_id, mentee_id):
+        """DELETE /api/mentee-groups/{id}/members/{mentee_id}"""
+        try:
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Unauthorized'}, 401); return
+            if not verify_jwt_token(auth_header[7:]):
+                self._send_json({'error': 'Invalid token'}, 401); return
+            supabase_request('DELETE', f'mentee_group_members?group_id=eq.{group_id}&mentee_id=eq.{mentee_id}')
+            self._send_json({'ok': True})
+        except Exception as e:
+            log_error('Groups', f'DELETE group member failed: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_list_events(self):
