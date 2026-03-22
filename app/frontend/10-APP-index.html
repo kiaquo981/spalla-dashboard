@@ -5472,7 +5472,7 @@
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 3H3v7l6.29 6.29c.94.94 2.48.94 3.42 0l3.58-3.58c.94-.94.94-2.48 0-3.42L10 3z"/><line x1="6" y1="6" x2="6.01" y2="6"/></svg>
                   <span x-show="data.waTriageCount > 0" class="triage-count-badge" x-text="data.waTriageCount" style="position:absolute;top:-4px;right:-4px;min-width:14px;height:14px;line-height:14px;text-align:center;font-size:9px"></span>
                 </button>
-                <button class="topics-view-btn" :class="{ active: ui.waPortfolioView === 'board' }" @click="ui.waPortfolioView = 'board'" title="Board de Grupos">
+                <button class="topics-view-btn" :class="{ active: ui.waPortfolioView === 'board' }" @click="ui.waPortfolioView = 'board'; if(!data.waTopics.length) loadWaTopics()" title="Board de Grupos">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="4" height="18" rx="1"/><rect x="10" y="3" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="10" rx="1"/></svg>
                 </button>
               </div>
@@ -5871,12 +5871,19 @@
                       <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.src='/assets/avatar-placeholder.png'">
                       <span style="font-size:13px;font-weight:500;color:var(--text-primary)" x-text="m.nome"></span>
                     </div>
-                    <div style="display:flex;gap:4px;flex-wrap:wrap">
+                    <template x-for="t in menteeActiveTopics(m.id).slice(0,2)" :key="t.id">
+                      <div style="font-size:11px;color:var(--text-secondary);background:var(--neutral-100,#f1f5f9);border-radius:4px;padding:2px 7px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="t.title || 'Tópico sem título'"></div>
+                    </template>
+                    <div x-show="menteeActiveTopics(m.id).length > 2" style="font-size:10px;color:var(--text-tertiary);margin-bottom:4px">+<span x-text="menteeActiveTopics(m.id).length - 2"></span> tópico(s)</div>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
                       <button class="btn btn--ghost btn--sm" style="font-size:10px;padding:2px 8px" @click="setGroupStatus(m.id, 'em_andamento')" title="Mover para Em andamento">→ Em andamento</button>
                     </div>
                   </div>
                 </template>
-                <div x-show="waGroupBoard().aguardando.length === 0" style="font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">Nenhum</div>
+                <div x-show="waGroupBoard().aguardando.length === 0" style="font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">
+                  <span x-show="!ui.waTopicsLoading">Nenhum chamado ativo</span>
+                  <span x-show="ui.waTopicsLoading">Carregando tópicos…</span>
+                </div>
               </div>
 
               <!-- Column: Em andamento -->
@@ -5892,7 +5899,11 @@
                       <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.src='/assets/avatar-placeholder.png'">
                       <span style="font-size:13px;font-weight:500;color:var(--text-primary)" x-text="m.nome"></span>
                     </div>
-                    <div style="display:flex;gap:4px;flex-wrap:wrap">
+                    <template x-for="t in menteeActiveTopics(m.id).slice(0,2)" :key="t.id">
+                      <div style="font-size:11px;color:var(--text-secondary);background:#eff6ff;border-radius:4px;padding:2px 7px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="t.title || 'Tópico sem título'"></div>
+                    </template>
+                    <div x-show="menteeActiveTopics(m.id).length > 2" style="font-size:10px;color:#93c5fd;margin-bottom:4px">+<span x-text="menteeActiveTopics(m.id).length - 2"></span> tópico(s)</div>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
                       <button class="btn btn--ghost btn--sm" style="font-size:10px;padding:2px 8px" @click="setGroupStatus(m.id, 'bloqueado')" title="Mover para Bloqueado">→ Bloqueado</button>
                       <button class="btn btn--ghost btn--sm" style="font-size:10px;padding:2px 8px" @click="setGroupStatus(m.id, 'resolvido')" title="Mover para Resolvido">→ Resolvido</button>
                     </div>
@@ -5914,7 +5925,11 @@
                       <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.src='/assets/avatar-placeholder.png'">
                       <span style="font-size:13px;font-weight:500;color:var(--text-primary)" x-text="m.nome"></span>
                     </div>
-                    <div style="display:flex;gap:4px;flex-wrap:wrap">
+                    <template x-for="t in menteeActiveTopics(m.id).slice(0,2)" :key="t.id">
+                      <div style="font-size:11px;color:var(--text-secondary);background:#fff7ed;border-radius:4px;padding:2px 7px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="t.title || 'Tópico sem título'"></div>
+                    </template>
+                    <div x-show="menteeActiveTopics(m.id).length > 2" style="font-size:10px;color:#fdba74;margin-bottom:4px">+<span x-text="menteeActiveTopics(m.id).length - 2"></span> tópico(s)</div>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
                       <button class="btn btn--ghost btn--sm" style="font-size:10px;padding:2px 8px" @click="setGroupStatus(m.id, 'em_andamento')" title="Reabrir">← Reabrir</button>
                       <button class="btn btn--ghost btn--sm" style="font-size:10px;padding:2px 8px" @click="setGroupStatus(m.id, 'resolvido')" title="Resolver">→ Resolvido</button>
                     </div>
@@ -5936,7 +5951,11 @@
                       <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.src='/assets/avatar-placeholder.png'">
                       <span style="font-size:13px;font-weight:500;color:var(--text-primary)" x-text="m.nome"></span>
                     </div>
-                    <div style="display:flex;gap:4px;flex-wrap:wrap">
+                    <template x-for="t in menteeActiveTopics(m.id).slice(0,2)" :key="t.id">
+                      <div style="font-size:11px;color:var(--text-secondary);background:#f0fdf4;border-radius:4px;padding:2px 7px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="t.title || 'Tópico sem título'"></div>
+                    </template>
+                    <div x-show="menteeActiveTopics(m.id).length > 2" style="font-size:10px;color:#86efac;margin-bottom:4px">+<span x-text="menteeActiveTopics(m.id).length - 2"></span> tópico(s)</div>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
                       <button class="btn btn--ghost btn--sm" style="font-size:10px;padding:2px 8px" @click="setGroupStatus(m.id, 'aguardando')" title="Recolocar em aguardando">← Reabrir</button>
                     </div>
                   </div>

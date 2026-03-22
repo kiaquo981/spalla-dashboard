@@ -5409,12 +5409,23 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     waGroupBoard() {
       const mentees = this.data.mentees;
+      const topics  = this.data.waTopics || [];
+      const hasActive = (m) => topics.some(t =>
+        t.mentorado_id === m.id && t.status !== 'resolved' && t.status !== 'converted_task'
+      );
       return {
-        aguardando:   mentees.filter(m => !m.wa_status || m.wa_status === 'aguardando'),
+        // Only show "Aguardando" for mentees who actually have an open topic
+        aguardando:   mentees.filter(m => (!m.wa_status || m.wa_status === 'aguardando') && hasActive(m)),
         em_andamento: mentees.filter(m => m.wa_status === 'em_andamento'),
         bloqueado:    mentees.filter(m => m.wa_status === 'bloqueado'),
         resolvido:    mentees.filter(m => m.wa_status === 'resolvido'),
       };
+    },
+
+    menteeActiveTopics(menteeId) {
+      return (this.data.waTopics || []).filter(
+        t => t.mentorado_id === menteeId && t.status !== 'resolved' && t.status !== 'converted_task'
+      );
     },
 
     async setGroupStatus(menteeId, status) {
