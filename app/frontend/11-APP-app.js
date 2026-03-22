@@ -923,6 +923,12 @@ function operon() {
       }
     },
 
+    async loadMenteeFinDetail(id) {
+      await this.loadMenteeDetail(id);
+      this.ui.activeDetailTab = 'financeiro';
+      await this.loadFinDetailLogs();
+    },
+
     get myCarteira() {
       const name = (this.auth.currentUser?.full_name || '').toLowerCase();
       if (name.includes('lara')) return 'Lara';
