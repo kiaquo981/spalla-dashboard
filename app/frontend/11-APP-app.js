@@ -2406,24 +2406,34 @@ function operon() {
 
     // Open WhatsApp and auto-select the mentee's group chat (Carteira quick action)
     async openMenteeChat(m) {
+      if (!m) return;
       const jid = m.grupo_whatsapp_id;
       this.navigate('whatsapp');
-      await this.fetchWhatsAppChats();
+      if (this.waSessionStatus() === 'connected') {
+        await this.fetchWhatsAppChats();
+      }
       if (jid) {
         const fullChat = this.data.whatsappChats.find(c => (c.remoteJid || c.id) === jid);
-        await this.selectWhatsAppChat(fullChat || { remoteJid: jid, id: jid, name: m.nome });
+        await this.selectWhatsAppChat(fullChat || { remoteJid: jid, id: jid, name: m.nome || '' });
+      } else {
+        await this.selectWhatsAppChat(null);
       }
     },
 
     // Open WhatsApp from a wa_topic — uses group_jid to jump directly to the chat
     async openTopicChat(topic) {
+      if (!topic) return;
       const jid = topic.group_jid;
-      const name = topic.mentorado_nome || topic.title;
+      const name = topic.mentorado_nome || topic.title || '';
       this.navigate('whatsapp');
-      await this.fetchWhatsAppChats();
+      if (this.waSessionStatus() === 'connected') {
+        await this.fetchWhatsAppChats();
+      }
       if (jid) {
         const fullChat = this.data.whatsappChats.find(c => (c.remoteJid || c.id) === jid);
         await this.selectWhatsAppChat(fullChat || { remoteJid: jid, id: jid, name });
+      } else {
+        await this.selectWhatsAppChat(null);
       }
     },
 
@@ -2450,7 +2460,9 @@ function operon() {
     },
 
     ccSprintProgress() {
-      const sprint = (this.data.sprints || []).find(s => s.status === 'ativo');
+      const today = new Date().toISOString().slice(0, 10);
+      const sprint = (this.data.sprints || []).find(s => s.inicio <= today && today <= s.fim)
+                  || (this.data.sprints || []).find(s => s.status === 'ativo');
       if (!sprint || !sprint.total) return 0;
       return Math.round((sprint.concluidas / sprint.total) * 100);
     },
@@ -2470,9 +2482,10 @@ function operon() {
     },
 
     navigateWithFilter(page, filter) {
+      const statusMap = { backlog: 'pendente', inProgress: 'em_andamento', review: 'em_revisao', done: 'concluida' };
       this.navigate(page);
       if (filter) {
-        this.$nextTick(() => { this.ui.taskFilter = filter; });
+        this.$nextTick(() => { this.ui.taskFilter = statusMap[filter] || filter; });
       }
     },
 
@@ -5515,7 +5528,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const mentees = this.data.mentees;
       const topics  = this.data.waTopics || [];
       const hasActive = (m) => topics.some(t =>
-        t.mentorado_id === m.id && t.status !== 'resolved' && t.status !== 'converted_task'
+        t.mentorado_id === m.id && t.status !== 'resolved' && t.status !== 'converted_task' && t.status !== 'archived'
       );
       return {
         // Only show "Aguardando" for mentees who actually have an open topic
@@ -5528,7 +5541,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     menteeActiveTopics(menteeId) {
       return (this.data.waTopics || []).filter(
-        t => t.mentorado_id === menteeId && t.status !== 'resolved' && t.status !== 'converted_task'
+        t => t.mentorado_id === menteeId && t.status !== 'resolved' && t.status !== 'converted_task' && t.status !== 'archived'
       );
     },
 
