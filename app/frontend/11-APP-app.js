@@ -2380,6 +2380,29 @@ function operon() {
       }
     },
 
+    // Open WhatsApp and auto-select the mentee's group chat (Carteira quick action)
+    async openMenteeChat(m) {
+      const jid = m.grupo_whatsapp_id;
+      this.navigate('whatsapp');
+      await this.fetchWhatsAppChats();
+      if (jid) {
+        const fullChat = this.data.whatsappChats.find(c => (c.remoteJid || c.id) === jid);
+        await this.selectWhatsAppChat(fullChat || { remoteJid: jid, id: jid, name: m.nome });
+      }
+    },
+
+    // Open WhatsApp from a wa_topic — uses group_jid to jump directly to the chat
+    async openTopicChat(topic) {
+      const jid = topic.group_jid;
+      const name = topic.mentorado_nome || topic.title;
+      this.navigate('whatsapp');
+      await this.fetchWhatsAppChats();
+      if (jid) {
+        const fullChat = this.data.whatsappChats.find(c => (c.remoteJid || c.id) === jid);
+        await this.selectWhatsAppChat(fullChat || { remoteJid: jid, id: jid, name });
+      }
+    },
+
     // ===================== NAVIGATION =====================
 
     // Deep-link route map (pathname → page name)
