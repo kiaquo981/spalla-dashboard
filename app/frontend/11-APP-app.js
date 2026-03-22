@@ -2400,6 +2400,7 @@ function operon() {
       'docs': 'docs',
       'arquivos': 'arquivos',
       'settings': 'settings',
+      'jornada': 'kanban',
     },
 
     _pageToRoute(page) {
