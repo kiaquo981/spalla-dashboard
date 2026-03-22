@@ -5472,7 +5472,7 @@
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 3H3v7l6.29 6.29c.94.94 2.48.94 3.42 0l3.58-3.58c.94-.94.94-2.48 0-3.42L10 3z"/><line x1="6" y1="6" x2="6.01" y2="6"/></svg>
                   <span x-show="data.waTriageCount > 0" class="triage-count-badge" x-text="data.waTriageCount" style="position:absolute;top:-4px;right:-4px;min-width:14px;height:14px;line-height:14px;text-align:center;font-size:9px"></span>
                 </button>
-                <button class="topics-view-btn" :class="{ active: ui.waPortfolioView === 'board' }" @click="ui.waPortfolioView = 'board'" title="Board de Grupos">
+                <button class="topics-view-btn" :class="{ active: ui.waPortfolioView === 'board' }" @click="ui.waPortfolioView = 'board'; if(!data.waTopics.length) loadWaTopics()" title="Board de Grupos">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="4" height="18" rx="1"/><rect x="10" y="3" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="10" rx="1"/></svg>
                 </button>
               </div>
@@ -5871,12 +5871,19 @@
                       <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.src='/assets/avatar-placeholder.png'">
                       <span style="font-size:13px;font-weight:500;color:var(--text-primary)" x-text="m.nome"></span>
                     </div>
-                    <div style="display:flex;gap:4px;flex-wrap:wrap">
+                    <template x-for="t in menteeActiveTopics(m.id).slice(0,2)" :key="t.id">
+                      <div style="font-size:11px;color:var(--text-secondary);background:var(--neutral-100,#f1f5f9);border-radius:4px;padding:2px 7px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="t.title || 'Tópico sem título'"></div>
+                    </template>
+                    <div x-show="menteeActiveTopics(m.id).length > 2" style="font-size:10px;color:var(--text-tertiary);margin-bottom:4px">+<span x-text="menteeActiveTopics(m.id).length - 2"></span> tópico(s)</div>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
                       <button class="btn btn--ghost btn--sm" style="font-size:10px;padding:2px 8px" @click="setGroupStatus(m.id, 'em_andamento')" title="Mover para Em andamento">→ Em andamento</button>
                     </div>
                   </div>
                 </template>
-                <div x-show="waGroupBoard().aguardando.length === 0" style="font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">Nenhum</div>
+                <div x-show="waGroupBoard().aguardando.length === 0" style="font-size:12px;color:var(--text-tertiary);text-align:center;padding:16px 0">
+                  <span x-show="!ui.waTopicsLoading">Nenhum chamado ativo</span>
+                  <span x-show="ui.waTopicsLoading">Carregando tópicos…</span>
+                </div>
               </div>
 
               <!-- Column: Em andamento -->
@@ -5892,7 +5899,11 @@
                       <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.src='/assets/avatar-placeholder.png'">
                       <span style="font-size:13px;font-weight:500;color:var(--text-primary)" x-text="m.nome"></span>
                     </div>
-                    <div style="display:flex;gap:4px;flex-wrap:wrap">
+                    <template x-for="t in menteeActiveTopics(m.id).slice(0,2)" :key="t.id">
+                      <div style="font-size:11px;color:var(--text-secondary);background:#eff6ff;border-radius:4px;padding:2px 7px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="t.title || 'Tópico sem título'"></div>
+                    </template>
+                    <div x-show="menteeActiveTopics(m.id).length > 2" style="font-size:10px;color:#93c5fd;margin-bottom:4px">+<span x-text="menteeActiveTopics(m.id).length - 2"></span> tópico(s)</div>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
                       <button class="btn btn--ghost btn--sm" style="font-size:10px;padding:2px 8px" @click="setGroupStatus(m.id, 'bloqueado')" title="Mover para Bloqueado">→ Bloqueado</button>
                       <button class="btn btn--ghost btn--sm" style="font-size:10px;padding:2px 8px" @click="setGroupStatus(m.id, 'resolvido')" title="Mover para Resolvido">→ Resolvido</button>
                     </div>
@@ -5914,7 +5925,11 @@
                       <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.src='/assets/avatar-placeholder.png'">
                       <span style="font-size:13px;font-weight:500;color:var(--text-primary)" x-text="m.nome"></span>
                     </div>
-                    <div style="display:flex;gap:4px;flex-wrap:wrap">
+                    <template x-for="t in menteeActiveTopics(m.id).slice(0,2)" :key="t.id">
+                      <div style="font-size:11px;color:var(--text-secondary);background:#fff7ed;border-radius:4px;padding:2px 7px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="t.title || 'Tópico sem título'"></div>
+                    </template>
+                    <div x-show="menteeActiveTopics(m.id).length > 2" style="font-size:10px;color:#fdba74;margin-bottom:4px">+<span x-text="menteeActiveTopics(m.id).length - 2"></span> tópico(s)</div>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
                       <button class="btn btn--ghost btn--sm" style="font-size:10px;padding:2px 8px" @click="setGroupStatus(m.id, 'em_andamento')" title="Reabrir">← Reabrir</button>
                       <button class="btn btn--ghost btn--sm" style="font-size:10px;padding:2px 8px" @click="setGroupStatus(m.id, 'resolvido')" title="Resolver">→ Resolvido</button>
                     </div>
@@ -5936,7 +5951,11 @@
                       <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.src='/assets/avatar-placeholder.png'">
                       <span style="font-size:13px;font-weight:500;color:var(--text-primary)" x-text="m.nome"></span>
                     </div>
-                    <div style="display:flex;gap:4px;flex-wrap:wrap">
+                    <template x-for="t in menteeActiveTopics(m.id).slice(0,2)" :key="t.id">
+                      <div style="font-size:11px;color:var(--text-secondary);background:#f0fdf4;border-radius:4px;padding:2px 7px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="t.title || 'Tópico sem título'"></div>
+                    </template>
+                    <div x-show="menteeActiveTopics(m.id).length > 2" style="font-size:10px;color:#86efac;margin-bottom:4px">+<span x-text="menteeActiveTopics(m.id).length - 2"></span> tópico(s)</div>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
                       <button class="btn btn--ghost btn--sm" style="font-size:10px;padding:2px 8px" @click="setGroupStatus(m.id, 'aguardando')" title="Recolocar em aguardando">← Reabrir</button>
                     </div>
                   </div>
@@ -5953,12 +5972,12 @@
         <!-- Modal: WA Task Extraction (S9-C) -->
         <div x-show="ui.waTaskExtract.open" class="modal-overlay" x-transition.opacity
              @click.self="closeWaTaskExtract()" @keydown.escape.window="closeWaTaskExtract()" style="display:none">
-          <div class="modal-card" style="max-width:480px">
-            <div class="modal-header">
-              <h3>Criar Tarefa da Conversa</h3>
-              <button @click="closeWaTaskExtract()">✕</button>
+          <div class="modal" style="max-width:480px">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid var(--neutral-200,#e5e7eb)">
+              <h3 style="font-size:1rem;font-weight:600;margin:0">Criar Tarefa da Conversa</h3>
+              <button class="op-btn op-btn--ghost op-btn--sm" @click="closeWaTaskExtract()">&#10005;</button>
             </div>
-            <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+            <div style="padding:1rem 1.25rem;display:flex;flex-direction:column;gap:12px">
               <div class="extract-source" x-show="ui.waTaskExtract.msg?.content_text">
                 <span style="font-size:11px;color:#64748b;font-weight:500">MENSAGEM ORIGEM</span>
                 <p style="font-size:13px;color:#374151;margin:4px 0 0"
@@ -5985,11 +6004,12 @@
                 </div>
               </div>
             </div>
-            <div class="modal-footer">
-              <button class="btn-secondary" @click="closeWaTaskExtract()">Cancelar</button>
-              <button class="btn-primary" @click="submitWaTaskExtract()"
+            <div style="display:flex;gap:.5rem;justify-content:flex-end;padding:1rem 1.25rem;border-top:1px solid var(--neutral-200,#e5e7eb)">
+              <button class="op-btn op-btn--ghost" @click="closeWaTaskExtract()">Cancelar</button>
+              <button class="op-btn op-btn--primary" @click="submitWaTaskExtract()"
                       :disabled="ui.waTaskExtract.saving || !ui.waTaskExtract.titulo.trim()">
-                <span x-text="ui.waTaskExtract.saving ? 'Salvando...' : 'Criar Tarefa'"></span>              </button>
+                <span x-text="ui.waTaskExtract.saving ? 'Salvando...' : 'Criar Tarefa'"></span>
+              </button>
             </div>
           </div>
         </div>
@@ -5997,19 +6017,19 @@
         <!-- Modal: Salvar Segment (S9-C) -->
         <div x-show="ui.waSaveSegmentModal.open" class="modal-overlay" x-transition.opacity
              @click.self="ui.waSaveSegmentModal.open = false" @keydown.escape.window="ui.waSaveSegmentModal.open = false" style="display:none">
-          <div class="modal-card" style="max-width:360px">
-            <div class="modal-header">
-              <h3>Salvar filtro atual</h3>
-              <button @click="ui.waSaveSegmentModal.open = false">✕</button>
+          <div class="modal modal--sm" style="max-width:360px">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid var(--neutral-200,#e5e7eb)">
+              <h3 style="font-size:1rem;font-weight:600;margin:0">Salvar filtro atual</h3>
+              <button class="op-btn op-btn--ghost op-btn--sm" @click="ui.waSaveSegmentModal.open = false">&#10005;</button>
             </div>
-            <div class="modal-body">
+            <div style="padding:1rem 1.25rem">
               <input type="text" x-model="ui.waSaveSegmentModal.name"
                      placeholder="Ex: Onboarding em risco" class="form-input" style="width:100%"
                      @keydown.enter="saveCurrentWaSegment()" autofocus />
             </div>
-            <div class="modal-footer">
-              <button class="btn-secondary" @click="ui.waSaveSegmentModal.open = false">Cancelar</button>
-              <button class="btn-primary" @click="saveCurrentWaSegment()">Salvar</button>
+            <div style="display:flex;gap:.5rem;justify-content:flex-end;padding:.75rem 1.25rem;border-top:1px solid var(--neutral-200,#e5e7eb)">
+              <button class="op-btn op-btn--ghost" @click="ui.waSaveSegmentModal.open = false">Cancelar</button>
+              <button class="op-btn op-btn--primary" @click="saveCurrentWaSegment()">Salvar</button>
             </div>
           </div>
         </div>
@@ -6794,8 +6814,8 @@
 
     <!-- Groups Create Modal -->
     <div x-show="ui.groupsModal.open" class="modal-overlay" x-transition.opacity @click.self="ui.groupsModal = { open: false, editing: null }" style="display:none;z-index:1100">
-      <div class="modal-card" style="max-width:360px;width:100%">
-        <div class="modal-header">
+      <div class="modal modal--sm" style="max-width:360px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid var(--neutral-200,#e5e7eb)">
           <h3 style="font-size:1rem;font-weight:600;margin:0">Nova Pasta</h3>
           <button class="op-btn op-btn--ghost op-btn--sm" @click="ui.groupsModal = { open: false, editing: null }">&#10005;</button>
         </div>
@@ -6837,8 +6857,8 @@
 
     <!-- Assign Mentee to Group Modal -->
     <div x-show="ui.assignModal.open" class="modal-overlay" x-transition.opacity @click.self="ui.assignModal = { open: false, menteeId: null, menteeNome: '' }" style="display:none;z-index:1100">
-      <div class="modal-card" style="max-width:320px;width:100%">
-        <div class="modal-header">
+      <div class="modal modal--sm" style="max-width:320px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid var(--neutral-200,#e5e7eb)">
           <div>
             <h3 style="font-size:1rem;font-weight:600;margin:0">Adicionar a Pasta</h3>
             <p style="font-size:.78rem;color:var(--op-muted);margin:.2rem 0 0" x-text="ui.assignModal.menteeNome"></p>
