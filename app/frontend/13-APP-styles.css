@@ -6571,6 +6571,7 @@ img { max-width: 100%; display: block; }
   gap: 0;
   overflow-y: auto;
   flex: 1;
+  padding-bottom: 0.75rem;
 }
 
 .cc-activity-item {
@@ -6818,7 +6819,7 @@ img { max-width: 100%; display: block; }
 /* ===== TOOLS GRID ===== */
 .cc-tools-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 0.625rem;
   overflow-y: auto;
   flex: 1;
