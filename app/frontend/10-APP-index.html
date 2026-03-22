@@ -249,6 +249,10 @@
 
         <nav class="op-sidebar__nav">
           <div class="op-sidebar__section" x-show="ui.sidebarOpen">Principal</div>
+          <a class="op-nav-item" :class="{ active: ui.page === 'command_center' }" @click="navigate('command_center')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <span x-show="ui.sidebarOpen">Command Center</span>
+          </a>
           <a class="op-nav-item" :class="{ active: ui.page === 'dashboard' }" @click="navigate('dashboard')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
             <span x-show="ui.sidebarOpen">Dashboard</span>
@@ -451,6 +455,241 @@
             </button>
           </div>
         </header>
+
+        <!-- ===== PAGE: COMMAND CENTER ===== -->
+        <div class="page-content" x-show="ui.page === 'command_center'" x-transition>
+
+          <!-- Header strip -->
+          <div class="cc-header">
+            <div>
+              <div class="cc-header__title">Command Center</div>
+              <div class="cc-header__meta" x-text="'Semana de ' + (data.sprints.find(s=>s.status==='ativo')?.inicio || '') + ' · ' + new Date().toLocaleDateString('pt-BR',{weekday:'long'})"></div>
+            </div>
+            <div class="cc-header__progress" x-show="data.sprints.find(s=>s.status==='ativo')">
+              <span style="font-size:12px;font-weight:600;color:var(--text-secondary)" x-text="data.sprints.find(s=>s.status==='ativo')?.nome"></span>
+              <div class="cc-header__progress-bar">
+                <div class="cc-header__progress-fill" :style="'width:' + ccSprintProgress() + '%'"></div>
+              </div>
+              <span style="font-size:12px;font-weight:700;color:var(--primary)" x-text="ccSprintProgress() + '%'"></span>
+            </div>
+          </div>
+
+          <!-- Bento Grid -->
+          <div class="bento-grid">
+
+            <!-- 1. SPRINT CARD (hero 2×2) -->
+            <template x-for="sprint in data.sprints.filter(s=>s.status==='ativo')" :key="sprint.id">
+              <div class="bento-card bento-card--hero">
+                <div class="cc-sprint-hero">
+                  <div>
+                    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--primary);margin-bottom:4px">Sprint Ativo</div>
+                    <div class="cc-sprint-hero__name" x-text="sprint.nome"></div>
+                    <div class="cc-sprint-hero__dates" x-text="sprint.inicio + ' → ' + sprint.fim"></div>
+                  </div>
+                  <div class="cc-sprint-progress">
+                    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary);margin-bottom:4px">
+                      <span x-text="sprint.concluidas + ' concluídas'"></span>
+                      <span x-text="ccSprintProgress() + '%'"></span>
+                    </div>
+                    <div class="cc-sprint-progress__bar">
+                      <div class="cc-sprint-progress__fill" :style="'width:' + ccSprintProgress() + '%'"></div>
+                    </div>
+                  </div>
+                  <div class="cc-sprint-stats">
+                    <div class="cc-sprint-stat">
+                      <div class="cc-sprint-stat__val" style="color:var(--text-secondary)" x-text="ccTasksByStatus().backlog.length"></div>
+                      <div class="cc-sprint-stat__label">Backlog</div>
+                    </div>
+                    <div class="cc-sprint-stat">
+                      <div class="cc-sprint-stat__val" style="color:#f59e0b" x-text="ccTasksByStatus().inProgress.length"></div>
+                      <div class="cc-sprint-stat__label">Em andamento</div>
+                    </div>
+                    <div class="cc-sprint-stat">
+                      <div class="cc-sprint-stat__val" style="color:#3b82f6" x-text="ccTasksByStatus().review.length"></div>
+                      <div class="cc-sprint-stat__label">Revisão</div>
+                    </div>
+                    <div class="cc-sprint-stat">
+                      <div class="cc-sprint-stat__val" style="color:#10b981" x-text="ccTasksByStatus().done.length"></div>
+                      <div class="cc-sprint-stat__label">Concluído</div>
+                    </div>
+                  </div>
+                  <template x-if="sprint.highlights.length">
+                    <div>
+                      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin-bottom:6px">Highlights</div>
+                      <template x-for="h in sprint.highlights" :key="h">
+                        <div style="font-size:12px;color:var(--neutral-700);padding:2px 0;display:flex;align-items:center;gap:6px">
+                          <span style="color:var(--primary);font-weight:700">·</span>
+                          <span x-text="h"></span>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+            <!-- 2. TEAM ALLOCATION (2×2) -->
+            <div class="bento-card bento-card--hero">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Time</span>
+                <span style="font-size:11px;color:var(--text-secondary)" x-text="data.tasks.length + ' tarefas'"></span>
+              </div>
+              <div class="bento-card__body" style="justify-content:center">
+                <div class="cc-team-grid" x-show="data.tasks.length">
+                  <template x-for="[name, count] in Object.entries(ccTasksByMember()).slice(0,6)" :key="name">
+                    <div class="cc-team-member" @click="navigateWithFilter('tasks', name)">
+                      <div class="cc-team-member__avatar" :style="'background:' + (['#7c3aed','#0ea5e9','#10b981','#f59e0b','#ec4899','#6366f1'][Object.keys(ccTasksByMember()).indexOf(name) % 6])">
+                        <span x-text="name.charAt(0).toUpperCase()"></span>
+                        <span class="cc-team-member__badge" :class="count > 20 ? 'cc-team-member__badge--high' : ''" x-text="count"></span>
+                      </div>
+                      <div class="cc-team-member__name" x-text="name"></div>
+                    </div>
+                  </template>
+                </div>
+                <!-- skeleton -->
+                <div x-show="!data.tasks.length" style="display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem">
+                  <template x-for="i in [1,2,3,4,5,6]" :key="i">
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+                      <div class="cc-skeleton" style="width:40px;height:40px;border-radius:50%"></div>
+                      <div class="cc-skeleton" style="width:48px;height:10px"></div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. RECENT ACTIVITY (1×tall) -->
+            <div class="bento-card bento-card--tall">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Atividade</span>
+              </div>
+              <div class="bento-card__body">
+                <div class="cc-activity-feed" x-show="ccRecentActivity().length">
+                  <template x-for="(item, i) in ccRecentActivity()" :key="i">
+                    <div class="cc-activity-item">
+                      <div class="cc-activity-item__avatar" x-text="item.who.charAt(0)"></div>
+                      <div class="cc-activity-item__content">
+                        <div class="cc-activity-item__text" x-text="item.who + ': ' + item.text"></div>
+                        <div class="cc-activity-item__time" x-text="item.time ? new Date(item.time).toLocaleDateString('pt-BR') : ''"></div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+                <!-- skeleton -->
+                <div x-show="!ccRecentActivity().length" style="display:flex;flex-direction:column;gap:8px">
+                  <template x-for="i in [1,2,3,4,5]" :key="i">
+                    <div style="display:flex;gap:8px;align-items:center">
+                      <div class="cc-skeleton" style="width:28px;height:28px;border-radius:50%;flex-shrink:0"></div>
+                      <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+                        <div class="cc-skeleton" style="height:10px;width:80%"></div>
+                        <div class="cc-skeleton" style="height:8px;width:40%"></div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <!-- 4. ACTIVE PROJECTS (full row) -->
+            <div class="bento-card bento-card--full" style="grid-auto-rows:auto">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Projetos Ativos</span>
+              </div>
+              <div class="bento-card__body" style="padding-bottom:1.25rem">
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.625rem">
+                  <template x-for="p in data.projects" :key="p.id">
+                    <div class="cc-project-card">
+                      <div class="cc-project-card__icon" x-text="p.icon"></div>
+                      <div class="cc-project-card__info">
+                        <div class="cc-project-card__name" x-text="p.nome"></div>
+                        <div class="cc-project-card__desc" x-text="p.responsavel"></div>
+                      </div>
+                      <div class="cc-project-card__progress">
+                        <span class="cc-project-card__pct" x-text="p.progresso + '%'"></span>
+                        <div class="cc-project-card__bar">
+                          <div class="cc-project-card__bar-fill" :style="'width:' + p.progresso + '%'"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <!-- 5. TASK BOARD SNAPSHOT (wide 2×1) -->
+            <div class="bento-card bento-card--wide" style="height:auto;min-height:14rem">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Tasks</span>
+                <button class="btn btn--ghost btn--xs" @click="navigate('tasks')" style="font-size:11px">Ver todas →</button>
+              </div>
+              <div class="bento-card__body" style="padding-bottom:.75rem">
+                <div class="cc-kanban">
+                  <template x-for="[status, label, color, dotColor] in [['backlog','Backlog','var(--text-secondary)','#94a3b8'],['inProgress','Em andamento','#f59e0b','#f59e0b'],['review','Revisão','#3b82f6','#3b82f6'],['done','Concluído','#10b981','#10b981']]" :key="status">
+                    <div class="cc-kanban-col" @click="navigateWithFilter('tasks', status)">
+                      <div class="cc-kanban-col__header">
+                        <div class="cc-kanban-col__dot" :style="'background:' + dotColor"></div>
+                        <div class="cc-kanban-col__label" x-text="label"></div>
+                      </div>
+                      <div class="cc-kanban-col__count" :style="'color:' + color" x-text="ccTasksByStatus()[status]?.length || 0"></div>
+                      <template x-for="t in (ccTasksByStatus()[status] || []).slice(0,2)" :key="t.id">
+                        <div class="cc-kanban-task" x-text="t.titulo || t.nome"></div>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <!-- 6. TOOLS & REPOS (wide 2×1) -->
+            <div class="bento-card bento-card--wide" style="height:auto;min-height:14rem">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Ferramentas & Repos</span>
+              </div>
+              <div class="bento-card__body" style="padding-bottom:.75rem">
+                <div class="cc-tools-grid">
+                  <template x-for="r in data.repos" :key="r.nome">
+                    <a class="cc-tool-card" :href="r.url || r.github || '#'" target="_blank" rel="noopener">
+                      <div class="cc-tool-card__dot" :style="'background:' + r.color"></div>
+                      <div class="cc-tool-card__name" x-text="r.nome"></div>
+                      <div class="cc-tool-card__stack">
+                        <template x-for="tag in r.stack" :key="tag">
+                          <span class="cc-tool-card__tag" x-text="tag"></span>
+                        </template>
+                      </div>
+                      <div class="cc-tool-card__status" :class="'cc-tool-card__status--' + r.status" x-text="r.status === 'live' ? '● live' : '○ dev'"></div>
+                    </a>
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <!-- 7. SPRINT TIMELINE (full row) -->
+            <div class="bento-card bento-card--full" style="height:auto;min-height:10rem">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Timeline de Sprints</span>
+              </div>
+              <div class="bento-card__body" style="padding-bottom:1.25rem">
+                <div class="cc-timeline">
+                  <template x-for="sprint in data.sprints" :key="sprint.id">
+                    <div class="cc-timeline-item" :class="sprint.status !== 'ativo' ? 'cc-timeline-item--planned' : ''">
+                      <div style="display:flex;align-items:center;gap:.625rem;margin-bottom:4px">
+                        <div class="cc-timeline-item__sprint" x-text="sprint.nome"></div>
+                        <span class="badge" :class="sprint.status === 'ativo' ? 'badge--success' : 'badge--neutral'" x-text="sprint.status === 'ativo' ? 'ativo' : 'planejado'" style="font-size:10px;padding:2px 7px"></span>
+                      </div>
+                      <div class="cc-timeline-item__dates" x-text="sprint.inicio + ' → ' + sprint.fim + ' · ' + sprint.total + ' tarefas'"></div>
+                      <div class="cc-timeline-item__highlights" x-show="sprint.highlights.length">
+                        <template x-for="h in sprint.highlights" :key="h">
+                          <div class="cc-timeline-item__highlight" x-text="h"></div>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
 
         <!-- ===== PAGE: DASHBOARD (Linear/Notion Style) ===== -->
         <div class="page-content" x-show="ui.page === 'dashboard'" x-transition>
@@ -1313,7 +1552,7 @@
             <div class="op-tab-content" x-show="ui.activeDetailTab === 'whatsapp_detail'">
               <div class="op-tab-header">
                 <h3>Conversas WhatsApp</h3>
-                <button class="badge badge--success" style="background:#25d366;color:#fff;border:none;cursor:pointer;font-size:12px" @click="openDetailWhatsApp()">Abrir no WA</button>
+                <button class="badge badge--success" style="background:#25d366;color:#fff;border:none;cursor:pointer;font-size:12px" @click="openMenteeChat(data.detail.profile)">Abrir no WA</button>
               </div>
               <template x-if="data.detail?.last_interactions?.length">
                 <div class="detail-wa-feed">
