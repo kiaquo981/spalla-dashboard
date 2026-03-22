@@ -398,7 +398,6 @@ function operon() {
         { id: 'dossie-pipeline', nome: 'Pipeline de Dossiê', desc: 'Download → Dossiê Final automatizado', status: 'em_andamento', responsavel: 'Kaique', progresso: 45, github: 'https://github.com/case-company/dossie-pipeline', icon: '📋' },
         { id: 'wa-management', nome: 'WA Management', desc: 'Gestão consultiva de grupos WhatsApp', status: 'em_andamento', responsavel: 'Kaique', progresso: 60, github: 'https://github.com/case-company/spalla-dashboard', icon: '💬' },
         { id: 'queila-brain', nome: 'Queila Brain', desc: 'Clone cognitivo — 235 aulas transcritas', status: 'em_andamento', responsavel: 'Kaique', progresso: 80, github: 'https://github.com/case-company/queila-brain', icon: '🧠' },
-        { id: 'clarinha', nome: 'Clarinha IA', desc: 'Assistente IA para mentorados', status: 'em_andamento', responsavel: 'Heitor', progresso: 35, github: 'https://github.com/case-company/clarinha', icon: '🤖' },
         { id: 'frankflow', nome: 'FrankFlow', desc: 'Automação N8N de workflows CASE', status: 'em_andamento', responsavel: 'Hugo', progresso: 50, github: 'https://github.com/case-company/frankflow-deploy', icon: '🔄' },
         { id: 'content-workflow', nome: 'Workflow de Conteúdo', desc: 'PROCESSO: Novo modelo com IA', status: 'em_andamento', responsavel: 'Queila + Kaique', progresso: 20, github: null, icon: '✍️' },
         { id: 'dossies', nome: 'Dossiês C1/C2', desc: '140 tarefas de entregáveis para mentorados', status: 'planejado', responsavel: 'Mariza + Kaique', progresso: 5, github: null, icon: '📄' },
