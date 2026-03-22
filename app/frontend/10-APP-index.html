@@ -566,13 +566,14 @@
               <div class="bento-card__body">
                 <div class="cc-activity-feed" x-show="ccRecentActivity().length">
                   <template x-for="(item, i) in ccRecentActivity()" :key="i">
-                    <div class="cc-activity-item">
+                    <a class="cc-activity-item" :href="item.url || '#'" :target="item.url ? '_blank' : '_self'" rel="noopener" style="text-decoration:none;color:inherit;cursor:pointer">
                       <div class="cc-activity-item__avatar" x-text="item.who.charAt(0)"></div>
                       <div class="cc-activity-item__content">
-                        <div class="cc-activity-item__text" x-text="item.who + ': ' + item.text"></div>
+                        <div class="cc-activity-item__who" x-text="item.who" style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:1px"></div>
+                        <div class="cc-activity-item__text" x-text="item.text"></div>
                         <div class="cc-activity-item__time" x-text="item.time ? new Date(item.time).toLocaleDateString('pt-BR') : ''"></div>
                       </div>
-                    </div>
+                    </a>
                   </template>
                 </div>
                 <!-- skeleton -->
@@ -649,14 +650,17 @@
                 <div class="cc-tools-grid">
                   <template x-for="r in data.ferramentas" :key="r.nome">
                     <a class="cc-tool-card" :href="r.url || '#'" target="_blank" rel="noopener">
-                      <div class="cc-tool-card__dot" :style="'background:' + r.color"></div>
-                      <div class="cc-tool-card__name" x-text="r.nome"></div>
-                      <div class="cc-tool-card__stack">
-                        <template x-for="tag in r.tags" :key="tag">
-                          <span class="cc-tool-card__tag" x-text="tag"></span>
-                        </template>
+                      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+                        <div class="cc-tool-card__dot" :style="'background:' + r.color"></div>
+                        <span :style="'font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:' + (r.status==='live' ? '#10b981' : '#f59e0b')" x-text="r.status === 'live' ? 'ao vivo' : 'beta'"></span>
                       </div>
-                      <div class="cc-tool-card__desc" x-text="r.desc" style="font-size:11px;color:var(--text-secondary);margin-top:4px"></div>
+                      <div class="cc-tool-card__name" x-text="r.nome"></div>
+                      <div class="cc-tool-card__desc" x-text="r.desc" style="font-size:11px;color:var(--text-secondary);margin-top:2px;line-height:1.3"></div>
+                      <template x-if="r.falta">
+                        <div style="margin-top:6px;font-size:10px;color:#f59e0b;font-weight:600;display:flex;align-items:center;gap:3px">
+                          <span>⚠</span><span x-text="r.falta"></span>
+                        </div>
+                      </template>
                     </a>
                   </template>
                 </div>

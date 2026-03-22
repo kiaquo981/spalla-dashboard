@@ -406,10 +406,13 @@ function operon() {
         { id: 'S3', nome: 'Sprint 3', inicio: '2026-03-30', fim: '2026-04-05', status: 'planejado', total: 230, concluidas: 0, highlights: [] },
       ],
       ferramentas: [
-        { nome: 'Spalla', desc: 'Plataforma em produção', url: 'https://spalla-dashboard.vercel.app', tags: ['ao vivo'], status: 'live', color: '#7c3aed' },
-        { nome: 'ClickUp', desc: 'Gestão de tarefas e sprints', url: 'https://app.clickup.com', tags: ['tarefas'], status: 'live', color: '#6366f1' },
-        { nome: 'n8n', desc: 'Automações e fluxos de trabalho', url: null, tags: ['automação'], status: 'live', color: '#ea580c' },
+        { nome: 'Hub CASE AI', desc: 'Central de agentes de IA — uso interno e mentorados', url: 'https://hub.caseai.com.br/', tags: ['ao vivo', 'ia'], status: 'live', falta: null, color: '#7c3aed' },
+        { nome: 'Social CASE', desc: 'Calendário editorial + métricas das redes dos mentorados', url: 'http://social.caseai.com.br/', tags: ['beta'], status: 'beta', falta: 'Configurar acesso para mentorados', color: '#0ea5e9' },
+        { nome: 'Funnel CASE', desc: 'Visualização e design dos funis da mentoria', url: 'https://funnelcase.vercel.app/', tags: ['beta'], status: 'beta', falta: 'Liberação para alunos', color: '#10b981' },
+        { nome: 'PageOS', desc: 'Criação de páginas de captura e vendas', url: 'https://page-os-eta.vercel.app/', tags: ['beta'], status: 'beta', falta: 'Liberação para alunos', color: '#f59e0b' },
+        { nome: 'Carousel AI', desc: 'Produção de carrosséis com IA', url: 'https://carousel-ai-production.up.railway.app/', tags: ['beta'], status: 'beta', falta: 'Liberação para alunos', color: '#ec4899' },
       ],
+      ccData: null, // live data from ClickUp (populated by loadCommandCenterData)
     },
 
     // --- F2.5 — In-app notifications ---
@@ -1479,6 +1482,7 @@ function operon() {
         if (this.auth.authenticated) {
           await this.loadReminders(); // Load from Supabase
           await this.loadDashboard();
+          this.loadCommandCenterData(); // non-blocking: populate CC from ClickUp
           // Pre-fetch WhatsApp profile pics in background
           this._loadWaProfilePics();
           // Fetch schedule-related data from backend API
@@ -1575,6 +1579,7 @@ function operon() {
 
         await this.loadReminders();
         await this.loadDashboard();
+        this.loadCommandCenterData(); // non-blocking
         this.loadWaSession();
         this.waStartHealthCheck();
 
@@ -2434,6 +2439,16 @@ function operon() {
     // ===================== COMMAND CENTER COMPUTED =====================
 
     ccTasksByStatus() {
+      // Prefer live ClickUp data
+      if (this.data.ccData?.by_status) {
+        const s = this.data.ccData.by_status;
+        return {
+          backlog:    s.backlog    || [],
+          inProgress: s.em_andamento || [],
+          review:     s.em_revisao  || [],
+          done:       s.concluida   || [],
+        };
+      }
       const tasks = this.data.tasks || [];
       return {
         backlog:    tasks.filter(t => t.status === 'pendente'),
@@ -2444,6 +2459,8 @@ function operon() {
     },
 
     ccTasksByMember() {
+      // Prefer live ClickUp data
+      if (this.data.ccData?.by_member) return this.data.ccData.by_member;
       const tasks = this.data.tasks || [];
       const map = {};
       tasks.forEach(t => {
@@ -2454,6 +2471,13 @@ function operon() {
     },
 
     ccSprintProgress() {
+      if (this.data.ccData?.sprint) {
+        const s = this.data.ccData.sprint;
+        const total = this.data.ccData.total || 0;
+        const done  = this.data.ccData.concluidas || 0;
+        if (!total) return 0;
+        return Math.round((done / total) * 100);
+      }
       const today = new Date().toISOString().slice(0, 10);
       const sprint = (this.data.sprints || []).find(s => s.inicio <= today && today <= s.fim)
                   || (this.data.sprints || []).find(s => s.status === 'ativo');
@@ -2462,6 +2486,15 @@ function operon() {
     },
 
     ccRecentActivity() {
+      // Prefer live ClickUp data
+      if (this.data.ccData?.activity?.length) {
+        return this.data.ccData.activity.slice(0, 12).map(a => ({
+          text: a.text,
+          who: a.who,
+          time: a.time,
+          url: a.url,
+        }));
+      }
       const tasks = [...(this.data.tasks || [])];
       return tasks
         .filter(t => t.updated_at || t.created_at)
@@ -2473,6 +2506,32 @@ function operon() {
           time: t.updated_at || t.created_at,
           status: t.status,
         }));
+    },
+
+    async loadCommandCenterData() {
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/clickup/command-center`);
+        if (!res.ok) return;
+        const d = await res.json();
+        this.data.ccData = d;
+        // Sync active sprint totals into data.sprints for the header/timeline card
+        if (d.sprint) {
+          const idx = this.data.sprints.findIndex(s => s.id === d.sprint.id || s.nome === d.sprint.nome);
+          const patch = { total: d.total, concluidas: d.concluidas, status: 'ativo' };
+          if (idx >= 0) {
+            this.data.sprints[idx] = { ...this.data.sprints[idx], ...patch };
+          } else {
+            // If sprint not in local array, push it
+            this.data.sprints.push({ ...d.sprint, ...patch, highlights: [] });
+          }
+          // Mark others as planejado
+          this.data.sprints = this.data.sprints.map(s =>
+            s.id === d.sprint.id || s.nome === d.sprint.nome ? s : { ...s, status: 'planejado' }
+          );
+        }
+      } catch (e) {
+        console.warn('[CC] ClickUp load failed:', e.message);
+      }
     },
 
     navigateWithFilter(page, filter) {
