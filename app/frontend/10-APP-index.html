@@ -5953,12 +5953,12 @@
         <!-- Modal: WA Task Extraction (S9-C) -->
         <div x-show="ui.waTaskExtract.open" class="modal-overlay" x-transition.opacity
              @click.self="closeWaTaskExtract()" @keydown.escape.window="closeWaTaskExtract()" style="display:none">
-          <div class="modal-card" style="max-width:480px">
-            <div class="modal-header">
-              <h3>Criar Tarefa da Conversa</h3>
-              <button @click="closeWaTaskExtract()">✕</button>
+          <div class="modal" style="max-width:480px">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid var(--neutral-200,#e5e7eb)">
+              <h3 style="font-size:1rem;font-weight:600;margin:0">Criar Tarefa da Conversa</h3>
+              <button class="op-btn op-btn--ghost op-btn--sm" @click="closeWaTaskExtract()">&#10005;</button>
             </div>
-            <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+            <div style="padding:1rem 1.25rem;display:flex;flex-direction:column;gap:12px">
               <div class="extract-source" x-show="ui.waTaskExtract.msg?.content_text">
                 <span style="font-size:11px;color:#64748b;font-weight:500">MENSAGEM ORIGEM</span>
                 <p style="font-size:13px;color:#374151;margin:4px 0 0"
@@ -5985,11 +5985,12 @@
                 </div>
               </div>
             </div>
-            <div class="modal-footer">
-              <button class="btn-secondary" @click="closeWaTaskExtract()">Cancelar</button>
-              <button class="btn-primary" @click="submitWaTaskExtract()"
+            <div style="display:flex;gap:.5rem;justify-content:flex-end;padding:1rem 1.25rem;border-top:1px solid var(--neutral-200,#e5e7eb)">
+              <button class="op-btn op-btn--ghost" @click="closeWaTaskExtract()">Cancelar</button>
+              <button class="op-btn op-btn--primary" @click="submitWaTaskExtract()"
                       :disabled="ui.waTaskExtract.saving || !ui.waTaskExtract.titulo.trim()">
-                <span x-text="ui.waTaskExtract.saving ? 'Salvando...' : 'Criar Tarefa'"></span>              </button>
+                <span x-text="ui.waTaskExtract.saving ? 'Salvando...' : 'Criar Tarefa'"></span>
+              </button>
             </div>
           </div>
         </div>
@@ -5997,19 +5998,19 @@
         <!-- Modal: Salvar Segment (S9-C) -->
         <div x-show="ui.waSaveSegmentModal.open" class="modal-overlay" x-transition.opacity
              @click.self="ui.waSaveSegmentModal.open = false" @keydown.escape.window="ui.waSaveSegmentModal.open = false" style="display:none">
-          <div class="modal-card" style="max-width:360px">
-            <div class="modal-header">
-              <h3>Salvar filtro atual</h3>
-              <button @click="ui.waSaveSegmentModal.open = false">✕</button>
+          <div class="modal modal--sm" style="max-width:360px">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid var(--neutral-200,#e5e7eb)">
+              <h3 style="font-size:1rem;font-weight:600;margin:0">Salvar filtro atual</h3>
+              <button class="op-btn op-btn--ghost op-btn--sm" @click="ui.waSaveSegmentModal.open = false">&#10005;</button>
             </div>
-            <div class="modal-body">
+            <div style="padding:1rem 1.25rem">
               <input type="text" x-model="ui.waSaveSegmentModal.name"
                      placeholder="Ex: Onboarding em risco" class="form-input" style="width:100%"
                      @keydown.enter="saveCurrentWaSegment()" autofocus />
             </div>
-            <div class="modal-footer">
-              <button class="btn-secondary" @click="ui.waSaveSegmentModal.open = false">Cancelar</button>
-              <button class="btn-primary" @click="saveCurrentWaSegment()">Salvar</button>
+            <div style="display:flex;gap:.5rem;justify-content:flex-end;padding:.75rem 1.25rem;border-top:1px solid var(--neutral-200,#e5e7eb)">
+              <button class="op-btn op-btn--ghost" @click="ui.waSaveSegmentModal.open = false">Cancelar</button>
+              <button class="op-btn op-btn--primary" @click="saveCurrentWaSegment()">Salvar</button>
             </div>
           </div>
         </div>
@@ -6794,8 +6795,8 @@
 
     <!-- Groups Create Modal -->
     <div x-show="ui.groupsModal.open" class="modal-overlay" x-transition.opacity @click.self="ui.groupsModal = { open: false, editing: null }" style="display:none;z-index:1100">
-      <div class="modal-card" style="max-width:360px;width:100%">
-        <div class="modal-header">
+      <div class="modal modal--sm" style="max-width:360px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid var(--neutral-200,#e5e7eb)">
           <h3 style="font-size:1rem;font-weight:600;margin:0">Nova Pasta</h3>
           <button class="op-btn op-btn--ghost op-btn--sm" @click="ui.groupsModal = { open: false, editing: null }">&#10005;</button>
         </div>
@@ -6837,8 +6838,8 @@
 
     <!-- Assign Mentee to Group Modal -->
     <div x-show="ui.assignModal.open" class="modal-overlay" x-transition.opacity @click.self="ui.assignModal = { open: false, menteeId: null, menteeNome: '' }" style="display:none;z-index:1100">
-      <div class="modal-card" style="max-width:320px;width:100%">
-        <div class="modal-header">
+      <div class="modal modal--sm" style="max-width:320px">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid var(--neutral-200,#e5e7eb)">
           <div>
             <h3 style="font-size:1rem;font-weight:600;margin:0">Adicionar a Pasta</h3>
             <p style="font-size:.78rem;color:var(--op-muted);margin:.2rem 0 0" x-text="ui.assignModal.menteeNome"></p>
