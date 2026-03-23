@@ -18,6 +18,28 @@
     @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.5} }
     @keyframes spin { from{transform:rotate(0deg)}to{transform:rotate(360deg)} }
 
+    /* ===== Tool Status Bar ===== */
+    .tool-status-bar { display:flex;align-items:center;gap:10px;padding:7px 12px;background:#fafaf8;border:1px solid #e8e4dc;border-radius:10px;margin-bottom:10px; }
+    .tool-status-bar__header { display:flex;align-items:center;gap:6px;white-space:nowrap; }
+    .tool-status-bar__title { font-size:11px;font-weight:600;color:#6b6355;text-transform:uppercase;letter-spacing:0.04em; }
+    .tool-status-bar__sep { width:1px;height:14px;background:#e0dbd0;flex-shrink:0; }
+    .tool-status-bar__updated { font-size:10px;color:#9ca3af; }
+    .tool-status-bar__refresh { background:none;border:none;cursor:pointer;color:#9ca3af;padding:2px 4px;display:flex;align-items:center;border-radius:4px;transition:color 0.15s; }
+    .tool-status-bar__refresh:hover { color:#6b6355; }
+    .tool-status-bar__refresh:disabled { opacity:0.4;cursor:default; }
+    .tool-status-bar__tools { display:flex;align-items:center;gap:5px;flex-wrap:wrap; }
+    .tool-status-chip { display:inline-flex;align-items:center;gap:5px;padding:3px 9px 3px 6px;border-radius:20px;font-size:11.5px;font-weight:500;text-decoration:none;border:1px solid transparent;transition:opacity 0.15s;cursor:pointer; }
+    .tool-status-chip:hover { opacity:0.75; }
+    .tool-status-chip--online { background:#f0fdf4;color:#166534;border-color:#bbf7d0; }
+    .tool-status-chip--offline { background:#fef2f2;color:#991b1b;border-color:#fecaca; }
+    .tool-status-chip--checking { background:#f5f5f3;color:#6b7280;border-color:#e5e7eb; }
+    .tool-status-chip__dot { width:6px;height:6px;border-radius:50%;flex-shrink:0; }
+    .tool-status-chip--online .tool-status-chip__dot { background:#22c55e; }
+    .tool-status-chip--offline .tool-status-chip__dot { background:#ef4444;animation:pulse-red 1.4s infinite; }
+    .tool-status-chip--checking .tool-status-chip__dot { background:#d1d5db;animation:pulse-grey 1s infinite; }
+    @keyframes pulse-red { 0%,100%{opacity:1}50%{opacity:0.35} }
+    @keyframes pulse-grey { 0%,100%{opacity:1}50%{opacity:0.45} }
+
     /* ===== S9-B: WA DM v2 — Inbox, SLA, Canned, Presence ===== */
 
     /* SLA Badges */
@@ -531,6 +553,26 @@
             <button class="wa-pendencias__toggle" x-show="!pendenciasMinimized && pendenciasList.length > 15" @click="pendenciasExpanded = !pendenciasExpanded">
               <span x-text="pendenciasExpanded ? 'Mostrar menos' : 'Ver todos (' + pendenciasList.length + ')'"></span>
             </button>
+          </div>
+
+          <!-- Tool Status Bar -->
+          <div class="tool-status-bar" x-show="!ui.loading" x-cloak>
+            <div class="tool-status-bar__header">
+              <span class="tool-status-bar__title">Ferramentas</span>
+              <div class="tool-status-bar__sep"></div>
+              <span class="tool-status-bar__updated" x-show="_toolsCheckedAt" x-text="'às ' + _toolsCheckedAt"></span>
+              <button class="tool-status-bar__refresh" @click="checkToolsStatus()" :disabled="_toolsChecking" title="Verificar agora">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" :style="_toolsChecking ? 'animation:spin 1s linear infinite' : ''"><path d="M21 12a9 9 0 1 1-6.219-8.56"/><polyline points="23 4 23 10 17 10"/></svg>
+              </button>
+            </div>
+            <div class="tool-status-bar__tools">
+              <template x-for="t in toolsStatus" :key="t.id">
+                <a :href="t.url" target="_blank" rel="noopener noreferrer" class="tool-status-chip" :class="'tool-status-chip--' + t.status" :title="t.name + (t.status === 'online' ? ' · online' : t.status === 'offline' ? ' · offline' : ' · verificando...')">
+                  <span class="tool-status-chip__dot"></span>
+                  <span x-text="t.name"></span>
+                </a>
+              </template>
+            </div>
           </div>
 
           <!-- Mentee Card Grid -->

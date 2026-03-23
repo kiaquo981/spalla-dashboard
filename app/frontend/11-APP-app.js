@@ -464,6 +464,17 @@ function operon() {
     _menteesWithEmail: [],
     _integrations: {},
 
+    // --- Tool Status ---
+    toolsStatus: [
+      { id: 'hubcase',    name: 'HubCase',     url: 'https://hub.caseai.com.br',                         status: 'checking' },
+      { id: 'socialcase', name: 'Social Case',  url: 'https://social.caseai.com.br',                      status: 'checking' },
+      { id: 'funnelcase', name: 'FunnelCase',   url: 'https://funnelcase.vercel.app',                     status: 'checking' },
+      { id: 'pageos',     name: 'PageOS',       url: 'https://page-os-eta.vercel.app',                    status: 'checking' },
+      { id: 'carrossel',  name: 'Carrossel AI', url: 'https://carousel-ai-production.up.railway.app',     status: 'checking' },
+    ],
+    _toolsChecking: false,
+    _toolsCheckedAt: null,
+
     // ===================== COMPUTED =====================
 
     get filteredMentees() {
@@ -1244,6 +1255,9 @@ function operon() {
           }
         });
 
+        // Check tool statuses in background (non-blocking)
+        this.checkToolsStatus();
+
         // Restore JWT session from localStorage + validate with server
         const accessToken = localStorage.getItem('spalla_access_token');
         const refreshToken = localStorage.getItem('spalla_refresh_token');
@@ -1620,6 +1634,28 @@ function operon() {
         clearInterval(this._whatsappPollInterval);
         this._whatsappPollInterval = null;
       }
+    },
+
+    // ===================== TOOL STATUS =====================
+
+    async checkToolsStatus() {
+      if (this._toolsChecking) return;
+      this._toolsChecking = true;
+      this.toolsStatus.forEach(t => { t.status = 'checking'; });
+      await Promise.all(this.toolsStatus.map(async (tool) => {
+        try {
+          const ctrl = new AbortController();
+          const tid = setTimeout(() => ctrl.abort(), 6000);
+          await fetch(tool.url, { method: 'HEAD', mode: 'no-cors', signal: ctrl.signal });
+          clearTimeout(tid);
+          tool.status = 'online';
+        } catch (_) {
+          tool.status = 'offline';
+        }
+      }));
+      const now = new Date();
+      this._toolsCheckedAt = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      this._toolsChecking = false;
     },
 
     // ===================== DATA LOADING =====================
