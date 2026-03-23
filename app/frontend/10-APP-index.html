@@ -672,7 +672,7 @@
               <div class="bento-card__body" style="overflow-y:auto">
                 <div class="cc-activity-feed" x-show="ccRecentActivity().length">
                   <template x-for="(item, i) in ccRecentActivity()" :key="i">
-                    <a class="cc-activity-item" :href="item.url || '#'" :target="item.url ? '_blank' : '_self'" rel="noopener" style="text-decoration:none;color:inherit;cursor:pointer">
+                    <a class="cc-activity-item" href="#" @click.prevent="navigateToActivityTask(item)" style="text-decoration:none;color:inherit;cursor:pointer">
                       <div class="cc-activity-item__avatar" x-text="item.who.charAt(0)"></div>
                       <div class="cc-activity-item__content">
                         <div class="cc-activity-item__who" x-text="item.who" style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:1px"></div>
@@ -837,10 +837,10 @@
               <div class="bento-card__body" style="padding-bottom:1.25rem">
                 <div class="cc-timeline">
                   <template x-for="sprint in data.sprints" :key="sprint.id">
-                    <div class="cc-timeline-item" :class="sprint.status !== 'ativo' ? 'cc-timeline-item--planned' : ''">
+                    <div class="cc-timeline-item" :class="sprint.status === 'planejado' ? 'cc-timeline-item--planned' : (sprint.status === 'encerrado' ? 'cc-timeline-item--done' : '')">
                       <div style="display:flex;align-items:center;gap:.625rem;margin-bottom:4px">
                         <div class="cc-timeline-item__sprint" x-text="sprint.nome"></div>
-                        <span class="badge" :class="sprint.status === 'ativo' ? 'badge--success' : 'badge--neutral'" x-text="sprint.status === 'ativo' ? 'ativo' : 'planejado'" style="font-size:10px;padding:2px 7px"></span>
+                        <span class="badge" :class="sprint.status === 'ativo' ? 'badge--success' : (sprint.status === 'encerrado' ? 'badge--muted' : 'badge--neutral')" x-text="sprint.status === 'ativo' ? 'ativo' : (sprint.status === 'encerrado' ? 'encerrado' : 'planejado')" style="font-size:10px;padding:2px 7px"></span>
                       </div>
                       <div class="cc-timeline-item__dates" x-text="new Date(sprint.inicio+'T12:00:00').toLocaleDateString('pt-BR',{day:'numeric',month:'short'}) + ' → ' + new Date(sprint.fim+'T12:00:00').toLocaleDateString('pt-BR',{day:'numeric',month:'short'}) + ' · ' + sprint.total + ' tarefas'"></div>
                       <div class="cc-timeline-item__highlights" x-show="sprint.highlights.length">
@@ -2702,12 +2702,30 @@
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                             </button>
                           </div>
-                          <div class="task-drawer__comment-text" x-text="cm.text"></div>
+                          <div class="task-drawer__comment-text" x-html="renderCommentText(cm.text)"></div>
                         </div>
                       </template>
                     </div>
-                    <div class="task-drawer__add-comment">
-                      <textarea x-model="taskForm.newComment" placeholder="Adicionar comentario..." class="modal__textarea" style="min-height:60px"></textarea>
+                    <div class="task-drawer__add-comment" style="position:relative">
+                      <!-- Mention dropdown -->
+                      <div x-show="ui.mentionDropdown && mentionMembers().length"
+                           style="position:absolute;bottom:calc(100% + 4px);left:0;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:4px;min-width:160px;z-index:200;max-height:180px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.3)">
+                        <template x-for="m in mentionMembers()" :key="m.id">
+                          <button @click.prevent="insertMention(m.nome_curto || m.name)"
+                                  style="display:flex;align-items:center;gap:8px;padding:6px 10px;width:100%;background:none;border:none;cursor:pointer;border-radius:6px;color:#e2e8f0;font-size:13px;text-align:left"
+                                  @mouseover="$el.style.background='#334155'" @mouseout="$el.style.background='none'">
+                            <span class="avatar avatar--sm" :style="'background:'+(m.cor||'#6366f1')+';width:20px;height:20px;font-size:9px;color:#fff;display:flex;align-items:center;justify-content:center;border-radius:50%;flex-shrink:0'" x-text="(m.nome_curto||m.name||'').charAt(0)"></span>
+                            <span x-text="m.nome_curto || m.name"></span>
+                          </button>
+                        </template>
+                      </div>
+                      <textarea x-model="taskForm.newComment"
+                                placeholder="Adicionar comentário... (@ para mencionar)"
+                                class="modal__textarea"
+                                style="min-height:60px"
+                                x-ref="commentTextarea"
+                                @keyup="onCommentKeyup($event)"
+                                @keydown="onCommentKeydown($event)"></textarea>
                       <button class="btn btn--sm btn--brand" @click="addComment(activeTaskDetail.id)" :disabled="!taskForm.newComment?.trim()">Comentar</button>
                     </div>
                   </div>

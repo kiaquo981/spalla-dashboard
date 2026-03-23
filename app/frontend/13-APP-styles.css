@@ -3277,6 +3277,7 @@ img { max-width: 100%; display: block; }
 .task-drawer__comment-text { font-size: 13px; color: #475569; line-height: 1.5; }
 .task-drawer__add-comment { display: flex; flex-direction: column; gap: 8px; }
 .task-drawer__add-comment .btn { align-self: flex-end; }
+.comment-mention { display: inline-block; background: #ede9fe; color: #6d28d9; border-radius: 4px; padding: 0 4px; font-weight: 600; font-size: 12px; }
 .task-drawer__actions { display: flex; gap: 8px; padding-top: 16px; border-top: 1px solid #e2e8f0; margin-top: 12px; }
 
 /* Modal large variant */
@@ -6945,6 +6946,15 @@ img { max-width: 100%; display: block; }
 .cc-timeline-item--planned::before {
   background: var(--surface);
   box-shadow: 0 0 0 2px var(--neutral-300);
+}
+
+.cc-timeline-item--done::before {
+  background: var(--neutral-300);
+  box-shadow: 0 0 0 2px var(--neutral-300);
+}
+
+.cc-timeline-item--done .cc-timeline-item__sprint {
+  color: var(--neutral-400);
 }
 
 .cc-timeline-item__sprint {
