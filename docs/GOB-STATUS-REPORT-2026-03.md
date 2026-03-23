@@ -178,109 +178,374 @@ O sistema tem funcionalidades que existem mas não viraram hábito:
 
 ## 4. Agentes de IA — Mapeamento Completo
 
-### 4.1 Agentes N8N — Inventário Completo (Auditoria Mar/2026)
+### 4.1 N8N — Inventário Completo (Auditoria DOM Mar/2026)
 
 > **Instância:** `meueditor.manager01.feynmanproject.com` (infraestrutura Feynman compartilhada)
-> **Total instância:** 897 workflows | **Com "CASE" no nome:** 24 | **CASE-relacionados (sem nome):** ~36
-> **JSONs exportados:** `bu-case/drive/agents/n8n-workflows/`
+> **Total instância:** 897 workflows | 18 páginas × 50/página
+> **Método de auditoria:** Extração DOM via Puppeteer — seletor `h2[class*="_cardHeading"]` + `[class*="_publishIndicatorColor_"]`
+> **Data:** Mar/2026
 
-#### Legenda de Status N8N
+#### Legenda
 | Símbolo | Significado |
 |---------|-------------|
-| ✅ | Active — workflow publicado e rodando |
-| ⊘ | Inactive — despublicado ou em standby |
-| 🔄 | Funcionando mas com melhorias pendentes |
-| ❌ | Não integrado / fora de uso |
+| ✅ | Active — publicado e rodando em produção |
+| ⊘ | Inactive — versão antiga, dev, ou descontinuado |
 
 ---
 
-#### 4.1.1 Workflows com "CASE" no Nome (24 workflows)
+#### 4.1.1 Clusters Funcionais — Visão Executiva
 
-> Auditado via extração DOM do N8N em Mar/2026. Status por SVG class (`_publishIndicatorColor_` = Active).
+| # | Cluster | Ativos ✅ | Função Principal | Versão Atual |
+|---|---------|-----------|-----------------|-------------|
+| 1 | **WhatsApp System** | ~15 | Orquestração total de mensagens WA — topics, alertas, recovery, scraper | v34 / WA 02-05 v2 |
+| 2 | **Dossiê Pipeline** | ~20 | Geração completa de dossiê em capítulos (Cap 1-12) | V8 CORRIGIDO (V11 sub-WFs) |
+| 3 | **Download Expert** | ~8 | Extração estruturada de calls de download (Sessões 1-3) | V10 |
+| 4 | **Agentes Mentoria (Funis)** | ~50 | Automação completa dos 11 funis de vendas via WA | V3 atual |
+| 5 | **Lapidação de Perfil** | ~10 | Reposicionamento de Instagram de mentorados | V12 Metodologia Queila |
+| 6 | **Linha Editorial** | ~20 | Geração de ideias, roteiros e conteúdo | v7 GOBBI FINAL |
+| 7 | **Stories System** | ~5 | Geração de stories para Instagram | V8 |
+| 8 | **QCES (Queila Content Extraction)** | ~7 | Extração de crenças, ganchos e posicionamento das aulas da Queila | v4 |
+| 9 | **Arquitetura de Produto** | ~8 | Mapeia método, aulas e materiais do mentorado | Orquestrador v2 |
+| 10 | **Instagram Scraper** | ~8 | Scraping diário de posts, seguidores, carrossel | v20 + V3 sync |
+| 11 | **Onboarding Mentorados** | ~5 | Entrada, matching, inserção Supabase, grupo WA | V7 |
+| 12 | **Plano de Ação** | ~4 | Geração e validação do plano de ação pós-call | v5 |
+| 13 | **CASE Analytics** | ~5 | Análise WA semanal, calls Zoom, consolidado mentorados | — |
+| 14 | **Pablo (Call Vendas)** | ~4 | Análise de calls de vendas + gestor de conhecimento | V2 |
+| 15 | **Fidelização** | ~8 | Gamificação, prevenção, Google Reviews, indicação | — |
+| 16 | **AI Hub Monitor** | ~5 | Monitoramento de erros, custos, relatório diário IA | — |
+| 17 | **RAG & Vetorização** | ~3 | Embeddings, busca vetorial, contexto de calls | — |
+| 18 | **SariDoctors (cliente externo)** | ~15 | 12 funis de agentes de conversão + lead score | V4 |
+| 19 | **Agente Produto Lovable** | ~7 | 6 agentes Lovable: mapa, pesquisa, vitrine, método, oferta, copy | — |
+| 20 | **MGD8 (cliente externo)** | ~5 | Sheets sync, grupos WA, cadastro | — |
+| 21 | **Naming Agent** | ~3 | Geração e validação de nomes + INPI | — |
+| 22 | **Financeiro / Billing** | ~3 | Conta Simples, Hubla→Supabase, Clint Deal Stage | — |
+| 23 | **Ads / Tráfego** | ~4 | Monitor Facebook Ads, análise visual/copy/estratégia | — |
+| 24 | **Zoom / Transcrição** | ~3 | Transcrição de calls, YouTube upload | — |
+| 25 | **MC Games (cliente externo)** | 0 (todos ⊘) | RFM, pipeline de dados, Power BI | — |
+| 26 | **Legado / Dev / Descontinuado** | 0 | My workflow X, fluxos antigos, ecomm, airtable | — |
 
-| # | Workflow | Status N8N | Cluster | Observação |
-|---|----------|-----------|---------|-----------|
-| 1 | **CASE - WA 02 - Orquestrador de WhatsApp CASE** | ✅ Active | WhatsApp System | Workflow principal de orquestração WA |
-| 2 | **CASE - WA 03 - Mensagens Proativas WhatsApp** | ✅ Active | WhatsApp System | Disparo proativo de mensagens |
-| 3 | **CASE - WA 05 - Integração Metas WhatsApp** | ✅ Active | WhatsApp System | Integração com Meta/Facebook |
-| 4 | **CASE Scraper + WhatsApp v34** | ✅ Active | WhatsApp System | Scraper Instagram + envio WA |
-| 5 | **CASE Stories** | ✅ Active | Conteúdo Hub | Geração de stories Instagram |
-| 6 | **CASE Download Expert - Sistema Novo** | ✅ Active | Pipeline Dossiê | Call de download estruturada |
-| 7 | **CASE SDR** | ✅ Active | Pipeline Vendas | Qualificação e SDR |
-| 8 | **CASE SDR Interno** | ✅ Active | Pipeline Vendas | Fluxo SDR interno |
-| 9 | **CASE Agendamento** | ✅ Active | Onboarding | Agendamento de calls |
-| 10 | **CASE - Lapidação de Perfil — Parte 1** | ⊘ Inactive | Conteúdo Hub | Análise de perfil IG |
-| 11 | **CASE - Lapidação de Perfil — Parte 2** | ⊘ Inactive | Conteúdo Hub | Output lapidação IG |
-| 12 | **CASE Agente Arquitetura de Produto** | ⊘ Inactive | Arquitetura Produto | 1 de 5 sub-agentes |
-| 13 | **CASE Arquitetura Produto — Orquestrador** | ⊘ Inactive | Arquitetura Produto | Orquestrador dos 5 agentes |
-| 14 | **CASE Arquitetura Produto — Análise** | ⊘ Inactive | Arquitetura Produto | Sub-agente análise |
-| 15 | **CASE Arquitetura Produto — Síntese** | ⊘ Inactive | Arquitetura Produto | Sub-agente síntese |
-| 16 | **CASE Arquitetura Produto — Output** | ⊘ Inactive | Arquitetura Produto | Sub-agente output |
-| 17 | **CASE Plano de Ação** | ⊘ Inactive | Plano de Ação | Geração de plano de ação |
-| 18 | **CASE Onboarding Novo Mentorado** | ⊘ Inactive | Onboarding | Fluxo entrada mentorado |
-| 19 | **CASE Análise de Formato de Conteúdo** | ⊘ Inactive | Conteúdo Hub | Análise formato posts |
-| 20 | **CASE Transcrição de Conteúdo** | ⊘ Inactive | Pipeline Dossiê | Transcrição reels/carrosséis |
-| 21 | **CASE - Fluxo de Concepção de Dossiê** | ⊘ Inactive | Pipeline Dossiê | Saindo do N8N — prompts baixados |
-| 22 | **CASE Revisão de Dossiê** | ⊘ Inactive | Pipeline Dossiê | QA gate dossiê |
-| 23 | **CASE Entrega de Dossiê** | ⊘ Inactive | Pipeline Dossiê | Entrega ao mentorado |
-| 24 | **CASE Análise de Conteúdo Hub** | ⊘ Inactive | Conteúdo Hub | A confirmar com Kaique |
-
-**Resumo CASE-named:** 9 Active ✅ / 15 Inactive ⊘
-
----
-
-#### 4.1.2 Workflows CASE-relacionados (sem "CASE" no nome — Top usados)
-
-> Identificados por recência de uso (últimos atualizados na instância). Ordenados por último update.
-
-| # | Workflow | Status N8N | Cluster | Observação |
-|---|----------|-----------|---------|-----------|
-| 1 | **Download Expert V10** | ✅ Active | Pipeline Dossiê | Versão mais recente do download |
-| 2 | **WA Orquestrador Principal** | ✅ Active | WhatsApp System | Backbone WA |
-| 3 | **Arquitetura de Produto — Main** | ✅ Active | Arquitetura Produto | Workflow consolidado |
-| 4 | **Agente de Ideias & Roteiros** | 🔄 Active | Conteúdo Hub | Melhorias pendentes |
-| 5 | **Transcrição Reels e Carrosséis** | ✅ Active | Pipeline Dossiê | Em uso |
-| 6 | **Fluxo Entrada Novo Mentorado** | ✅ Active | Onboarding | Em uso |
-| 7 | **Agendamento de Calls** | ✅ Active | Onboarding | Em uso |
-| 8 | **SDR Qualificação** | ✅ Active | Pipeline Vendas | Em uso |
-| 9 | **Lapidação Instagram v2** | ⊘ Inactive | Conteúdo Hub | Substituído por CASE-named |
-| 10 | **Plano de Ação Mentorado** | 🔄 Active | Plano de Ação | Em uso, ajustes pendentes |
-| 11-36 | *(Workflows adicionais — a catalogar iterativamente com Kaique)* | — | — | — |
+**Total estimado ativos: ~220–240 workflows ✅ / ~660–680 ⊘ (arquivados/dev)**
 
 ---
 
-#### 4.1.3 Clusters Funcionais — Visão Consolidada
+#### 4.1.2 Cluster 1 — WhatsApp System (CORE OPERACIONAL)
 
-| Cluster | Workflows | Ativos | Função Principal |
-|---------|-----------|--------|-----------------|
-| **WhatsApp System** | WA 02, WA 03, WA 05, Scraper v34 | 4 ✅ | Orquestração completa de mensagens WA |
-| **Download Expert v10** | Download Expert V10, CASE Download Expert | 2 ✅ | Call de download estruturada com extração de dados |
-| **Arquitetura de Produto** | 5 sub-agentes + orquestrador | 1 ✅ (main) | Análise e síntese de produto do mentorado |
-| **Pipeline Dossiê** | Transcrição, Concepção, Revisão, Entrega | 1 ✅ | End-to-end de produção do dossiê |
-| **Conteúdo Hub** | Stories, Lapidação, Ideias, Roteiros, Análise | 2 ✅ | Geração de conteúdo Instagram |
-| **CASE SDR** | SDR, SDR Interno | 2 ✅ | Qualificação e pipeline de vendas |
-| **Onboarding** | Onboarding, Agendamento, Entrada Mentorado | 3 ✅ | Entrada e integração de novos mentorados |
-| **Plano de Ação** | Plano de Ação | 1 🔄 | Geração de plano de ação personalizado |
+| Workflow | Status | Função |
+|----------|--------|--------|
+| Sistema Gestão WA Scraper v34 | ✅ | Backbone — scraper + orquestração central |
+| WA 02 v2 AI Topic Classifier | ✅ | Classifica mensagens por tópico com IA |
+| WA 03 v2 Topic Maintenance | ✅ | Manutenção de tópicos ativos |
+| WA 05 Recovery & Dead Letter | ✅ | Recuperação de mensagens falhas |
+| Alertas Mensagens Pendentes | ✅ | Alerta p/ msgs sem resposta |
+| Alertas WhatsApp Mensagens Pendentes 2h | ✅ | Alerta 2h sem resposta |
+| Alerta Menção no Grupo | ✅ | Monitora menções em grupos |
+| Alerta Mensagens Não Respondidas | ✅ | Relatório de não-respondidas |
+| Follow-Up Menções Queila | ✅ | Follow-up automático de menções |
+| WhatsApp Mention Alerts Spalla | ✅ | Alertas WA para Spalla |
+| WhatsApp Response Analyzer Spalla | ✅ | Análise de respostas WA |
+| Zap dos Tópicos | ✅ | Mapeamento de tópicos WA |
+| Fluxo de Agendamento Reuniões e Ligações | ✅ | Agendamento via WA |
+| Parte 2 - Fluxo de Agendamento | ✅ | Continuação do agendamento |
+| Whatsapp Scraper | ✅ | Scraper direto WA |
 
 ---
 
-#### 4.1.4 Workflows Legados (referência histórica)
+#### 4.1.3 Cluster 2 — Dossiê Pipeline (PRODUTO CORE)
 
-> Tabela original do GOB — workflows mapeados antes da auditoria de Mar/2026.
+> **V8 CORRIGIDO** = versão em produção atual. **V11** = sub-workflows de conteúdo usados pelo V8. Versões V7/V6/V5/V4 = arquivadas.
 
-| # | Agente | Status Histórico |
-|---|--------|-----------------|
-| 1 | Agente de Ideias & Roteiros de Conteúdo | 🔄 Melhorias pendentes |
-| 2 | Agente Stories | 🔄 Revisão de prompts |
-| 3 | Agente Orquestrador de WhatsApp | ✅ Funcionando |
-| 4 | Fluxo de Entrada de Novo Mentorado | ✅ Funcionando |
-| 5 | Lapidação de Perfil Instagram — Parte 1 | ❌ Não integrado |
-| 6 | Lapidação de Perfil Instagram — Parte 2 | ❌ Não integrado |
-| 7 | Fluxo de Concepção de Dossiê | ❌ Saindo do N8N |
-| 8 | Agente Download do Expert | 🔄 Em transição |
-| 9 | Agente Arquitetura de Produto | ✅ Disponível |
-| 10 | Transcrição de Reels e Carrosséis | ✅ Funcionando |
-| 11 | Análise de Formato de Conteúdo | ✅ Funcionando |
+| Workflow | Status | Função |
+|----------|--------|--------|
+| MAIN_WF_MASTER_V8_CORRIGIDO | ✅ | Orquestrador principal do dossiê |
+| WF_ORCHESTRATOR_CAPITULOS_V8_CORRIGIDO | ✅ | Orquestra capítulos em paralelo |
+| AGENTE_ANTI_ALUCINACAO_V8_CORRIGIDO | ✅ | Valida zero invenção |
+| PRE PROCESSADOR V5 | ✅ | Pré-processamento do input |
+| SUB_WF_00_PRE_PROCESSADOR_V8 | ✅ | Sub-WF pré-processamento |
+| SUB_WF_CAP1_CONTEXTO_V8 | ✅ | Cap 1: Contexto da Expert |
+| SUB_WF_CAP7_OFERTA_V8 | ✅ | Cap 7: Estrutura da Oferta |
+| SUB_WF_CAP8_ARQUITETURA_V8 | ⊘ | Cap 8: Arquitetura de Produto |
+| SUB_WF_CAP9A_FUNIL_V8 | ⊘ | Cap 9A: Sugestão de Funil |
+| SUB_WF_CAP9B_EXECUCAO_V8 | ✅ | Cap 9B: Execução |
+| SUB_WF_CAP10_STORYTELLING_V8 | ✅ | Cap 10: Storytelling |
+| SUB_WF_CAP12_CONTEUDO_V8 | ✅ | Cap 12: Ideias de Conteúdo |
+| SUB_WF_CAP_LAPIDACAO_V8 | ✅ | Cap: Lapidação |
+| SUB_WF_CAP_PROXIMOS_PASSOS_V8 | ✅ (p10) / ⊘ (p11) | Próximos Passos |
+| SUB_WF_99_POLIDOR_V8 | ✅ | Polidor final do dossiê |
+| WF_EDITOR_PRINCIPAL_V11 | ✅ | Editor principal V11 |
+| WF_MONTAGEM_FINAL_V11 | ✅ | Montagem final V11 |
+| SUB_WF_COERENCIA / TANGIBILIZACAO V11 | ✅ | Coerência e tangibilização |
+| SUB_WF_01 a SUB_WF_20 V11 | maioria ⊘ | 20 sub-agentes especializados V11 |
+| WF_MAIN_ORCHESTRATOR V7/V5/V4/V2 | ⊘ | Versões anteriores — arquivadas |
+
+---
+
+#### 4.1.4 Cluster 3 — Download Expert (EXTRAÇÃO DE CALLS)
+
+| Workflow | Status | Função |
+|----------|--------|--------|
+| Download Expert V10 FluxoGeral | ✅ | Orquestrador V10 |
+| Download Expert V10 Agente Cadastro | ✅ | Cadastro do mentorado |
+| Download Expert V10 Tools | ✅ | Ferramentas de extração |
+| Download Expert V10 SubWF | ✅ | Sub-workflow V10 |
+| WF_ORCHESTRATOR V10 | ✅ | Orquestrador de sessões |
+| DE V10 Sessao 1 / 2 / 3 | ✅ | Sessões de download |
+| Download Expert V5 (E1-E13) | ⊘ | 13 coletores V5 — arquivados |
+| Download Expert V4 (E1-E13) | ⊘ | 13 coletores V4 — arquivados |
+| Download Expert V3 | ⊘ | Versão original — arquivada |
+
+---
+
+#### 4.1.5 Cluster 4 — Agentes Mentoria / Funis WA (MAIOR SISTEMA)
+
+> **32 agentes ativos** cobrindo todos os funis. Estrutura: Orquestrador → Gestor de Funil → Agente Especialista → Ferramentas.
+
+**Agentes principais (✅ todos ativos):**
+- Orquestrador | VSL | Call vendas | Caçador | Lista Vip | Indicador | Evento | Levantador | Pocket | Recompensa | Upgrade | Reativação alunos | Copy | Conteúdo | Pocket criador | Gerador de Demanda
+
+**Gestores de informação (✅ todos ativos):**
+- Gestor por funil: VSL, Call vendas, Caçador, Lista Vip, Indicador, Evento, Levantador, Pocket, Recompensa, Upgrade, Reativação
+
+**Ferramentas (✅ todas ativas):**
+- Ativa agente X (7 tools) | Muda estado X (5 tools) | Escolha funil | Pocket | Copy/Mensagens | Consulta banco de dados
+
+**Infra (✅ ativos):**
+- Agentes Mentoria Fluxo geral | Agente Cadastro | Agente Entrega | Agente Campanha + tools | GPTs Entrega detalhada funis
+
+---
+
+#### 4.1.6 Cluster 5 — Lapidação de Perfil
+
+| Workflow | Status | Função |
+|----------|--------|--------|
+| Agente Lapidação WEBHOOK - V12 METODOLOGIA QUEILA | ✅ | Webhook de entrada — versão atual |
+| Webhook Lapidação Perfil [CORRIGIDO] | ✅ | Alternativo corrigido |
+| Lapidação Perfil V4 - CONVERSACIONAL | ✅ | Fluxo conversacional |
+| Agente Lapidacao UNIFICADO | ✅ | Versão unificada |
+| Lapidacao Consolidador | ✅ | Consolida todos os outputs |
+| Lapidacao Agente Ideias v6 | ✅ | Gerador de ideias de posicionamento |
+| Lapidacao Roteiros v14 | ✅ | Roteiros de reposicionamento |
+| Lapidacao Tool Salva / Atualiza / Busca | ✅ | Ferramentas de persistência |
+| Lapidacao Agente Bio/Nome | ✅ | Bio e naming |
+| Lapidacao Storytelling | ✅ | Storytelling do perfil |
+| Lapidacao Status Polling | ✅ | Polling de status |
+| Lapidacao Agente Criacao Posts | ✅ | Criação de posts |
+| Lapidacao Scraper Perfil | ✅ | Scraping do perfil atual |
+| Lapidacao Calendario V2 | ✅ | Calendário de conteúdo |
+| Lapidacao Foto Perfil / RAG Contexto | ✅ | Foto e contexto RAG |
+| Agente Lapidação com Transcrição | ⊘ | Versão c/ transcrição — inativa |
+| Agente Lapidação com Memória | ⊘ | Versão c/ memória — inativa |
+
+---
+
+#### 4.1.7 Cluster 6 — Linha Editorial
+
+> ~30 workflows. Fluxo: Cadastro → Coletores (E1-E6) → Produtores (E1-E3) → Gerador de Ideias → Orquestrador → Polidor → Salva.
+
+**Ativos ✅:** Orquestrador Ideias GOBBI FINAL V2, Gerador de Ideias v2, Etapa 3B Provas Sociais, Etapa 5 Diagnóstico COMPLETO, Etapa 6 Definição Editorial V3, Polidor, Tool Salva Ideia, Tool Salva Linha Editorial, Tool Salva Dados E5, Agente Cadastro CORRIGIDO, Tool Valida Email, Agente Coletor E1/E3B/E6 (CORRIGIDO), Agente Produtor E1-E3 (CORRIGIDO), Agente Bio e Apresentações, Agente Coletor Documentos, Agente Gerador de Ideias GOBBI FINAL, Orquestrador Ideias
+
+**Inativos ⊘:** Versões antigas (v2-v5 de gerador, V6-V7 de roteiros), coletores e produtores não-corrigidos
+
+---
+
+#### 4.1.8 Cluster 7 — Stories System
+
+| Workflow | Status | Função |
+|----------|--------|--------|
+| Stories V8 Validador | ✅ | Valida story gerada |
+| Stories V8 Estrategista | ✅ | Define estratégia de story |
+| Stories V8 Escritor | ✅ | Escreve a story |
+| Stories Fluxo Geral | ✅ | Orquestrador |
+| Stories Agent Tools (Ideias/Roteirista/Tool Muda Estado) | ✅/⊘ | Ferramentas |
+| Stories V7 (State Manager/Coletor/Orquestrador) | ⊘ | Versão anterior |
+
+---
+
+#### 4.1.9 Cluster 8 — QCES (Queila Content Extraction System)
+
+| Workflow | Status | Função |
+|----------|--------|--------|
+| QCES Auto Sync | ✅ | Sincronização automática |
+| QCES Content Extraction v4 | ✅ | Extração principal |
+| QCES Parse WebVTT | ✅ | Parse de legendas Zoom |
+| QCES Extract Beliefs | ✅ | Extrai crenças e princípios |
+| QCES Format & Positioning | ✅ | Formata para posicionamento |
+| QCES Generate Hooks/Briefing | ✅ | Gera ganchos e briefing |
+| QCES Zoom Scraper | ✅ | Scraper de gravações Zoom |
+
+---
+
+#### 4.1.10 Cluster 9 — Arquitetura de Produto
+
+| Workflow | Status | Função |
+|----------|--------|--------|
+| Arquitetura Produto Orquestrador v2 | ✅ | Orquestra todos os sub-agentes |
+| Arquitetura Produto Extrator Método | ✅ | Extrai o método do mentorado |
+| Arquitetura Produto Construtor Aulas | ✅ | Estrutura as aulas |
+| Arquitetura Produto Construtor Materiais | ✅ | Gera materiais |
+| Arquitetura Produto Revisor | ✅ | Revisão de coerência |
+| Arquitetura Produto Construtor Pilar | ✅ | Define pilares do produto |
+| 02_Agente_Extrator_Contexto | ✅ | Extrator de contexto |
+| 04_Agente_Mapeador_Jornada | ✅ | Mapeia jornada do aluno |
+| WF CAP12 STANDALONE - Ideias | ✅ | Ideias de conteúdo standalone |
+
+---
+
+#### 4.1.11 Cluster 10 — Instagram Scraper & Análise
+
+| Workflow | Status | Função |
+|----------|--------|--------|
+| Instagram Scraper v20 | ✅ | Scraper principal IG |
+| Instagram Scraper Webhook Backend | ✅ | Backend de entrada |
+| Instagram Onboarding Inicial | ✅ | Onboarding de conta IG |
+| Instagram Onboarding 10/10A/10B | ✅ | Fluxos de onboarding |
+| Instagram Onboarding 11 Cache Thumbnails | ✅ | Cache de thumbnails |
+| Scraping Diario Posts/Seguidores | ✅ | Scraping diário |
+| Scraper Foto Perfil | ✅ | Foto de perfil |
+| Analisar Referencia Conteudo V6 | ✅ | Análise de referências |
+| Agente AI Analise Conteudo v2 | ✅ | Análise com IA |
+| Linha Editorial Tools Destaques | ✅ | Destaques IG |
+| Scraper IG Alunos Fluxo 1/2/3 | ✅/⊘ | Scraping de perfis de alunos |
+| Scraper IG Carrossel (múltiplos) | ⊘ | Versões antigas de scraping |
+| Scraper IG Sync Para Agente V3 | ⊘ | Sync agent — inativo |
+
+---
+
+#### 4.1.12 Cluster 11 — Onboarding Mentorados (V7)
+
+| Workflow | Status | Função |
+|----------|--------|--------|
+| WF_ORQUESTRADOR_ONBOARDING_V7 | ✅ | Orquestrador principal |
+| SUB_WF_ONBOARDING_01_EXTRACAO_DADOS_V7 | ✅ | Extrai dados do mentorado |
+| SUB_WF_ONBOARDING_04_WHATSAPP_GROUP_V7 | ✅ | Cria grupo WA |
+| SUB_WF_AUDIO_TRANSCRIPTION_V7 | ✅ | Transcreve áudio |
+| Novo Mentorado | ✅ | Disparo de entrada |
+| WorkFlow SDR Case | ✅ | SDR qualificação |
+| DS Stage Notification | ✅ | Notificação de estágio |
+| WF2 Pré-Call 2 | ✅ | Preparação call 2 |
+| WF3 Call 2 - Geração de Documentos | ✅ | Geração de docs na call |
+| WF4 Pós-Call 2 - Validação e Publicação | ✅ | Validação e pub pós-call |
+| AGENTE DE VALIDAÇÃO INICIAL (PRÉ-WF2) | ✅ | Valida antes da call |
+| v2 - WF1 - Pos-Onboarding COM PLANO DE AÇÃO | ✅ | Pós-onboarding + plano |
+
+---
+
+#### 4.1.13 Cluster 12 — Plano de Ação
+
+| Workflow | Status | Função |
+|----------|--------|--------|
+| ORQUESTRADOR v5 Plano de Ação | ✅ | Orquestrador principal |
+| Plano de Ação → Google Docs | ✅ | Exporta para Google Docs |
+| SUB: Gerar RAG Embeddings | ✅ | Embeddings do plano |
+| SUB: Validação Priorização | ✅ | Valida e prioriza tarefas |
+
+---
+
+#### 4.1.14 Cluster 13 — CASE Analytics (Monitoramento)
+
+| Workflow | Status | Função |
+|----------|--------|--------|
+| CASE Analisador WhatsApp Semanal | ✅ | Análise semanal de WA |
+| CASE Processador Calls Zoom | ✅ | Processa calls do Zoom |
+| CASE Consolidador Semanal Mentorados | ✅ | Consolidado semanal |
+| AI Hub Critical Error Monitor | ✅ | Monitor de erros críticos |
+| AI Hub (Webhook Log / Aggregator Sync / Cost Processing / Daily Report / WA Alerts) | ✅ | Infraestrutura AI Hub |
+| AGENTES 1, 2, 3 (Visual/Copy/Estrategista) | ✅ | Análise de anúncios |
+| Análise Formato Hub Case v3 | ✅ | Análise de formato |
+
+---
+
+#### 4.1.15 Cluster 14 — Pablo (Análise de Calls de Vendas)
+
+| Workflow | Status | Função |
+|----------|--------|--------|
+| Pablo Call Vendas V2 | ✅ | Análise principal de calls |
+| Pablo Gestor Conhecimento | ✅ | Base de conhecimento |
+| Pablo Ferramenta Metodologia | ✅ | Metodologia de análise |
+| Pablo Muda Estado | ✅ | Controle de estado |
+
+---
+
+#### 4.1.16 Cluster 15 — Fidelização
+
+| Workflow | Status | Função |
+|----------|--------|--------|
+| Fidelizacao Fluxo Geral (Orquestrador) | ⊘ | Orquestrador principal (inativo) |
+| Fidelizacao Webhook Lovable (Frontend) | ✅ | Entrada via Lovable |
+| Fidelizacao Agente Gamificacao | ✅ | Programa de gamificação |
+| Fidelizacao Agente Prevencao | ✅ | Prevenção de churn |
+| Fidelizacao Agente Google Reviews | ✅ | Gestão de reviews |
+| Fidelizacao Agente Programa de Indicacao | ✅ | Programa de indicação |
+| Fidelizacao Agente Seletor de Programas | ✅ | Seleciona programa correto |
+| Fidelizacao Aniversariantes | ✅ | Mensagem aniversário |
+| Fidelizacao Alta Finalização | ✅ | Finalização de contrato |
+| Alerta Mentorados Sem Call 45 dias | ✅ | Alerta de inatividade |
+
+---
+
+#### 4.1.17 Cluster 16 — RAG & Vetorização
+
+| Workflow | Status | Função |
+|----------|--------|--------|
+| RAG Tool Busca Contexto Calls | ✅ | Busca vetorial em calls |
+| Tool Busca Vetorial | ✅ | Ferramenta de busca |
+| SUB Limpeza Chunking | ✅ | Limpeza e chunking |
+| RAG Processar Transcripts de Calls | ⊘ | Processamento — inativo |
+| RAG Backfill Todas as Calls | ⊘ | Backfill histórico — inativo |
+
+---
+
+#### 4.1.18 Clusters Clientes Externos
+
+**SariDoctors (14 funis ativos ✅):**
+- Lead Score V4 ✅
+- FUNIL AGENTE: Revista, Telões LED, TV, Outdoor, Rádio, Cashback, Follow-Up, Reavaliações, Reativação, Voucher, Networking, Palestras/Workshops, Campanhas Internas, Parcerias, Conversão Convênio, Seletor de Programas
+- Funil captação webhook ✅ | Fidelização Lovable frontend ✅
+
+**MGD8 (5 workflows ativos ✅):**
+- Sheet Alunos, Sheet Cadastro, Sheet Cadastro Pré-Inscritos, Grupos WhatsApp, Grupos WhatsApp Saídas
+
+**MC Games (todos ⊘ — 10 workflows):**
+- Pipeline RFM completo, Monitoramento Drift, Power BI, Healthcheck — arquivados
+
+---
+
+#### 4.1.19 Outros Sistemas Ativos
+
+| Workflow | Status | Função |
+|----------|--------|--------|
+| Agente Produto Lovable (6 agentes) | ✅ | Mapa, Pesquisa, Vitrine, Método, Oferta, Revisor |
+| Monitor Facebook Ads | ✅ | Monitoramento de anúncios |
+| Zoom Recording YouTube | ✅ | Upload automático Zoom→YouTube |
+| Zoom transcrição Queila | ✅ | Transcrição Queila |
+| Conta Simples | ✅ | Gestão financeira |
+| Hubla→Supabase | ✅ | Sync Hubla |
+| Clint Deal Stage | ✅ | Estágio de deal Clint |
+| Naming Agent + INPI | ✅ | Geração de nomes |
+| Executor de Lembretes - Memory Keyla | ✅ | Lembretes automáticos |
+| Agentes Mentoria Agente Entrega | ✅ | Entrega de materiais |
+| WorkFlow Incompletos Aplicações Case | ✅ | Monitor de incompletos |
+| Aplicações Case Forms | ✅ | Forms de aplicação |
+| Listar Workflows Publicados | ✅ | Inventário N8N |
+| Fluxo de Agendamento Reuniões | ✅ | Agendamento via WA |
+| RPD / SPG / CPLD | ✅ | Siglas a confirmar com Kaique |
+| Adaptação de Roteiro para Formato | ✅ | Adapta roteiros |
+| Agentes Mentoria Ferramenta Entrega | ✅ | Entrega funis |
+| GPTs Entrega detalhada funis | ✅ | Detalhamento de funis |
+| My workflow 2 / 4 / 8 / 10 | ✅ | A identificar com Kaique |
+
+---
+
+#### 4.1.20 Legado / Descontinuado (referência)
+
+> ~660 workflows inativos ⊘. Principais grupos:
+> - **My workflow 11-52**: protótipos e testes sem nome
+> - **Versões anteriores de todos os sistemas**: V1-V7 de dossiê, V1-V4 de download, V1-V3 de stories, versões antigas de lapidação, linha editorial, onboarding
+> - **E-commerce / Airtable**: agentes de atendimento ecomm, sessões super-agentes Airtable — projeto externo encerrado
+> - **Blacksheep/ADTK**: compras, cadastro, pesquisa — projeto encerrado
+> - **DataCrazy CRM V1**: encerrado
+> - **Fluxos FN (I/II/III)**: projeto encerrado
+> - **Bee Automatica / Hub Bee Libre**: projeto encerrado
+> - **Clone Voz Criativo, GB Flow, Gamma PDF**: experimentos inativos
 
 ---
 
@@ -422,7 +687,7 @@ O sistema tem funcionalidades que existem mas não viraram hábito:
 | **Supabase** | DB PostgreSQL + Auth + Storage | ✅ Ativo |
 | **ClickUp** | Gestão de tarefas e sprints | ✅ Em uso ativo |
 | **GitHub** | Versionamento (spalla + bu-case) | ✅ Ativo |
-| **N8N** | Automações e agentes de IA | ✅ Ativo (24 CASE-named + ~36 relacionados / 897 total instância) |
+| **N8N** | Automações e agentes de IA | ✅ Ativo (~240 ativos / 897 total — 26 clusters mapeados em Mar/2026) |
 | **Evolution API** | WhatsApp (proxy) | 🔄 Funcional, limitado |
 | **Google Workspace** | Drive, Docs, Calendar | 🔄 Parcialmente integrado |
 | **Zoom** | Calls e sessões | ✅ Integrado no Spalla |
@@ -618,7 +883,7 @@ Ferramenta proprietária para produção de carrosséis para Instagram com assis
 | 3 | **FunnelCase** | Todos os 16 funis do projeto Deisy + outros projetos existentes |
 | 4 | **PageOS** | Páginas criadas + templates disponíveis + quem usa |
 | 5 | **Carousel AI** | Carrosséis criados + templates + quem usa |
-| 6 | **N8N** | Workflows 11-24 CASE-named: confirmar propósito de cada um com Kaique |
+| 6 | **N8N** | RPD, SPG, CPLD — siglas a confirmar com Kaique; "My workflow X" ativos (2/4/8/10) a identificar |
 | 7 | **N8N** | ~36 workflows relacionados: Kaique explica propósito de cada cluster |
 | 8 | **Cortex** | Investigar erro `Analisador WhatsApp Semanal` → tabela `analises_whatsapp` |
 
@@ -663,5 +928,5 @@ Ferramenta proprietária para produção de carrosséis para Instagram com assis
 ---
 
 *Report gerado em 22/03/2026 — baseado em levantamento direto com Kaique Rodrigues + Imersão de Produto 09-13/03/2026.*
-*Auditoria N8N realizada via extração DOM em Mar/2026 (897 workflows totais, 24 CASE-named, ~36 CASE-relacionados).*
+*Auditoria N8N realizada via extração DOM Puppeteer em Mar/2026 (897 workflows totais, 18 páginas × 50, ~240 ativos, 26 clusters identificados — ver seção 4.1).*
 *Próxima revisão: iterações com Kaique para cobrir seção 8.4 (auditoria interior das plataformas).*
