@@ -6947,6 +6947,17 @@ img { max-width: 100%; display: block; }
   box-shadow: 0 0 0 2px var(--neutral-300);
 }
 
+.cc-timeline-item--done::before {
+  background: var(--neutral-300);
+  box-shadow: 0 0 0 2px var(--neutral-300);
+}
+
+.cc-timeline-item--done .cc-timeline-item__sprint {
+  color: var(--neutral-500);
+  text-decoration: line-through;
+  text-decoration-color: var(--neutral-300);
+}
+
 .cc-timeline-item__sprint {
   font-size: var(--text-sm, 13px);
   font-weight: 700;

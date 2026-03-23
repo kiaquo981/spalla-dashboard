@@ -442,8 +442,8 @@ function operon() {
         },
       ],
       sprints: [
-        { id: 'S1', nome: 'Sprint 1', inicio: '2026-03-16', fim: '2026-03-22', status: 'ativo', total: 7, concluidas: 2, highlights: ['Visão de grupos WhatsApp no ar', 'Agenda de sessões integrada', 'Dashboard de mentorados atualizado'] },
-        { id: 'S2', nome: 'Sprint 2', inicio: '2026-03-23', fim: '2026-03-29', status: 'planejado', total: 225, concluidas: 0, highlights: [] },
+        { id: 'S1', nome: 'Sprint 1', inicio: '2026-03-16', fim: '2026-03-22', status: 'concluido', total: 7, concluidas: 2, highlights: ['Visão de grupos WhatsApp no ar', 'Agenda de sessões integrada', 'Dashboard de mentorados atualizado'] },
+        { id: 'S2', nome: 'Sprint 2', inicio: '2026-03-23', fim: '2026-03-29', status: 'ativo', total: 225, concluidas: 2, highlights: ['Pipeline de Dossiê (Download → Final)', 'Jornada Completa da Mentoria', 'Novo Workflow de Trabalho com IA'] },
         { id: 'S3', nome: 'Sprint 3', inicio: '2026-03-30', fim: '2026-04-05', status: 'planejado', total: 230, concluidas: 0, highlights: [] },
       ],
       ferramentas: [
