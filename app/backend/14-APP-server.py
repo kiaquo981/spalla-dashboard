@@ -1484,11 +1484,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': 'CLICKUP_API_TOKEN not configured'}, 500)
             return
 
-        # Sprint list IDs (from CLAUDE.md)
+        # Sprint list IDs — id == list_id para bater com god_lists.id no Supabase
         sprint_lists = [
-            {'id': 'S1', 'list_id': '901113377455', 'nome': 'Sprint 1', 'inicio': '2026-03-16', 'fim': '2026-03-22'},
-            {'id': 'S2', 'list_id': '901113377456', 'nome': 'Sprint 2', 'inicio': '2026-03-23', 'fim': '2026-03-29'},
-            {'id': 'S3', 'list_id': '901113377457', 'nome': 'Sprint 3', 'inicio': '2026-03-30', 'fim': '2026-04-05'},
+            {'id': '901113377455', 'list_id': '901113377455', 'nome': 'Sprint 1 (3/16 - 3/22)', 'inicio': '2026-03-16', 'fim': '2026-03-22'},
+            {'id': '901113377456', 'list_id': '901113377456', 'nome': 'Sprint 2 (3/23 - 3/29)', 'inicio': '2026-03-23', 'fim': '2026-03-29'},
+            {'id': '901113377457', 'list_id': '901113377457', 'nome': 'Sprint 3 (3/30 - 4/5)',  'inicio': '2026-03-30', 'fim': '2026-04-05'},
         ]
 
         today_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
