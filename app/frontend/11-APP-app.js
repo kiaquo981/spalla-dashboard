@@ -203,6 +203,7 @@ function operon() {
       docsTab: 'arquivos',   // 'arquivos' | 'biblioteca' | 'google_docs'
       taskGroupBy: 'status', // 'status' | 'assignee' | 'priority' | 'list'
       taskTagFilter: [],       // tag ids for filtering
+      taskDateFilter: 'all', // all | today | next7 | next30 | overdue | no_date
       taskTagsDropdown: false, // tags dropdown open in modal
       taskTagsFilterOpen: false, // tags filter dropdown in toolbar
       // Dossiers (legacy)
@@ -1052,6 +1053,21 @@ function operon() {
 
     todayStr() { return new Date().toISOString().split('T')[0]; },
 
+    // Sort: date ASC (no-date at bottom), then priority as tiebreak
+    _taskSortFn(a, b) {
+      const prio = { urgente: 0, alta: 1, normal: 2, baixa: 3 };
+      const da = parseDateStr(a.data_fim || a.prazo);
+      const db = parseDateStr(b.data_fim || b.prazo);
+      if (da && db) {
+        const diff = da - db;
+        if (diff !== 0) return diff;
+        return (prio[a.prioridade] ?? 2) - (prio[b.prioridade] ?? 2);
+      }
+      if (da && !db) return -1;
+      if (!da && db) return 1;
+      return (prio[a.prioridade] ?? 2) - (prio[b.prioridade] ?? 2);
+    },
+
     _filterTasks(tasks) {
       let list = tasks;
       if (this.ui.taskAssignee) {
@@ -1071,6 +1087,27 @@ function operon() {
           const taskTagIds = (t.tags || []).map(tg => tg.id).filter(Boolean);
           return this.ui.taskTagFilter.some(tagId => taskTagIds.includes(tagId));
         });
+      }
+      // Date range filter (ClickUp-style)
+      const df = this.ui.taskDateFilter;
+      if (df && df !== 'all') {
+        const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+        const todayEnd   = new Date(); todayEnd.setHours(23, 59, 59, 999);
+        if (df === 'no_date') {
+          list = list.filter(t => !t.data_fim && !t.prazo);
+        } else if (df === 'overdue') {
+          list = list.filter(t => {
+            const due = parseDateStr(t.data_fim || t.prazo);
+            return due && due < todayStart && t.status !== 'concluida';
+          });
+        } else {
+          const days = df === 'today' ? 0 : df === 'next7' ? 7 : 30;
+          const rangeEnd = new Date(todayStart); rangeEnd.setDate(rangeEnd.getDate() + days); rangeEnd.setHours(23, 59, 59, 999);
+          list = list.filter(t => {
+            const due = parseDateStr(t.data_fim || t.prazo);
+            return due && due >= todayStart && due <= rangeEnd;
+          });
+        }
       }
       return list;
     },
@@ -1316,10 +1353,7 @@ function operon() {
         const q = this.ui.search.toLowerCase();
         list = list.filter(t => t.titulo?.toLowerCase().includes(q) || t.mentorado_nome?.toLowerCase().includes(q));
       }
-      list.sort((a, b) => {
-        const prio = { urgente: 0, alta: 1, normal: 2, baixa: 3 };
-        return (prio[a.prioridade] || 2) - (prio[b.prioridade] || 2);
-      });
+      list.sort(this._taskSortFn.bind(this));
       return list.slice(0, 100);
     },
 
@@ -1329,10 +1363,7 @@ function operon() {
       const result = {};
       for (const s of statuses) {
         let list = this._filterTasks([...this.data.tasks].filter(t => t.status === s));
-        list.sort((a, b) => {
-          const prio = { urgente: 0, alta: 1, normal: 2, baixa: 3 };
-          return (prio[a.prioridade] || 2) - (prio[b.prioridade] || 2);
-        });
+        list.sort(this._taskSortFn.bind(this));
         result[s] = list.slice(0, 50);
       }
       return result;
