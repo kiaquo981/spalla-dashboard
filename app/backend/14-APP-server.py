@@ -1640,6 +1640,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_get_group_members(_m.group(1))
         elif self.path == '/api/clickup/command-center':
             self._handle_clickup_command_center()
+        # ===== Biblioteca =====
+        elif self.path.startswith('/api/biblioteca'):
+            self._handle_biblioteca_get()
         else:
             super().do_GET()
 
@@ -3456,6 +3459,59 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 time.sleep(1)
 
         self._send_json({'queued': count, 'status_filter': status_filter})
+
+    # ===== BIBLIOTECA =====
+
+    def _handle_biblioteca_get(self):
+        """
+        GET /api/biblioteca               → lista todos os docs (sem conteúdo)
+        GET /api/biblioteca?mentee_id=123 → filtra por mentorado
+        GET /api/biblioteca?slug=danyella-truiz-oferta → doc único por slug
+        GET /api/biblioteca/{uuid}        → doc único por id (com conteúdo_md)
+        """
+        from urllib.parse import urlparse, parse_qs
+        parsed = urlparse(self.path)
+        qs = parse_qs(parsed.query)
+        path_parts = [p for p in parsed.path.split('/') if p]
+        # /api/biblioteca/{id}
+        if len(path_parts) == 3:
+            doc_id = path_parts[2]
+            result = supabase_request(
+                'GET',
+                f'sp_documentos?id=eq.{doc_id}&select=*&limit=1',
+            )
+            if isinstance(result, list) and result:
+                self._send_json(result[0])
+            else:
+                self._send_json({'error': 'Not found'}, 404)
+            return
+
+        # Listagem
+        slug = qs.get('slug', [None])[0]
+        if slug:
+            result = supabase_request(
+                'GET',
+                f'sp_documentos?deep_link_slug=eq.{slug}&select=*&limit=1',
+            )
+            if isinstance(result, list) and result:
+                self._send_json(result[0])
+            else:
+                self._send_json({'error': 'Not found'}, 404)
+            return
+
+        mentee_id = qs.get('mentee_id', [None])[0]
+        tipo = qs.get('tipo', [None])[0]
+
+        # Usa view sem conteúdo para listagem (mais leve)
+        base = 'vw_sp_documentos_lista?select=*'
+        filters = []
+        if mentee_id:
+            filters.append(f'mentee_id=eq.{mentee_id}')
+        if tipo:
+            filters.append(f'tipo=eq.{tipo}')
+        query = base + ('&' + '&'.join(filters) if filters else '') + '&order=mentee_nome,tipo,criado_em'
+        result = supabase_request('GET', query)
+        self._send_json(result if isinstance(result, list) else [])
 
     def log_message(self, format, *args):
         path = str(args[0]) if args else ''
