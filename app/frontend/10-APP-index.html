@@ -672,7 +672,7 @@
               <div class="bento-card__body" style="overflow-y:auto">
                 <div class="cc-activity-feed" x-show="ccRecentActivity().length">
                   <template x-for="(item, i) in ccRecentActivity()" :key="i">
-                    <a class="cc-activity-item" :href="item.url || '#'" :target="item.url ? '_blank' : '_self'" rel="noopener" style="text-decoration:none;color:inherit;cursor:pointer">
+                    <a class="cc-activity-item" href="#" @click.prevent="item.url ? window.open(item.url,'_blank') : (item.id ? navigateToTask(item.id) : navigate('tasks'))" style="text-decoration:none;color:inherit;cursor:pointer">
                       <div class="cc-activity-item__avatar" x-text="item.who.charAt(0)"></div>
                       <div class="cc-activity-item__content">
                         <div class="cc-activity-item__who" x-text="item.who" style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:1px"></div>

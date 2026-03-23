@@ -2702,6 +2702,7 @@ function operon() {
         .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
         .slice(0, 8)
         .map(t => ({
+          id: t.id,
           text: t.titulo || t.nome || 'Tarefa',
           who: (t.responsavel || '?').split(' ')[0],
           time: t.updated_at || t.created_at,
@@ -2759,8 +2760,28 @@ function operon() {
       const statusMap = { backlog: 'pendente', inProgress: 'em_andamento', review: 'em_revisao', done: 'concluida' };
       this.navigate(page);
       if (filter) {
-        this.$nextTick(() => { this.ui.taskFilter = statusMap[filter] || filter; });
+        this.$nextTick(() => {
+          if (statusMap[filter]) {
+            // É um status
+            this.ui.taskFilter = statusMap[filter];
+          } else if (['pendente','em_andamento','em_revisao','concluida','atrasada'].includes(filter)) {
+            this.ui.taskFilter = filter;
+          } else {
+            // É um nome de responsável — filtrar por assignee
+            this.ui.taskAssignee = filter;
+            this.ui.taskFilter = 'all';
+          }
+        });
       }
+    },
+
+    navigateToTask(taskId) {
+      this.navigate('tasks');
+      this.$nextTick(() => {
+        this.ui.taskAssignee = '';
+        this.ui.taskFilter = 'all';
+        this.ui.taskDetailDrawer = taskId;
+      });
     },
 
     // ===================== NAVIGATION =====================
