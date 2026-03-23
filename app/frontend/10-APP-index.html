@@ -2727,11 +2727,12 @@
                     </div>
                   </div>
                   <!-- Subtasks -->
-                  <div class="task-drawer__section" x-show="activeTaskDetail.subtasks?.length">
-                    <h4>
-                      Subtarefas <span style="color:#94a3b8;font-weight:400" x-text="activeTaskDetail.subtasks.filter(s=>s.done).length + '/' + activeTaskDetail.subtasks.length"></span>
+                  <div class="task-drawer__section">
+                    <h4 style="display:flex;align-items:center;gap:6px">
+                      Subtarefas
+                      <span x-show="activeTaskDetail.subtasks?.length" style="color:#94a3b8;font-weight:400" x-text="activeTaskDetail.subtasks.filter(s=>s.done).length + '/' + activeTaskDetail.subtasks.length"></span>
                       <!-- progress bar -->
-                      <div class="task-card__progress-bar" style="display:inline-flex;width:60px;margin-left:8px;vertical-align:middle"><div class="task-card__progress-fill" :style="'width:' + subtaskProgress(activeTaskDetail).pct + '%'"></div></div>
+                      <div x-show="subtaskProgress(activeTaskDetail).total > 0" class="task-card__progress-bar" style="display:inline-flex;width:60px;vertical-align:middle"><div class="task-card__progress-fill" :style="'width:' + subtaskProgress(activeTaskDetail).pct + '%'"></div></div>
                     </h4>
                     <div class="task-drawer__subtasks">
                       <template x-for="(st, si) in activeTaskDetail.subtasks || []" :key="si">
@@ -2751,6 +2752,16 @@
                           </div>
                         </div>
                       </template>
+                    </div>
+                    <!-- Inline add -->
+                    <div style="display:flex;gap:6px;margin-top:6px">
+                      <input type="text" x-model="ui.drawerNewSubtask"
+                        @keydown.enter.prevent="drawerAddSubtask(activeTaskDetail.id)"
+                        placeholder="+ Adicionar subtarefa..."
+                        style="flex:1;padding:5px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;outline:none;background:#fafafa">
+                      <button @click="drawerAddSubtask(activeTaskDetail.id)"
+                        x-show="ui.drawerNewSubtask.trim()"
+                        style="padding:5px 10px;font-size:12px;background:#2d4a3e;color:#fff;border:none;border-radius:6px;cursor:pointer">+</button>
                     </div>
                   </div>
                   <!-- Checklist -->
@@ -7827,7 +7838,7 @@
   <script src="12-APP-data.js?v=72"></script>
   <script src="13-APP-photos.js?v=72"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=88"></script>
+  <script src="11-APP-app.js?v=89"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>

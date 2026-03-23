@@ -192,6 +192,7 @@ function operon() {
       taskEditId: null,
       taskView: 'board', // 'list' | 'board'
       taskDetailDrawer: null, // task ID for detail drawer
+      drawerNewSubtask: '', // inline subtask add in drawer
       mentionDropdown: false,  // @mention dropdown visível
       mentionQuery: '',        // texto digitado após @
       mentionStart: -1,        // posição do @ no textarea
@@ -4964,6 +4965,20 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         this._cacheTasksLocal();
         this._sbSyncSubtasks(taskId, t.subtasks);
       }
+    },
+
+    async drawerAddSubtask(taskId) {
+      const text = (this.ui.drawerNewSubtask || '').trim();
+      if (!text) return;
+      const t = this.data.tasks.find(x => x.id === taskId);
+      if (!t) return;
+      const newSub = { text, done: false, status: 'pendente', responsavel: '', data_inicio: '', data_fim: '', prioridade: 'normal', clickup_id: null };
+      if (!t.subtasks) t.subtasks = [];
+      t.subtasks.push(newSub);
+      t.subtasks_total = t.subtasks.length;
+      this.ui.drawerNewSubtask = '';
+      this._cacheTasksLocal();
+      await this._sbSyncSubtasks(taskId, t.subtasks);
     },
 
     taskChecklistProgress(task) {
