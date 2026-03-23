@@ -608,6 +608,21 @@ function operon() {
     _menteesWithEmail: [],
     _integrations: {},
 
+    // --- Biblioteca ---
+    bib: {
+      docs: [],
+      filtered: [],
+      search: '',
+      menteeFilter: '',
+      tipoFilter: '',
+      activeDoc: null,
+      docLoading: false,
+      loading: false,
+      activeSec: null,
+      renderedHtml: '',
+    },
+    _pendingBibliotecaSlug: null,
+
     // --- Tool Status ---
     toolsStatus: [
       { id: 'hubcase',    name: 'HubCase',     url: 'https://hub.caseai.com.br',                      status: 'checking' },
@@ -1460,6 +1475,13 @@ function operon() {
           }
         });
 
+        // Deep link: ?dl=biblioteca/{slug} — opens doc directly after auth
+        const dlParam = new URLSearchParams(window.location.search).get('dl');
+        if (dlParam?.startsWith('biblioteca/')) {
+          this.ui.page = 'biblioteca';
+          this._pendingBibliotecaSlug = dlParam.replace('biblioteca/', '');
+        }
+
         // Check tool statuses in background (non-blocking)
         this.checkToolsStatus();
 
@@ -1842,6 +1864,107 @@ function operon() {
         clearInterval(this._whatsappPollInterval);
         this._whatsappPollInterval = null;
       }
+    },
+
+    // ===================== BIBLIOTECA =====================
+
+    async loadBiblioteca() {
+      if (this.bib.loading && this.bib.docs.length > 0) return;
+      this.bib.loading = true;
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/biblioteca`, {
+          headers: { 'Authorization': `Bearer ${this.auth.accessToken}` }
+        });
+        if (!resp.ok) throw new Error(`biblioteca list failed: ${resp.status}`);
+        this.bib.docs = await resp.json();
+        this.bibFilter();
+        // Resolve deep-link slug set during init()
+        if (this._pendingBibliotecaSlug) {
+          const doc = this.bib.docs.find(d => d.deep_link_slug === this._pendingBibliotecaSlug);
+          if (doc) this.bibOpenDoc(doc.id);
+          this._pendingBibliotecaSlug = null;
+        }
+      } catch (e) {
+        console.error('[Biblioteca] load failed', e);
+      } finally {
+        this.bib.loading = false;
+      }
+    },
+
+    bibFilter() {
+      let list = [...this.bib.docs];
+      if (this.bib.menteeFilter) list = list.filter(d => String(d.mentee_id) === String(this.bib.menteeFilter));
+      if (this.bib.tipoFilter)   list = list.filter(d => d.tipo === this.bib.tipoFilter);
+      if (this.bib.search) {
+        const q = this.bib.search.toLowerCase();
+        list = list.filter(d =>
+          d.titulo?.toLowerCase().includes(q) ||
+          d.subtitulo?.toLowerCase().includes(q) ||
+          (d.tags || []).some(t => t.toLowerCase().includes(q))
+        );
+      }
+      this.bib.filtered = list;
+    },
+
+    async bibOpenDoc(id) {
+      if (this.bib.activeDoc?.id === id && this.bib.renderedHtml) return;
+      this.bib.docLoading = true;
+      this.bib.renderedHtml = '';
+      this.bib.activeSec = null;
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/biblioteca/${id}`, {
+          headers: { 'Authorization': `Bearer ${this.auth.accessToken}` }
+        });
+        if (!resp.ok) throw new Error(`doc fetch failed: ${resp.status}`);
+        const doc = await resp.json();
+        this.bib.activeDoc = doc;
+        this.bib.renderedHtml = (typeof marked !== 'undefined')
+          ? marked.parse(doc.conteudo_md || '')
+          : '<pre>' + (doc.conteudo_md || '').replace(/</g, '&lt;') + '</pre>';
+        this.$nextTick(() => {
+          const body = document.querySelector('.bib__reader-body');
+          if (body) body.scrollTop = 0;
+          // Inject anchor IDs into rendered headings for TOC scrolling
+          body?.querySelectorAll('h2,h3').forEach((el, i) => {
+            const sec = doc.secoes?.[i];
+            if (sec?.ancora && !el.id) el.id = sec.ancora;
+          });
+        });
+      } catch (e) {
+        console.error('[Biblioteca] doc load failed', e);
+      } finally {
+        this.bib.docLoading = false;
+      }
+    },
+
+    bibScrollTo(ancora) {
+      this.bib.activeSec = ancora;
+      this.$nextTick(() => {
+        const body = document.querySelector('.bib__reader-body');
+        const el = body?.querySelector(`#${CSS.escape(ancora)}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    },
+
+    bibMenteeOptions() {
+      const seen = new Set();
+      return this.bib.docs
+        .filter(d => {
+          if (!d.mentee_id || seen.has(d.mentee_id)) return false;
+          seen.add(d.mentee_id);
+          return true;
+        })
+        .map(d => ({ id: d.mentee_id, nome: d.mentee_nome || `Mentorado ${d.mentee_id}` }));
+    },
+
+    bibCopyDeepLink(slug) {
+      if (!slug) return;
+      const url = `${window.location.origin}${window.location.pathname}?dl=biblioteca/${slug}`;
+      navigator.clipboard?.writeText(url).catch(() => {});
+    },
+
+    bibTipoLabel(tipo) {
+      return { dossie: 'Dossiê', roteiro: 'Roteiro', material: 'Material' }[tipo] || tipo;
     },
 
     // ===================== TOOL STATUS =====================
