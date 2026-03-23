@@ -2760,28 +2760,54 @@ function operon() {
       const statusMap = { backlog: 'pendente', inProgress: 'em_andamento', review: 'em_revisao', done: 'concluida' };
       this.navigate(page);
       if (filter) {
-        this.$nextTick(() => {
+        setTimeout(() => {
           if (statusMap[filter]) {
-            // É um status
             this.ui.taskFilter = statusMap[filter];
           } else if (['pendente','em_andamento','em_revisao','concluida','atrasada'].includes(filter)) {
             this.ui.taskFilter = filter;
           } else {
-            // É um nome de responsável — filtrar por assignee
+            // Nome de responsável — filtrar por assignee, limpar filtro de status
             this.ui.taskAssignee = filter;
             this.ui.taskFilter = 'all';
+            this.ui.search = '';
           }
-        });
+        }, 30);
       }
     },
 
     navigateToTask(taskId) {
       this.navigate('tasks');
-      this.$nextTick(() => {
+      setTimeout(() => {
         this.ui.taskAssignee = '';
         this.ui.taskFilter = 'all';
+        this.ui.search = '';
         this.ui.taskDetailDrawer = taskId;
-      });
+      }, 30);
+    },
+
+    // Navega para atividade recente — tenta abrir drawer local, senão abre URL externa
+    navigateToActivityTask(item) {
+      if (item.id) {
+        // Item local — abre drawer direto
+        this.navigateToTask(item.id);
+        return;
+      }
+      if (item.text) {
+        // Tenta encontrar tarefa local por título
+        const match = (this.data.tasks || []).find(t =>
+          (t.titulo || t.nome || '').toLowerCase() === item.text.toLowerCase()
+        );
+        if (match) {
+          this.navigateToTask(match.id);
+          return;
+        }
+      }
+      // Fallback: abre URL externa (ClickUp)
+      if (item.url) {
+        window.open(item.url, '_blank');
+      } else {
+        this.navigate('tasks');
+      }
     },
 
     // ===================== NAVIGATION =====================
