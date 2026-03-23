@@ -181,7 +181,7 @@ def supa_request(method: str, path: str, body=None) -> dict:
     return {'ok': False, 'status': resp.status, 'body': body_raw.decode()}
 
 
-def get_mentee_id(nome: str) -> int | None:
+def get_mentee_id(nome: str):
     """Busca o ID do mentorado pelo nome."""
     result = supa_request('GET', f'mentorados?select=id,nome&nome=ilike.*{nome}*&limit=5')
     if result['ok'] and result['data']:
