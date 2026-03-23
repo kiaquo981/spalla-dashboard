@@ -25,6 +25,7 @@ const TEAM_MEMBERS = [
   { name: 'Queila', id: 'queila' },
   { name: 'Mariza', id: 'mariza' },
   { name: 'Lara', id: 'lara' },
+  { name: 'Gobbi', id: 'gobbi' },
 ];
 
 // ===== EVOLUTION API GUARD =====
@@ -1532,7 +1533,6 @@ function operon() {
               this.auth.currentUser = userData.user || JSON.parse(userStr);
               this.auth.accessToken = accessToken;
               this.auth.refreshToken = refreshToken;
-              this.ui.taskAssignee = '__mine__';
             } else if (resp.status === 401 && refreshToken) {
               // Try refresh
               const refreshResp = await fetch(`${CONFIG.API_BASE}/api/auth/refresh`, {
@@ -1549,7 +1549,6 @@ function operon() {
                 localStorage.setItem('spalla_access_token', data.access_token);
                 localStorage.setItem('spalla_refresh_token', data.refresh_token);
                 if (data.user) localStorage.setItem('spalla_user', JSON.stringify(data.user));
-                this.ui.taskAssignee = '__mine__';
               } else {
                 // Refresh failed — clear session
                 this._clearAuthStorage();
@@ -1567,7 +1566,6 @@ function operon() {
                 this.auth.currentUser = JSON.parse(userStr);
                 this.auth.accessToken = accessToken;
                 this.auth.refreshToken = refreshToken;
-                this.ui.taskAssignee = '__mine__';
                 console.warn('[Spalla] Auth: offline, using cached session (token not expired)');
               } else {
                 console.warn('[Spalla] Auth: offline, cached token expired');
@@ -1683,7 +1681,6 @@ function operon() {
 
         this.auth.email = '';
         this.auth.password = '';
-        this.ui.taskAssignee = '__mine__';
 
         await this.loadReminders();
         await this.loadDashboard();
