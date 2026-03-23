@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="16-APP-operon-molecules.css?v=3">
   <link rel="stylesheet" href="17-APP-operon-utilities.css?v=2">
   <link rel="stylesheet" href="18-APP-operon-bridge.css?v=1">
-  <link rel="stylesheet" href="13-APP-styles.css?v=78">
+  <link rel="stylesheet" href="13-APP-styles.css?v=79">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1c1910,#35301d,#1c1910);font-family:'Open Sauce Sans',system-ui,sans-serif;color:var(--brand-500,#8a7d52);font-size:24px;font-weight:700;letter-spacing:0.05em; }
@@ -2336,14 +2336,25 @@
               </div>
               <template x-for="space in spaces" :key="space.id">
                 <div class="tasks-sidebar__space">
-                  <div class="tasks-sidebar__item tasks-sidebar__item--space" :class="{ active: ui.taskSpaceFilter === space.id && ui.taskListFilter === 'all' }" @click="ui.taskSpaceFilter = space.id; ui.taskListFilter = 'all'">
+                  <div class="tasks-sidebar__item tasks-sidebar__item--space" :class="{ active: ui.taskSpaceFilter === space.id && ui.taskListFilter === 'all' }" @click="ui.taskSpaceFilter = space.id; ui.taskListFilter = 'all'; ui.spaceExpanded = ui.spaceExpanded === space.id && ui.taskListFilter === 'all' ? null : space.id">
                     <span class="tasks-sidebar__space-dot" :style="'background:' + space.color"></span>
                     <span x-text="space.name"></span>
                     <span class="tasks-sidebar__count" x-text="data.tasks.filter(t => t.space_id === space.id).length"></span>
                   </div>
                   <template x-for="list in space.lists" :key="list.id">
-                    <div class="tasks-sidebar__item tasks-sidebar__item--list" :class="{ active: ui.taskListFilter === list.id }" @click="ui.taskSpaceFilter = space.id; ui.taskListFilter = list.id">
-                      <span class="tasks-sidebar__list-dot" :style="'background:' + space.color"></span>
+                    <div class="tasks-sidebar__item tasks-sidebar__item--list"
+                         :class="{ active: ui.taskListFilter === list.id }"
+                         @click="ui.taskSpaceFilter = space.id; ui.taskListFilter = list.id">
+                      <!-- Sprint: mostrar ícone de status em vez de dot -->
+                      <template x-if="list.isSprint">
+                        <span class="tasks-sidebar__sprint-icon"
+                              :class="list.status === 'ativo' ? 'tasks-sidebar__sprint-icon--active' : (list.status === 'encerrado' ? 'tasks-sidebar__sprint-icon--done' : 'tasks-sidebar__sprint-icon--planned')"
+                              x-text="list.icon">
+                        </span>
+                      </template>
+                      <template x-if="!list.isSprint">
+                        <span class="tasks-sidebar__list-dot" :style="'background:' + space.color"></span>
+                      </template>
                       <span x-text="list.name"></span>
                       <span class="tasks-sidebar__count" x-text="data.tasks.filter(t => t.list_id === list.id).length"></span>
                     </div>
