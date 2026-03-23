@@ -3036,6 +3036,18 @@ img { max-width: 100%; display: block; }
 }
 .tasks-sidebar__space { margin-bottom: 2px; }
 
+/* Sprint icon in sidebar list items */
+.tasks-sidebar__sprint-icon {
+  font-size: 11px;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.tasks-sidebar__sprint-icon--active  { color: #7c3aed; }
+.tasks-sidebar__sprint-icon--done    { color: #10b981; }
+.tasks-sidebar__sprint-icon--planned { color: #94a3b8; }
+
 .tasks-main { flex: 1; padding: 20px 24px; overflow-y: auto; min-width: 0; }
 
 /* ================================================================

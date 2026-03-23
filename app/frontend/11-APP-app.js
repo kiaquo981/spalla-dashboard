@@ -197,6 +197,7 @@ function operon() {
       taskGanttRange: 'month', // 'week' | 'month' | 'quarter'
       taskSpaceFilter: 'all', // space_id filter
       taskListFilter: 'all', // list_id filter
+      spaceExpanded: null,   // which space has sub-lists visible
       docsTab: 'arquivos',   // 'arquivos' | 'biblioteca' | 'google_docs'
       taskGroupBy: 'status', // 'status' | 'assignee' | 'priority' | 'list'
       taskTagFilter: [],       // tag ids for filtering
@@ -502,6 +503,16 @@ function operon() {
           { id: 'list_playbooks', name: 'Playbooks & Materiais', icon: '■' },
           { id: 'list_dossies', name: 'Dossiês', icon: '◇' },
         ]
+      },
+      { id: 'space_ia', name: 'IA & Automação', icon: '◈', color: '#f59e0b',
+        lists: [
+          { id: 'list_agentes', name: 'Agentes', icon: '◉' },
+          { id: 'list_workflows', name: 'Workflows N8N', icon: '◆' },
+        ]
+      },
+      // Sistema & Dev — lists populadas dinamicamente por loadGodLists() com sprints reais
+      { id: 'space_sistema', name: 'Sistema & Dev', icon: '◈', color: '#0ea5e9',
+        lists: []
       },
     ],
 
@@ -2812,6 +2823,7 @@ function operon() {
         const { data, error } = await sb.from('god_lists').select('*').eq('ativo', true).order('ordem');
         if (!error && data?.length) {
           this.data.lists = data;
+
           // Atualiza data.sprints com os dados reais do banco
           const sprints = data
             .filter(l => l.tipo === 'sprint')
@@ -2827,6 +2839,18 @@ function operon() {
             }));
           if (sprints.length) {
             this.data.sprints = sprints;
+          }
+
+          // Popula space_sistema.lists com sprints como items navegáveis
+          const sistemaSpace = this.spaces.find(s => s.id === 'space_sistema');
+          if (sistemaSpace) {
+            sistemaSpace.lists = sprints.map(s => ({
+              id: s.id,
+              name: s.nome,
+              icon: s.status === 'ativo' ? '⚡' : (s.status === 'encerrado' ? '✓' : '○'),
+              isSprint: true,
+              status: s.status,
+            }));
           }
         }
       } catch (e) {
