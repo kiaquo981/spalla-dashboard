@@ -1,5 +1,5 @@
 ---
-title: CASE — Report de Status Geral para GOB
+title: CASE Scale — Report de Status Geral para GOB
 type: governance-report
 status: current
 date: 2026-03-22
@@ -9,17 +9,17 @@ author: Kaique Rodrigues
 # CASE Scale — Status Report GOB
 **Data de referência:** 22 de março de 2026
 **Destinatário:** GOB (Governança do Negócio)
-**Escopo:** Software, ferramentas, agentes de IA, processos e próximos passos
+**Escopo:** Software, GitHub, Agentes de IA, Ferramentas, Processos e Backlog
 
 ---
 
 ## Índice
 
 1. [Visão Executiva](#1-visão-executiva)
-2. [GitHub — Repositórios e Status](#2-github--repositórios-e-status)
-3. [Spalla Dashboard — O Hub Central](#3-spalla-dashboard--o-hub-central)
-4. [ClickUp — Gestão Operacional](#4-clickup--gestão-operacional)
-5. [Agentes de IA — N8N + Bill Case](#5-agentes-de-ia--n8n--bill-case)
+2. [GitHub — Onde cada coisa está](#2-github--onde-cada-coisa-está)
+3. [Spalla Dashboard — Hub Central](#3-spalla-dashboard--hub-central)
+4. [Agentes de IA — Mapeamento Completo](#4-agentes-de-ia--mapeamento-completo)
+5. [ClickUp — Gestão Operacional](#5-clickup--gestão-operacional)
 6. [Ferramentas e SaaS](#6-ferramentas-e-saas)
 7. [Backlog Estratégico Consolidado](#7-backlog-estratégico-consolidado)
 
@@ -27,86 +27,103 @@ author: Kaique Rodrigues
 
 ## 1. Visão Executiva
 
-A CASE Scale opera hoje com um stack proprietário em construção ativa. O ativo central é o **Spalla Dashboard** — plataforma web de gestão dos mentorados que concentra jornadas, tarefas, WhatsApp, dossiês, financeiro, agenda e controle operacional.
-
-O estágio atual é **MVP funcional em uso parcial pela equipe**. As bases estão construídas; o próximo ciclo é transformar funcionalidades existentes em processos adotados, e completar as integrações críticas (WhatsApp nativo, ClickUp custom fields, Google Calendar).
+A CASE Scale opera com um stack proprietário em construção ativa. O ativo central é o **Spalla Dashboard** — plataforma web de gestão dos mentorados. Paralelo a isso, temos 11 agentes de IA no N8N em produção e um roadmap de 39 agentes mapeados na imersão de produto de março.
 
 ```
-Status geral: 🟡 Em construção — funcional mas com gaps críticos de adoção e integração
+Status geral: 🟡 MVP funcional — em uso parcial pela equipe
+Próximo ciclo: adoção + integrações críticas + pipeline de dossiê em produção
 ```
+
+**Números-chave:**
+
+| Dimensão | Quantidade | Status |
+|----------|-----------|--------|
+| Repositórios GitHub ativos | 2 (spalla + bu-case) | ✅ Ativos |
+| Módulos do Spalla | 17 | 🔄 Funcional, adoção parcial |
+| Agentes N8N em produção | 11 | 🔄 Alguns com problemas |
+| Workflows N8N no ar (total) | 59 de 100 ativos | ✅ Monitorado via Cortex |
+| Execuções N8N / 24h | 200 (199 sucesso, 1 erro) | 🔄 99.5% saúde |
+| Agentes mapeados para construir | 39 (imersão mar/26) | ❌ Roadmap |
+| Workflows na KB (bu-case) | 299 arquivos / 9 pastas | ✅ No GitHub |
+| Hub CASE AI — agentes ao vivo | 21 (Estratégia 13, Conteúdo 4, Utilitários 2, Funis 1) | ✅ Em produção |
+| Social CASE — mentorados | 35 total / 24 ativos (69%) / 13 precisam atenção | 🔄 Beta |
+| Social CASE — conteúdos | 2.102 conteúdos / 8.3% engagement médio | 🔄 Beta |
+| FunnelCase — funis construídos | 16 funis (projeto Deisy) | 🔄 Beta |
 
 ---
 
-## 2. GitHub — Repositórios e Status
+## 2. GitHub — Onde Cada Coisa Está
 
-### Repositório Principal
+### 2.1 Repositórios
 
-| Repo | URL | Status | Deploy |
-|------|-----|--------|--------|
-| **spalla-dashboard** | github.com/case-company/spalla-dashboard | ✅ Ativo | Vercel (auto-deploy em `main`) + Railway (backend Python) |
+| Repo | O que é | Deploy | Status |
+|------|---------|--------|--------|
+| `case-company/spalla-dashboard` | Software de gestão dos mentorados | Vercel (frontend) + Railway (backend) | ✅ Em produção |
+| `case-company/bu-case` | Knowledge base, JSONs dos agentes, KB Queila, playbooks | — (versionamento e backup) | ✅ Ativo |
 
-### Worktrees Ativos (branches em desenvolvimento)
+---
 
-Os worktrees abaixo representam features em progresso ou concluídas aguardando merge:
+### 2.2 Repositório `bu-case` — Estrutura Completa
+
+Este repositório centraliza todo o conhecimento técnico e operacional da empresa.
+
+#### `/drive/agents/n8n-workflows/` — JSONs dos Agentes N8N
+
+> Branch: `develop` | Path: `bu-case/drive/agents/n8n-workflows/`
+
+| Pasta | Agente | Status |
+|-------|--------|--------|
+| `analise-formatos/` | Agente de Análise de Formato de Conteúdo | ✅ Exportado |
+| `arquitetura-produto/` | Agente Arquitetura de Produto | ✅ Exportado |
+| `download-expert/` | Agente Download do Expert | ✅ Exportado |
+| `lapidacao-perfil/` | Agente de Lapidação de Perfil Instagram | ✅ Exportado |
+| `onboarding/` | Fluxo de Entrada de Novo Mentorado | ✅ Exportado |
+| `roteiros/` | Agente de Ideias & Roteiros de Conteúdo | ✅ Exportado |
+| `stories/` | Agente Stories | ✅ Exportado (precisa revisão) |
+| `transcricao-reels/` | Agente de Transcrição de Reels e Carrosséis | ✅ Exportado |
+| `whatsapp/` | Agente Orquestrador de WhatsApp | ✅ Exportado |
+
+#### `/drive/kb/` — Knowledge Base
+
+| Pasta | Conteúdo |
+|-------|---------|
+| `architecture_db/` | Arquitetura e schemas do banco de dados |
+| `gold_standard_docs/` | Dossiês gold standard de referência |
+| `kb_aulas_queila_conteudo/` | Aulas da Academia Expert (Queila) |
+| `kb_conteudo/` | Base de conhecimento de conteúdo |
+| `kb_entrega_dossie/` | Materiais e processos de entrega do dossiê |
+| `playbooks/` | Playbooks operacionais |
+| `transcricoes/` | Transcrições de reuniões e calls |
+| `_INDEX.md` | Índice mestre da KB |
+
+---
+
+### 2.3 Repositório `spalla-dashboard` — Worktrees Ativos
 
 | Worktree | Escopo | Situação |
 |----------|--------|----------|
 | `wt-carteira-owner` | Carteira de mentorados por consultor | ✅ Merged |
 | `wt-cfo-payments` | View financeiro CFO | ✅ Merged |
 | `wt-dossie-pipeline` | Pipeline de dossiês no Spalla | ✅ Merged |
+| `wt-production-ready` | Hardening de produção | ✅ Merged |
 | `wt-evolution-msg-sync` | Sincronização de mensagens Evolution | 🔄 Em desenvolvimento |
 | `wt-google-calendar-integration` | Agenda Google Calendar | 🔄 Com problemas |
 | `wt-wa-topics` | Tópicos de WhatsApp por mentorado | 🔄 Inativo |
 | `wt-wa-bulk-ops` | Operações em massa no WhatsApp | 🔄 Em desenvolvimento |
 | `wt-wa-inbox-ui` | UI de inbox WhatsApp | 🔄 Em desenvolvimento |
-| `wt-wa-notes-api` | API de notas estruturadas WA | ✅ Merged |
 | `wt-notifications` | Sistema de notificações in-app | 🔄 Em desenvolvimento |
 | `wt-recurring-tasks` | Tarefas recorrentes | 🔄 Pendente |
-| `wt-production-ready` | Hardening de produção | ✅ Merged |
-
-### O que precisa subir para o GitHub (ainda não está lá)
-
-- [ ] Documentação dos fluxos N8N (JSONs dos agentes)
-- [ ] Prompts e system messages dos agentes de IA
-- [ ] Especificações do Funnel Case (atualmente só no Vercel)
-- [ ] Scripts de automação do ClickUp
-- [ ] Mapa de arquitetura do stack completo
 
 ---
 
-## 3. Spalla Dashboard — O Hub Central
+## 3. Spalla Dashboard — Hub Central
 
-**Stack:** Python 3.9 (backend Railway) + HTML/Alpine.js (frontend Vercel)
-**URL produção:** spalla-dashboard.vercel.app
-**Banco de dados:** Supabase (PostgreSQL + RLS)
+**Stack:** Python 3.9 (Railway) + HTML/Alpine.js (Vercel)
+**URL:** spalla-dashboard.vercel.app
+**DB:** Supabase (PostgreSQL + RLS)
 **Integrações:** ClickUp API, Evolution API (WhatsApp), Google Sheets, Supabase Storage
 
-### 3.1 Mapa de Páginas — O que Existe
-
-O Spalla hoje tem **17 módulos/páginas** funcionais:
-
-```
-sidebar
-├── Command Center      ← visão holística para gestão
-├── Dashboard           ← painel Linear/Notion dos mentorados
-├── Detalhe Mentorado   ← ficha completa por mentorado
-├── Kanban              ← board por fase da jornada
-├── Tarefas             ← gestão de tasks (integrado ClickUp)
-├── Agenda              ← calls e eventos (Zoom + Google Calendar)
-├── WhatsApp            ← inbox e conversas (Evolution API)
-├── WA Tópicos          ← board de tópicos por mentorado
-├── Lembretes           ← sistema de alertas internos
-├── Dossiês             ← produção e acompanhamento
-├── Planos de Ação      ← sentinela pós-dossiê
-├── Onboarding CS       ← checklists e templates de entrada
-├── Arquivos            ← storage + busca semântica
-├── Docs                ← documentação interna
-├── Equipe              ← visão do time e alocação
-├── Financeiro          ← view CFO de pagamentos
-└── Configurações       ← admin e permissões
-```
-
-### 3.2 Status por Módulo
+### 3.1 Mapa de Módulos — Status Atual
 
 #### ✅ Funcionando bem
 
@@ -114,212 +131,277 @@ sidebar
 |--------|----------------|-------------|
 | **Dashboard (mentorados)** | Lista completa, filtros, status, fases, SLA de resposta, carteira por consultor | Base sólida |
 | **Detalhe do Mentorado** | Ficha completa, jornada, histórico, documentos, WhatsApp | Mais completo do sistema |
-| **WhatsApp — Inbox** | Ver mensagens, identificar sem resposta, tempo sem resposta, mensagens pendentes | Proxy via Evolution — não é nativo |
-| **Carteira (WA Management)** | Visão de grupos por consultor, mensagens sem resposta, SLA | Board funcional |
-| **Financeiro (CFO)** | Visão de pagamentos, status, alertas | Não tem banco de dados próprio ainda |
-| **Onboarding CS** | Templates de tarefas por etapa, checklists | Existe mas pouco utilizado pelo time |
-| **Dossiês** | Produção, acompanhamento por mentorado, status | Funciona bem, falta acesso integrado |
-| **Lembretes** | Criar e visualizar lembretes | Bug: podem aparecer para outros usuários |
-| **Agenda (Zoom)** | Integração Zoom funcionando | Google Calendar com problemas |
-| **Command Center** | Projetos ativos, sprint, time, atividade recente (ClickUp live) | Em finalização |
-| **Tarefas (ClickUp)** | Kanban de tasks, filtros por status/responsável | Falta custom fields |
+| **WhatsApp — Inbox** | Mensagens sem resposta, tempo sem resposta, SLA | Proxy via Evolution |
+| **Carteira WA** | Grupos por consultor, mensagens pendentes | Board funcional |
+| **Financeiro (CFO)** | Pagamentos, status, alertas | Sem DB próprio ainda |
+| **Onboarding CS** | Templates de tarefas por etapa, checklists | Existe, pouco utilizado |
+| **Dossiês** | Produção, acompanhamento por mentorado | Funciona, falta acesso integrado |
+| **Agenda (Zoom)** | Integração Zoom | Google Calendar com problemas |
+| **Command Center** | Projetos, sprint, time, atividade (ClickUp live) | Em finalização |
+| **Tarefas (ClickUp)** | Kanban de tasks, filtros | Falta custom fields |
 
 #### 🔄 Parcialmente funcionando / Precisa atenção
 
 | Módulo | Problema | Prioridade |
 |--------|----------|-----------|
-| **Agenda (Google Calendar)** | Integração com problemas — Zoom funciona, GCal não | Alta |
-| **WhatsApp — Proxy** | Usar Evolution como proxy não é prático; falta gerenciar conversas de forma fluida | Alta |
-| **WA Tópicos** | Existe no sistema mas está inativo | Média |
-| **Kanban por Fase** | Kanban existe mas falta detalhamento por etapa (quem fez call com Queila, onboarding, etc.) | Alta |
-| **Planos de Ação** | Coleta do dossiê funciona mas não está consolidando corretamente | Alta |
-| **Arquivos / Docs** | Existe storage mas não conectado ao Google Drive Pro da empresa | Média |
-| **Equipe** | Views existem mas são pouco úteis na prática | Média |
-| **Jornadas dos Mentorados** | Estrutura existe mas fluxo não está lógico o suficiente | Alta |
+| **Agenda (Google Calendar)** | Integração com problemas | Alta |
+| **WhatsApp (proxy)** | Não é nativo — gerenciar conversas não é prático | Alta |
+| **WA Tópicos** | Existe mas está inativo | Média |
+| **Kanban por Fase** | Falta detalhamento por etapa (call Queila, onboarding, etc.) | Alta |
+| **Planos de Ação** | Coleta do dossiê funciona mas não consolida corretamente | Alta |
+| **Lembretes** | Bug: aparecem para outros usuários (vinculado ao login errado) | Média |
+| **Jornadas dos Mentorados** | Estrutura existe mas fluxo não está lógico | Alta |
 
-#### ❌ Faltando / Não implementado
+#### ❌ Não implementado
 
-| Feature | Descrição | Impacto |
-|---------|-----------|---------|
-| **WhatsApp nativo** | Coleta de dados via WA, cadastrar mentorado pelo WA, mandar tarefas via WA | Alto |
-| **Evolution API — documentação** | Precisar aprofundar integração para tornar utilizável | Alto |
-| **ClickUp Custom Fields no Spalla** | Trazer campos personalizados do ClickUp para o sistema de gestão | Alto |
-| **Kanban por etapa/fase** | Quem passou pela call de Queila, quem fez onboarding, check de call por fase | Alto |
-| **Google Drive vinculado** | Trazer arquivos do Pro Drive como se fosse Google Docs dentro do Spalla | Médio |
-| **Financeiro → banco de dados** | Registros persistentes de pagamento em Supabase | Médio |
-| **Lembretes — bug de login** | Lembretes compartilhados entre usuários, deveria ser por usuário | Médio |
-| **Dossiês — acesso Google Docs** | Conectar acesso aos arquivos reais do dossiê | Médio |
-| **Planos de Ação — atualização pós-dossiê** | Consultores atualizarem o plano após entrega, ou reset para começar do zero | Médio |
-| **WhatsApp Bulk Ops** | Operações em massa (mensagem para vários mentorados) | Médio |
-| **Listas melhoradas** | Operacional, conteúdo, vendas, playbooks, dossiês com mais estrutura | Médio |
-| **Notificações in-app** | Sistema de alertas internos (em desenvolvimento) | Baixo |
-| **Tarefas recorrentes** | Tasks que se repetem automaticamente | Baixo |
+| Feature | Impacto |
+|---------|---------|
+| WhatsApp nativo (coleta, cadastro, tarefas via WA) | Alto |
+| ClickUp Custom Fields espelhados no Spalla | Alto |
+| Kanban por etapa/fase com checklist de calls | Alto |
+| Google Drive vinculado (Docs como se fosse nativo) | Médio |
+| Financeiro → persistência em Supabase | Médio |
+| Dossiês → acesso Google Docs integrado | Médio |
+| Planos de Ação → fluxo de atualização pós-dossiê | Médio |
+| WhatsApp Bulk Ops | Médio |
 
-### 3.3 O que o time ainda não usa (adoção pendente)
+### 3.2 Adoção pelo Time
 
-O sistema tem funcionalidades que existem mas não viraram hábito da equipe:
+O sistema tem funcionalidades que existem mas não viraram hábito:
 
-- **Onboarding CS** — templates prontos, ninguém usa
-- **Planos de Ação** — coleta existe, não é consultado
-- **Tarefas no Spalla** — time ainda opera mais no ClickUp direto
-- **Equipe / Views de alocação** — existem mas não são úteis o suficiente
-- **Lembretes** — usados raramente
-
-### 3.4 Próximos Passos Técnicos (priorizado)
-
-```
-P1 — Alta prioridade (impacto direto na operação)
-  1. WhatsApp: aprofundar Evolution API para gerenciar conversas de forma utilizável
-  2. Kanban por fase/etapa com checklist de calls (Queila, onboarding, etc.)
-  3. Google Calendar: resolver integração
-  4. ClickUp Custom Fields: trazer para o Spalla
-
-P2 — Média prioridade
-  5. Dossiês: conectar acesso Google Docs
-  6. Planos de Ação: fluxo de atualização pós-dossiê
-  7. Financeiro: persistência em Supabase
-  8. Lembretes: isolar por usuário logado
-
-P3 — Próximo ciclo
-  9. WhatsApp nativo: coletas, cadastro e tarefas via WA
-  10. Funnel Case integrado ao Spalla
-  11. Playbooks dentro do Spalla
-  12. Notificações in-app
-```
+- **Onboarding CS** — templates prontos, ninguém usa sistematicamente
+- **Planos de Ação** — coletado, não é consultado depois
+- **Lembretes** — uso raro
+- **Views de Equipe** — existem mas pouco úteis na prática
 
 ---
 
-## 4. ClickUp — Gestão Operacional
+## 4. Agentes de IA — Mapeamento Completo
 
-**Workspace:** All In Marketing (ID: 9011530618)
-**Space:** Case Scale (ID: 90114112693)
+### 4.1 Agentes N8N — O que Existe Hoje (11 Agentes)
 
-### 4.1 Estrutura de Sprints Atual
+> Todos os JSONs exportados estão no GitHub: `bu-case/drive/agents/n8n-workflows/`
+> N8N hospedado em: `meueditor.manager01.feynmanproject.com`
 
-| Sprint | Período | Status | Total de Tasks |
-|--------|---------|--------|---------------|
-| Sprint 1 | 16–22 Mar 2026 | ✅ Ativo | ~7 (internas) + 225 (backlog) |
-| Sprint 2 | 23–29 Mar 2026 | Planejado | ~225 |
-| Sprint 3 | 30 Mar–5 Abr 2026 | Planejado | ~230 |
-
-### 4.2 Status do Workflow com IA
-
-```
-Workflow CASE com IA no ClickUp:
-✅ Quase fechado — falta Gobe fechar alguns detalhes
-✅ APIs subidas e disponíveis para Gobe manusear
-❌ Pipeline de dossiê: precisa ser testado em tempo real
-❌ Playbook de Call de Download: em finalização
-❌ Mapa do Expert: pendente
-```
-
-### 4.3 Listas Principais e Status
-
-| Lista | Finalidade | Status |
-|-------|-----------|--------|
-| Operacional | Tasks do dia a dia da equipe | Existe, precisa melhorar estrutura |
-| Conteúdo | Produção de conteúdo (Queila e time) | Existe, precisa melhorar |
-| Vendas | Pipeline e oportunidades | Existe |
-| Playbooks | Processos documentados | Em construção |
-| Dossiês | Tracking de produção | Em uso ativo |
-
-### 4.4 Integrações ClickUp ↔ Spalla
-
-- ✅ Tasks visíveis no Spalla (via API v2)
-- ✅ Activity feed do Command Center vem do ClickUp
-- ✅ Sprint progress sincronizado em tempo real
-- ❌ Custom Fields do ClickUp não espelhados no Spalla
-- ❌ Criar/atualizar tasks do Spalla para o ClickUp (só leitura hoje)
+| # | Agente | N8N | JSON no Drive | Status |
+|---|--------|-----|---------------|--------|
+| 1 | **Agente de Ideias & Roteiros de Conteúdo** | [Workflow](https://meueditor.manager01.feynmanproject.com/workflow/qWxV9r35j2RWouDK) | [Drive](https://drive.google.com/drive/folders/17UZ8qxDdRQe-A8jast3AwQPcBcab7N-V) | 🔄 Funcionando, melhorias pendentes |
+| 2 | **Agente Stories** | [Workflow](https://meueditor.manager01.feynmanproject.com/workflow/t9LrgNuqNwOWo93E) | [Drive](https://drive.google.com/drive/folders/1JMJGXldsUSuiQv6W35EwTa0voaRgZFF2) | 🔄 Precisa revisão de prompts e testes |
+| 3 | **Agente Orquestrador de WhatsApp** | [Workflow](https://meueditor.manager01.feynmanproject.com/workflow/9HSHA0GdlYEB0blR) | [Drive](https://drive.google.com/drive/folders/1kUQd6wKGoFDCuXTlsYkKP9fCgvcVAdC8) | ✅ Funcionando |
+| 4 | **Fluxo de Entrada de Novo Mentorado** | [Workflow](https://meueditor.manager01.feynmanproject.com/workflow/Uc2Kblsa7yVLQEy5) | [Drive](https://drive.google.com/drive/folders/185L5tEXT4eJphhwn0EUxykBRNUp-wPvY) | ✅ Funcionando |
+| 5 | **Lapidação de Perfil Instagram — Parte 1** | [Workflow](https://meueditor.manager01.feynmanproject.com/workflow/pCq3MRDGsUeok4gx) | [Drive](https://drive.google.com/file/d/1TBw0Byv9U3PLjxZDeeYBlyDC44Toqf8X) | ❌ Não integrado no fluxo |
+| 6 | **Lapidação de Perfil Instagram — Parte 2** | [Workflow](https://meueditor.manager01.feynmanproject.com/workflow/gAMKhSwpXyrZplDB) | [Drive](https://drive.google.com/file/d/1a4znlKLLBiLnpTJ45E5-PWUx4YIfs8Ib) | ❌ Não integrado no fluxo |
+| 7 | **Fluxo de Concepção de Dossiê** | — | `02_WORKFLOWS` (local) | ❌ Saindo do N8N — prompts baixados |
+| 8 | **Agente Download do Expert** | [Workflow](https://meueditor.manager01.feynmanproject.com/workflow/J3VI8jKyB7NyF4OK) | [Drive](https://drive.google.com/drive/folders/1DvZYOfHzXExcACoX6C2VohAhm8pJ67-8) | 🔄 Em transição para call estruturada |
+| 9 | **Agente Arquitetura de Produto** | [Workflow](https://meueditor.manager01.feynmanproject.com/workflow/oSG3HMiUa3wb5Nnk) | [Drive](https://drive.google.com/drive/folders/1Wz5zS1ExCNYsm5n038bTGniYZRWnTkbw) | ✅ Disponível |
+| 10 | **Transcrição de Reels e Carrosséis** | [Workflow](https://meueditor.manager01.feynmanproject.com/workflow/Mb92P37OqXlg9rx7) | [Drive](https://drive.google.com/drive/folders/1bvPDJNvXFI0HZM5WVJRNQff7CBjHHQuq) | ✅ Funcionando |
+| 11 | **Análise de Formato de Conteúdo** | [Workflow](https://meueditor.manager01.feynmanproject.com/workflow/fXQXHFwBJSua0siUU) | [Drive](https://drive.google.com/drive/folders/1XLckSkTtEJ6uXGW7W1MncDA6HffbR42_) | ✅ Funcionando |
 
 ---
 
-## 5. Agentes de IA — N8N + Bill Case
+### 4.2 Roadmap de Agentes — Imersão de Produto (Mar/2026)
 
-**Plataforma:** N8N (self-hosted ou cloud)
-**Documentação:** Bill Case (Drive com agentes, fluxos e system messages)
+> 39 necessidades mapeadas. Cruzamento de 25+ fontes: Sprint Master, transcrições, notas, demandas Kaique/Queila, backlog Spalla.
 
-### 5.1 Mapa de Agentes
+#### Legenda
 
-| Agente | Função | Status |
-|--------|--------|--------|
-| **WhatsApp** | Resposta automática e triagem de mensagens | ✅ Funcionando |
-| **Transcrição de Reels** | Converte vídeos em texto | ✅ Funcionando |
-| **Análise de Formato** | Analisa formato de conteúdo do mentorado | ✅ Funcionando |
-| **Stories** | Cria roteiros de stories para mentorados | 🔄 Precisa revisão de prompts e testes |
-| **Fluxo de Entrada do Mentorado** | Automação de onboarding via WA | ✅ Funcionando |
-| **Lapidação de Perfil** | Análise e refinamento do perfil do mentorado | ❌ Não integrado ainda |
-| **Download do Expert** | Extração de conhecimento do mentorado (vai virar call estruturada) | 🔄 Em transição para call presencial + agente de processamento |
-| **Concepção de Dossiê** | Agente principal de geração do dossiê | ❌ Saindo do N8N — prompts baixados, em implementação |
-| **Roteiros** | Roteiros de aula e conteúdo | ✅ Funcionando (contexto Queila Brain) |
-| **Arquitetura de Produto** | Análise de produto do mentorado | ✅ Disponível |
-| **Análise de Formato** | Diagnóstico de formato de conteúdo | ✅ Disponível |
-| **System Messages** | Repositório de prompts | 🔄 Pouco utilizado, existe mas sem uso ativo |
+| Status | Significado |
+|--------|-------------|
+| **CONSTRUIR** | Não existe. Criar do zero. |
+| **REVISAR** | Existe com problemas graves. Refatorar. |
+| **MELHORAR** | Existe, funciona parcialmente. Ajustes pontuais. |
+| **INFRAESTRUTURA** | Fundação técnica que os agentes dependem. |
 
-### 5.2 Repositório de Artefatos (Bill Case)
+#### 4.2.1 Pipeline de Dossiê — `[Download → Transcrição → Resumo → Geração → Revisão → Entrega]`
 
-```
-Bill Case / N8N Documentação:
-├── Análise de formato       → JSON exportado ✅
-├── Arquitetura de produto   → JSON exportado ✅
-├── Download de expert       → JSON exportado ✅
-├── Lapidação de perfil      → JSON exportado ✅
-├── Onboarding               → JSON exportado ✅
-├── Roteiros                 → JSON exportado ✅
-├── Stories                  → JSON exportado (precisa revisão) 🔄
-├── Transcrição              → JSON exportado ✅
-├── WhatsApp                 → JSON exportado ✅
-└── System Messages          → Mapeado, pouco utilizado 🔄
-```
+| ID | Agente | Status | O que faz | Bloqueia |
+|----|--------|--------|-----------|----------|
+| **AGEN-06** | Resumir 2 Calls → Texto p/ Dossiê | CONSTRUIR | Extrai da transcrição as informações organizadas por seção do dossiê. Sem ele, AGEN-01 não tem input estruturado. | AGEN-01 |
+| **AGEN-11** | Mapa de Comunicação do Mentorado | CONSTRUIR | Gera DNA de comunicação (personalidade, tom, vocabulário) a partir da call de download. Input obrigatório para todos os agentes de conteúdo. | AGEN-03, AGEN-07 |
+| **AGEN-01** | Sequência Completa: Download → Dossiê | CONSTRUIR | Pipeline principal. Pega output de AGEN-06 + AGEN-11 e gera dossiê completo com todas as seções. | Entrega completa |
+| **AGEN-09** | Regra de Zero Invenção | REVISAR | Constraint de segurança — quando agente não encontra informação, escreve "Não encontrado" em vez de inventar. Existe nos prompts mas sem verificação automática. | Confiança do mentorado |
+| **AGEN-02** | Pré-Revisão Automática de Dossiê | CONSTRUIR | QA gate antes da revisão da Mariza. Checa: completude, coerência, tom. Reduz turnaround de 25 dias → ~10-12 dias. | Velocidade de entrega |
+| **AGEN-10** | Memória do Mentorado (Contexto Persistente) | CONSTRUIR | Armazena decisões prévias, pilares, feedback, classificação C1/C2/C3. Sem isso, cada interação começa do zero. | Escala e retrabalho |
+| **AGEN-14** | Validação de Execução Pós-Dossiê | CONSTRUIR | Monitora se mentorado executou as recomendações. Transforma CS de reativo em proativo. | Resultado do mentorado |
 
-**Links para download dos JSONs:** disponíveis na documentação da Bill Case.
+#### 4.2.2 Pipeline de Conteúdo — `[Lapidação → Posts → Ideias → Roteiros → Stories → Análise]`
 
-### 5.3 Próximos Passos — Agentes
+| ID | Agente | Status | Problema Principal |
+|----|--------|--------|--------------------|
+| **AGEN-03** | Sequência Lapidação → Posts → Ideias → Roteiros → Stories | REVISAR | 5 sub-agentes existem mas com problemas: Lapidação exige foto formal desnecessariamente; Posts Fixados geram output ruim (Mariza revisa quase tudo); Stories perde contexto das etapas anteriores |
+| **AGEN-05** | Separar Modos: Criar vs. Revisar | REVISAR | Agentes atuais misturam criação e revisão no mesmo fluxo → output incoerente. Afeta TODOS os agentes. |
+| **AGEN-07** | Agente Específico para Posts Fixados | CONSTRUIR | Posts fixados (long-form, educativos, atemporais) têm formato completamente diferente de Stories. Usar o mesmo agente gera qualidade ruim. |
+| **AGEN-04** | Revisão de Roteiros de Conteúdo | CONSTRUIR | QA gate para roteiros antes da produção. Verifica: tom, pilar, formato, CTA. Depende de Mariza definir critérios. |
+| **AGEN-22** | Banco de Referências por Formato | INFRAESTRUTURA | Knowledge base com exemplos reais por formato (Destaques, Stories, Reels, Carrosséis). Sem isso, agentes geram "no vácuo". Mariza seleciona exemplos, Kaique estrutura. |
+| **AGEN-19** | Análise de Conteúdo Pós-Publicação | CONSTRUIR | Após 4+ semanas publicando, analisa métricas e recomenda ajustes. 3 calls de análise previstas na jornada. |
+| **AGEN-20** | Cronograma de Postagens Automático | CONSTRUIR | Gera calendário semanal indexado por SEMANA (não data) — permite entrada contínua de mentorados. |
 
-```
-P1 — Download do Expert: transformar em call estruturada (agente só processa output)
-P2 — Concepção de Dossiê: finalizar saída do N8N, testar pipeline completo
-P3 — Stories: revisar prompts e testar com mentorados reais
-P4 — Lapidação de Perfil: integrar no fluxo de entrada do mentorado
-P5 — Subir JSONs dos agentes para o GitHub (versionamento e backup)
-```
+#### 4.2.3 Pipeline Comercial — `[Classificação → Funil → Abordagem → Follow-up → Fechamento]`
+
+| ID | Agente | Status | O que faz |
+|----|--------|--------|-----------|
+| **AGEN-08** | Mensagens WhatsApp por Tipo de Lead | CONSTRUIR | Variações de mensagem por tipo (ex-aluno, prospect, cold, referral). Curtas, diretas, não-robóticas. Bloqueado por Mariza organizar framework de abordagens. |
+| **AGEN-12** | Revisão do Agente de Ofertas | REVISAR | Gera ofertas com critérios vagos e baixa assertividade. Precisa: Mariza organizar critérios, depois Kaique ajusta. |
+| **AGEN-18** | Recomendador de Funil por Perfil | CONSTRUIR | Dado perfil C1/C2/C3, recomenda funil e gera templates de abordagem. 3 perfis mapeados: demanda+autoridade → Abordagem; resultado sem demanda → Aula; sem demanda+off fraco → Evento. |
+| **AGEN-21** | Agente de Anúncios (Gerador + Analisador) | CONSTRUIR | Gera variações de anúncio por funil + analisa performance de campanhas. Depende de Kit de Tráfego (DOSS-14). |
+| **AGEN-30** | Follow-up Automático (Pré/Pós Consulta) | CONSTRUIR | Mensagens automáticas de follow-up por etapa do funil. Canais: WhatsApp + Email. Depende de CRM (Kommo para C3). |
+
+#### 4.2.4 Suporte CS & Operações Internas
+
+| ID | Agente | Status | O que faz |
+|----|--------|--------|-----------|
+| **AGEN-13** | Agentes @mention no WhatsApp | CONSTRUIR | Agentes especialistas acionáveis via @mention nos grupos: `@case-copy`, `@case-comercial`, `@case-trafego`, `@case-funil`, `@case-conteudo`. Elimina gargalo de Hugo/Queila em cada revisão. |
+| **AGEN-16** | Monitor SLA de Grupos WhatsApp | MELHORAR | Já existe parcialmente (whatsapp-mention-alerts + whatsapp-response-analyzer no N8N). Precisa integrar com SLA por canal e dashboard consolidado. |
+| **AGEN-17** | Coaching Comercial Interno (para Consultores) | CONSTRUIR | Analisa calls de vendas dos consultores (Heitor/Lara) e dá feedback sobre técnica, objeções, fechamento. Ferramenta interna. |
+| **AUTO-01** | Automação Financeira (Billing separado do CS) | CONSTRUIR | CS não deve cobrar — destrói a relação. Automação de cobrança + lembretes separada da relação consultor-mentorado. |
+| **SPAL-07** | Chat NL do Mentorado no Spalla | CONSTRUIR | Mentorado pergunta em linguagem natural: "O que faço essa semana?", "Já entreguei meus posts?". Reduz perguntas ao CS. Depende de AGEN-10 e AGEN-14. |
+| **SPAL-08** | FAQ Inteligente para CS | CONSTRUIR | CS busca processos e links em linguagem natural. Substitui planilha estática. |
+
+#### 4.2.5 Produto C3 — Agentes Específicos
+
+| ID | Agente | Status | O que faz |
+|----|--------|--------|-----------|
+| **AGEN-15** | Diagnóstico Automático (Questionário Inteligente) | RECLASSIFICAR | Hoje é planilha/formulário estático. Deveria ser agente conversacional com 21 pontos de extração + classificação C1/C2/C3 automática. |
+| **AGEN-23** | Análise de Vídeo/Consulta Gravada | CONSTRUIR | Mentorado grava consultas por 1 semana → agente analisa técnica, objeções, fechamento → feedback estruturado. |
+| **AGEN-27** | Ofertas Interativo (Pacotes + Precificação) | CONSTRUIR | Guia mentorado na criação de pacotes com precificação automática, bundling, estruturas de oferta. |
+| **AGEN-31** | Coaching de Autoridade (Acompanha Funil 3m) | CONSTRUIR | Coach IA que acompanha mentorado ao longo dos 3 meses de funil de autoridade. Responde dúvidas, dá feedback, mantém accountability. |
+
+---
+
+### 4.3 Sumário do Roadmap de Agentes
+
+| Status | Quantidade | Agentes |
+|--------|-----------|---------|
+| ✅ Existem e funcionam | 5 | WhatsApp, Transcrição, Análise Formato, Onboarding, Arquitetura de Produto |
+| 🔄 Existem com problemas | 6 | Ideias/Roteiros, Stories, Download Expert, Lapidação Perfil, Concepção Dossiê, Revisão Ofertas |
+| ❌ CONSTRUIR — core | 7 | AGEN-01, 02, 06, 07, 10, 11, 14 |
+| ❌ CONSTRUIR — gap | 14 | AGEN-08, 13, 15, 17, 18, 19, 20, 21, 23, 27, 30, 31, SPAL-07, SPAL-08, AUTO-01 |
+| 🔧 REVISAR | 4 | AGEN-03 (5 sub), 05, 09, 12 |
+| 🏗 INFRAESTRUTURA | 1 | AGEN-22 (banco referências) |
+
+**Por pipeline:**
+
+| Pipeline | Total agentes | Existem | A construir |
+|----------|--------------|---------|-------------|
+| Dossiê | 7 | 1 (parcial) | 6 |
+| Conteúdo | 7 | 3 (com problemas) | 4 |
+| Comercial/Vendas | 5 | 1 (com problemas) | 4 |
+| CS/Operações | 6 | 1 (parcial) | 5 |
+| Produto C3 | 4 | 0 | 4 |
+
+---
+
+## 5. ClickUp — Gestão Operacional
+
+**Workspace:** All In Marketing (ID: `9011530618`)
+**Space:** Case Scale (ID: `90114112693`)
+
+### 5.1 Sprints Atuais
+
+| Sprint | Período | Status |
+|--------|---------|--------|
+| Sprint 1 | 16–22 Mar 2026 | ✅ Ativo |
+| Sprint 2 | 23–29 Mar 2026 | Planejado |
+| Sprint 3 | 30 Mar–5 Abr 2026 | Planejado |
+
+### 5.2 Status do Workflow com IA
+
+| Item | Status |
+|------|--------|
+| Workflow CASE com IA | 🔄 Quase fechado — Gobe finalizando |
+| APIs subidas para Gobe manusear | ✅ Disponíveis |
+| Pipeline de dossiê | ❌ Precisa teste em tempo real |
+| Playbook de Call de Download | ❌ Em finalização |
+| Mapa do Expert | ❌ Pendente |
+
+### 5.3 Integrações ClickUp ↔ Spalla
+
+| Integração | Status |
+|-----------|--------|
+| Tasks visíveis no Spalla (leitura via API v2) | ✅ Funcionando |
+| Activity feed do Command Center (ClickUp live) | ✅ Funcionando |
+| Sprint progress sincronizado | ✅ Funcionando |
+| Custom Fields espelhados no Spalla | ❌ Não implementado |
+| Criar/atualizar tasks do Spalla → ClickUp | ❌ Só leitura hoje |
 
 ---
 
 ## 6. Ferramentas e SaaS
 
-### 6.1 Stack Técnico Atual
+### 6.1 Stack Técnico
 
 | Ferramenta | Uso | Status |
 |-----------|-----|--------|
-| **Vercel** | Deploy do Spalla (frontend) | ✅ Ativo — auto-deploy em `main` |
+| **Vercel** | Deploy do Spalla (frontend) | ✅ Ativo |
 | **Railway** | Backend Python do Spalla | ✅ Ativo |
-| **Supabase** | Banco de dados PostgreSQL + Auth + Storage | ✅ Ativo |
+| **Supabase** | DB PostgreSQL + Auth + Storage | ✅ Ativo |
 | **ClickUp** | Gestão de tarefas e sprints | ✅ Em uso ativo |
-| **GitHub** | Versionamento de código | ✅ Ativo |
-| **Evolution API** | Integração WhatsApp (proxy) | 🔄 Funcional, mas limitado |
-| **N8N** | Automações e agentes de IA | ✅ Ativo |
+| **GitHub** | Versionamento (spalla + bu-case) | ✅ Ativo |
+| **N8N** | Automações e agentes de IA | ✅ Ativo (11 agentes) |
+| **Evolution API** | WhatsApp (proxy) | 🔄 Funcional, limitado |
 | **Google Workspace** | Drive, Docs, Calendar | 🔄 Parcialmente integrado |
 | **Zoom** | Calls e sessões | ✅ Integrado no Spalla |
-| **Claude API** | IA dos agentes e análises | ✅ Em uso nos agentes |
+| **Claude API** | IA dos agentes e análises | ✅ Em uso |
 
-### 6.2 Ferramentas Proprietárias (CASE)
+### 6.2 Ferramentas Proprietárias CASE
 
-| Ferramenta | Descrição | Status |
-|-----------|-----------|--------|
-| **Spalla Dashboard** | Hub central de gestão | ✅ Em produção |
-| **Hub CASE AI** | Central de agentes de IA (hub.caseai.com.br) | ✅ Ao vivo |
-| **Social CASE** | Calendário editorial + métricas (social.caseai.com.br) | 🔄 Beta |
-| **Funnel CASE** | Visualização de funis (funnelcase.vercel.app) | 🔄 Beta → futuro: integrar no Spalla |
-| **PageOS** | Criação de páginas de captura (page-os-eta.vercel.app) | 🔄 Beta |
-| **Carousel AI** | Produção de carrosséis com IA | 🔄 Beta |
+| Ferramenta | URL | O que é | Métricas reais | Status |
+|-----------|-----|---------|----------------|--------|
+| **Spalla Dashboard** | `spalla-dashboard.vercel.app` | Hub de gestão dos mentorados | — | ✅ Em produção |
+| **Hub CASE AI** | `hub.caseai.com.br` | Central de agentes de IA para mentorados | 21 agentes: Estratégia (13), Conteúdo (4), Utilitários (2), Funis (1) | ✅ Ao vivo |
+| **Social CASE** | `social.caseai.com.br` | Calendário editorial + métricas de conteúdo | 35 mentorados / 24 ativos / 13 precisam atenção / 2.102 conteúdos / 8.3% engagement | 🔄 Beta |
+| **FunnelCase** | `funnelcase.vercel.app` | Editor visual de funis (nodes + components) | 16 funis construídos (Abordagem de Lista, Social Seller, Autoridade Instagram...) | 🔄 Beta → futuro: integrar no Spalla |
+| **Cortex** | `cortex-peek.vercel.app` | Monitor de saúde dos workflows N8N | 200 exec/24h · 199 sucesso · 1 erro · 59/100 workflows ativos | ✅ Ao vivo |
+| **PageOS** | — | Criação de páginas de captura | — | 🔄 Beta |
+| **Carousel AI** | — | Produção de carrosséis com IA | — | 🔄 Beta |
 
-### 6.3 Modelo de Apresentação / Dossiê
+#### 6.2.1 Hub CASE AI — Agentes disponíveis aos mentorados
 
-```
-Novo modelo de apresentação: em desdobramento no Funnel OS
-Falta: gravar vídeos demonstrativos
-Status: 🔄 Em produção
-```
+> URL: `hub.caseai.com.br` | 21 agentes totais
+
+| Categoria | Qtd | Agentes recentes/relevantes |
+|-----------|-----|----------------------------|
+| Estratégia | 13 | Arquitetura de Produto, Download Expert |
+| Conteúdo | 4 | Agente Stories, Agente Naming, Melhorias Roteiros |
+| Utilitários | 2 | — |
+| Funis | 1 | — |
+
+#### 6.2.2 Social CASE — Dashboard de Mentorados
+
+> URL: `social.caseai.com.br` | Atualizado em tempo real
+
+| Métrica | Valor | Interpretação |
+|---------|-------|---------------|
+| Total mentorados | 35 | Base de mentorados cadastrados |
+| Ativos | 24 (69%) | Publicando conteúdo regularmente |
+| Precisam atenção | 13 | Sem atividade recente ou baixo engajamento |
+| Total conteúdos | 2.102 | Produzidos por todos os mentorados |
+| Engagement médio | 8.3% | Acima da média de mercado (~3-5%) |
+
+#### 6.2.3 Cortex (N8N Monitor) — Saúde dos Workflows
+
+> URL: `cortex-peek.vercel.app` | Dados das últimas 24h
+
+| Métrica | Valor |
+|---------|-------|
+| Execuções / 24h | 200 |
+| Sucesso | 199 (99.5%) |
+| Erro | 1 — `CASE — Analisador WhatsApp Semanal` → tabela `analises_whatsapp` |
+| Workflows ativos | 59 de 100 total |
+
+**Ação necessária:** Investigar erro no `Analisador WhatsApp Semanal` (provável problema de escrita na tabela `analises_whatsapp` no Supabase).
+
+#### 6.2.4 FunnelCase — Editor Visual de Funis
+
+> URL: `funnelcase.vercel.app` | 16 funis no projeto "Deisy"
+
+Editor visual com nodes e components organizados em 4 categorias:
+- **Canais** — Pontos de entrada (WhatsApp, Instagram, etc.)
+- **Mensagens** — Templates de comunicação
+- **Páginas** — Landing pages e capturas
+- **Vendas** — Etapas de conversão
+
+Funis mapeados (amostra): Abordagem de Lista, Social Seller, Autoridade Instagram, e demais funis CASE.
 
 ---
 
@@ -327,55 +409,78 @@ Status: 🔄 Em produção
 
 ### Prioridade 1 — Impacto imediato na operação
 
-| # | Item | Área | Responsável |
-|---|------|------|-------------|
-| 1 | WhatsApp Evolution: aprofundar integração para gestão real de conversas | Spalla | Dev |
-| 2 | Kanban por etapa/fase com checklist de calls (Queila, onboarding) | Spalla | Dev |
-| 3 | Google Calendar: resolver integração de agendamento | Spalla | Dev |
-| 4 | ClickUp Custom Fields no Spalla | Spalla + ClickUp | Dev |
-| 5 | Pipeline de dossiê: teste em tempo real | N8N + ClickUp | Gobe + Dev |
+| # | Item | Área | Resp. | Depende de |
+|---|------|------|-------|-----------|
+| 1 | WhatsApp Evolution: aprofundar para gestão real de conversas | Spalla | Dev | Documentação Evolution API |
+| 2 | Kanban por etapa/fase com checklist de calls (Queila, onboarding) | Spalla | Dev | — |
+| 3 | Google Calendar: resolver integração | Spalla | Dev | — |
+| 4 | ClickUp Custom Fields no Spalla | Spalla + ClickUp | Dev | — |
+| 5 | Pipeline de dossiê: AGEN-06 + AGEN-11 + AGEN-01 (teste em tempo real) | N8N | Dev + Gobe | Roteiro de Download (Queila) |
+| 6 | AGEN-09: verificação automática de zero invenção | N8N | Dev | — |
 
 ### Prioridade 2 — Qualidade e consolidação
 
-| # | Item | Área | Responsável |
-|---|------|------|-------------|
-| 6 | Playbook de Call de Download: finalizar | ClickUp | Gobe |
-| 7 | Mapa do Expert: finalizar | ClickUp | Gobe |
-| 8 | Dossiês: conectar acesso Google Docs | Spalla | Dev |
-| 9 | Planos de Ação: fluxo de atualização pós-dossiê | Spalla | Dev |
-| 10 | Financeiro: persistência em Supabase | Spalla | Dev |
-| 11 | Lembretes: isolar por usuário logado | Spalla | Dev |
-| 12 | Stories (N8N): revisar prompts e testar | N8N | Gobe + Dev |
-| 13 | Lapidação de Perfil: integrar no fluxo de entrada | N8N | Dev |
+| # | Item | Área | Resp. |
+|---|------|------|-------|
+| 7 | Playbook de Call de Download | ClickUp | Gobe |
+| 8 | AGEN-05: Separar modos Criar vs. Revisar nos agentes | N8N | Dev |
+| 9 | AGEN-10: Memória persistente do mentorado | N8N | Dev |
+| 10 | AGEN-03: Revisar 5 sub-agentes de conteúdo | N8N | Dev + Mariza |
+| 11 | Dossiês: conectar acesso Google Docs | Spalla | Dev |
+| 12 | Planos de Ação: fluxo de atualização pós-dossiê | Spalla | Dev |
+| 13 | Financeiro: persistência em Supabase | Spalla | Dev |
+| 14 | Lembretes: isolar por usuário logado (bug) | Spalla | Dev |
+| 15 | AGEN-22: Banco de referências por formato | N8N | Dev + Mariza |
 
 ### Prioridade 3 — Próximo ciclo
 
-| # | Item | Área | Responsável |
-|---|------|------|-------------|
-| 14 | WhatsApp nativo: coletas, cadastro e tarefas via WA | Spalla | Dev |
-| 15 | Funnel Case integrado ao Spalla | Spalla | Dev |
-| 16 | Playbooks dentro do Spalla | Spalla | Dev |
-| 17 | Concepção de Dossiê: finalizar saída do N8N | N8N | Dev |
-| 18 | JSONs dos agentes no GitHub (versionamento) | GitHub | Dev |
-| 19 | Modelo de apresentação + vídeos demonstrativos | Produto | Kaique |
-| 20 | Google Drive Pro vinculado ao Spalla | Spalla | Dev |
+| # | Item | Área | Resp. |
+|---|------|------|-------|
+| 16 | AGEN-13: @mention specialists nos grupos WA | N8N + WA | Dev |
+| 17 | AGEN-14: Validação de execução pós-dossiê | N8N + Spalla | Dev |
+| 18 | AGEN-18: Recomendador de funil por perfil | N8N | Dev |
+| 19 | AUTO-01: Automação financeira separada do CS | N8N | Dev |
+| 20 | WhatsApp nativo: coletas, cadastro e tarefas via WA | Spalla | Dev |
+| 21 | Funnel Case integrado ao Spalla | Spalla | Dev |
+| 22 | Modelo de apresentação do dossiê + vídeos | Produto | Kaique |
 
 ---
 
-## Anexo — Glossário Rápido
+## Anexo A — Glossário
 
 | Termo | Significado |
 |-------|------------|
-| **GOB** | Governança do Negócio — reunião/instância de decisão estratégica |
+| **GOB** | Governança do Negócio — instância de decisão estratégica |
 | **Gobe** | Responsável por fechar workflows no ClickUp e N8N |
-| **Bill Case** | Drive com documentação técnica dos agentes de IA |
+| **bu-case** | Repositório GitHub com KB, JSONs dos agentes e documentação técnica |
+| **Bill Case** | Drive com documentação técnica dos agentes de IA (espelhado no bu-case) |
 | **Spalla** | Software de gestão dos mentorados (hub central) |
 | **Evolution API** | API de integração com WhatsApp (proxy) |
-| **Funnel OS** | Sistema de apresentação de funis para mentorados |
-| **Download do Expert** | Processo de extração de conhecimento e perfil do mentorado |
+| **C1/C2/C3** | Classificação de mentorados por perfil e maturidade digital |
+| **Download do Expert** | Processo de extração de conhecimento e perfil do mentorado via call |
 | **Lapidação de Perfil** | Refinamento do perfil estratégico do mentorado pós-download |
+| **AGEN-XX** | Numeração dos agentes mapeados na Imersão de Produto (09-13/03/2026) |
 
 ---
 
-*Report gerado em 22/03/2026 — baseado em levantamento direto com Kaique Rodrigues.*
-*Próxima revisão recomendada: início do Sprint 2 (23/03/2026).*
+## Anexo B — Onde Encontrar Cada Coisa
+
+| O que | Onde |
+|-------|------|
+| JSONs dos agentes N8N | `github.com/case-company/bu-case/tree/develop/drive/agents/n8n-workflows/` |
+| Knowledge base (aulas, dossiês, transcrições) | `github.com/case-company/bu-case/tree/develop/drive/kb/` |
+| Código do Spalla Dashboard | `github.com/case-company/spalla-dashboard` |
+| Spalla em produção | `spalla-dashboard.vercel.app` |
+| N8N (agentes ativos) | `meueditor.manager01.feynmanproject.com` |
+| Mapeamento de agentes (planilha) | Google Sheets: `1KKXQ9Bcznd6cnEjswS9gLcLFBgPHhd_dhI8KAJDY7JQ` |
+| Desdobramento completo de agentes (39) | `bu-case/drive/kb/architecture_db/` |
+| ClickUp (Workspace) | `app.clickup.com` — All In Marketing (9011530618) |
+| Hub CASE AI (agentes para mentorados) | `hub.caseai.com.br` |
+| Social CASE (editorial + métricas) | `social.caseai.com.br` |
+| FunnelCase (editor visual de funis) | `funnelcase.vercel.app` |
+| Cortex (monitor N8N) | `cortex-peek.vercel.app` |
+
+---
+
+*Report gerado em 22/03/2026 — baseado em levantamento direto com Kaique Rodrigues + Imersão de Produto 09-13/03/2026.*
+*Próxima revisão: início do Sprint 2 (23/03/2026).*
