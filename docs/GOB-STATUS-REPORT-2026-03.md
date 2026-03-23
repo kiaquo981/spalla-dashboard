@@ -211,20 +211,16 @@ O sistema tem funcionalidades que existem mas não viraram hábito:
 | 12 | **Plano de Ação** | ~4 | Geração e validação do plano de ação pós-call | v5 |
 | 13 | **CASE Analytics** | ~5 | Análise WA semanal, calls Zoom, consolidado mentorados | — |
 | 14 | **Pablo (Call Vendas)** | ~4 | Análise de calls de vendas + gestor de conhecimento | V2 |
-| 15 | **Fidelização** | ~8 | Gamificação, prevenção, Google Reviews, indicação | — |
-| 16 | **AI Hub Monitor** | ~5 | Monitoramento de erros, custos, relatório diário IA | — |
-| 17 | **RAG & Vetorização** | ~3 | Embeddings, busca vetorial, contexto de calls | — |
-| 18 | **SariDoctors (cliente externo)** | ~15 | 12 funis de agentes de conversão + lead score | V4 |
-| 19 | **Agente Produto Lovable** | ~7 | 6 agentes Lovable: mapa, pesquisa, vitrine, método, oferta, copy | — |
-| 20 | **MGD8 (cliente externo)** | ~5 | Sheets sync, grupos WA, cadastro | — |
-| 21 | **Naming Agent** | ~3 | Geração e validação de nomes + INPI | — |
-| 22 | **Financeiro / Billing** | ~3 | Conta Simples, Hubla→Supabase, Clint Deal Stage | — |
-| 23 | **Ads / Tráfego** | ~4 | Monitor Facebook Ads, análise visual/copy/estratégia | — |
-| 24 | **Zoom / Transcrição** | ~3 | Transcrição de calls, YouTube upload | — |
-| 25 | **MC Games (cliente externo)** | 0 (todos ⊘) | RFM, pipeline de dados, Power BI | — |
-| 26 | **Legado / Dev / Descontinuado** | 0 | My workflow X, fluxos antigos, ecomm, airtable | — |
+| 15 | **AI Hub Monitor** | ~5 | Monitoramento de erros, custos, relatório diário IA | — |
+| 16 | **RAG & Vetorização** | ~3 | Embeddings, busca vetorial, contexto de calls | — |
+| 17 | **Agente Produto Lovable** | ~7 | 6 agentes Lovable: mapa, pesquisa, vitrine, método, oferta, copy | — |
+| 18 | **Naming Agent** | ~3 | Geração e validação de nomes + INPI | — |
+| 19 | **Financeiro / Billing** | ~3 | Conta Simples, Hubla→Supabase, Clint Deal Stage | — |
+| 20 | **Ads / Tráfego** | ~4 | Monitor Facebook Ads, análise visual/copy/estratégia | — |
+| 21 | **Zoom / Transcrição** | ~3 | Transcrição de calls, YouTube upload | — |
+| 22 | **Legado / Dev / Descontinuado** | 0 | My workflow X, fluxos antigos, ecomm, airtable | — |
 
-**Total estimado ativos: ~220–240 workflows ✅ / ~660–680 ⊘ (arquivados/dev)**
+**Total estimado ativos CASE: ~190–210 workflows ✅ / ~660–680 ⊘ (arquivados/dev)**
 
 ---
 
@@ -465,24 +461,7 @@ O sistema tem funcionalidades que existem mas não viraram hábito:
 
 ---
 
-#### 4.1.16 Cluster 15 — Fidelização
-
-| Workflow | Status | Função |
-|----------|--------|--------|
-| Fidelizacao Fluxo Geral (Orquestrador) | ⊘ | Orquestrador principal (inativo) |
-| Fidelizacao Webhook Lovable (Frontend) | ✅ | Entrada via Lovable |
-| Fidelizacao Agente Gamificacao | ✅ | Programa de gamificação |
-| Fidelizacao Agente Prevencao | ✅ | Prevenção de churn |
-| Fidelizacao Agente Google Reviews | ✅ | Gestão de reviews |
-| Fidelizacao Agente Programa de Indicacao | ✅ | Programa de indicação |
-| Fidelizacao Agente Seletor de Programas | ✅ | Seleciona programa correto |
-| Fidelizacao Aniversariantes | ✅ | Mensagem aniversário |
-| Fidelizacao Alta Finalização | ✅ | Finalização de contrato |
-| Alerta Mentorados Sem Call 45 dias | ✅ | Alerta de inatividade |
-
----
-
-#### 4.1.17 Cluster 16 — RAG & Vetorização
+#### 4.1.16 Cluster 15 — RAG & Vetorização
 
 | Workflow | Status | Função |
 |----------|--------|--------|
@@ -494,22 +473,7 @@ O sistema tem funcionalidades que existem mas não viraram hábito:
 
 ---
 
-#### 4.1.18 Clusters Clientes Externos
-
-**SariDoctors (14 funis ativos ✅):**
-- Lead Score V4 ✅
-- FUNIL AGENTE: Revista, Telões LED, TV, Outdoor, Rádio, Cashback, Follow-Up, Reavaliações, Reativação, Voucher, Networking, Palestras/Workshops, Campanhas Internas, Parcerias, Conversão Convênio, Seletor de Programas
-- Funil captação webhook ✅ | Fidelização Lovable frontend ✅
-
-**MGD8 (5 workflows ativos ✅):**
-- Sheet Alunos, Sheet Cadastro, Sheet Cadastro Pré-Inscritos, Grupos WhatsApp, Grupos WhatsApp Saídas
-
-**MC Games (todos ⊘ — 10 workflows):**
-- Pipeline RFM completo, Monitoramento Drift, Power BI, Healthcheck — arquivados
-
----
-
-#### 4.1.19 Outros Sistemas Ativos
+#### 4.1.17 Outros Sistemas Ativos
 
 | Workflow | Status | Função |
 |----------|--------|--------|
@@ -535,7 +499,7 @@ O sistema tem funcionalidades que existem mas não viraram hábito:
 
 ---
 
-#### 4.1.20 Legado / Descontinuado (referência)
+#### 4.1.18 Legado / Descontinuado (referência)
 
 > ~660 workflows inativos ⊘. Principais grupos:
 > - **My workflow 11-52**: protótipos e testes sem nome
@@ -687,7 +651,7 @@ O sistema tem funcionalidades que existem mas não viraram hábito:
 | **Supabase** | DB PostgreSQL + Auth + Storage | ✅ Ativo |
 | **ClickUp** | Gestão de tarefas e sprints | ✅ Em uso ativo |
 | **GitHub** | Versionamento (spalla + bu-case) | ✅ Ativo |
-| **N8N** | Automações e agentes de IA | ✅ Ativo (~240 ativos / 897 total — 26 clusters mapeados em Mar/2026) |
+| **N8N** | Automações e agentes de IA | ✅ Ativo (~200 ativos CASE / 897 total instância — 22 clusters mapeados em Mar/2026) |
 | **Evolution API** | WhatsApp (proxy) | 🔄 Funcional, limitado |
 | **Google Workspace** | Drive, Docs, Calendar | 🔄 Parcialmente integrado |
 | **Zoom** | Calls e sessões | ✅ Integrado no Spalla |
