@@ -194,6 +194,7 @@ function operon() {
       taskGanttRange: 'month', // 'week' | 'month' | 'quarter'
       taskSpaceFilter: 'all', // space_id filter
       taskListFilter: 'all', // list_id filter
+      docsTab: 'arquivos',   // 'arquivos' | 'biblioteca' | 'google_docs'
       taskGroupBy: 'status', // 'status' | 'assignee' | 'priority' | 'list'
       taskTagFilter: [],       // tag ids for filtering
       taskTagsDropdown: false, // tags dropdown open in modal
@@ -1478,7 +1479,8 @@ function operon() {
         // Deep link: ?dl=biblioteca/{slug} — opens doc directly after auth
         const dlParam = new URLSearchParams(window.location.search).get('dl');
         if (dlParam?.startsWith('biblioteca/')) {
-          this.ui.page = 'biblioteca';
+          this.ui.page = 'documentos';
+          this.ui.docsTab = 'biblioteca';
           this._pendingBibliotecaSlug = dlParam.replace('biblioteca/', '');
         }
 
@@ -3779,7 +3781,8 @@ function operon() {
     },
 
     goToMentoradoFolder(mentoradoId, mentoradoNome) {
-      this.navigate('arquivos');
+      this.navigate('documentos');
+      this.ui.docsTab = 'arquivos';
       this.loadArquivos().then(() => {
         this.openFolder({ mentorado_id: mentoradoId, mentorado_nome: mentoradoNome });
       });

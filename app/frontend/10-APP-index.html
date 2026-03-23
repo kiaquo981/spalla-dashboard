@@ -192,6 +192,11 @@
     .team-rank-val { font-size:13px;font-weight:700;color:#3b82f6;min-width:36px;text-align:right; }
     .team-perf-empty { text-align:center;padding:48px;color:#94a3b8; }
 
+    /* ===== Documentos Tab Bar ===== */
+    .docs-tabs { display:flex; gap:0; border-bottom:1px solid var(--border,#e8e4dc); padding:0 24px; background:var(--bg-page,#fafaf8); position:sticky; top:0; z-index:10; }
+    .docs-tab { padding:12px 18px; font-size:13px; font-weight:500; color:var(--text-muted,#8b7355); border:none; background:none; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; transition:color .15s, border-color .15s; }
+    .docs-tab:hover { color:var(--text-primary,#2c2c2c); }
+    .docs-tab--active { color:var(--brand,#6b5d4f); border-bottom-color:var(--brand,#6b5d4f); }
     /* ===== Biblioteca ===== */
     .bib { display:flex;flex-direction:column;height:100%;gap:0; }
     .bib__topbar { display:flex;align-items:center;gap:10px;padding:14px 20px 12px;border-bottom:1px solid #e8e4dc;background:#fafaf8;flex-shrink:0; }
@@ -378,6 +383,10 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <span x-show="ui.sidebarOpen">Equipe</span>
           </a>
+          <a class="op-nav-item" :class="{ active: ui.page === 'dossies' }" @click="navigate('dossies')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span x-show="ui.sidebarOpen">Dossiês</span>
+          </a>
 
           <div class="op-sidebar__section" x-show="ui.sidebarOpen">Comunicacao</div>
           <a class="op-nav-item" :class="{ active: ui.page === 'whatsapp' }" @click="navigate('whatsapp'); if(waSessionStatus() === 'connected') fetchWhatsAppChats()">
@@ -399,13 +408,9 @@
           </a>
 
           <div class="op-sidebar__section" x-show="ui.sidebarOpen">Documentos</div>
-          <a class="op-nav-item" :class="{ active: ui.page === 'biblioteca' }" @click="navigate('biblioteca'); loadBiblioteca()">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-            <span x-show="ui.sidebarOpen">Biblioteca</span>
-          </a>
-          <a class="op-nav-item" :class="{ active: ui.page === 'dossies' }" @click="navigate('dossies')">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            <span x-show="ui.sidebarOpen">Dossies</span>
+          <a class="op-nav-item" :class="{ active: ui.page === 'documentos' }" @click="navigate('documentos'); if(!ui.docsTab) ui.docsTab='arquivos'; if(ui.docsTab==='arquivos') loadArquivos(); if(ui.docsTab==='biblioteca') loadBiblioteca()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <span x-show="ui.sidebarOpen">Documentos</span>
           </a>
           <a class="op-nav-item" :class="{ active: ui.page === 'planos_acao' }" @click="navigate('planos_acao')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
@@ -414,14 +419,6 @@
           <a class="op-nav-item" :class="{ active: ui.page === 'onboarding' }" @click="navigate('onboarding'); loadObData()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
             <span x-show="ui.sidebarOpen">Onboarding</span>
-          </a>
-          <a class="op-nav-item" :class="{ active: ui.page === 'docs' }" @click="navigate('docs')">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-            <span x-show="ui.sidebarOpen">Google Docs</span>
-          </a>
-          <a class="op-nav-item" :class="{ active: ui.page === 'arquivos' }" @click="navigate('arquivos'); loadArquivos()">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            <span x-show="ui.sidebarOpen">Arquivos</span>
           </a>
 
           <div class="op-sidebar__section" x-show="ui.sidebarOpen && isCfoUser">Gestao</div>
@@ -3488,7 +3485,14 @@
         </div>
 
         <!-- ===== PAGE: BIBLIOTECA ===== -->
-        <div class="page-content" style="padding:0;display:flex;flex-direction:column;height:calc(100vh - 56px);overflow:hidden;" x-show="ui.page === 'biblioteca'" x-transition x-cloak>
+        <!-- DOCUMENTOS TAB BAR (shared across Arquivos / Biblioteca / Google Docs) -->
+        <div class="docs-tabs" x-show="ui.page === 'documentos'" x-cloak>
+          <button class="docs-tab" :class="ui.docsTab==='arquivos' ? 'docs-tab--active' : ''" @click="ui.docsTab='arquivos'; loadArquivos()">Arquivos</button>
+          <button class="docs-tab" :class="ui.docsTab==='biblioteca' ? 'docs-tab--active' : ''" @click="ui.docsTab='biblioteca'; loadBiblioteca()">Biblioteca</button>
+          <button class="docs-tab" :class="ui.docsTab==='google_docs' ? 'docs-tab--active' : ''" @click="ui.docsTab='google_docs'">Google Docs</button>
+        </div>
+
+        <div class="page-content" style="padding:0;display:flex;flex-direction:column;height:calc(100vh - 56px);overflow:hidden;" x-show="ui.page === 'documentos' && ui.docsTab === 'biblioteca'" x-transition x-cloak>
           <div class="bib">
 
             <!-- Topbar: título + filtros -->
@@ -4520,7 +4524,7 @@
         </div>
 
         <!-- ===== PAGE: ARQUIVOS (Storage + Semantic Search) ===== -->
-        <div class="page-content" x-show="ui.page === 'arquivos'" x-transition>
+        <div class="page-content" x-show="ui.page === 'documentos' && ui.docsTab === 'arquivos'" x-transition>
           <div class="page-header">
             <div style="display:flex;align-items:center;gap:12px">
               <button x-show="arquivos.viewMode === 'folder_detail'" class="op-btn op-btn--ghost op-btn--sm" @click="closeFolderView()" title="Voltar">
@@ -5344,7 +5348,7 @@
         </div>
 
         <!-- ===== PAGE: DOCS ===== -->
-        <div class="page-content" x-show="ui.page === 'docs'" x-transition>
+        <div class="page-content" x-show="ui.page === 'documentos' && ui.docsTab === 'google_docs'" x-transition>
           <div class="page-header"><h2>Documentos Google Drive</h2></div>
 
           <!-- Pastas principais -->
