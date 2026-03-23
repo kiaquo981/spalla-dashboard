@@ -2425,6 +2425,14 @@
                   <template x-for="tm in TEAM_MEMBERS.filter(t => t.name !== auth.currentUser?.full_name)" :key="tm.id"><option :value="tm.name" x-text="tm.name"></option></template>
                   <option value="Mentorado">Mentorado</option>
                 </select>
+                <select class="op-toolbar__select" x-model="ui.taskDateFilter" style="min-width:155px" :class="{ 'op-toolbar__select--active': ui.taskDateFilter !== 'all' }">
+                  <option value="all">Todos os períodos</option>
+                  <option value="today">Hoje</option>
+                  <option value="next7">Próximos 7 dias</option>
+                  <option value="next30">Próximos 30 dias</option>
+                  <option value="overdue">Atrasadas</option>
+                  <option value="no_date">Sem data</option>
+                </select>
                 <select class="op-toolbar__select" x-model="ui.taskGroupBy" style="width:auto;min-width:120px">
                   <option value="status">Agrupar: Status</option>
                   <option value="assignee">Agrupar: Responsavel</option>
