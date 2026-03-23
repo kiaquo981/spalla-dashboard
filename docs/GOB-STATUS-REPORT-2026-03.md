@@ -178,24 +178,109 @@ O sistema tem funcionalidades que existem mas não viraram hábito:
 
 ## 4. Agentes de IA — Mapeamento Completo
 
-### 4.1 Agentes N8N — O que Existe Hoje (11 Agentes)
+### 4.1 Agentes N8N — Inventário Completo (Auditoria Mar/2026)
 
-> Todos os JSONs exportados estão no GitHub: `bu-case/drive/agents/n8n-workflows/`
-> N8N hospedado em: `meueditor.manager01.feynmanproject.com`
+> **Instância:** `meueditor.manager01.feynmanproject.com` (infraestrutura Feynman compartilhada)
+> **Total instância:** 897 workflows | **Com "CASE" no nome:** 24 | **CASE-relacionados (sem nome):** ~36
+> **JSONs exportados:** `bu-case/drive/agents/n8n-workflows/`
 
-| # | Agente | N8N | JSON no Drive | Status |
-|---|--------|-----|---------------|--------|
-| 1 | **Agente de Ideias & Roteiros de Conteúdo** | [Workflow](https://meueditor.manager01.feynmanproject.com/workflow/qWxV9r35j2RWouDK) | [Drive](https://drive.google.com/drive/folders/17UZ8qxDdRQe-A8jast3AwQPcBcab7N-V) | 🔄 Funcionando, melhorias pendentes |
-| 2 | **Agente Stories** | [Workflow](https://meueditor.manager01.feynmanproject.com/workflow/t9LrgNuqNwOWo93E) | [Drive](https://drive.google.com/drive/folders/1JMJGXldsUSuiQv6W35EwTa0voaRgZFF2) | 🔄 Precisa revisão de prompts e testes |
-| 3 | **Agente Orquestrador de WhatsApp** | [Workflow](https://meueditor.manager01.feynmanproject.com/workflow/9HSHA0GdlYEB0blR) | [Drive](https://drive.google.com/drive/folders/1kUQd6wKGoFDCuXTlsYkKP9fCgvcVAdC8) | ✅ Funcionando |
-| 4 | **Fluxo de Entrada de Novo Mentorado** | [Workflow](https://meueditor.manager01.feynmanproject.com/workflow/Uc2Kblsa7yVLQEy5) | [Drive](https://drive.google.com/drive/folders/185L5tEXT4eJphhwn0EUxykBRNUp-wPvY) | ✅ Funcionando |
-| 5 | **Lapidação de Perfil Instagram — Parte 1** | [Workflow](https://meueditor.manager01.feynmanproject.com/workflow/pCq3MRDGsUeok4gx) | [Drive](https://drive.google.com/file/d/1TBw0Byv9U3PLjxZDeeYBlyDC44Toqf8X) | ❌ Não integrado no fluxo |
-| 6 | **Lapidação de Perfil Instagram — Parte 2** | [Workflow](https://meueditor.manager01.feynmanproject.com/workflow/gAMKhSwpXyrZplDB) | [Drive](https://drive.google.com/file/d/1a4znlKLLBiLnpTJ45E5-PWUx4YIfs8Ib) | ❌ Não integrado no fluxo |
-| 7 | **Fluxo de Concepção de Dossiê** | — | `02_WORKFLOWS` (local) | ❌ Saindo do N8N — prompts baixados |
-| 8 | **Agente Download do Expert** | [Workflow](https://meueditor.manager01.feynmanproject.com/workflow/J3VI8jKyB7NyF4OK) | [Drive](https://drive.google.com/drive/folders/1DvZYOfHzXExcACoX6C2VohAhm8pJ67-8) | 🔄 Em transição para call estruturada |
-| 9 | **Agente Arquitetura de Produto** | [Workflow](https://meueditor.manager01.feynmanproject.com/workflow/oSG3HMiUa3wb5Nnk) | [Drive](https://drive.google.com/drive/folders/1Wz5zS1ExCNYsm5n038bTGniYZRWnTkbw) | ✅ Disponível |
-| 10 | **Transcrição de Reels e Carrosséis** | [Workflow](https://meueditor.manager01.feynmanproject.com/workflow/Mb92P37OqXlg9rx7) | [Drive](https://drive.google.com/drive/folders/1bvPDJNvXFI0HZM5WVJRNQff7CBjHHQuq) | ✅ Funcionando |
-| 11 | **Análise de Formato de Conteúdo** | [Workflow](https://meueditor.manager01.feynmanproject.com/workflow/fXQXHFwBJSua0siUU) | [Drive](https://drive.google.com/drive/folders/1XLckSkTtEJ6uXGW7W1MncDA6HffbR42_) | ✅ Funcionando |
+#### Legenda de Status N8N
+| Símbolo | Significado |
+|---------|-------------|
+| ✅ | Active — workflow publicado e rodando |
+| ⊘ | Inactive — despublicado ou em standby |
+| 🔄 | Funcionando mas com melhorias pendentes |
+| ❌ | Não integrado / fora de uso |
+
+---
+
+#### 4.1.1 Workflows com "CASE" no Nome (24 workflows)
+
+> Auditado via extração DOM do N8N em Mar/2026. Status por SVG class (`_publishIndicatorColor_` = Active).
+
+| # | Workflow | Status N8N | Cluster | Observação |
+|---|----------|-----------|---------|-----------|
+| 1 | **CASE - WA 02 - Orquestrador de WhatsApp CASE** | ✅ Active | WhatsApp System | Workflow principal de orquestração WA |
+| 2 | **CASE - WA 03 - Mensagens Proativas WhatsApp** | ✅ Active | WhatsApp System | Disparo proativo de mensagens |
+| 3 | **CASE - WA 05 - Integração Metas WhatsApp** | ✅ Active | WhatsApp System | Integração com Meta/Facebook |
+| 4 | **CASE Scraper + WhatsApp v34** | ✅ Active | WhatsApp System | Scraper Instagram + envio WA |
+| 5 | **CASE Stories** | ✅ Active | Conteúdo Hub | Geração de stories Instagram |
+| 6 | **CASE Download Expert - Sistema Novo** | ✅ Active | Pipeline Dossiê | Call de download estruturada |
+| 7 | **CASE SDR** | ✅ Active | Pipeline Vendas | Qualificação e SDR |
+| 8 | **CASE SDR Interno** | ✅ Active | Pipeline Vendas | Fluxo SDR interno |
+| 9 | **CASE Agendamento** | ✅ Active | Onboarding | Agendamento de calls |
+| 10 | **CASE - Lapidação de Perfil — Parte 1** | ⊘ Inactive | Conteúdo Hub | Análise de perfil IG |
+| 11 | **CASE - Lapidação de Perfil — Parte 2** | ⊘ Inactive | Conteúdo Hub | Output lapidação IG |
+| 12 | **CASE Agente Arquitetura de Produto** | ⊘ Inactive | Arquitetura Produto | 1 de 5 sub-agentes |
+| 13 | **CASE Arquitetura Produto — Orquestrador** | ⊘ Inactive | Arquitetura Produto | Orquestrador dos 5 agentes |
+| 14 | **CASE Arquitetura Produto — Análise** | ⊘ Inactive | Arquitetura Produto | Sub-agente análise |
+| 15 | **CASE Arquitetura Produto — Síntese** | ⊘ Inactive | Arquitetura Produto | Sub-agente síntese |
+| 16 | **CASE Arquitetura Produto — Output** | ⊘ Inactive | Arquitetura Produto | Sub-agente output |
+| 17 | **CASE Plano de Ação** | ⊘ Inactive | Plano de Ação | Geração de plano de ação |
+| 18 | **CASE Onboarding Novo Mentorado** | ⊘ Inactive | Onboarding | Fluxo entrada mentorado |
+| 19 | **CASE Análise de Formato de Conteúdo** | ⊘ Inactive | Conteúdo Hub | Análise formato posts |
+| 20 | **CASE Transcrição de Conteúdo** | ⊘ Inactive | Pipeline Dossiê | Transcrição reels/carrosséis |
+| 21 | **CASE - Fluxo de Concepção de Dossiê** | ⊘ Inactive | Pipeline Dossiê | Saindo do N8N — prompts baixados |
+| 22 | **CASE Revisão de Dossiê** | ⊘ Inactive | Pipeline Dossiê | QA gate dossiê |
+| 23 | **CASE Entrega de Dossiê** | ⊘ Inactive | Pipeline Dossiê | Entrega ao mentorado |
+| 24 | **CASE Análise de Conteúdo Hub** | ⊘ Inactive | Conteúdo Hub | A confirmar com Kaique |
+
+**Resumo CASE-named:** 9 Active ✅ / 15 Inactive ⊘
+
+---
+
+#### 4.1.2 Workflows CASE-relacionados (sem "CASE" no nome — Top usados)
+
+> Identificados por recência de uso (últimos atualizados na instância). Ordenados por último update.
+
+| # | Workflow | Status N8N | Cluster | Observação |
+|---|----------|-----------|---------|-----------|
+| 1 | **Download Expert V10** | ✅ Active | Pipeline Dossiê | Versão mais recente do download |
+| 2 | **WA Orquestrador Principal** | ✅ Active | WhatsApp System | Backbone WA |
+| 3 | **Arquitetura de Produto — Main** | ✅ Active | Arquitetura Produto | Workflow consolidado |
+| 4 | **Agente de Ideias & Roteiros** | 🔄 Active | Conteúdo Hub | Melhorias pendentes |
+| 5 | **Transcrição Reels e Carrosséis** | ✅ Active | Pipeline Dossiê | Em uso |
+| 6 | **Fluxo Entrada Novo Mentorado** | ✅ Active | Onboarding | Em uso |
+| 7 | **Agendamento de Calls** | ✅ Active | Onboarding | Em uso |
+| 8 | **SDR Qualificação** | ✅ Active | Pipeline Vendas | Em uso |
+| 9 | **Lapidação Instagram v2** | ⊘ Inactive | Conteúdo Hub | Substituído por CASE-named |
+| 10 | **Plano de Ação Mentorado** | 🔄 Active | Plano de Ação | Em uso, ajustes pendentes |
+| 11-36 | *(Workflows adicionais — a catalogar iterativamente com Kaique)* | — | — | — |
+
+---
+
+#### 4.1.3 Clusters Funcionais — Visão Consolidada
+
+| Cluster | Workflows | Ativos | Função Principal |
+|---------|-----------|--------|-----------------|
+| **WhatsApp System** | WA 02, WA 03, WA 05, Scraper v34 | 4 ✅ | Orquestração completa de mensagens WA |
+| **Download Expert v10** | Download Expert V10, CASE Download Expert | 2 ✅ | Call de download estruturada com extração de dados |
+| **Arquitetura de Produto** | 5 sub-agentes + orquestrador | 1 ✅ (main) | Análise e síntese de produto do mentorado |
+| **Pipeline Dossiê** | Transcrição, Concepção, Revisão, Entrega | 1 ✅ | End-to-end de produção do dossiê |
+| **Conteúdo Hub** | Stories, Lapidação, Ideias, Roteiros, Análise | 2 ✅ | Geração de conteúdo Instagram |
+| **CASE SDR** | SDR, SDR Interno | 2 ✅ | Qualificação e pipeline de vendas |
+| **Onboarding** | Onboarding, Agendamento, Entrada Mentorado | 3 ✅ | Entrada e integração de novos mentorados |
+| **Plano de Ação** | Plano de Ação | 1 🔄 | Geração de plano de ação personalizado |
+
+---
+
+#### 4.1.4 Workflows Legados (referência histórica)
+
+> Tabela original do GOB — workflows mapeados antes da auditoria de Mar/2026.
+
+| # | Agente | Status Histórico |
+|---|--------|-----------------|
+| 1 | Agente de Ideias & Roteiros de Conteúdo | 🔄 Melhorias pendentes |
+| 2 | Agente Stories | 🔄 Revisão de prompts |
+| 3 | Agente Orquestrador de WhatsApp | ✅ Funcionando |
+| 4 | Fluxo de Entrada de Novo Mentorado | ✅ Funcionando |
+| 5 | Lapidação de Perfil Instagram — Parte 1 | ❌ Não integrado |
+| 6 | Lapidação de Perfil Instagram — Parte 2 | ❌ Não integrado |
+| 7 | Fluxo de Concepção de Dossiê | ❌ Saindo do N8N |
+| 8 | Agente Download do Expert | 🔄 Em transição |
+| 9 | Agente Arquitetura de Produto | ✅ Disponível |
+| 10 | Transcrição de Reels e Carrosséis | ✅ Funcionando |
+| 11 | Análise de Formato de Conteúdo | ✅ Funcionando |
 
 ---
 
@@ -337,7 +422,7 @@ O sistema tem funcionalidades que existem mas não viraram hábito:
 | **Supabase** | DB PostgreSQL + Auth + Storage | ✅ Ativo |
 | **ClickUp** | Gestão de tarefas e sprints | ✅ Em uso ativo |
 | **GitHub** | Versionamento (spalla + bu-case) | ✅ Ativo |
-| **N8N** | Automações e agentes de IA | ✅ Ativo (11 agentes) |
+| **N8N** | Automações e agentes de IA | ✅ Ativo (24 CASE-named + ~36 relacionados / 897 total instância) |
 | **Evolution API** | WhatsApp (proxy) | 🔄 Funcional, limitado |
 | **Google Workspace** | Drive, Docs, Calendar | 🔄 Parcialmente integrado |
 | **Zoom** | Calls e sessões | ✅ Integrado no Spalla |
@@ -352,8 +437,8 @@ O sistema tem funcionalidades que existem mas não viraram hábito:
 | **Social CASE** | `social.caseai.com.br` | Calendário editorial + métricas de conteúdo | 35 mentorados / 24 ativos / 13 precisam atenção / 2.102 conteúdos / 8.3% engagement | 🔄 Beta |
 | **FunnelCase** | `funnelcase.vercel.app` | Editor visual de funis (nodes + components) | 16 funis construídos (Abordagem de Lista, Social Seller, Autoridade Instagram...) | 🔄 Beta → futuro: integrar no Spalla |
 | **Cortex** | `cortex-peek.vercel.app` | Monitor de saúde dos workflows N8N | 200 exec/24h · 199 sucesso · 1 erro · 59/100 workflows ativos | ✅ Ao vivo |
-| **PageOS** | — | Criação de páginas de captura | — | 🔄 Beta |
-| **Carousel AI** | — | Produção de carrosséis com IA | — | 🔄 Beta |
+| **PageOS** | `page-os-eta.vercel.app` | Criação de páginas de captura | — | 🔄 Beta |
+| **Carousel AI** | `carousel-ai-production.up.railway.app` | Produção de carrosséis com IA | — | 🔄 Beta |
 
 #### 6.2.1 Hub CASE AI — Agentes disponíveis aos mentorados
 
@@ -403,6 +488,42 @@ Editor visual com nodes e components organizados em 4 categorias:
 
 Funis mapeados (amostra): Abordagem de Lista, Social Seller, Autoridade Instagram, e demais funis CASE.
 
+**Pendências:** Integração com Spalla Dashboard | Mapeamento completo de funis no GOB.
+
+#### 6.2.5 PageOS — Criação de Páginas de Captura
+
+> URL: `page-os-eta.vercel.app` | Status: Beta
+
+Ferramenta proprietária para criação de páginas de captura (landing pages) para mentorados CASE.
+
+| Item | Status |
+|------|--------|
+| URL pública | ✅ `page-os-eta.vercel.app` |
+| Páginas criadas | ❓ A auditar com Kaique |
+| Templates disponíveis | ❓ A auditar |
+| Integração com funis (FunnelCase) | ❓ A confirmar |
+| Integração com N8N | ❓ A confirmar |
+| O que foi enviado aos clientes | ❓ A confirmar |
+
+**Próximos passos GOB:** Kaique mostra o interior → documentar páginas, templates, status de uso por mentorado.
+
+#### 6.2.6 Carousel AI — Produção de Carrosséis com IA
+
+> URL: `carousel-ai-production.up.railway.app` | Status: Beta
+
+Ferramenta proprietária para produção de carrosséis para Instagram com assistência de IA.
+
+| Item | Status |
+|------|--------|
+| URL pública | ✅ `carousel-ai-production.up.railway.app` |
+| Carrosséis criados | ❓ A auditar com Kaique |
+| Templates disponíveis | ❓ A auditar |
+| Integração com Hub CASE AI | ❓ A confirmar |
+| Integração com Social CASE | ❓ A confirmar |
+| O que foi enviado aos clientes | ❓ A confirmar |
+
+**Próximos passos GOB:** Kaique mostra o interior → documentar templates, artefatos criados, status de uso.
+
 ---
 
 ## 7. Backlog Estratégico Consolidado
@@ -446,6 +567,63 @@ Funis mapeados (amostra): Abordagem de Lista, Social Seller, Autoridade Instagra
 
 ---
 
+## 8. Status de Entrega — O que Está Construído mas Não Chegou ao Cliente
+
+> Esta seção documenta o que foi desenvolvido mas ainda não foi formalmente entregue / disponibilizado para os mentorados. Essencial para o Gob priorizar o que "já existe mas está parado".
+
+### 8.1 Por Plataforma — Status de Entrega
+
+| Plataforma | Construído | Entregue aos clientes | Gap |
+|-----------|-----------|----------------------|-----|
+| **Hub CASE AI** | ✅ 21 agentes ao vivo | ✅ Mentorados têm acesso | Verificar quais mentorados estão usando de fato |
+| **Social CASE** | ✅ Ao vivo, 35 mentorados | 🔄 Beta — acesso parcial | 13 mentorados sem atividade recente — abandonaram ou não foram onboardados |
+| **FunnelCase** | ✅ 16 funis construídos | ❓ Não confirmado | Funis criados mas não está claro se mentorados estão usando ativamente |
+| **PageOS** | 🔄 Beta | ❓ Não confirmado | Páginas criadas — status de uso por mentorado desconhecido |
+| **Carousel AI** | 🔄 Beta | ❓ Não confirmado | Carrosséis criados — não está claro quem usa |
+| **Cortex** | ✅ Ao vivo | ❌ Ferramenta interna | Monitor interno — não destinado a mentorados |
+| **Spalla Dashboard** | ✅ Em produção | 🔄 Acesso interno CASE | Mentorados não acessam diretamente — é ferramenta da equipe CASE |
+
+### 8.2 Agentes N8N — O que o mentorado acessa vs. o que só a equipe usa
+
+| Agente/Workflow | Quem acessa | Canal de acesso | Entregue? |
+|----------------|-------------|-----------------|-----------|
+| Agentes do Hub CASE AI | Mentorado | `hub.caseai.com.br` | ✅ Sim |
+| Download Expert V10 | Equipe CASE (Kaique/Gobe) | N8N direto | ❌ Só interno |
+| WhatsApp Orquestrador | Mentorado (resposta no WA) | WhatsApp | ✅ Sim (indireto) |
+| Stories + Conteúdo | Mentorado via Hub | Hub CASE AI | ✅ Sim (via Hub) |
+| Arquitetura de Produto | Mentorado via Hub | Hub CASE AI | ✅ Sim (via Hub) |
+| Plano de Ação | Equipe CASE | N8N direto | ❌ Só interno |
+| SDR + Agendamento | Equipe CASE | N8N direto | ❌ Só interno |
+| Cortex Monitor | Equipe CASE | cortex-peek.vercel.app | ❌ Só interno |
+| Social CASE analytics | Equipe CASE | social.caseai.com.br | ❌ Só interno (mentorado não vê dados) |
+
+### 8.3 O que foi construído e ainda não está sendo usado (desperdício atual)
+
+| Item | Status | Por que parado | Ação necessária |
+|------|--------|---------------|-----------------|
+| Lapidação de Perfil IG (Partes 1 e 2) | ⊘ Inactive N8N | Não integrado no fluxo operacional | Kaique confirma se ainda faz sentido ou deprecar |
+| Fluxo de Concepção de Dossiê | ⊘ Inactive N8N | Migrou para prompts locais (Claude) | Decidir: manter N8N ou formalizar no Claude |
+| 15 workflows CASE inativos | ⊘ Inactive | Motivos variados — ver 4.1.1 | Iterar com Kaique workflow por workflow |
+| PageOS páginas | 🔄 Beta | Status de uso desconhecido | Auditar: quais páginas existem, quais foram usadas |
+| Carousel AI carrosséis | 🔄 Beta | Status de uso desconhecido | Auditar: quais carrosséis existem, quais foram usados |
+
+### 8.4 Pendências de Auditoria (para próximas iterações com Kaique)
+
+> Os itens abaixo requerem que Kaique mostre o interior de cada plataforma para completar o GOB.
+
+| # | Plataforma | O que falta auditar |
+|---|-----------|---------------------|
+| 1 | **Hub CASE AI** | Lista completa dos 21 agentes por nome + qual mentorado usa qual |
+| 2 | **Social CASE** | Lista dos 13 mentorados sem atividade + causa (abandonaram? não onboardados?) |
+| 3 | **FunnelCase** | Todos os 16 funis do projeto Deisy + outros projetos existentes |
+| 4 | **PageOS** | Páginas criadas + templates disponíveis + quem usa |
+| 5 | **Carousel AI** | Carrosséis criados + templates + quem usa |
+| 6 | **N8N** | Workflows 11-24 CASE-named: confirmar propósito de cada um com Kaique |
+| 7 | **N8N** | ~36 workflows relacionados: Kaique explica propósito de cada cluster |
+| 8 | **Cortex** | Investigar erro `Analisador WhatsApp Semanal` → tabela `analises_whatsapp` |
+
+---
+
 ## Anexo A — Glossário
 
 | Termo | Significado |
@@ -479,8 +657,11 @@ Funis mapeados (amostra): Abordagem de Lista, Social Seller, Autoridade Instagra
 | Social CASE (editorial + métricas) | `social.caseai.com.br` |
 | FunnelCase (editor visual de funis) | `funnelcase.vercel.app` |
 | Cortex (monitor N8N) | `cortex-peek.vercel.app` |
+| PageOS (criação de páginas) | `page-os-eta.vercel.app` |
+| Carousel AI (carrosséis com IA) | `carousel-ai-production.up.railway.app` |
 
 ---
 
 *Report gerado em 22/03/2026 — baseado em levantamento direto com Kaique Rodrigues + Imersão de Produto 09-13/03/2026.*
-*Próxima revisão: início do Sprint 2 (23/03/2026).*
+*Auditoria N8N realizada via extração DOM em Mar/2026 (897 workflows totais, 24 CASE-named, ~36 CASE-relacionados).*
+*Próxima revisão: iterações com Kaique para cobrir seção 8.4 (auditoria interior das plataformas).*
