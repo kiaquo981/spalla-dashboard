@@ -1535,27 +1535,40 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             nome = t.get('name', '')
             assignees = t.get('assignees', [])
             updated_ms = int(t.get('date_updated') or 0)
+            operon_id = t.get('id', '')
+            clickup_url = t.get('url', '')
 
             task_obj = {
-                'id': t.get('id'),
+                'operon_id': operon_id,
                 'titulo': nome,
                 'status': status,
-                'responsavel': ', '.join(a.get('username', '') or a.get('email', '') for a in assignees),
-                'url': t.get('url', ''),
+                # responsavel mantém username ClickUp — frontend resolve via spalla_members
+                'responsavel': ', '.join(
+                    (a.get('username') or a.get('email') or '').split('@')[0]
+                    for a in assignees
+                ),
+                # assignee_ids para match direto com spalla_members.clickup_user_id
+                'assignee_ids': [str(a.get('id', '')) for a in assignees if a.get('id')],
+                'url': clickup_url,
                 'atualizado_ms': updated_ms,
             }
             by_status.setdefault(status, []).append(task_obj)
 
             for a in assignees:
-                name = (a.get('username') or a.get('email') or 'Desconhecido').split('@')[0]
-                by_member[name] = by_member.get(name, 0) + 1
+                # Usa username como chave — será mapeado pelo front via spalla_members
+                key = (a.get('username') or a.get('email') or 'desconhecido').split('@')[0]
+                by_member[key] = by_member.get(key, 0) + 1
 
             if updated_ms:
                 activity.append({
-                    'who': ', '.join((a.get('username') or '').split('@')[0] for a in assignees) or 'Sistema',
+                    'operon_id': operon_id,     # permite match com god_tasks.operon_id
+                    'who': ', '.join(
+                        (a.get('username') or '').split('@')[0]
+                        for a in assignees
+                    ) or 'Sistema',
                     'text': nome,
                     'time': datetime.fromtimestamp(updated_ms / 1000, tz=timezone.utc).isoformat(),
-                    'url': t.get('url', ''),
+                    'url': clickup_url,
                 })
 
         activity.sort(key=lambda x: x['time'], reverse=True)

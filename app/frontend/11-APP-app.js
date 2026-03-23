@@ -191,6 +191,9 @@ function operon() {
       taskEditId: null,
       taskView: 'board', // 'list' | 'board'
       taskDetailDrawer: null, // task ID for detail drawer
+      mentionDropdown: false,  // @mention dropdown visível
+      mentionQuery: '',        // texto digitado após @
+      mentionStart: -1,        // posição do @ no textarea
       taskGanttRange: 'month', // 'week' | 'month' | 'quarter'
       taskSpaceFilter: 'all', // space_id filter
       taskListFilter: 'all', // list_id filter
@@ -441,11 +444,17 @@ function operon() {
           url: null, status: 'em_andamento',
         },
       ],
+      // Sprints carregados de god_lists (tipo='sprint') via loadGodLists()
+      // Fallback hardcoded aqui caso Supabase falhe
       sprints: [
-        { id: 'S1', nome: 'Sprint 1', inicio: '2026-03-16', fim: '2026-03-22', status: 'encerrado', total: 7, concluidas: 2, highlights: ['Visão de grupos WhatsApp no ar', 'Agenda de sessões integrada', 'Dashboard de mentorados atualizado'] },
-        { id: 'S2', nome: 'Sprint 2', inicio: '2026-03-23', fim: '2026-03-29', status: 'ativo', total: 225, concluidas: 2, highlights: ['Pipeline de Dossiê (Download → Final)', 'Jornada Completa da Mentoria', 'Novo Workflow de Trabalho com IA'] },
-        { id: 'S3', nome: 'Sprint 3', inicio: '2026-03-30', fim: '2026-04-05', status: 'planejado', total: 230, concluidas: 0, highlights: [] },
+        { id: '901113377455', nome: 'Sprint 1', inicio: '2026-03-16', fim: '2026-03-22', status: 'encerrado', total: 7, concluidas: 2, highlights: ['Visão de grupos WhatsApp no ar', 'Agenda de sessões integrada', 'Dashboard de mentorados atualizado'] },
+        { id: '901113377456', nome: 'Sprint 2', inicio: '2026-03-23', fim: '2026-03-29', status: 'ativo', total: 225, concluidas: 2, highlights: ['Pipeline de Dossiê (Download → Final)', 'Jornada Completa da Mentoria', 'Novo Workflow de Trabalho com IA'] },
+        { id: '901113377457', nome: 'Sprint 3', inicio: '2026-03-30', fim: '2026-04-05', status: 'planejado', total: 230, concluidas: 0, highlights: [] },
       ],
+      // Membros carregados de spalla_members via loadSpallaMembers()
+      members: [],
+      // Listas/sprints carregados de god_lists via loadGodLists()
+      lists: [],
       ferramentas: [
         { nome: 'Hub CASE AI', desc: 'Central de agentes de IA — uso interno e mentorados', url: 'https://hub.caseai.com.br/', tags: ['ao vivo', 'ia'], status: 'live', falta: null, color: '#7c3aed' },
         { nome: 'Social CASE', desc: 'Calendário editorial + métricas das redes dos mentorados', url: 'http://social.caseai.com.br/', tags: ['beta'], status: 'beta', falta: 'Configurar acesso para mentorados', color: '#0ea5e9' },
@@ -1061,7 +1070,10 @@ function operon() {
     // ===================== TEAM DASHBOARD =====================
 
     get teamStats() {
-      return TEAM_MEMBERS.map(member => {
+      const members = this.data.members?.length
+        ? this.data.members.map(m => ({ name: m.nome_curto || m.nome_completo, id: m.id }))
+        : TEAM_MEMBERS;
+      return members.map(member => {
         const mName = member.name.toLowerCase();
         const myTasks = this.data.tasks.filter(t => t.responsavel?.toLowerCase().includes(mName));
         const pendentes = myTasks.filter(t => t.status === 'pendente').length;
@@ -1343,7 +1355,8 @@ function operon() {
     get detailTasksEquipe() {
       const nome = this.data.detail?.profile?.nome?.toLowerCase();
       if (!nome) return [];
-      const teamNames = TEAM_MEMBERS.map(m => m.name.toLowerCase());
+      const members = this.data.members?.length ? this.data.members : TEAM_MEMBERS.map(m => ({ nome_curto: m.name }));
+      const teamNames = members.map(m => (m.nome_curto || m.name || '').toLowerCase());
       return this.data.tasks.filter(t => {
         const isForMentee = t.mentorado_nome?.toLowerCase() === nome;
         const isTeam = teamNames.some(tm => t.responsavel?.toLowerCase()?.includes(tm));
@@ -1556,6 +1569,8 @@ function operon() {
 
         await this.loadTasks();
         this.loadTaskTags(); // non-blocking
+        this.loadSpallaMembers(); // non-blocking: popula data.members
+        this.loadGodLists();     // non-blocking: popula data.lists + data.sprints
 
         if (this.auth.authenticated) {
           await this.loadReminders(); // Load from Supabase
@@ -2661,7 +2676,25 @@ function operon() {
 
     ccTasksByMember() {
       // Prefer live ClickUp data
-      if (this.data.ccData?.by_member) return this.data.ccData.by_member;
+      const raw = this.data.ccData?.by_member;
+      if (raw) {
+        // Resolve ClickUp usernames (ex: 'kaique.rodrigues') para nomes de exibição
+        // usando spalla_members.clickup_username ou nome_curto
+        const members = this.data.members || [];
+        if (!members.length) return raw;
+        const resolved = {};
+        for (const [username, count] of Object.entries(raw)) {
+          const member = members.find(m =>
+            m.clickup_username === username ||
+            m.id === username ||
+            m.nome_curto?.toLowerCase() === username.toLowerCase()
+          );
+          const displayName = member ? member.nome_curto : username;
+          resolved[displayName] = (resolved[displayName] || 0) + count;
+        }
+        return resolved;
+      }
+      // Fallback: tarefas locais
       const tasks = this.data.tasks || [];
       const map = {};
       tasks.forEach(t => {
@@ -2694,6 +2727,7 @@ function operon() {
           who: a.who,
           time: a.time,
           url: a.url,
+          operon_id: a.operon_id || null,
         }));
       }
       const tasks = [...(this.data.tasks || [])];
@@ -2738,21 +2772,65 @@ function operon() {
         this.data.ccData = d;
         // Sync active sprint totals into data.sprints for the header/timeline card
         if (d.sprint) {
-          const idx = this.data.sprints.findIndex(s => s.id === d.sprint.id || s.nome === d.sprint.nome);
           const patch = { total: d.total, concluidas: d.concluidas, status: 'ativo' };
+          const idx = this.data.sprints.findIndex(s =>
+            s.id === d.sprint.id || s.id === d.sprint.list_id || s.nome === d.sprint.nome
+          );
           if (idx >= 0) {
             this.data.sprints[idx] = { ...this.data.sprints[idx], ...patch };
           } else {
-            // If sprint not in local array, push it
             this.data.sprints.push({ ...d.sprint, ...patch, highlights: [] });
           }
-          // Mark others as planejado
+          // Mark others as encerrado ou planejado (não ativo)
+          const activeId = d.sprint.id || d.sprint.list_id;
           this.data.sprints = this.data.sprints.map(s =>
-            s.id === d.sprint.id || s.nome === d.sprint.nome ? s : { ...s, status: 'planejado' }
+            (s.id === activeId || s.nome === d.sprint.nome) ? s : { ...s, status: s.status === 'encerrado' ? 'encerrado' : 'planejado' }
           );
         }
       } catch (e) {
         console.warn('[CC] ClickUp load failed:', e.message);
+      }
+    },
+
+    // Carrega membros da equipe de spalla_members (substitui TEAM_MEMBERS hardcoded)
+    async loadSpallaMembers() {
+      if (!sb) return;
+      try {
+        const { data, error } = await sb.from('spalla_members').select('*').eq('ativo', true).order('id');
+        if (!error && data?.length) {
+          this.data.members = data;
+        }
+      } catch (e) {
+        console.warn('[Spalla] loadSpallaMembers failed:', e.message);
+      }
+    },
+
+    // Carrega listas e sprints de god_lists (substitui arrays hardcoded)
+    async loadGodLists() {
+      if (!sb) return;
+      try {
+        const { data, error } = await sb.from('god_lists').select('*').eq('ativo', true).order('ordem');
+        if (!error && data?.length) {
+          this.data.lists = data;
+          // Atualiza data.sprints com os dados reais do banco
+          const sprints = data
+            .filter(l => l.tipo === 'sprint')
+            .map(l => ({
+              id: l.id,
+              nome: l.nome,
+              inicio: l.sprint_inicio,
+              fim: l.sprint_fim,
+              status: l.sprint_status,
+              total: l.sprint_total || 0,
+              concluidas: l.sprint_concluidas || 0,
+              highlights: [],
+            }));
+          if (sprints.length) {
+            this.data.sprints = sprints;
+          }
+        }
+      } catch (e) {
+        console.warn('[Spalla] loadGodLists failed:', e.message);
       }
     },
 
@@ -2788,12 +2866,20 @@ function operon() {
     // Navega para atividade recente — tenta abrir drawer local, senão abre URL externa
     navigateToActivityTask(item) {
       if (item.id) {
-        // Item local — abre drawer direto
+        // Item local com Supabase UUID — abre drawer direto
         this.navigateToTask(item.id);
         return;
       }
+      if (item.operon_id) {
+        // Item do ClickUp — busca tarefa local pelo operon_id
+        const match = (this.data.tasks || []).find(t => t.operon_id === item.operon_id);
+        if (match) {
+          this.navigateToTask(match.id);
+          return;
+        }
+      }
       if (item.text) {
-        // Tenta encontrar tarefa local por título
+        // Fallback: busca por título
         const match = (this.data.tasks || []).find(t =>
           (t.titulo || t.nome || '').toLowerCase() === item.text.toLowerCase()
         );
@@ -2802,7 +2888,7 @@ function operon() {
           return;
         }
       }
-      // Fallback: abre URL externa (ClickUp)
+      // Fallback final: abre URL externa (ClickUp)
       if (item.url) {
         window.open(item.url, '_blank');
       } else {
@@ -4736,6 +4822,71 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         this._cacheTasksLocal();
         this._sbDeleteComment(commentId);
       }
+    },
+
+    // ===================== MENTIONS =====================
+
+    // Detecta @ enquanto digita no textarea de comentário
+    onCommentKeyup(e) {
+      const ta = e.target;
+      const text = ta.value;
+      const pos = ta.selectionStart;
+      const slice = text.slice(0, pos);
+      const atIdx = slice.lastIndexOf('@');
+      if (atIdx >= 0 && !slice.slice(atIdx + 1).includes(' ') && !slice.slice(atIdx + 1).includes('\n')) {
+        this.ui.mentionQuery = slice.slice(atIdx + 1);
+        this.ui.mentionStart = atIdx;
+        this.ui.mentionDropdown = true;
+      } else {
+        this.ui.mentionDropdown = false;
+        this.ui.mentionStart = -1;
+      }
+    },
+
+    onCommentKeydown(e) {
+      if (this.ui.mentionDropdown && e.key === 'Escape') {
+        this.ui.mentionDropdown = false;
+      }
+    },
+
+    mentionMembers() {
+      const q = (this.ui.mentionQuery || '').toLowerCase();
+      const members = this.data.members?.length
+        ? this.data.members
+        : TEAM_MEMBERS.map(m => ({ id: m.id, nome_curto: m.name, cor: '#6366f1' }));
+      if (!q) return members;
+      return members.filter(m =>
+        (m.nome_curto || '').toLowerCase().includes(q) ||
+        (m.nome_completo || '').toLowerCase().includes(q)
+      );
+    },
+
+    insertMention(name) {
+      const ta = this.$refs.commentTextarea;
+      if (!ta) return;
+      const text = this.taskForm.newComment || '';
+      const before = text.slice(0, this.ui.mentionStart);
+      const cursorPos = ta.selectionStart;
+      const after = text.slice(cursorPos);
+      this.taskForm.newComment = before + '@' + name + ' ' + after;
+      this.ui.mentionDropdown = false;
+      this.ui.mentionQuery = '';
+      this.$nextTick(() => {
+        ta.focus();
+        const cursor = (before + '@' + name + ' ').length;
+        ta.setSelectionRange(cursor, cursor);
+      });
+    },
+
+    // Renderiza texto de comentário com @menções estilizadas
+    renderCommentText(text) {
+      if (!text) return '';
+      const escaped = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br>');
+      return escaped.replace(/@(\w+)/g, '<span class="comment-mention">@$1</span>');
     },
 
     // Tags
