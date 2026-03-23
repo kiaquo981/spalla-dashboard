@@ -6989,6 +6989,177 @@ img { max-width: 100%; display: block; }
   font-weight: 700;
 }
 
+/* ===== SPRINT TIMELINE CARDS ===== */
+.cc-sprint-timeline {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.cc-sprint-card {
+  border-radius: 12px;
+  padding: 1rem;
+  border: 1.5px solid var(--neutral-200);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  transition: box-shadow 0.15s;
+}
+
+.cc-sprint-card--active {
+  border-color: var(--primary, #7c3aed);
+  background: linear-gradient(135deg, #faf9ff 0%, #f5f3ff 100%);
+  box-shadow: 0 2px 12px rgba(124,58,237,0.10);
+}
+
+.cc-sprint-card--done {
+  border-color: var(--neutral-200);
+  background: #fafaf8;
+  opacity: 0.85;
+}
+
+.cc-sprint-card--planned {
+  border-color: var(--neutral-200);
+  background: #fafaf8;
+  border-style: dashed;
+}
+
+.cc-sprint-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cc-sprint-card__name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--neutral-900);
+}
+
+.cc-sprint-card__badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.cc-sprint-card__badge--active {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.cc-sprint-card__badge--done {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.cc-sprint-card__badge--planned {
+  background: #f8fafc;
+  color: #94a3b8;
+  border: 1px solid #e2e8f0;
+}
+
+.cc-sprint-card__dates {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.cc-sprint-card__days {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--primary, #7c3aed);
+  background: #ede9fe;
+  padding: 1px 7px;
+  border-radius: 10px;
+}
+
+.cc-sprint-card--done .cc-sprint-card__days {
+  color: #64748b;
+  background: #f1f5f9;
+}
+
+.cc-sprint-card--planned .cc-sprint-card__days {
+  color: #94a3b8;
+  background: #f8fafc;
+}
+
+.cc-sprint-card__progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cc-sprint-card__progress-bar {
+  height: 6px;
+  background: var(--neutral-200);
+  border-radius: var(--r-full);
+  overflow: hidden;
+}
+
+.cc-sprint-card__progress-fill {
+  height: 100%;
+  background: var(--primary, #7c3aed);
+  border-radius: var(--r-full);
+  transition: width 0.4s ease;
+}
+
+.cc-sprint-card__progress-fill--done {
+  background: #10b981;
+}
+
+.cc-sprint-card__progress-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.cc-sprint-card__pct {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--neutral-700);
+}
+
+.cc-sprint-card__highlights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.cc-sprint-card__tag {
+  font-size: 10.5px;
+  background: #f3f4f6;
+  color: #374151;
+  border-radius: 6px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.cc-sprint-card--active .cc-sprint-card__tag {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.cc-sprint-card__empty {
+  font-size: 11px;
+  color: var(--neutral-400);
+  font-style: italic;
+}
+
 /* ===== HEADER STRIP ===== */
 .cc-header {
   display: flex;

@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="16-APP-operon-molecules.css?v=3">
   <link rel="stylesheet" href="17-APP-operon-utilities.css?v=2">
   <link rel="stylesheet" href="18-APP-operon-bridge.css?v=1">
-  <link rel="stylesheet" href="13-APP-styles.css?v=77">
+  <link rel="stylesheet" href="13-APP-styles.css?v=78">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1c1910,#35301d,#1c1910);font-family:'Open Sauce Sans',system-ui,sans-serif;color:var(--brand-500,#8a7d52);font-size:24px;font-weight:700;letter-spacing:0.05em; }
@@ -832,22 +832,72 @@
             <!-- 7. SPRINT TIMELINE (full row) -->
             <div class="bento-card bento-card--full" style="height:auto;min-height:10rem">
               <div class="bento-card__header">
-                <span class="bento-card__title">Cronograma</span>
+                <span class="bento-card__title">Cronograma de Sprints</span>
+                <span style="font-size:11px;color:var(--text-secondary)" x-text="data.sprints.length + ' sprints'"></span>
               </div>
               <div class="bento-card__body" style="padding-bottom:1.25rem">
-                <div class="cc-timeline">
+                <div class="cc-sprint-timeline">
                   <template x-for="sprint in data.sprints" :key="sprint.id">
-                    <div class="cc-timeline-item" :class="sprint.status === 'planejado' ? 'cc-timeline-item--planned' : (sprint.status === 'encerrado' ? 'cc-timeline-item--done' : '')">
-                      <div style="display:flex;align-items:center;gap:.625rem;margin-bottom:4px">
-                        <div class="cc-timeline-item__sprint" x-text="sprint.nome"></div>
-                        <span class="badge" :class="sprint.status === 'ativo' ? 'badge--success' : (sprint.status === 'encerrado' ? 'badge--muted' : 'badge--neutral')" x-text="sprint.status === 'ativo' ? 'ativo' : (sprint.status === 'encerrado' ? 'encerrado' : 'planejado')" style="font-size:10px;padding:2px 7px"></span>
+                    <div class="cc-sprint-card"
+                         :class="sprint.status === 'ativo' ? 'cc-sprint-card--active' : (sprint.status === 'encerrado' ? 'cc-sprint-card--done' : 'cc-sprint-card--planned')">
+
+                      <!-- Header: nome + badge -->
+                      <div class="cc-sprint-card__header">
+                        <span class="cc-sprint-card__name" x-text="sprint.nome"></span>
+                        <span class="cc-sprint-card__badge"
+                              :class="sprint.status === 'ativo' ? 'cc-sprint-card__badge--active' : (sprint.status === 'encerrado' ? 'cc-sprint-card__badge--done' : 'cc-sprint-card__badge--planned')"
+                              x-text="sprint.status === 'ativo' ? '● ativo' : (sprint.status === 'encerrado' ? '✓ encerrado' : '○ planejado')">
+                        </span>
                       </div>
-                      <div class="cc-timeline-item__dates" x-text="new Date(sprint.inicio+'T12:00:00').toLocaleDateString('pt-BR',{day:'numeric',month:'short'}) + ' → ' + new Date(sprint.fim+'T12:00:00').toLocaleDateString('pt-BR',{day:'numeric',month:'short'}) + ' · ' + sprint.total + ' tarefas'"></div>
-                      <div class="cc-timeline-item__highlights" x-show="sprint.highlights.length">
-                        <template x-for="h in sprint.highlights" :key="h">
-                          <div class="cc-timeline-item__highlight" x-text="h"></div>
+
+                      <!-- Datas + dias -->
+                      <div class="cc-sprint-card__dates">
+                        <span x-text="new Date(sprint.inicio+'T12:00:00').toLocaleDateString('pt-BR',{day:'numeric',month:'short'})"></span>
+                        <span style="opacity:0.5;margin:0 4px">→</span>
+                        <span x-text="new Date(sprint.fim+'T12:00:00').toLocaleDateString('pt-BR',{day:'numeric',month:'short'})"></span>
+                        <span class="cc-sprint-card__days"
+                              x-text="(function(){
+                                const hoje = new Date(); hoje.setHours(12,0,0,0);
+                                const fim = new Date(sprint.fim+'T12:00:00');
+                                const ini = new Date(sprint.inicio+'T12:00:00');
+                                if(sprint.status==='ativo'){
+                                  const diff = Math.ceil((fim-hoje)/(1000*60*60*24));
+                                  return diff>0 ? diff+' dias restantes' : 'último dia';
+                                } else if(sprint.status==='encerrado'){
+                                  const total = Math.ceil((fim-ini)/(1000*60*60*24))+1;
+                                  return total+' dias';
+                                } else {
+                                  const diff = Math.ceil((ini-hoje)/(1000*60*60*24));
+                                  return 'começa em '+diff+' dias';
+                                }
+                              })()">
+                        </span>
+                      </div>
+
+                      <!-- Barra de progresso -->
+                      <div class="cc-sprint-card__progress-wrap">
+                        <div class="cc-sprint-card__progress-bar">
+                          <div class="cc-sprint-card__progress-fill"
+                               :style="'width:' + (sprint.total > 0 ? Math.round((sprint.concluidas/sprint.total)*100) : 0) + '%'"
+                               :class="sprint.status === 'encerrado' ? 'cc-sprint-card__progress-fill--done' : ''">
+                          </div>
+                        </div>
+                        <div class="cc-sprint-card__progress-meta">
+                          <span x-text="sprint.concluidas + '/' + sprint.total + ' tarefas'"></span>
+                          <span class="cc-sprint-card__pct"
+                                x-text="(sprint.total > 0 ? Math.round((sprint.concluidas/sprint.total)*100) : 0) + '%'">
+                          </span>
+                        </div>
+                      </div>
+
+                      <!-- Highlights como tags -->
+                      <div class="cc-sprint-card__highlights" x-show="sprint.highlights && sprint.highlights.length">
+                        <template x-for="h in (sprint.highlights || [])" :key="h">
+                          <span class="cc-sprint-card__tag" x-text="h"></span>
                         </template>
                       </div>
+                      <div class="cc-sprint-card__empty" x-show="!sprint.highlights || !sprint.highlights.length" x-text="sprint.status === 'planejado' ? 'Escopo a definir' : 'Sem destaques'"></div>
+
                     </div>
                   </template>
                 </div>
