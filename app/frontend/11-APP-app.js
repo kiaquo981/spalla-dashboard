@@ -512,7 +512,11 @@ function operon() {
       },
       // Sistema & Dev — lists populadas dinamicamente por loadGodLists() com sprints reais
       { id: 'space_sistema', name: 'Sistema & Dev', icon: '◈', color: '#0ea5e9',
-        lists: []
+        lists: [
+          { id: '901113377455', name: 'Sprint 1 (3/16 - 3/22)', icon: '✓', isSprint: true, status: 'encerrado' },
+          { id: '901113377456', name: 'Sprint 2 (3/23 - 3/29)', icon: '⚡', isSprint: true, status: 'ativo' },
+          { id: '901113377457', name: 'Sprint 3 (3/30 - 4/5)',  icon: '○', isSprint: true, status: 'planejado' },
+        ]
       },
     ],
 
@@ -2842,15 +2846,21 @@ function operon() {
           }
 
           // Popula space_sistema.lists com sprints como items navegáveis
-          const sistemaSpace = this.spaces.find(s => s.id === 'space_sistema');
-          if (sistemaSpace) {
-            sistemaSpace.lists = sprints.map(s => ({
-              id: s.id,
-              name: s.nome,
-              icon: s.status === 'ativo' ? '⚡' : (s.status === 'encerrado' ? '✓' : '○'),
-              isSprint: true,
-              status: s.status,
-            }));
+          // Usa map() no array inteiro para garantir reatividade Alpine.js
+          if (sprints.length) {
+            this.spaces = this.spaces.map(s => {
+              if (s.id !== 'space_sistema') return s;
+              return {
+                ...s,
+                lists: sprints.map(sp => ({
+                  id: sp.id,
+                  name: sp.nome,
+                  icon: sp.status === 'ativo' ? '⚡' : (sp.status === 'encerrado' ? '✓' : '○'),
+                  isSprint: true,
+                  status: sp.status,
+                })),
+              };
+            });
           }
         }
       } catch (e) {
