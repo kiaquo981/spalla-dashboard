@@ -1519,27 +1519,47 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         try:
             data = clickup_get(
                 f"https://api.clickup.com/api/v2/list/{active['list_id']}/task"
-                f"?include_closed=true&subtasks=false&page=0"
+                f"?include_closed=true&subtasks=true&page=0"
             )
         except Exception as e:
             self._send_json({'error': f'ClickUp API error: {e}'}, 502)
             return
 
-        tasks = data.get('tasks', [])
+        all_items = data.get('tasks', [])
+        # Separate parent tasks from subtasks (subtasks have a non-null 'parent' field)
+        tasks     = [t for t in all_items if not t.get('parent')]
+        subtasks  = [t for t in all_items if t.get('parent')]
+
         by_status = {'backlog': [], 'em_andamento': [], 'em_revisao': [], 'concluida': []}
+        subtasks_by_parent = {}
         by_member = {}
         activity = []
+
+        # Index subtasks by parent clickup id
+        for st in subtasks:
+            pid = st.get('parent')
+            subtasks_by_parent.setdefault(pid, []).append({
+                'id':          st.get('id'),
+                'titulo':      st.get('name', ''),
+                'status':      normalize_status(st.get('status', {}).get('status', '')),
+                'responsavel': ', '.join(a.get('username', '') or a.get('email', '') for a in st.get('assignees', [])),
+                'data_inicio': st.get('start_date') and str(int(st['start_date']) // 1000) or None,
+                'data_fim':    st.get('due_date')   and str(int(st['due_date'])   // 1000) or None,
+                'clickup_id':  st.get('id'),
+                'url':         st.get('url', ''),
+            })
 
         for t in tasks:
             status = normalize_status(t.get('status', {}).get('status', ''))
             nome = t.get('name', '')
             assignees = t.get('assignees', [])
             updated_ms = int(t.get('date_updated') or 0)
+            tid = t.get('id')
             operon_id = t.get('id', '')
             clickup_url = t.get('url', '')
 
             task_obj = {
-                'operon_id': operon_id,
+                'id': tid,
                 'titulo': nome,
                 'status': status,
                 # responsavel mantém username ClickUp — frontend resolve via spalla_members
@@ -1551,6 +1571,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'assignee_ids': [str(a.get('id', '')) for a in assignees if a.get('id')],
                 'url': clickup_url,
                 'atualizado_ms': updated_ms,
+                'subtasks': subtasks_by_parent.get(tid, []),
+                'subtasks_count': len(subtasks_by_parent.get(tid, [])),
             }
             by_status.setdefault(status, []).append(task_obj)
 
@@ -1581,6 +1603,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'fim': active['fim'],
             },
             'total': len(tasks),
+            'subtasks_total': len(subtasks),
             'by_status': by_status,
             'by_member': by_member,
             'activity': activity[:25],

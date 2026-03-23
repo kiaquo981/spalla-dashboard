@@ -1670,9 +1670,14 @@
                           <span x-show="t.data_fim || t.prazo" class="detail-task-card__due" :class="{ 'detail-task-card__due--overdue': isOverdue(t.data_fim || t.prazo) }" x-text="formatDate(t.data_fim || t.prazo)"></span>
                           <span x-show="t.tags?.length" class="detail-task-card__tags"><template x-for="tag in t.tags || []"><span class="badge badge--sm badge--neutral" x-text="tag" style="margin-right:2px"></span></template></span>
                         </div>
-                        <div class="detail-task-card__subtasks" x-show="t.subtasks?.length">
-                          <div class="task-card__progress-bar" style="width:80px"><div class="task-card__progress-fill" :style="'width:' + ((t.subtasks?.filter(s=>s.done).length || 0) / (t.subtasks?.length || 1) * 100) + '%'"></div></div>
-                          <span style="font-size:11px;color:#94a3b8" x-text="(t.subtasks?.filter(s=>s.done).length || 0) + '/' + (t.subtasks?.length || 0)"></span>
+                        <div class="detail-task-card__subtasks" x-show="subtaskProgress(t).total > 0 || t.is_blocked" style="display:flex;align-items:center;gap:6px">
+                          <template x-if="subtaskProgress(t).total > 0">
+                            <div style="display:flex;align-items:center;gap:4px">
+                              <div class="task-card__progress-bar" style="width:60px"><div class="task-card__progress-fill" :style="'width:' + subtaskProgress(t).pct + '%'"></div></div>
+                              <span style="font-size:11px;color:#94a3b8" x-text="subtaskProgress(t).done + '/' + subtaskProgress(t).total"></span>
+                            </div>
+                          </template>
+                          <span x-show="t.is_blocked" style="font-size:10px;padding:1px 5px;border-radius:4px;background:#fee2e2;color:#991b1b;font-weight:600">⛔</span>
                         </div>
                       </div>
                       <div class="detail-task-card__assignee">
@@ -2514,10 +2519,13 @@
                               <span x-text="formatDate(t.data_fim || t.prazo)"></span>
                             </span>
                           </div>
-                          <!-- Subtask progress -->
-                          <div x-show="t.subtasks?.length" class="task-board__card-progress">
-                            <div class="task-card__progress-bar"><div class="task-card__progress-fill" :style="'width:' + ((t.subtasks?.filter(s=>s.done).length || 0) / (t.subtasks?.length || 1) * 100) + '%'"></div></div>
-                            <span class="task-card__progress-text" x-text="(t.subtasks?.filter(s=>s.done).length || 0) + '/' + (t.subtasks?.length || 0)"></span>
+                          <!-- Subtask progress + blocked badge -->
+                          <div x-show="subtaskProgress(t).total > 0 || t.is_blocked" style="display:flex;align-items:center;gap:6px;margin-top:4px">
+                            <div x-show="subtaskProgress(t).total > 0" class="task-board__card-progress" style="flex:1">
+                              <div class="task-card__progress-bar"><div class="task-card__progress-fill" :style="'width:' + subtaskProgress(t).pct + '%'"></div></div>
+                              <span class="task-card__progress-text" x-text="subtaskProgress(t).done + '/' + subtaskProgress(t).total"></span>
+                            </div>
+                            <span x-show="t.is_blocked" style="font-size:10px;padding:1px 5px;border-radius:4px;background:#fee2e2;color:#991b1b;font-weight:600;flex-shrink:0">⛔ Bloqueada</span>
                           </div>
                           <!-- Parent task indicator -->
                           <div x-show="t.parent_task_id" class="task-board__card-parent">
@@ -2577,7 +2585,7 @@
                   <div class="task-list__row" :class="{ 'task-list__row--done': t.status === 'concluida', 'task-list__row--overdue': t.status === 'pendente' && isOverdue(t.data_fim || t.prazo), 'task-list__row--mine': isMyTask(t) }" @click="openTaskDetail(t.id)">
                     <div class="task-list__col task-list__col--check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
                     <div class="task-list__col task-list__col--title">
-<div class="task-list__title"><span x-text="t.titulo"></span><span class="task-auto-badge" x-show="t.auto_gerada">Auto</span><span class="task-recurring-badge" x-show="t.recorrencia && t.recorrencia !== 'nenhuma'" :title="'Recorrente: ' + recorrenciaLabel(t.recorrencia)"><svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span></div>
+<div class="task-list__title"><span x-text="t.titulo"></span><span x-show="t.is_blocked" style="margin-left:4px;font-size:10px;padding:1px 4px;border-radius:3px;background:#fee2e2;color:#991b1b;font-weight:600">⛔</span><span class="task-auto-badge" x-show="t.auto_gerada">Auto</span><span class="task-recurring-badge" x-show="t.recorrencia && t.recorrencia !== 'nenhuma'" :title="'Recorrente: ' + recorrenciaLabel(t.recorrencia)"><svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span></div>
                       <div class="task-list__tags" x-show="t.tags?.length"><template x-for="tag in (t.tags||[]).slice(0,2)" :key="tag.id||tag.name||tag"><span class="task-tag" :style="tag.color ? 'background:'+tag.color+'22;color:'+tag.color+';border-color:'+tag.color+'55' : ''" x-text="tag.name||tag"></span></template></div>
                       <div x-show="t.parent_task_id" style="font-size:10px;color:#94a3b8">subtarefa</div>
                     </div>
@@ -2726,25 +2734,66 @@
                   </div>
                   <!-- Subtasks -->
                   <div class="task-drawer__section" x-show="activeTaskDetail.subtasks?.length">
-                    <h4>Subtarefas <span style="color:#94a3b8;font-weight:400" x-text="activeTaskDetail.subtasks.filter(s=>s.done).length + '/' + activeTaskDetail.subtasks.length"></span></h4>
+                    <h4>
+                      Subtarefas <span style="color:#94a3b8;font-weight:400" x-text="activeTaskDetail.subtasks.filter(s=>s.done).length + '/' + activeTaskDetail.subtasks.length"></span>
+                      <!-- progress bar -->
+                      <div class="task-card__progress-bar" style="display:inline-flex;width:60px;margin-left:8px;vertical-align:middle"><div class="task-card__progress-fill" :style="'width:' + subtaskProgress(activeTaskDetail).pct + '%'"></div></div>
+                    </h4>
                     <div class="task-drawer__subtasks">
                       <template x-for="(st, si) in activeTaskDetail.subtasks || []" :key="si">
-                        <label class="task-drawer__subtask">
-                          <input type="checkbox" :checked="st.done" @change="toggleSubtask(activeTaskDetail.id, si)">
-                          <span :class="{ 'line-through': st.done }" x-text="st.text"></span>
-                        </label>
+                        <div style="margin-bottom:6px;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;background:#fafafa">
+                          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                            <input type="checkbox" :checked="st.done" @change="toggleSubtask(activeTaskDetail.id, si)" style="width:14px;height:14px;flex-shrink:0;cursor:pointer">
+                            <span :class="{ 'line-through': st.done }" style="flex:1;font-size:13px" x-text="st.text"></span>
+                            <span style="font-size:10px;padding:1px 5px;border-radius:4px"
+                              :style="st.status==='concluida' ? 'background:#dcfce7;color:#166534' : st.status==='bloqueada' ? 'background:#fee2e2;color:#991b1b' : st.status==='em_andamento' ? 'background:#dbeafe;color:#1e40af' : 'background:#f1f5f9;color:#64748b'"
+                              x-text="st.status || 'pendente'"></span>
+                          </div>
+                          <div x-show="st.responsavel || st.data_inicio || st.data_fim || st.prioridade !== 'normal'" style="display:flex;gap:6px;flex-wrap:wrap;font-size:11px;color:#64748b">
+                            <span x-show="st.responsavel" x-text="'👤 ' + st.responsavel"></span>
+                            <span x-show="st.data_inicio" x-text="'▶ ' + st.data_inicio"></span>
+                            <span x-show="st.data_fim" x-text="'⏱ ' + st.data_fim"></span>
+                            <span x-show="st.prioridade && st.prioridade !== 'normal'" style="padding:1px 5px;border-radius:4px;background:#fef3c7;color:#92400e" x-text="st.prioridade"></span>
+                          </div>
+                        </div>
                       </template>
                     </div>
                   </div>
                   <!-- Checklist -->
                   <div class="task-drawer__section" x-show="activeTaskDetail.checklist?.length">
-                    <h4>Checklist</h4>
+                    <h4>Checklist <span style="color:#94a3b8;font-weight:400" x-text="activeTaskDetail.checklist.filter(c=>c.done).length + '/' + activeTaskDetail.checklist.length"></span></h4>
                     <div class="task-drawer__subtasks">
                       <template x-for="(ci, idx) in activeTaskDetail.checklist || []" :key="idx">
-                        <label class="task-drawer__subtask">
-                          <input type="checkbox" :checked="ci.done" @change="toggleCheckItem(activeTaskDetail.id, idx)">
-                          <span :class="{ 'line-through': ci.done }" x-text="ci.text"></span>
-                        </label>
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;padding:4px 6px;border-radius:5px" :style="ci.done ? 'opacity:.6' : ''">
+                          <input type="checkbox" :checked="ci.done" @change="toggleCheckItem(activeTaskDetail.id, idx)" style="width:14px;height:14px;flex-shrink:0;cursor:pointer">
+                          <span :class="{ 'line-through': ci.done }" style="flex:1;font-size:13px" x-text="ci.text"></span>
+                          <span x-show="ci.assignee" style="font-size:11px;color:#64748b" x-text="ci.assignee"></span>
+                          <span x-show="ci.due_date" style="font-size:11px;color:#94a3b8" x-text="ci.due_date"></span>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                  <!-- Dependencies -->
+                  <div class="task-drawer__section" x-show="activeTaskDetail.dependencies?.length || activeTaskDetail.dependents?.length">
+                    <h4>Dependências</h4>
+                    <div x-show="activeTaskDetail.dependencies?.length">
+                      <div style="font-size:11px;font-weight:600;color:#d97706;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Bloqueada por</div>
+                      <template x-for="dep in activeTaskDetail.dependencies || []" :key="dep.dep_id">
+                        <div style="display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:5px;background:#fffbeb;border:1px solid #fde68a;margin-bottom:3px;font-size:12px">
+                          <span>⛔</span>
+                          <span style="flex:1" x-text="dep.blocker_titulo"></span>
+                          <span style="padding:1px 5px;border-radius:4px;font-size:10px" :style="dep.blocker_status === 'concluida' ? 'background:#dcfce7;color:#166534' : 'background:#fee2e2;color:#991b1b'" x-text="dep.blocker_status"></span>
+                        </div>
+                      </template>
+                    </div>
+                    <div x-show="activeTaskDetail.dependents?.length" style="margin-top:6px">
+                      <div style="font-size:11px;font-weight:600;color:#6366f1;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Desbloquia</div>
+                      <template x-for="dep in activeTaskDetail.dependents || []" :key="dep.dep_id">
+                        <div style="display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:5px;background:#eef2ff;border:1px solid #c7d2fe;margin-bottom:3px;font-size:12px">
+                          <span>🔗</span>
+                          <span style="flex:1" x-text="dep.dependent_titulo"></span>
+                          <span style="padding:1px 5px;border-radius:4px;font-size:10px;background:#e0e7ff;color:#3730a3" x-text="dep.dependent_status"></span>
+                        </div>
                       </template>
                     </div>
                   </div>
@@ -7546,6 +7595,123 @@
               </div>
             </div>
 
+            <!-- Subtarefas -->
+            <div style="margin-top:16px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <label style="margin:0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b">Subtarefas <span style="font-weight:400;color:#94a3b8" x-text="taskForm.subtasks.length ? '(' + taskForm.subtasks.length + ')' : ''"></span></label>
+              </div>
+              <template x-for="(st, si) in taskForm.subtasks" :key="si">
+                <div style="border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;margin-bottom:6px;background:#fafafa">
+                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                    <input type="checkbox" :checked="st.done" @change="st.done=$event.target.checked; if(st.done) st.status='concluida'; else if(st.status==='concluida') st.status='pendente'" style="width:14px;height:14px;flex-shrink:0;cursor:pointer">
+                    <input type="text" x-model="st.text" class="modal__input" style="flex:1;margin:0;font-size:13px" placeholder="Texto da subtarefa">
+                    <button type="button" @click="removeSubtask(si)" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:16px;padding:0;line-height:1;opacity:.6" title="Remover">&times;</button>
+                  </div>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap">
+                    <select x-model="st.status" class="modal__select" style="flex:0 0 130px;font-size:12px;padding:3px 6px">
+                      <option value="pendente">Pendente</option>
+                      <option value="em_andamento">Em Andamento</option>
+                      <option value="em_revisao">Em Revisão</option>
+                      <option value="concluida">Concluída</option>
+                      <option value="bloqueada">Bloqueada</option>
+                    </select>
+                    <select x-model="st.prioridade" class="modal__select" style="flex:0 0 100px;font-size:12px;padding:3px 6px">
+                      <option value="normal">Normal</option>
+                      <option value="baixa">Baixa</option>
+                      <option value="alta">Alta</option>
+                      <option value="urgente">Urgente</option>
+                    </select>
+                    <select x-model="st.responsavel" class="modal__select" style="flex:0 0 130px;font-size:12px;padding:3px 6px">
+                      <option value="">-- Responsável --</option>
+                      <option value="Mentorado">Mentorado</option>
+                      <template x-for="tm in TEAM_MEMBERS" :key="tm.id"><option :value="tm.name" x-text="tm.name"></option></template>
+                    </select>
+                    <input type="date" x-model="st.data_inicio" class="modal__input" style="flex:0 0 130px;font-size:12px;padding:3px 6px" :title="'Início'" @change="$el.title = 'Início: ' + $el.value">
+                    <input type="date" x-model="st.data_fim" class="modal__input" style="flex:0 0 130px;font-size:12px;padding:3px 6px" :title="'Prazo'" @change="$el.title = 'Prazo: ' + $el.value">
+                  </div>
+                  <!-- Date warning -->
+                  <template x-if="_validateSubtaskDates({data_inicio: taskForm.data_inicio, data_fim: taskForm.data_fim}, st).length">
+                    <div style="margin-top:4px;font-size:11px;color:#f59e0b;display:flex;align-items:center;gap:4px">
+                      <span>⚠</span>
+                      <span x-text="_validateSubtaskDates({data_inicio: taskForm.data_inicio, data_fim: taskForm.data_fim}, st).join(' · ')"></span>
+                    </div>
+                  </template>
+                </div>
+              </template>
+              <div style="display:flex;gap:6px;margin-top:4px">
+                <input type="text" x-model="taskForm.newSubtask" class="modal__input" placeholder="+ Adicionar subtarefa..." style="flex:1;font-size:13px" @keydown.enter.prevent="addSubtask()">
+                <button type="button" class="btn btn--sm btn--brand" @click="addSubtask()">Adicionar</button>
+              </div>
+            </div>
+
+            <!-- Checklist -->
+            <div style="margin-top:16px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <label style="margin:0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b">Checklist <span style="font-weight:400;color:#94a3b8" x-text="taskForm.checklist.length ? '(' + taskForm.checklist.length + ')' : ''"></span></label>
+              </div>
+              <template x-for="(ci, cIdx) in taskForm.checklist" :key="cIdx">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;background:#fafafa;flex-wrap:wrap">
+                  <input type="checkbox" :checked="ci.done" @change="ci.done=$event.target.checked" style="width:14px;height:14px;flex-shrink:0;cursor:pointer">
+                  <input type="text" x-model="ci.text" class="modal__input" style="flex:1;min-width:120px;margin:0;font-size:13px" placeholder="Item do checklist">
+                  <input type="date" x-model="ci.due_date" class="modal__input" style="flex:0 0 120px;font-size:12px;padding:3px 6px" title="Data limite">
+                  <select x-model="ci.assignee" class="modal__select" style="flex:0 0 120px;font-size:12px;padding:3px 6px">
+                    <option value="">-- Responsável --</option>
+                    <option value="Mentorado">Mentorado</option>
+                    <template x-for="tm in TEAM_MEMBERS" :key="tm.id"><option :value="tm.name" x-text="tm.name"></option></template>
+                  </select>
+                  <button type="button" @click="removeCheckItem(cIdx)" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:16px;padding:0;line-height:1;opacity:.6" title="Remover">&times;</button>
+                </div>
+              </template>
+              <div style="display:flex;gap:6px;margin-top:4px">
+                <input type="text" x-model="taskForm.newCheckItem" class="modal__input" placeholder="+ Adicionar item..." style="flex:1;font-size:13px" @keydown.enter.prevent="addCheckItem()">
+                <button type="button" class="btn btn--sm btn--brand" @click="addCheckItem()">Adicionar</button>
+              </div>
+            </div>
+
+            <!-- Dependências -->
+            <div style="margin-top:16px" x-show="ui.taskEditId">
+              <div style="margin-bottom:8px">
+                <label style="margin:0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b">Dependências</label>
+                <span x-show="taskForm.dependencies?.some(d => !d._new)" style="margin-left:6px;font-size:11px;color:#94a3b8" x-text="'(' + taskForm.dependencies.filter(d=>!d._new).length + ' bloqueadora(s))'"></span>
+              </div>
+              <!-- Existing dependencies -->
+              <template x-for="dep in (taskForm.dependencies || []).filter(d => !d._new)" :key="dep.dep_id || dep.depends_on">
+                <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border:1px solid #fde68a;border-radius:6px;background:#fffbeb;margin-bottom:5px;font-size:12px">
+                  <span style="color:#d97706">⛔</span>
+                  <span style="flex:1" x-text="dep.blocker_titulo || dep.depends_on"></span>
+                  <span style="padding:1px 6px;border-radius:4px;background:#fef3c7;color:#92400e;font-size:10px" x-text="dep.tipo"></span>
+                  <span style="padding:1px 6px;border-radius:4px;font-size:10px" :style="dep.blocker_status === 'concluida' ? 'background:#dcfce7;color:#166534' : 'background:#fee2e2;color:#991b1b'" x-text="dep.blocker_status || '?'"></span>
+                  <button type="button" @click="removeDependency(ui.taskEditId, dep.dep_id); taskForm.dependencies = taskForm.dependencies.filter(d => d.dep_id !== dep.dep_id)" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:14px;padding:0;opacity:.6" title="Remover dependência">&times;</button>
+                </div>
+              </template>
+              <!-- Pending new dependencies -->
+              <template x-for="(dep, dIdx) in (taskForm.dependencies || []).filter(d => d._new)" :key="dIdx">
+                <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border:1px solid #bfdbfe;border-radius:6px;background:#eff6ff;margin-bottom:5px;font-size:12px">
+                  <span style="color:#3b82f6">🔗</span>
+                  <span style="flex:1" x-text="(data.tasks.find(t=>t.id===dep.depends_on)?.titulo) || dep.depends_on"></span>
+                  <span style="padding:1px 6px;border-radius:4px;background:#dbeafe;color:#1e40af;font-size:10px" x-text="dep.tipo"></span>
+                  <span style="font-size:10px;color:#6b7280">(pendente)</span>
+                  <button type="button" @click="taskForm.dependencies = taskForm.dependencies.filter((_,i) => i !== taskForm.dependencies.indexOf(dep))" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:14px;padding:0;opacity:.6">&times;</button>
+                </div>
+              </template>
+              <!-- Add dependency -->
+              <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">
+                <select x-model="taskForm.newDependsOn" class="modal__select" style="flex:1;min-width:160px;font-size:12px">
+                  <option value="">-- Selecionar tarefa bloqueadora --</option>
+                  <template x-for="t in data.tasks.filter(t => t.id !== ui.taskEditId && !(taskForm.dependencies||[]).some(d=>d.depends_on===t.id))" :key="t.id">
+                    <option :value="t.id" x-text="(t.mentorado_nome ? '[' + t.mentorado_nome + '] ' : '') + t.titulo"></option>
+                  </template>
+                </select>
+                <select x-model="taskForm.newDependsOnType" class="modal__select" style="flex:0 0 150px;font-size:12px">
+                  <option value="finish_to_start">Terminar → Iniciar</option>
+                  <option value="start_to_start">Iniciar → Iniciar</option>
+                  <option value="finish_to_finish">Terminar → Terminar</option>
+                  <option value="start_to_finish">Iniciar → Terminar</option>
+                </select>
+                <button type="button" class="btn btn--sm btn--brand" @click="if(taskForm.newDependsOn){ taskForm.dependencies = [...(taskForm.dependencies||[]), { _new: true, depends_on: taskForm.newDependsOn, tipo: taskForm.newDependsOnType }]; taskForm.newDependsOn=''; }">+ Adicionar</button>
+              </div>
+            </div>
+
             <!-- Recorrencia -->
             <div style="margin-top:12px">
               <label>Recorrencia</label>
@@ -7667,7 +7833,7 @@
   <script src="12-APP-data.js?v=72"></script>
   <script src="13-APP-photos.js?v=72"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=87"></script>
+  <script src="11-APP-app.js?v=88"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>

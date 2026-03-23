@@ -4553,12 +4553,38 @@ function operon() {
           if (!error && data) {
             this.data.tasks = data.map(t => ({
               ...t, prazo: t.data_fim, _source: 'god_tasks',
-              subtasks: (t.subtasks || []).map(s => ({ text: s.texto || s.text, done: s.done })),
-              checklist: (t.checklist || []).map(c => ({ text: c.texto || c.text, done: c.done })),
-              comments: (t.comments || []).map(c => ({ id: c.id, author: c.author, text: c.texto || c.text, timestamp: c.created_at || c.timestamp })),
-              handoffs: (t.handoffs || []).map(h => ({ from: h.from_person || h.from, to: h.to_person || h.to, note: h.note, date: h.created_at || h.date })),
+              // Subtasks: full model with status/dates/responsavel/prioridade
+              subtasks: (t.subtasks_json || t.subtasks || []).map(s => ({
+                id: s.id || null,
+                text: s.texto || s.text || '',
+                done: s.done || false,
+                sort_order: s.sort_order ?? 0,
+                status: s.status || (s.done ? 'concluida' : 'pendente'),
+                responsavel: s.responsavel || '',
+                data_inicio: s.data_inicio || '',
+                data_fim: s.data_fim || '',
+                prioridade: s.prioridade || 'normal',
+                clickup_id: s.clickup_id || null,
+              })),
+              checklist: (t.checklist_json || t.checklist || []).map(c => ({
+                id: c.id || null,
+                text: c.texto || c.text || '',
+                done: c.done || false,
+                sort_order: c.sort_order ?? 0,
+                due_date: c.due_date || '',
+                assignee: c.assignee || '',
+              })),
+              comments: (t.comments_json || t.comments || []).map(c => ({ id: c.id, author: c.author, text: c.texto || c.text, timestamp: c.created_at || c.timestamp })),
+              handoffs: (t.handoffs_json || t.handoffs || []).map(h => ({ from: h.from_person || h.from, to: h.to_person || h.to, note: h.note, date: h.created_at || h.date })),
               tags: (t.tags_full && t.tags_full.length) ? t.tags_full : (t.tags || []).map(tg => typeof tg === 'string' ? { id: null, name: tg, color: '#94a3b8' } : tg),
               custom_fields: t.custom_fields_json || [],
+              dependencies: t.dependencies_json || [],
+              dependents: t.dependents_json || [],
+              subtasks_total: t.subtasks_total || 0,
+              subtasks_done: t.subtasks_done || 0,
+              checklist_total: t.checklist_total || 0,
+              checklist_done: t.checklist_done || 0,
+              is_blocked: t.is_blocked || false,
               attachments: [],
             }));
             this._autoCategorize();
@@ -4673,7 +4699,20 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         const { error: delErr } = await sb.from('god_task_subtasks').delete().eq('task_id', taskId);
         if (delErr) { console.warn('[Spalla] Subtask delete error:', delErr.message); return { ok: false }; }
         if (subtasks?.length) {
-          const { error: insErr } = await sb.from('god_task_subtasks').insert(subtasks.map((s, i) => ({ task_id: taskId, texto: s.text, done: s.done, sort_order: i })));
+          const rows = subtasks.map((s, i) => ({
+            task_id:    taskId,
+            texto:      s.text || s.texto || '',
+            done:       s.done || false,
+            sort_order: i,
+            status:     s.status || (s.done ? 'concluida' : 'pendente'),
+            responsavel: s.responsavel || null,
+            data_inicio: s.data_inicio || null,
+            data_fim:    s.data_fim || null,
+            prioridade:  s.prioridade || 'normal',
+            clickup_id:  s.clickup_id || null,
+            updated_at:  new Date().toISOString(),
+          }));
+          const { error: insErr } = await sb.from('god_task_subtasks').insert(rows);
           if (insErr) { console.warn('[Spalla] Subtask insert error:', insErr.message); return { ok: false }; }
         }
         return { ok: true };
@@ -4686,11 +4725,78 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         const { error: delErr } = await sb.from('god_task_checklist').delete().eq('task_id', taskId);
         if (delErr) { console.warn('[Spalla] Checklist delete error:', delErr.message); return { ok: false }; }
         if (checklist?.length) {
-          const { error: insErr } = await sb.from('god_task_checklist').insert(checklist.map((c, i) => ({ task_id: taskId, texto: c.text, done: c.done, sort_order: i })));
+          const rows = checklist.map((c, i) => ({
+            task_id:    taskId,
+            texto:      c.text || c.texto || '',
+            done:       c.done || false,
+            sort_order: i,
+            due_date:   c.due_date || null,
+            assignee:   c.assignee || null,
+            updated_at: new Date().toISOString(),
+          }));
+          const { error: insErr } = await sb.from('god_task_checklist').insert(rows);
           if (insErr) { console.warn('[Spalla] Checklist insert error:', insErr.message); return { ok: false }; }
         }
         return { ok: true };
       } catch (e) { console.warn('[Spalla] Checklist sync error:', e.message); return { ok: false }; }
+    },
+
+    // ── Dependencies ──────────────────────────────────────────────────────────
+    async addDependency(taskId, dependsOnId, tipo = 'finish_to_start') {
+      if (!sb || taskId === dependsOnId) return;
+      const t = this.data.tasks.find(x => x.id === taskId);
+      if (!t) return;
+      const already = (t.dependencies || []).some(d => d.depends_on === dependsOnId);
+      if (already) { this.toast('Dependência já existe', 'info'); return; }
+      const blocker = this.data.tasks.find(x => x.id === dependsOnId);
+      const row = { task_id: taskId, depends_on: dependsOnId, tipo, created_by: this.currentUserName };
+      const { data: inserted, error } = await sb.from('god_task_dependencies').insert(row).select().single();
+      if (error) { this.toast('Erro ao criar dependência: ' + error.message, 'error'); return; }
+      if (!t.dependencies) t.dependencies = [];
+      t.dependencies.push({
+        dep_id: inserted.id, depends_on: dependsOnId, tipo,
+        blocker_titulo: blocker?.titulo || dependsOnId,
+        blocker_status: blocker?.status || 'backlog',
+        blocker_data_fim: blocker?.data_fim || null,
+      });
+      // Update is_blocked flag
+      t.is_blocked = t.dependencies.some(d => d.blocker_status !== 'concluida');
+      this._cacheTasksLocal();
+      this.toast('Dependência criada', 'success');
+    },
+
+    async removeDependency(taskId, depId) {
+      if (!sb) return;
+      const t = this.data.tasks.find(x => x.id === taskId);
+      if (!t) return;
+      const { error } = await sb.from('god_task_dependencies').delete().eq('id', depId);
+      if (error) { this.toast('Erro ao remover dependência: ' + error.message, 'error'); return; }
+      t.dependencies = (t.dependencies || []).filter(d => d.dep_id !== depId);
+      t.is_blocked = t.dependencies.some(d => d.blocker_status !== 'concluida');
+      this._cacheTasksLocal();
+      this.toast('Dependência removida', 'info');
+    },
+
+    // Validate subtask dates against parent task range (returns array of warning strings)
+    _validateSubtaskDates(parentTask, subtask) {
+      const warnings = [];
+      if (!parentTask) return warnings;
+      const parentStart = parentTask.data_inicio ? new Date(parentTask.data_inicio) : null;
+      const parentEnd   = parentTask.data_fim    ? new Date(parentTask.data_fim)    : null;
+      const subStart    = subtask.data_inicio    ? new Date(subtask.data_inicio)    : null;
+      const subEnd      = subtask.data_fim       ? new Date(subtask.data_fim)       : null;
+      if (parentStart && subStart && subStart < parentStart)
+        warnings.push(`Início da subtarefa (${subtask.data_inicio}) anterior ao início da tarefa mãe (${parentTask.data_inicio})`);
+      if (parentEnd && subEnd && subEnd > parentEnd)
+        warnings.push(`Prazo da subtarefa (${subtask.data_fim}) ultrapassa o prazo da tarefa mãe (${parentTask.data_fim})`);
+      return warnings;
+    },
+
+    // Progress helper for task cards and detail — always returns {done,total,pct}
+    subtaskProgress(task) {
+      const total = task.subtasks_total ?? (task.subtasks || []).length;
+      const done  = task.subtasks_done  ?? (task.subtasks || []).filter(s => s.done).length;
+      return { done, total, pct: total ? Math.round((done / total) * 100) : 0 };
     },
 
     async _sbAddComment(taskId, author, text) {
@@ -4738,6 +4844,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           comments: task.comments ? [...task.comments] : [],
           attachments: task.attachments ? [...task.attachments] : [],
           tags: task.tags ? [...task.tags] : [],
+          dependencies: task.dependencies ? [...task.dependencies] : [],
           parent_task_id: task.parent_task_id || null,
           space_id: task.space_id || 'space_jornada',
           list_id: task.list_id || '',
@@ -4748,12 +4855,14 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           newCheckItem: '',
           newComment: '',
           newTag: '',
+          newDependsOn: '',
+          newDependsOnType: 'finish_to_start',
           fieldValues: {},
         };
         this.ui.taskEditId = task.id;
         this.loadFieldDefs(task.space_id, task.list_id, task.id);
       } else {
-        this.taskForm = { titulo: '', descricao: '', responsavel: '', acompanhante: '', mentorado_nome: '', prioridade: 'normal', prazo: '', data_inicio: '', data_fim: '', doc_link: '', subtasks: [], checklist: [], comments: [], attachments: [], tags: [], parent_task_id: null, space_id: 'space_jornada', list_id: '', recorrencia: 'nenhuma', dia_recorrencia: null, recorrencia_ativa: true, newSubtask: '', newCheckItem: '', newComment: '', newTag: '', fieldValues: {} };
+        this.taskForm = { titulo: '', descricao: '', responsavel: '', acompanhante: '', mentorado_nome: '', prioridade: 'normal', prazo: '', data_inicio: '', data_fim: '', doc_link: '', subtasks: [], checklist: [], comments: [], attachments: [], tags: [], dependencies: [], parent_task_id: null, space_id: 'space_jornada', list_id: '', recorrencia: 'nenhuma', dia_recorrencia: null, recorrencia_ativa: true, newSubtask: '', newCheckItem: '', newComment: '', newTag: '', newDependsOn: '', newDependsOnType: 'finish_to_start', fieldValues: {} };
         this.ui.taskEditId = null;
         this.loadFieldDefs('space_jornada', null, null);
       }
@@ -4773,7 +4882,10 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       delete formData.newCheckItem;
       delete formData.newComment;
       delete formData.newTag;
+      delete formData.newDependsOn;
+      delete formData.newDependsOnType;
       delete formData.fieldValues;
+      const pendingDependencies = this.taskForm.dependencies || [];
       if (formData.data_fim) formData.prazo = formData.data_fim;
       // Normalize tags to TEXT[] for backward compat column
       const tagsObjects = formData.tags || [];
@@ -4792,6 +4904,10 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           await this._sbSyncChecklist(updated.id, updated.checklist);
           await this._sbSyncTagRelations(updated.id, tagsObjects);
           await this.saveFieldValues(updated.id);
+          // Sync new dependencies added via modal
+          for (const dep of pendingDependencies.filter(d => d._new)) {
+            await this.addDependency(updated.id, dep.depends_on, dep.tipo);
+          }
         }
       } else {
         const newId = crypto.randomUUID ? crypto.randomUUID() : 'task_' + Date.now();
@@ -4841,7 +4957,16 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     addSubtask() {
       if (this.taskForm.newSubtask.trim()) {
-        this.taskForm.subtasks.push({ text: this.taskForm.newSubtask.trim(), done: false });
+        this.taskForm.subtasks.push({
+          text: this.taskForm.newSubtask.trim(),
+          done: false,
+          status: 'pendente',
+          responsavel: '',
+          data_inicio: '',
+          data_fim: '',
+          prioridade: 'normal',
+          clickup_id: null,
+        });
         this.taskForm.newSubtask = '';
       }
     },
@@ -4852,7 +4977,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     addCheckItem() {
       if (this.taskForm.newCheckItem.trim()) {
-        this.taskForm.checklist.push({ text: this.taskForm.newCheckItem.trim(), done: false });
+        this.taskForm.checklist.push({ text: this.taskForm.newCheckItem.trim(), done: false, due_date: '', assignee: '' });
         this.taskForm.newCheckItem = '';
       }
     },
