@@ -837,10 +837,10 @@
               <div class="bento-card__body" style="padding-bottom:1.25rem">
                 <div class="cc-timeline">
                   <template x-for="sprint in data.sprints" :key="sprint.id">
-                    <div class="cc-timeline-item" :class="sprint.status === 'planejado' ? 'cc-timeline-item--planned' : (sprint.status === 'concluido' ? 'cc-timeline-item--done' : '')">
+                    <div class="cc-timeline-item" :class="sprint.status === 'planejado' ? 'cc-timeline-item--planned' : (sprint.status === 'encerrado' ? 'cc-timeline-item--done' : '')">
                       <div style="display:flex;align-items:center;gap:.625rem;margin-bottom:4px">
                         <div class="cc-timeline-item__sprint" x-text="sprint.nome"></div>
-                        <span class="badge" :class="sprint.status === 'ativo' ? 'badge--success' : (sprint.status === 'concluido' ? 'badge--muted' : 'badge--neutral')" x-text="sprint.status === 'ativo' ? 'ativo' : (sprint.status === 'concluido' ? 'concluído' : 'planejado')" style="font-size:10px;padding:2px 7px"></span>
+                        <span class="badge" :class="sprint.status === 'ativo' ? 'badge--success' : (sprint.status === 'encerrado' ? 'badge--muted' : 'badge--neutral')" x-text="sprint.status === 'ativo' ? 'ativo' : (sprint.status === 'encerrado' ? 'encerrado' : 'planejado')" style="font-size:10px;padding:2px 7px"></span>
                       </div>
                       <div class="cc-timeline-item__dates" x-text="new Date(sprint.inicio+'T12:00:00').toLocaleDateString('pt-BR',{day:'numeric',month:'short'}) + ' → ' + new Date(sprint.fim+'T12:00:00').toLocaleDateString('pt-BR',{day:'numeric',month:'short'}) + ' · ' + sprint.total + ' tarefas'"></div>
                       <div class="cc-timeline-item__highlights" x-show="sprint.highlights.length">

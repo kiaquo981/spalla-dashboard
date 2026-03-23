@@ -6953,9 +6953,7 @@ img { max-width: 100%; display: block; }
 }
 
 .cc-timeline-item--done .cc-timeline-item__sprint {
-  color: var(--neutral-500);
-  text-decoration: line-through;
-  text-decoration-color: var(--neutral-300);
+  color: var(--neutral-400);
 }
 
 .cc-timeline-item__sprint {
