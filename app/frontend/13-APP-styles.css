@@ -7226,6 +7226,54 @@ img { max-width: 100%; display: block; }
   transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
 }
 
+/* ===== WEEK NAVIGATION ===== */
+.cc-week-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  background: var(--surface);
+  border: 1px solid var(--neutral-200);
+  border-radius: var(--r-lg);
+  padding: 0.375rem 0.75rem;
+}
+
+.cc-week-nav__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  border-radius: var(--r-md);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  cursor: pointer;
+  line-height: 1;
+  transition: background 0.15s, color 0.15s;
+}
+
+.cc-week-nav__btn:hover:not(:disabled) {
+  background: var(--neutral-100);
+  color: var(--primary);
+}
+
+.cc-week-nav__btn:disabled,
+.cc-week-nav__btn--disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.cc-week-nav__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 90px;
+  text-align: center;
+  white-space: nowrap;
+}
+
 /* ===== SKELETON LOADERS ===== */
 .cc-skeleton {
   background: linear-gradient(90deg, var(--neutral-100) 25%, var(--neutral-50) 50%, var(--neutral-100) 75%);

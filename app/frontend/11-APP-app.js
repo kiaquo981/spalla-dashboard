@@ -25,6 +25,7 @@ const TEAM_MEMBERS = [
   { name: 'Queila', id: 'queila' },
   { name: 'Mariza', id: 'mariza' },
   { name: 'Lara', id: 'lara' },
+  { name: 'Gobbi', id: 'gobbi' },
 ];
 
 // ===== EVOLUTION API GUARD =====
@@ -186,7 +187,7 @@ function operon() {
       toasts: [],
       // Tasks
       taskFilter: 'all', // all | pendente | em_andamento | concluida | atrasada
-      taskAssignee: '',
+      taskAssignee: '', // '' = todos; '__mine__' = minhas tarefas
       taskModal: false,
       taskEditId: null,
       taskView: 'board', // 'list' | 'board'
@@ -197,6 +198,7 @@ function operon() {
       taskGanttRange: 'month', // 'week' | 'month' | 'quarter'
       taskSpaceFilter: 'all', // space_id filter
       taskListFilter: 'all', // list_id filter
+      ccWeekOffset: 0,       // Command Center week nav: 0=current, -1=prev, +1=next
       spaceExpanded: null,   // which space has sub-lists visible
       docsTab: 'arquivos',   // 'arquivos' | 'biblioteca' | 'google_docs'
       taskGroupBy: 'status', // 'status' | 'assignee' | 'priority' | 'list'
@@ -1532,7 +1534,6 @@ function operon() {
               this.auth.currentUser = userData.user || JSON.parse(userStr);
               this.auth.accessToken = accessToken;
               this.auth.refreshToken = refreshToken;
-              this.ui.taskAssignee = '__mine__';
             } else if (resp.status === 401 && refreshToken) {
               // Try refresh
               const refreshResp = await fetch(`${CONFIG.API_BASE}/api/auth/refresh`, {
@@ -1549,7 +1550,6 @@ function operon() {
                 localStorage.setItem('spalla_access_token', data.access_token);
                 localStorage.setItem('spalla_refresh_token', data.refresh_token);
                 if (data.user) localStorage.setItem('spalla_user', JSON.stringify(data.user));
-                this.ui.taskAssignee = '__mine__';
               } else {
                 // Refresh failed — clear session
                 this._clearAuthStorage();
@@ -1567,7 +1567,6 @@ function operon() {
                 this.auth.currentUser = JSON.parse(userStr);
                 this.auth.accessToken = accessToken;
                 this.auth.refreshToken = refreshToken;
-                this.ui.taskAssignee = '__mine__';
                 console.warn('[Spalla] Auth: offline, using cached session (token not expired)');
               } else {
                 console.warn('[Spalla] Auth: offline, cached token expired');
@@ -1683,7 +1682,6 @@ function operon() {
 
         this.auth.email = '';
         this.auth.password = '';
-        this.ui.taskAssignee = '__mine__';
 
         await this.loadReminders();
         await this.loadDashboard();
@@ -2669,9 +2667,46 @@ function operon() {
 
     // ===================== COMMAND CENTER COMPUTED =====================
 
+    ccSelectedSprint() {
+      const sprints = (this.data.sprints || []).slice().sort((a, b) => (a.inicio || '').localeCompare(b.inicio || ''));
+      if (!sprints.length) return null;
+      const today = new Date().toISOString().slice(0, 10);
+      let activeIdx = sprints.findIndex(s => s.inicio <= today && today <= s.fim);
+      if (activeIdx < 0) activeIdx = sprints.findIndex(s => s.status === 'ativo');
+      if (activeIdx < 0) activeIdx = 0;
+      const idx = Math.max(0, Math.min(sprints.length - 1, activeIdx + (this.ui.ccWeekOffset || 0)));
+      return sprints[idx];
+    },
+
+    ccWeekNavLabel() {
+      if (this.ui.ccWeekOffset === 0) return 'Esta semana';
+      const sel = this.ccSelectedSprint();
+      return sel ? sel.nome : (this.ui.ccWeekOffset < 0 ? 'Semana anterior' : 'Próxima semana');
+    },
+
+    ccWeekNavCanPrev() {
+      const sprints = (this.data.sprints || []).slice().sort((a, b) => (a.inicio || '').localeCompare(b.inicio || ''));
+      if (sprints.length <= 1) return false;
+      const today = new Date().toISOString().slice(0, 10);
+      let activeIdx = sprints.findIndex(s => s.inicio <= today && today <= s.fim);
+      if (activeIdx < 0) activeIdx = sprints.findIndex(s => s.status === 'ativo');
+      if (activeIdx < 0) activeIdx = 0;
+      return activeIdx + (this.ui.ccWeekOffset || 0) > 0;
+    },
+
+    ccWeekNavCanNext() {
+      const sprints = (this.data.sprints || []).slice().sort((a, b) => (a.inicio || '').localeCompare(b.inicio || ''));
+      if (sprints.length <= 1) return false;
+      const today = new Date().toISOString().slice(0, 10);
+      let activeIdx = sprints.findIndex(s => s.inicio <= today && today <= s.fim);
+      if (activeIdx < 0) activeIdx = sprints.findIndex(s => s.status === 'ativo');
+      if (activeIdx < 0) activeIdx = 0;
+      return activeIdx + (this.ui.ccWeekOffset || 0) < sprints.length - 1;
+    },
+
     ccTasksByStatus() {
-      // Prefer live ClickUp data
-      if (this.data.ccData?.by_status) {
+      // Use live ClickUp data only for current week (offset=0)
+      if (this.data.ccData?.by_status && (this.ui.ccWeekOffset || 0) === 0) {
         const s = this.data.ccData.by_status;
         return {
           backlog:    s.backlog    || [],
@@ -2681,11 +2716,14 @@ function operon() {
         };
       }
       const tasks = this.data.tasks || [];
+      const sel = this.ccSelectedSprint();
+      // Filter to tasks belonging to the selected sprint
+      const sprintTasks = sel ? tasks.filter(t => t.list_id === sel.id) : tasks;
       return {
-        backlog:    tasks.filter(t => t.status === 'pendente'),
-        inProgress: tasks.filter(t => t.status === 'em_andamento'),
-        review:     tasks.filter(t => t.status === 'revisao' || t.status === 'em_revisao'),
-        done:       tasks.filter(t => t.status === 'concluida' || t.status === 'concluído'),
+        backlog:    sprintTasks.filter(t => t.status === 'pendente'),
+        inProgress: sprintTasks.filter(t => t.status === 'em_andamento'),
+        review:     sprintTasks.filter(t => t.status === 'revisao' || t.status === 'em_revisao'),
+        done:       sprintTasks.filter(t => t.status === 'concluida' || t.status === 'concluído'),
       };
     },
 
@@ -2720,18 +2758,15 @@ function operon() {
     },
 
     ccSprintProgress() {
-      if (this.data.ccData?.sprint) {
-        const s = this.data.ccData.sprint;
+      if (this.data.ccData?.sprint && (this.ui.ccWeekOffset || 0) === 0) {
         const total = this.data.ccData.total || 0;
         const done  = this.data.ccData.concluidas || 0;
         if (!total) return 0;
         return Math.round((done / total) * 100);
       }
-      const today = new Date().toISOString().slice(0, 10);
-      const sprint = (this.data.sprints || []).find(s => s.inicio <= today && today <= s.fim)
-                  || (this.data.sprints || []).find(s => s.status === 'ativo');
+      const sprint = this.ccSelectedSprint();
       if (!sprint || !sprint.total) return 0;
-      return Math.round((sprint.concluidas / sprint.total) * 100);
+      return Math.round(((sprint.concluidas || 0) / sprint.total) * 100);
     },
 
     ccRecentActivity() {
