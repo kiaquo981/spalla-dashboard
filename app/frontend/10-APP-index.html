@@ -1404,20 +1404,19 @@
                     <span> · <span x-text="igFollowers(data.detail?.profile?.instagram)"></span> seguidores</span>
                   </template>
                 </div>
+                <button @click="openOffboardModal(data.detail.profile.id, data.detail.profile.nome)"
+                        title="Desativar mentorado do sistema"
+                        style="margin-top:8px;background:none;border:none;cursor:pointer;color:rgba(255,255,255,0.35);font-size:11px;padding:0;display:flex;align-items:center;gap:4px;transition:color 0.15s"
+                        onmouseover="this.style.color='#fca5a5'" onmouseout="this.style.color='rgba(255,255,255,0.35)'">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                  Desativar mentorado
+                </button>
               </div>
               <div class="detail-hero__kpis">
                 <div class="stat-box"><div class="stat-box__val" x-text="formatCurrency(data.detail?.financial?.faturamento_atual)"></div><div class="stat-box__label">Total Vendido</div></div>
                 <div class="stat-box"><div class="stat-box__val" x-text="data.detail?.financial?.qtd_vendas_total || 0"></div><div class="stat-box__label">Vendas</div></div>
                 <div class="stat-box"><div class="stat-box__val" x-text="(data.detail?.phase?.engagement_score || 0) + '%'"></div><div class="stat-box__label">Engajamento</div></div>
                 <div class="stat-box"><div class="stat-box__val" x-text="(data.detail?.phase?.implementation_score || 0) + '%'"></div><div class="stat-box__label">Implementacao</div></div>
-                <div class="stat-box" style="border-top:1px solid var(--error-200,#fecaca);padding-top:8px;margin-top:4px">
-                  <button class="btn btn--ghost btn--sm" style="color:var(--error-600,#dc2626);font-size:11px;padding:4px 8px;width:100%"
-                          @click="openOffboardModal(data.detail.profile.id, data.detail.profile.nome)"
-                          title="Desativar este mentorado do sistema">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
-                    Desativar
-                  </button>
-                </div>
               </div>
             </div>
 
