@@ -55,8 +55,13 @@ tags:
     description: Proxy para Evolution API — WhatsApp via S2S
   - name: ClickUp
     description: Integração com ClickUp para gestão de tarefas e sprints
+  - name: API Keys
+    description: |
+      Gerenciamento de API keys para integrações externas (n8n, webhooks, automações).
+      Keys são geradas com prefixo `sk_spalla_` e armazenadas como hash SHA-256.
+      A key completa é exibida apenas uma vez na criação.
   - name: System
-    description: Health check e status de integrações
+    description: Health check, status de integrações e informações do serviço
 
 components:
   securitySchemes:
@@ -68,6 +73,15 @@ components:
         JWT HMAC-SHA256. Obtido via POST /api/auth/login.
         TTL do access_token: 60 minutos.
         Renove via POST /api/auth/refresh com o refresh_token.
+
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: |
+        API Key para integrações externas. Gerada via POST /api/keys/generate.
+        Envie no header: `X-API-Key: sk_spalla_...`
+        Aceito em todos os endpoints que aceitam Bearer JWT.
 
   schemas:
     # ── Auth ──────────────────────────────────────────────
@@ -2761,6 +2775,40 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
   # ── System ──────────────────────────────────────────────
+
+  /:
+    get:
+      tags: [System]
+      summary: Informações do serviço
+      description: Retorna informações básicas da API, link para documentação e status.
+      operationId: serviceInfo
+      responses:
+        "200":
+          description: Informações do serviço
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service:
+                    type: string
+                    example: Spalla Dashboard API
+                  version:
+                    type: string
+                    example: "1.0.0"
+                  status:
+                    type: string
+                    example: operational
+                  docs:
+                    type: string
+                    example: https://spalla-dashboard.vercel.app/api-docs
+                  health:
+                    type: string
+                    example: /api/health
+                  endpoints:
+                    type: integer
+                    example: 57
+
   /api/health:
     get:
       tags: [System]
@@ -2778,6 +2826,193 @@ paths:
                 $ref: "#/components/schemas/HealthResponse"
         "500":
           description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── API Keys ──────────────────────────────────────────────
+
+  /api/keys:
+    get:
+      tags: [API Keys]
+      summary: Listar API keys
+      description: |
+        Lista todas as API keys (sem revelar a key completa).
+        Mostra apenas o prefixo, label, role, status e timestamps.
+        Requer JWT com role admin.
+      operationId: listApiKeys
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Lista de API keys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                    key_prefix:
+                      type: string
+                      example: "sk_spalla_a1b2..."
+                    label:
+                      type: string
+                      example: n8n-production
+                    role:
+                      type: string
+                      enum: [integration, readonly]
+                    active:
+                      type: boolean
+                    created_at:
+                      type: string
+                      format: date-time
+                    last_used_at:
+                      type: string
+                      format: date-time
+                      nullable: true
+                    created_by:
+                      type: string
+        "401":
+          description: Token ausente ou inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Requer role admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/keys/generate:
+    post:
+      tags: [API Keys]
+      summary: Gerar nova API key
+      description: |
+        Gera uma nova API key para integrações externas.
+        A key completa (`sk_spalla_...`) é retornada **apenas uma vez**.
+        Armazene-a com segurança.
+
+        **Uso:**
+        ```
+        curl -H "X-API-Key: sk_spalla_..." https://web-production-2cde5.up.railway.app/api/mentees
+        ```
+      operationId: generateApiKey
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [label]
+              properties:
+                label:
+                  type: string
+                  description: Nome descritivo (ex. "n8n-production")
+                  example: n8n-production
+                role:
+                  type: string
+                  enum: [integration, readonly]
+                  default: integration
+                  description: "integration = acesso total, readonly = apenas GET"
+      responses:
+        "201":
+          description: API key gerada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key:
+                    type: string
+                    description: Key completa — armazene com segurança
+                    example: sk_spalla_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6
+                  key_id:
+                    type: string
+                    format: uuid
+                  key_prefix:
+                    type: string
+                    example: "sk_spalla_a1b2..."
+                  label:
+                    type: string
+                  role:
+                    type: string
+                  warning:
+                    type: string
+                    example: "Store this key safely — it will NOT be shown again."
+        "400":
+          description: Label ausente ou role inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Token ausente ou inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Requer role admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/keys/{key_id}:
+    delete:
+      tags: [API Keys]
+      summary: Revogar API key
+      description: Desativa uma API key imediatamente. Irreversível.
+      operationId: revokeApiKey
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: key_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Key revogada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  key_id:
+                    type: string
+                    format: uuid
+                  revoked:
+                    type: boolean
+                    example: true
+        "401":
+          description: Token ausente ou inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Requer role admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Key não encontrada
           content:
             application/json:
               schema:

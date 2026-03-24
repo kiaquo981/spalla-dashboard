@@ -89,6 +89,19 @@ if not JWT_SECRET:
 JWT_ALGORITHM = 'HS256'
 ACCESS_TOKEN_EXPIRY_MINUTES = 60
 REFRESH_TOKEN_EXPIRY_DAYS = 7
+
+# ===== API KEY CONFIG =====
+STATIC_API_KEYS = {}
+_raw_keys = os.environ.get('API_KEYS', '')
+if _raw_keys:
+    for entry in _raw_keys.split(','):
+        entry = entry.strip()
+        if ':' in entry:
+            k, label = entry.split(':', 1)
+            STATIC_API_KEYS[k.strip()] = label.strip()
+        elif entry:
+            STATIC_API_KEYS[entry] = 'default'
+
 # ===== AUTH FUNCTIONS (Supabase-backed) =====
 def hash_password(password):
     """Hash password using bcrypt (falls back to SHA-256 if bcrypt unavailable)"""
@@ -149,6 +162,45 @@ def verify_jwt_token(token):
         return None
     except jwt.InvalidTokenError:
         return None
+
+def verify_api_key(key):
+    """Verify API key — checks static keys first, then Supabase api_keys table."""
+    if not key:
+        return None
+    if key in STATIC_API_KEYS:
+        return {'label': STATIC_API_KEYS[key], 'source': 'env'}
+    try:
+        result = supabase_request('GET',
+            f'api_keys?select=id,label,role,active'
+            f'&key_hash=eq.{hashlib.sha256(key.encode()).hexdigest()}'
+            f'&active=eq.true&limit=1')
+        if isinstance(result, list) and result:
+            supabase_request('PATCH',
+                f'api_keys?id=eq.{result[0]["id"]}',
+                {'last_used_at': datetime.now(timezone.utc).isoformat()})
+            return {'label': result[0].get('label', ''), 'source': 'supabase',
+                    'role': result[0].get('role', 'integration')}
+    except Exception:
+        pass
+    return None
+
+
+def check_auth_any(headers):
+    """Check auth via JWT Bearer OR X-API-Key header."""
+    auth_header = headers.get('Authorization', '')
+    if auth_header.startswith('Bearer '):
+        payload = verify_jwt_token(auth_header[7:])
+        if payload and payload.get('type') != 'refresh':
+            return {'method': 'jwt', 'email': payload.get('email', ''),
+                    'role': payload.get('role', 'equipe'), 'payload': payload}
+    api_key = headers.get('X-API-Key', '')
+    if api_key:
+        result = verify_api_key(api_key)
+        if result:
+            return {'method': 'api_key', 'label': result['label'],
+                    'role': result.get('role', 'integration')}
+    return None
+
 
 # Auth users stored in Supabase table 'auth_users'
 
@@ -1811,6 +1863,19 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         # ===== Biblioteca =====
         elif self.path.startswith('/api/biblioteca'):
             self._handle_biblioteca_get()
+        # ===== API Keys Management =====
+        elif self.path == '/api/keys':
+            self._handle_list_api_keys()
+        # ===== Root =====
+        elif self.path == '/' or self.path == '':
+            self._send_json({
+                'service': 'Spalla Dashboard API',
+                'version': '1.0.0',
+                'status': 'operational',
+                'docs': 'https://spalla-dashboard.vercel.app/api-docs',
+                'health': '/api/health',
+                'endpoints': 58,
+            })
         else:
             super().do_GET()
 
@@ -1873,6 +1938,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_post_group_member(_m.group(1))
         elif self.path == '/api/clickup/sync-subtasks':
             self._handle_clickup_sync_subtasks()
+        # ===== API Keys Management =====
+        elif self.path == '/api/keys/generate':
+            self._handle_generate_api_key()
         else:
             self._send_json({'error': 'Not found'}, 404)
 
@@ -1897,6 +1965,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         elif re.match(r'^/api/mentee-groups/(\d+)/members/(\d+)$', self.path):
             _m = re.match(r'^/api/mentee-groups/(\d+)/members/(\d+)$', self.path)
             self._handle_delete_group_member(_m.group(1), _m.group(2))
+        # ===== API Keys Management =====
+        elif re.match(r'^/api/keys/([0-9a-f-]+)$', self.path):
+            _m = re.match(r'^/api/keys/([0-9a-f-]+)$', self.path)
+            self._handle_revoke_api_key(_m.group(1))
         else:
             self._send_json({'error': 'Not found'}, 404)
 
@@ -3728,6 +3800,102 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         query = base + ('&' + '&'.join(filters) if filters else '') + '&order=mentee_nome,tipo,criado_em'
         result = supabase_request('GET', query)
         self._send_json(result if isinstance(result, list) else [])
+
+    # ===== API KEYS MANAGEMENT =====
+
+    def _handle_generate_api_key(self):
+        """POST /api/keys/generate — Generate a new API key. Requires admin JWT."""
+        try:
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Admin JWT required'}, 401)
+                return
+            payload = verify_jwt_token(auth_header[7:])
+            if not payload or payload.get('type') == 'refresh':
+                self._send_json({'error': 'Invalid token'}, 401)
+                return
+            if payload.get('role') != 'admin':
+                self._send_json({'error': 'Admin role required to generate API keys'}, 403)
+                return
+
+            body = json.loads(self._read_body())
+            label = (body.get('label') or '').strip()
+            if not label:
+                self._send_json({'error': 'label is required'}, 400)
+                return
+            role = body.get('role', 'integration')
+            if role not in ('integration', 'readonly'):
+                self._send_json({'error': 'role must be integration or readonly'}, 400)
+                return
+
+            raw_key = f'sk_spalla_{secrets.token_hex(24)}'
+            key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+            key_prefix = raw_key[:14] + '...'
+
+            result = supabase_request('POST', 'api_keys', {
+                'key_hash': key_hash, 'key_prefix': key_prefix,
+                'label': label, 'role': role, 'active': True,
+                'created_by': payload.get('email', ''),
+            })
+            if isinstance(result, dict) and result.get('error'):
+                self._send_json({'error': f'Failed to store key: {result["error"]}'}, 500)
+                return
+            key_id = result[0]['id'] if isinstance(result, list) and result else None
+            self._send_json({
+                'key': raw_key, 'key_id': key_id, 'key_prefix': key_prefix,
+                'label': label, 'role': role,
+                'warning': 'Store this key safely — it will NOT be shown again.',
+            }, 201)
+        except Exception as e:
+            log_error('APIKeys', f'generate failed: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_list_api_keys(self):
+        """GET /api/keys — List all API keys (prefix only). Requires admin JWT."""
+        try:
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Admin JWT required'}, 401)
+                return
+            payload = verify_jwt_token(auth_header[7:])
+            if not payload or payload.get('type') == 'refresh':
+                self._send_json({'error': 'Invalid token'}, 401)
+                return
+            if payload.get('role') != 'admin':
+                self._send_json({'error': 'Admin role required'}, 403)
+                return
+            result = supabase_request('GET',
+                'api_keys?select=id,key_prefix,label,role,active,created_at,last_used_at,created_by'
+                '&order=created_at.desc')
+            self._send_json(result if isinstance(result, list) else [])
+        except Exception as e:
+            log_error('APIKeys', f'list failed: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_revoke_api_key(self, key_id):
+        """DELETE /api/keys/{id} — Revoke an API key. Requires admin JWT."""
+        try:
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Admin JWT required'}, 401)
+                return
+            payload = verify_jwt_token(auth_header[7:])
+            if not payload or payload.get('type') == 'refresh':
+                self._send_json({'error': 'Invalid token'}, 401)
+                return
+            if payload.get('role') != 'admin':
+                self._send_json({'error': 'Admin role required'}, 403)
+                return
+            result = supabase_request('PATCH',
+                f'api_keys?id=eq.{key_id}&select=id,label,active',
+                {'active': False})
+            if isinstance(result, list) and result:
+                self._send_json({'ok': True, 'key_id': key_id, 'revoked': True})
+            else:
+                self._send_json({'error': 'Key not found'}, 404)
+        except Exception as e:
+            log_error('APIKeys', f'revoke failed: {e}')
+            self._send_json({'error': str(e)}, 500)
 
     def log_message(self, format, *args):
         path = str(args[0]) if args else ''
