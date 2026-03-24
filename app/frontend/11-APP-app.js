@@ -8665,8 +8665,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     dsFormatDate(d) {
       if (!d) return '-';
-      const dt = new Date(d);
-      return dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      const parts = String(d).slice(0, 10).split('-');
+      return parts[2] + '/' + parts[1];
     },
 
     dsPrazoClass(prazo) {
