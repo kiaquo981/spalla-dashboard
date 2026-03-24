@@ -8375,9 +8375,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     // --- DS KPIs ---
-    // --- DS News Panel (Command Center) ---
+    // --- DS News (Command Center card) ---
     dsNewsEntregues() {
-      // Dossiês finalizados nos últimos 7 dias
       const now = new Date(); now.setHours(0,0,0,0);
       const weekAgo = new Date(now.getTime() - 7 * 86400000);
       return this.data.dsAllDocs.filter(d => {
@@ -8389,9 +8388,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         return { ...d, mentorado_nome: prod?.mentorado_nome || '?', responsavel: d.responsavel_atual || prod?.responsavel_atual || '-' };
       });
     },
-
     dsNewsEmProducao() {
-      // Docs ativos (não finalizados, não pausados)
       return this.data.dsAllDocs.filter(d => {
         if (d.estagio_atual === 'finalizado' || d.estagio_atual === 'pendente') return false;
         const prod = this.data.dsProducoes.find(p => p.producao_id === d.producao_id);
@@ -8402,29 +8399,15 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         return { ...d, mentorado_nome: prod?.mentorado_nome || '?', aging };
       }).sort((a, b) => b.aging - a.aging);
     },
-
     dsNewsCriticos() {
-      // Docs com prazo de entrega atrasado ou ≤3 dias, OU prazos_etapas da etapa atual atrasados
       const today = new Date(); today.setHours(0,0,0,0);
       return this.data.dsAllDocs.filter(d => {
         if (d.estagio_atual === 'finalizado') return false;
         const prod = this.data.dsProducoes.find(p => p.producao_id === d.producao_id);
         if (!prod || ['pausado', 'cancelado'].includes(prod.status)) return false;
-        // Check doc prazo
-        if (d.prazo_entrega) {
-          const dt = new Date(d.prazo_entrega + 'T00:00:00');
-          if ((dt - today) / 86400000 <= 3) return true;
-        }
-        // Check stage prazo
-        if (d.prazos_etapas && d.prazos_etapas[d.estagio_atual]) {
-          const dt = new Date(d.prazos_etapas[d.estagio_atual] + 'T00:00:00');
-          if ((dt - today) / 86400000 <= 3) return true;
-        }
-        // Check global prazo
-        if (prod.prazo_entrega) {
-          const dt = new Date(prod.prazo_entrega + 'T00:00:00');
-          if ((dt - today) / 86400000 <= 3) return true;
-        }
+        if (d.prazo_entrega) { const dt = new Date(d.prazo_entrega + 'T00:00:00'); if ((dt - today) / 86400000 <= 3) return true; }
+        if (d.prazos_etapas && d.prazos_etapas[d.estagio_atual]) { const dt = new Date(d.prazos_etapas[d.estagio_atual] + 'T00:00:00'); if ((dt - today) / 86400000 <= 3) return true; }
+        if (prod.prazo_entrega) { const dt = new Date(prod.prazo_entrega + 'T00:00:00'); if ((dt - today) / 86400000 <= 3) return true; }
         return false;
       }).map(d => {
         const prod = this.data.dsProducoes.find(p => p.producao_id === d.producao_id);
@@ -8433,22 +8416,19 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         return { ...d, mentorado_nome: prod?.mentorado_nome || '?', prazo, diff, producao_id: d.producao_id };
       }).sort((a, b) => (a.diff ?? 99) - (b.diff ?? 99));
     },
-
     dsNewsProximasApresentacoes() {
-      // Próximas calls de apresentação
       const today = new Date(); today.setHours(0,0,0,0);
       const results = [];
       this.data.dsProducoes.forEach(p => {
         if (['pausado', 'cancelado', 'finalizado'].includes(p.status)) return;
         if (p.data_call_apresentacao_oferta) {
           const dt = new Date(p.data_call_apresentacao_oferta + 'T00:00:00');
-          if (dt >= new Date(today.getTime() - 86400000)) results.push({ mentorado_nome: p.mentorado_nome, tipo: '◆ Oferta', data: p.data_call_apresentacao_oferta, diff: Math.round((dt - today) / 86400000), producao_id: p.producao_id });
+          if (dt >= new Date(today.getTime() - 86400000)) results.push({ mentorado_nome: p.mentorado_nome, tipo: '◆ Apres. Oferta', data: p.data_call_apresentacao_oferta, diff: Math.round((dt - today) / 86400000), producao_id: p.producao_id });
         }
         if (p.data_call_apresentacao_pos_funil) {
           const dt = new Date(p.data_call_apresentacao_pos_funil + 'T00:00:00');
-          if (dt >= new Date(today.getTime() - 86400000)) results.push({ mentorado_nome: p.mentorado_nome, tipo: '▽◈ Pos+Funil', data: p.data_call_apresentacao_pos_funil, diff: Math.round((dt - today) / 86400000), producao_id: p.producao_id });
+          if (dt >= new Date(today.getTime() - 86400000)) results.push({ mentorado_nome: p.mentorado_nome, tipo: '▽◈ Apres. Pos+Funil', data: p.data_call_apresentacao_pos_funil, diff: Math.round((dt - today) / 86400000), producao_id: p.producao_id });
         }
-        // Also check prazo_entrega per doc
         const docs = this.data.dsAllDocs.filter(d => d.producao_id === p.producao_id && d.prazo_entrega && d.estagio_atual !== 'finalizado');
         docs.forEach(d => {
           const dt = new Date(d.prazo_entrega + 'T00:00:00');

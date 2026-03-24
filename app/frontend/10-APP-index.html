@@ -360,7 +360,7 @@
           <div class="op-sidebar__section" x-show="ui.sidebarOpen">Principal</div>
           <a class="op-nav-item" :class="{ active: ui.page === 'command_center' }" @click="navigate('command_center')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-            <span x-show="ui.sidebarOpen">Painel Dossiês</span>
+            <span x-show="ui.sidebarOpen">Command Center</span>
           </a>
           <a class="op-nav-item" :class="{ active: ui.page === 'dashboard' }" @click="navigate('dashboard')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
@@ -564,155 +564,499 @@
         <!-- ===== PAGE: COMMAND CENTER ===== -->
         <div class="page-content" x-show="ui.page === 'command_center'" x-transition>
 
-          <!-- Header -->
+          <!-- Header strip -->
           <div class="cc-header">
             <div>
-              <div class="cc-header__title">Painel de Dossiês</div>
-              <div class="cc-header__meta" x-text="new Date().toLocaleDateString('pt-BR',{weekday:'long', day:'numeric', month:'long', year:'numeric'})"></div>
+              <div class="cc-header__title">Command Center</div>
+              <div class="cc-header__meta" x-text="ui.ccWeekOffset === 0 ? new Date().toLocaleDateString('pt-BR',{weekday:'long', day:'numeric', month:'long', year:'numeric'}) : (ccSelectedSprint()?.nome || '')"></div>
             </div>
-            <button class="btn btn--sm btn--brand" @click="navigate('dossies')">Ir para Dossiês →</button>
+            <!-- Week navigation -->
+            <div class="cc-week-nav">
+              <button class="cc-week-nav__btn" @click="ui.ccWeekOffset--" :disabled="!ccWeekNavCanPrev()" :class="{ 'cc-week-nav__btn--disabled': !ccWeekNavCanPrev() }">‹</button>
+              <span class="cc-week-nav__label" x-text="ccWeekNavLabel()"></span>
+              <button class="cc-week-nav__btn" @click="ui.ccWeekOffset++" :disabled="!ccWeekNavCanNext()" :class="{ 'cc-week-nav__btn--disabled': !ccWeekNavCanNext() }">›</button>
+            </div>
+            <div class="cc-header__progress" x-show="ccSelectedSprint()">
+              <span style="font-size:12px;font-weight:600;color:var(--text-secondary)" x-text="ccSelectedSprint()?.nome"></span>
+              <div class="cc-header__progress-bar">
+                <div class="cc-header__progress-fill" :style="'width:' + ccSprintProgress() + '%'"></div>
+              </div>
+              <span style="font-size:12px;font-weight:700;color:var(--primary)" x-text="ccSprintProgress() + '%'"></span>
+            </div>
           </div>
 
           <!-- Bento Grid -->
           <div class="bento-grid">
 
-            <!-- 1. CRITICOS — Prazos apertados (hero) -->
-            <div class="bento-card bento-card--hero">
-              <div class="bento-card__header">
-                <span class="bento-card__title" style="color:#c0392b">Prazos Criticos</span>
-                <span style="font-size:11px;color:var(--text-secondary)" x-text="dsNewsCriticos().length + ' dossiês'"></span>
-              </div>
-              <div class="bento-card__body" style="overflow-y:auto">
-                <div x-show="!dsNewsCriticos().length" style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:6px;color:var(--text-secondary);padding:2rem 0">
-                  <span style="font-size:28px">✅</span>
-                  <span style="font-size:12px">Nenhum prazo critico</span>
-                </div>
-                <div x-show="dsNewsCriticos().length" style="display:flex;flex-direction:column;gap:6px">
-                  <template x-for="(d, i) in dsNewsCriticos()" :key="i">
-                    <div style="padding:8px 10px;border-radius:8px;cursor:pointer;border-left:3px solid" :style="'border-color:' + (d.diff < 0 ? '#c0392b' : '#d68910'); 'background:' + (d.diff < 0 ? '#fdf0ef' : '#fef9e7')" @click="openDsDetail(d.producao_id)">
-                      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
-                        <span style="font-size:13px;font-weight:700;color:var(--neutral-900)" x-text="d.mentorado_nome"></span>
-                        <span class="ds-deadline-badge" :class="d.diff < 0 ? 'ds-deadline--overdue' : 'ds-deadline--soon'" x-text="d.diff < 0 ? Math.abs(d.diff) + 'd atrasado' : d.diff === 0 ? 'HOJE' : d.diff + 'd restantes'"></span>
-                      </div>
-                      <div style="display:flex;align-items:center;gap:6px">
-                        <span style="font-size:11px" x-text="dsDocTipoConfig(d.tipo).icon + ' ' + dsDocTipoConfig(d.tipo).label"></span>
-                        <span style="font-size:11px;color:var(--text-secondary)">·</span>
-                        <span style="font-size:11px" :style="'color:' + dsEstagioConfig(d.estagio_atual).color" x-text="dsEstagioConfig(d.estagio_atual).label"></span>
-                        <span x-show="d.prazo" style="font-size:10px;color:var(--text-secondary);margin-left:auto" x-text="dsFormatDate(d.prazo)"></span>
-                      </div>
+            <!-- 1. SPRINT CARD (hero 2×2) -->
+            <template x-if="ccSelectedSprint()">
+              <div class="bento-card bento-card--hero">
+                <div class="cc-sprint-hero" style="overflow-y:auto">
+                  <div>
+                    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--primary);margin-bottom:4px" x-text="ui.ccWeekOffset === 0 ? 'Semana atual' : ccSelectedSprint()?.status === 'encerrado' ? 'Sprint encerrado' : 'Sprint planejado'"></div>
+                    <div class="cc-sprint-hero__name" x-text="ccSelectedSprint()?.nome"></div>
+                    <div class="cc-sprint-hero__dates" x-text="ccSelectedSprint()?.inicio ? new Date(ccSelectedSprint().inicio + 'T12:00:00').toLocaleDateString('pt-BR',{day:'numeric',month:'short'}) + ' → ' + new Date(ccSelectedSprint().fim + 'T12:00:00').toLocaleDateString('pt-BR',{day:'numeric',month:'short'}) : ''"></div>
+                  </div>
+                  <div class="cc-sprint-progress">
+                    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary);margin-bottom:4px">
+                      <span x-text="(ccSelectedSprint()?.concluidas || 0) + ' concluídas'"></span>
+                      <span x-text="ccSprintProgress() + '%'"></span>
+                    </div>
+                    <div class="cc-sprint-progress__bar">
+                      <div class="cc-sprint-progress__fill" :style="'width:' + ccSprintProgress() + '%'"></div>
+                    </div>
+                  </div>
+                  <div class="cc-sprint-stats">
+                    <div class="cc-sprint-stat">
+                      <div class="cc-sprint-stat__val" style="color:var(--text-secondary)" x-text="ccTasksByStatus().backlog.length"></div>
+                      <div class="cc-sprint-stat__label">Backlog</div>
+                    </div>
+                    <div class="cc-sprint-stat">
+                      <div class="cc-sprint-stat__val" style="color:#f59e0b" x-text="ccTasksByStatus().inProgress.length"></div>
+                      <div class="cc-sprint-stat__label">Em andamento</div>
+                    </div>
+                    <div class="cc-sprint-stat">
+                      <div class="cc-sprint-stat__val" style="color:#3b82f6" x-text="ccTasksByStatus().review.length"></div>
+                      <div class="cc-sprint-stat__label">Revisão</div>
+                    </div>
+                    <div class="cc-sprint-stat">
+                      <div class="cc-sprint-stat__val" style="color:#10b981" x-text="ccTasksByStatus().done.length"></div>
+                      <div class="cc-sprint-stat__label">Concluído</div>
+                    </div>
+                  </div>
+                  <template x-if="ccSelectedSprint()?.highlights?.length">
+                    <div>
+                      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin-bottom:6px">Conquistas</div>
+                      <template x-for="h in ccSelectedSprint().highlights" :key="h">
+                        <div style="font-size:12px;color:var(--neutral-700);padding:2px 0;display:flex;align-items:center;gap:6px">
+                          <span style="color:var(--primary);font-weight:700">·</span>
+                          <span x-text="h"></span>
+                        </div>
+                      </template>
                     </div>
                   </template>
+                  <!-- Daily Map — ontem / hoje / bloqueios por pessoa -->
+                  <div x-show="ccDailyMap().length" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-light,#ece9e2)">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary)">Daily</div>
+                      <div style="font-size:9px;color:var(--text-secondary)" x-text="new Date().toLocaleDateString('pt-BR',{weekday:'short',day:'numeric',month:'short'})"></div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:10px">
+                      <template x-for="member in ccDailyMap()" :key="member.name">
+                        <div style="padding:9px 10px;background:var(--neutral-50,#faf9f7);border-radius:8px;border:1px solid var(--neutral-100,#f1ede6)">
+                          <!-- nome + avatar -->
+                          <div style="display:flex;align-items:center;gap:7px;margin-bottom:7px">
+                            <div :style="'width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff;flex-shrink:0;background:' + member.color" x-text="member.initial"></div>
+                            <span style="font-size:11px;font-weight:700;color:var(--neutral-800);text-transform:capitalize" x-text="member.name"></span>
+                            <span x-show="member.bloqueios.length" style="font-size:9px;font-weight:700;color:#ef4444;margin-left:auto" x-text="'⚠ ' + member.bloqueios.length + ' bloqueio'"></span>
+                          </div>
+                          <!-- hoje -->
+                          <template x-if="member.hoje.length">
+                            <div style="margin-bottom:5px">
+                              <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#f59e0b;margin-bottom:3px">↗ Hoje</div>
+                              <template x-for="(t,i) in member.hoje.slice(0,4)" :key="i">
+                                <div style="font-size:10px;color:var(--neutral-700);line-height:1.4;padding:1px 0 1px 8px" x-text="t.titulo || t.nome"></div>
+                              </template>
+                              <div x-show="member.hoje.length > 4" style="font-size:9px;color:var(--text-secondary);padding-left:8px" x-text="'+' + (member.hoje.length - 4) + ' mais'"></div>
+                            </div>
+                          </template>
+                          <!-- ontem -->
+                          <template x-if="member.ontem.length">
+                            <div style="margin-bottom:5px">
+                              <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#10b981;margin-bottom:3px">✓ Ontem</div>
+                              <template x-for="(t,i) in member.ontem.slice(0,3)" :key="i">
+                                <div style="font-size:10px;color:var(--neutral-500);line-height:1.4;padding:1px 0 1px 8px;text-decoration:line-through" x-text="t.titulo || t.nome"></div>
+                              </template>
+                              <div x-show="member.ontem.length > 3" style="font-size:9px;color:var(--text-secondary);padding-left:8px" x-text="'+' + (member.ontem.length - 3) + ' mais'"></div>
+                            </div>
+                          </template>
+                          <!-- bloqueios -->
+                          <template x-if="member.bloqueios.length">
+                            <div>
+                              <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#ef4444;margin-bottom:3px">⚠ Bloqueio</div>
+                              <template x-for="(t,i) in member.bloqueios.slice(0,2)" :key="i">
+                                <div style="padding:4px 8px;margin-bottom:3px;background:#fff5f5;border-left:2px solid #ef4444;border-radius:0 4px 4px 0">
+                                  <div style="font-size:10px;font-weight:600;color:#991b1b;line-height:1.4" x-text="t.titulo || t.nome"></div>
+                                  <template x-if="t.bloqueio_motivo">
+                                    <div style="font-size:9px;color:#ef4444;margin-top:2px;line-height:1.4" x-text="t.bloqueio_motivo"></div>
+                                  </template>
+                                  <template x-if="t.bloqueio_responsavel">
+                                    <div style="font-size:9px;color:#b45309;margin-top:1px" x-text="'&#128273; ' + t.bloqueio_responsavel"></div>
+                                  </template>
+                                </div>
+                              </template>
+                            </div>
+                          </template>
+                        </div>
+                      </template>
+                    </div>
+                    <button @click="navigate('tasks')" style="margin-top:6px;font-size:10px;color:var(--primary);background:none;border:none;cursor:pointer;text-align:left;padding:2px 0">+ Adicionar tarefa →</button>
+                  </div>
                 </div>
               </div>
-            </div>
+            </template>
 
-            <!-- 2. PROXIMAS APRESENTACOES + ENTREGAS -->
+            <!-- 2. TEAM (2×2 hero) — restored -->
             <div class="bento-card bento-card--hero">
               <div class="bento-card__header">
-                <span class="bento-card__title">Proximas Entregas e Apresentações</span>
-                <span style="font-size:11px;color:var(--text-secondary)" x-text="dsNewsProximasApresentacoes().length + ' agendadas'"></span>
+                <span class="bento-card__title">Time</span>
+                <span style="font-size:11px;color:var(--text-secondary)" x-text="ccMemberWorkload().length + ' pessoas'"></span>
               </div>
-              <div class="bento-card__body" style="overflow-y:auto">
-                <div x-show="!dsNewsProximasApresentacoes().length" style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:6px;color:var(--text-secondary);padding:2rem 0">
-                  <span style="font-size:28px">📅</span>
-                  <span style="font-size:12px">Nenhuma entrega ou apresentação agendada</span>
-                </div>
-                <div x-show="dsNewsProximasApresentacoes().length" style="display:flex;flex-direction:column;gap:4px">
-                  <template x-for="(item, i) in dsNewsProximasApresentacoes()" :key="i">
-                    <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;cursor:pointer;background:var(--ds-bg-subtle)" :style="item.diff <= 0 ? 'background:#fef9e7' : ''" @click="openDsDetail(item.producao_id)">
-                      <div style="min-width:50px;text-align:center">
-                        <div style="font-size:18px;font-weight:800;line-height:1" :style="item.diff <= 0 ? 'color:#c0392b' : item.diff <= 3 ? 'color:#d68910' : 'color:var(--primary)'" x-text="dsFormatDate(item.data)"></div>
-                      </div>
-                      <div style="flex:1;min-width:0">
-                        <div style="font-size:12px;font-weight:600;color:var(--neutral-900)" x-text="item.mentorado_nome"></div>
-                        <div style="font-size:11px;color:var(--text-secondary)" x-text="item.tipo"></div>
-                      </div>
-                      <span class="ds-deadline-badge ds-deadline-badge--sm" :class="item.diff < 0 ? 'ds-deadline--overdue' : item.diff <= 7 ? 'ds-deadline--soon' : ''" x-text="item.diff < 0 ? 'passou' : item.diff === 0 ? 'HOJE' : 'em ' + item.diff + 'd'"></span>
-                    </div>
-                  </template>
-                </div>
-              </div>
-            </div>
-
-            <!-- 3. EM PRODUCAO (full row) -->
-            <div class="bento-card bento-card--full" style="height:auto;min-height:14rem">
-              <div class="bento-card__header">
-                <span class="bento-card__title">Em Produção</span>
-                <span style="font-size:11px;color:var(--text-secondary)" x-text="dsNewsEmProducao().length + ' dossiês ativos'"></span>
-              </div>
-              <div class="bento-card__body" style="padding-bottom:1rem">
-                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px">
-                  <template x-for="(d, i) in dsNewsEmProducao()" :key="i">
-                    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:var(--ds-bg-subtle);cursor:pointer;border:1px solid transparent;transition:border-color .15s" @click="openDsDetail(d.producao_id)" @mouseenter="$el.style.borderColor='#d0d5dd'" @mouseleave="$el.style.borderColor='transparent'">
-                      <div style="display:flex;flex-direction:column;align-items:center;min-width:32px">
-                        <span style="font-size:16px" x-text="dsDocTipoConfig(d.tipo).icon"></span>
-                      </div>
-                      <div style="flex:1;min-width:0">
-                        <div style="font-size:12px;font-weight:600;color:var(--neutral-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="d.mentorado_nome"></div>
-                        <div style="display:flex;align-items:center;gap:4px;margin-top:2px">
-                          <span style="font-size:10px" :style="'color:' + dsEstagioConfig(d.estagio_atual).color" x-text="dsEstagioConfig(d.estagio_atual).label"></span>
-                          <span style="font-size:10px;color:var(--text-secondary)" x-text="d.responsavel_atual ? '· ' + d.responsavel_atual : ''"></span>
+              <div class="bento-card__body" style="justify-content:flex-start;overflow-y:auto;padding-right:2px">
+                <div x-show="ccMemberWorkload().length" style="display:flex;flex-direction:column;gap:8px;width:100%">
+                  <template x-for="member in ccMemberWorkload().slice(0,5)" :key="member.name">
+                    <div class="cc-person-card" @click="navigateWithFilter('tasks', member.name)">
+                      <div class="cc-person-card__header">
+                        <div class="cc-person-card__avatar" :style="'background:' + member.color">
+                          <span x-text="member.initial"></span>
+                        </div>
+                        <div class="cc-person-card__info">
+                          <div class="cc-person-card__name" x-text="member.name"></div>
+                          <div class="cc-person-card__pills">
+                            <span x-show="member.inProgress.length" class="cc-person-pill cc-person-pill--active" x-text="member.inProgress.length + ' em and.'"></span>
+                            <span x-show="member.review.length" class="cc-person-pill cc-person-pill--review" x-text="member.review.length + ' revisão'"></span>
+                            <span x-show="member.done > 0" class="cc-person-pill cc-person-pill--done" x-text="member.done + ' ✓'"></span>
+                          </div>
                         </div>
                       </div>
-                      <span class="ds-aging ds-aging--sm" :class="dsAgingClass(d.aging)" x-text="d.aging + 'd'"></span>
-                    </div>
-                  </template>
-                </div>
-              </div>
-            </div>
-
-            <!-- 4. ENTREGUES ESTA SEMANA (half) -->
-            <div class="bento-card bento-card--half" style="height:auto;min-height:14rem">
-              <div class="bento-card__header">
-                <span class="bento-card__title" style="color:#059669">Entregues Esta Semana</span>
-                <span style="font-size:11px;color:var(--text-secondary)" x-text="dsNewsEntregues().length + ' dossiês'"></span>
-              </div>
-              <div class="bento-card__body" style="overflow-y:auto;padding-bottom:.75rem">
-                <div x-show="!dsNewsEntregues().length" style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:6px;color:var(--text-secondary);padding:2rem 0">
-                  <span style="font-size:28px">📦</span>
-                  <span style="font-size:12px">Nenhum dossiê finalizado esta semana</span>
-                </div>
-                <div x-show="dsNewsEntregues().length" style="display:flex;flex-direction:column;gap:6px">
-                  <template x-for="(d, i) in dsNewsEntregues()" :key="i">
-                    <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#ecfdf5;border-radius:6px;cursor:pointer" @click="openDsDetail(d.producao_id)">
-                      <span style="font-size:14px;color:#059669" x-text="dsDocTipoConfig(d.tipo).icon"></span>
-                      <div style="flex:1">
-                        <span style="font-size:12px;font-weight:600;color:#065f46" x-text="d.mentorado_nome"></span>
-                        <span style="font-size:11px;color:#047857"> · <span x-text="dsDocTipoConfig(d.tipo).label"></span></span>
+                      <div class="cc-person-card__tasks" x-show="member.inProgress.length + member.review.length > 0">
+                        <template x-for="(task, ti) in [...member.inProgress, ...member.review].slice(0,3)" :key="ti">
+                          <div class="cc-person-card__task" x-text="task.titulo"></div>
+                        </template>
+                        <div x-show="member.inProgress.length + member.review.length > 3" class="cc-person-card__more" x-text="'+' + (member.inProgress.length + member.review.length - 3) + ' mais'"></div>
                       </div>
-                      <span style="font-size:10px;color:#059669" x-text="d.responsavel"></span>
+                    </div>
+                  </template>
+                </div>
+                <div x-show="!ccMemberWorkload().length" style="display:flex;flex-direction:column;gap:8px;width:100%">
+                  <template x-for="i in [1,2,3]" :key="i">
+                    <div style="display:flex;gap:10px;align-items:center;padding:10px;background:#faf9f7;border-radius:10px">
+                      <div class="cc-skeleton" style="width:36px;height:36px;border-radius:50%;flex-shrink:0"></div>
+                      <div style="flex:1;display:flex;flex-direction:column;gap:5px">
+                        <div class="cc-skeleton" style="height:11px;width:60%"></div>
+                        <div class="cc-skeleton" style="height:8px;width:80%"></div>
+                      </div>
                     </div>
                   </template>
                 </div>
               </div>
             </div>
 
-            <!-- 5. KPIs resumo (half) -->
+            <!-- 3. RECENT ACTIVITY (2×2 hero) -->
+            <div class="bento-card bento-card--hero">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Atividade Recente</span>
+                <span style="font-size:10px;color:var(--text-secondary)" x-text="ccRecentActivity().length + ' registros'"></span>
+              </div>
+              <div class="bento-card__body" style="overflow-y:auto">
+                <div class="cc-activity-feed" x-show="ccRecentActivity().length">
+                  <template x-for="(item, i) in ccRecentActivity()" :key="i">
+                    <a class="cc-activity-item" href="#" @click.prevent="navigateToActivityTask(item)" style="text-decoration:none;color:inherit;cursor:pointer">
+                      <div class="cc-activity-item__avatar" x-text="item.who.charAt(0)"></div>
+                      <div class="cc-activity-item__content">
+                        <div class="cc-activity-item__who" style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:1px">
+                          <span x-text="item.who"></span>
+                          <span x-show="item.action" style="font-weight:400;color:var(--text-secondary)" x-text="' ' + item.action + ':'"></span>
+                        </div>
+                        <div class="cc-activity-item__text" x-text="item.text"></div>
+                        <div class="cc-activity-item__time" x-text="item.time ? new Date(item.time).toLocaleDateString('pt-BR') : ''"></div>
+                      </div>
+                    </a>
+                  </template>
+                </div>
+                <!-- skeleton -->
+                <div x-show="!ccRecentActivity().length" style="display:flex;flex-direction:column;gap:8px">
+                  <template x-for="i in [1,2,3,4,5]" :key="i">
+                    <div style="display:flex;gap:8px;align-items:center">
+                      <div class="cc-skeleton" style="width:28px;height:28px;border-radius:50%;flex-shrink:0"></div>
+                      <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+                        <div class="cc-skeleton" style="height:10px;width:80%"></div>
+                        <div class="cc-skeleton" style="height:8px;width:40%"></div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <!-- 4. ACTIVE PROJECTS (full row) -->
+            <div class="bento-card bento-card--full" style="grid-auto-rows:auto">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Projetos Ativos</span>
+                <span style="font-size:11px;color:var(--text-secondary)" x-text="data.projects.length + ' projetos'"></span>
+              </div>
+              <div class="bento-card__body" style="padding-bottom:1.25rem">
+                <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:.75rem;align-items:start">
+                  <template x-for="p in data.projects" :key="p.id">
+                    <div class="cc-project-card-v2">
+                      <!-- colored accent bar -->
+                      <div style="height:4px;border-radius:4px 4px 0 0" :style="'background:' + p.cor"></div>
+                      <div style="padding:.75rem">
+                        <!-- header -->
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                          <span x-text="p.icon" style="font-size:18px;flex-shrink:0"></span>
+                          <span style="font-size:13px;font-weight:700;color:var(--neutral-900);line-height:1.2" x-text="p.nome"></span>
+                        </div>
+                        <!-- description -->
+                        <div style="font-size:11px;color:var(--text-secondary);line-height:1.45;margin-bottom:8px" x-text="p.desc"></div>
+                        <!-- current phase -->
+                        <div style="font-size:10px;font-weight:600;color:var(--primary);background:var(--primary-50,#f5f3ff);border-radius:4px;padding:3px 6px;margin-bottom:10px;line-height:1.3" x-text="'↳ ' + p.fase"></div>
+                        <!-- team -->
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+                          <div style="display:flex">
+                            <template x-for="(m, idx) in p.team" :key="m">
+                              <div style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;border:2px solid var(--surface)"
+                                   :style="'background:' + ['#7c3aed','#0ea5e9','#10b981','#f59e0b','#ec4899','#6366f1'][idx%6] + ';margin-left:' + (idx?'-6px':'0')"
+                                   :title="m" x-text="m.charAt(0)"></div>
+                            </template>
+                          </div>
+                          <span style="font-size:10px;color:var(--text-secondary)" x-text="p.team.join(' · ')"></span>
+                        </div>
+                        <!-- progress bar -->
+                        <div style="display:flex;align-items:center;gap:8px">
+                          <div style="flex:1;height:5px;background:var(--neutral-100);border-radius:99px;overflow:hidden">
+                            <div style="height:100%;border-radius:99px;transition:width .6s ease"
+                                 :style="'width:' + p.progresso + '%;background:' + p.cor"></div>
+                          </div>
+                          <span style="font-size:11px;font-weight:700;flex-shrink:0;min-width:2.5rem;text-align:right" :style="'color:' + p.cor" x-text="p.progresso + '%'"></span>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <!-- 5. TASK BOARD SNAPSHOT (half 3×1) -->
             <div class="bento-card bento-card--half" style="height:auto;min-height:14rem">
               <div class="bento-card__header">
-                <span class="bento-card__title">Resumo Geral</span>
+                <span class="bento-card__title">Tarefas do Sprint</span>
+                <button class="btn btn--ghost btn--xs" @click="navigate('tasks')" style="font-size:11px">Ver todas →</button>
               </div>
               <div class="bento-card__body" style="padding-bottom:.75rem">
-                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px">
-                  <div style="text-align:center;padding:12px;background:var(--ds-bg-subtle);border-radius:8px">
-                    <div style="font-size:28px;font-weight:800;color:var(--primary)" x-text="dsPageKpis().total"></div>
-                    <div style="font-size:11px;color:var(--text-secondary)">Total</div>
-                  </div>
-                  <div style="text-align:center;padding:12px;background:var(--ds-bg-subtle);border-radius:8px">
-                    <div style="font-size:28px;font-weight:800;color:#8b5cf6" x-text="dsPageKpis().emRevisao"></div>
-                    <div style="font-size:11px;color:var(--text-secondary)">Em Revisão</div>
-                  </div>
-                  <div style="text-align:center;padding:12px;background:var(--ds-bg-subtle);border-radius:8px">
-                    <div style="font-size:28px;font-weight:800;color:#06b6d4" x-text="dsPageKpis().enviados"></div>
-                    <div style="font-size:11px;color:var(--text-secondary)">Enviados</div>
-                  </div>
-                  <div style="text-align:center;padding:12px;background:var(--ds-bg-subtle);border-radius:8px">
-                    <div style="font-size:28px;font-weight:800;color:#059669" x-text="dsPageKpis().finalizados"></div>
-                    <div style="font-size:11px;color:var(--text-secondary)">Finalizados</div>
-                  </div>
+                <div class="cc-kanban">
+                  <template x-for="[status, label, color, dotColor] in [['backlog','Backlog','var(--text-secondary)','#94a3b8'],['inProgress','Andamento','#f59e0b','#f59e0b'],['review','Revisão','#3b82f6','#3b82f6'],['done','Concluído','#10b981','#10b981']]" :key="status">
+                    <div class="cc-kanban-col" @click="navigateWithFilter('tasks', status)">
+                      <div class="cc-kanban-col__header">
+                        <div class="cc-kanban-col__dot" :style="'background:' + dotColor"></div>
+                        <div class="cc-kanban-col__label" x-text="label"></div>
+                      </div>
+                      <div class="cc-kanban-col__count" :style="'color:' + color" x-text="ccTasksByStatus()[status]?.length || 0"></div>
+                      <template x-for="t in (ccTasksByStatus()[status] || []).slice(0,3)" :key="t.id">
+                        <div class="cc-kanban-task">
+                          <div style="font-size:11px;line-height:1.3;color:var(--neutral-800)" x-text="t.titulo || t.nome"></div>
+                          <div x-show="t.responsavel || t.assignee" style="font-size:10px;color:var(--text-secondary);margin-top:2px" x-text="(t.responsavel || t.assignee || '').split(' ')[0]"></div>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
                 </div>
-                <div style="margin-top:12px;text-align:center;padding:8px;background:#fef3c7;border-radius:6px">
-                  <span style="font-size:12px;font-weight:600;color:#92400e" x-text="'Aging médio: ' + dsPageKpis().agingMedio + ' dias no estagio'"></span>
+              </div>
+            </div>
+
+            <!-- 5b. BLOCKERS / EM RISCO (half 3×1) -->
+            <div class="bento-card bento-card--half" style="height:auto;min-height:14rem">
+              <div class="bento-card__header">
+                <span class="bento-card__title" style="color:#ef4444">⚠ Pendências</span>
+                <span style="font-size:10px;color:var(--text-secondary)" x-text="ccBlockers().length ? ccBlockers().length + ' itens' : 'nenhum'"></span>
+              </div>
+              <div class="bento-card__body" style="overflow-y:auto;padding-bottom:.75rem">
+                <!-- empty state -->
+                <div x-show="!ccBlockers().length" style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:6px;color:var(--text-secondary);padding:1rem 0">
+                  <span style="font-size:28px">✅</span>
+                  <span style="font-size:12px">Sem pendências críticas</span>
+                </div>
+                <!-- blocker list -->
+                <div x-show="ccBlockers().length" style="display:flex;flex-direction:column;gap:6px">
+                  <template x-for="(b, i) in ccBlockers()" :key="i">
+                    <a class="cc-blocker-item" :href="b.url || '#'" :target="b.url ? '_blank' : '_self'" rel="noopener">
+                      <div style="display:flex;align-items:flex-start;gap:8px">
+                        <span style="font-size:13px;flex-shrink:0" x-text="b.prioridade === 'urgente' ? '🔴' : '🟡'"></span>
+                        <div style="flex:1;min-width:0">
+                          <div style="font-size:12px;font-weight:600;color:var(--neutral-900);line-height:1.3;word-break:break-word" x-text="b.text"></div>
+                          <div x-show="b.desc" style="font-size:11px;color:var(--text-secondary);margin-top:3px;line-height:1.4;word-break:break-word" x-text="b.desc"></div>
+                          <div x-show="b.who && b.who !== '?'" style="font-size:10px;color:var(--text-secondary);margin-top:2px;opacity:.7" x-text="b.who"></div>
+                        </div>
+                      </div>
+                    </a>
+                  </template>
+                  <!-- link to tasks -->
+                  <button @click="navigate('tasks')" style="margin-top:4px;font-size:11px;color:var(--primary);background:none;border:none;cursor:pointer;text-align:left;padding:2px 0">Ver todas as tarefas →</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 6b. DOSSIÊS NEWS (full row) -->
+            <div class="bento-card bento-card--full" style="height:auto">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Dossiês</span>
+                <button class="btn btn--ghost btn--xs" @click="navigate('dossies')" style="font-size:11px">Ver todos →</button>
+              </div>
+              <div class="bento-card__body" style="padding-bottom:1rem">
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+
+                  <!-- Col 1: Prazos Criticos -->
+                  <div>
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#c0392b;margin-bottom:8px">Prazos Criticos</div>
+                    <div x-show="!dsNewsCriticos().length" style="font-size:12px;color:var(--text-secondary);padding:12px 0">Nenhum prazo critico ✅</div>
+                    <div style="display:flex;flex-direction:column;gap:4px">
+                      <template x-for="(d, i) in dsNewsCriticos().slice(0,6)" :key="i">
+                        <div style="padding:6px 8px;border-radius:6px;cursor:pointer;border-left:3px solid;font-size:12px" :style="'border-color:' + (d.diff < 0 ? '#c0392b' : '#d68910') + ';background:' + (d.diff < 0 ? '#fdf0ef' : '#fef9e7')" @click="openDsDetail(d.producao_id)">
+                          <div style="display:flex;justify-content:space-between;align-items:center">
+                            <strong x-text="d.mentorado_nome"></strong>
+                            <span class="ds-deadline-badge ds-deadline-badge--sm" :class="d.diff < 0 ? 'ds-deadline--overdue' : 'ds-deadline--soon'" x-text="d.diff < 0 ? Math.abs(d.diff) + 'd atrasado' : d.diff === 0 ? 'HOJE' : d.diff + 'd'"></span>
+                          </div>
+                          <div style="font-size:10px;color:var(--text-secondary);margin-top:2px" x-text="dsDocTipoConfig(d.tipo).icon + ' ' + dsDocTipoConfig(d.tipo).label + ' · ' + dsEstagioConfig(d.estagio_atual).label"></div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+
+                  <!-- Col 2: Proximas Entregas -->
+                  <div>
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--primary);margin-bottom:8px">Proximas Entregas</div>
+                    <div x-show="!dsNewsProximasApresentacoes().length" style="font-size:12px;color:var(--text-secondary);padding:12px 0">Nenhuma agendada 📅</div>
+                    <div style="display:flex;flex-direction:column;gap:4px">
+                      <template x-for="(item, i) in dsNewsProximasApresentacoes().slice(0,6)" :key="i">
+                        <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;background:var(--ds-bg-subtle);cursor:pointer;font-size:12px" @click="openDsDetail(item.producao_id)">
+                          <span style="font-size:15px;font-weight:800;min-width:38px;text-align:center" :style="item.diff <= 0 ? 'color:#c0392b' : item.diff <= 3 ? 'color:#d68910' : 'color:var(--primary)'" x-text="dsFormatDate(item.data)"></span>
+                          <div style="flex:1;min-width:0">
+                            <div style="font-weight:600" x-text="item.mentorado_nome"></div>
+                            <div style="font-size:10px;color:var(--text-secondary)" x-text="item.tipo"></div>
+                          </div>
+                          <span style="font-size:10px;color:var(--text-secondary)" x-text="item.diff === 0 ? 'HOJE' : item.diff < 0 ? 'passou' : item.diff + 'd'"></span>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+
+                  <!-- Col 3: Entregues + Em Producao -->
+                  <div>
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#059669;margin-bottom:8px">Entregues Esta Semana</div>
+                    <div x-show="!dsNewsEntregues().length" style="font-size:12px;color:var(--text-secondary);padding:4px 0;margin-bottom:12px">Nenhum esta semana 📦</div>
+                    <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:12px">
+                      <template x-for="(d, i) in dsNewsEntregues().slice(0,4)" :key="i">
+                        <div style="display:flex;align-items:center;gap:6px;padding:4px 8px;background:#ecfdf5;border-radius:4px;cursor:pointer;font-size:11px" @click="openDsDetail(d.producao_id)">
+                          <span style="color:#059669" x-text="dsDocTipoConfig(d.tipo).icon"></span>
+                          <strong style="color:#065f46" x-text="d.mentorado_nome"></strong>
+                          <span style="color:#047857;margin-left:auto" x-text="dsDocTipoConfig(d.tipo).label"></span>
+                        </div>
+                      </template>
+                    </div>
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8b5cf6;margin-bottom:6px">Em Produção (<span x-text="dsNewsEmProducao().length"></span>)</div>
+                    <div style="display:flex;flex-direction:column;gap:3px">
+                      <template x-for="(d, i) in dsNewsEmProducao().slice(0,5)" :key="i">
+                        <div style="display:flex;align-items:center;gap:6px;padding:4px 8px;background:var(--ds-bg-subtle);border-radius:4px;cursor:pointer;font-size:11px" @click="openDsDetail(d.producao_id)">
+                          <span x-text="dsDocTipoConfig(d.tipo).icon"></span>
+                          <span style="font-weight:600" x-text="d.mentorado_nome"></span>
+                          <span style="font-size:10px;margin-left:auto" :style="'color:' + dsEstagioConfig(d.estagio_atual).color" x-text="dsEstagioConfig(d.estagio_atual).label"></span>
+                          <span class="ds-aging ds-aging--sm" :class="dsAgingClass(d.aging)" x-text="d.aging + 'd'" style="font-size:9px"></span>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+
+            <!-- 7. FERRAMENTAS (full row) -->
+            <div class="bento-card bento-card--full" style="height:auto;min-height:14rem">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Ferramentas</span>
+              </div>
+              <div class="bento-card__body" style="padding-bottom:.75rem">
+                <div class="cc-tools-grid">
+                  <template x-for="r in data.ferramentas" :key="r.nome">
+                    <a class="cc-tool-card" :href="r.url || '#'" target="_blank" rel="noopener">
+                      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+                        <div class="cc-tool-card__dot" :style="'background:' + r.color"></div>
+                        <span :style="'font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:' + (r.status==='live' ? '#10b981' : '#f59e0b')" x-text="r.status === 'live' ? 'ao vivo' : 'beta'"></span>
+                      </div>
+                      <div class="cc-tool-card__name" x-text="r.nome"></div>
+                      <div class="cc-tool-card__desc" x-text="r.desc" style="font-size:11px;color:var(--text-secondary);margin-top:2px;line-height:1.3"></div>
+                      <template x-if="r.falta">
+                        <div style="margin-top:6px;font-size:10px;color:#f59e0b;font-weight:600;display:flex;align-items:center;gap:3px">
+                          <span>⚠</span><span x-text="r.falta"></span>
+                        </div>
+                      </template>
+                    </a>
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <!-- 7. SPRINT TIMELINE (full row) -->
+            <div class="bento-card bento-card--full" style="height:auto;min-height:10rem">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Cronograma de Sprints</span>
+                <span style="font-size:11px;color:var(--text-secondary)" x-text="data.sprints.length + ' sprints'"></span>
+              </div>
+              <div class="bento-card__body" style="padding-bottom:1.25rem">
+                <div class="cc-sprint-timeline">
+                  <template x-for="sprint in data.sprints" :key="sprint.id">
+                    <div class="cc-sprint-card"
+                         :class="sprint.status === 'ativo' ? 'cc-sprint-card--active' : (sprint.status === 'encerrado' ? 'cc-sprint-card--done' : 'cc-sprint-card--planned')">
+
+                      <!-- Header: nome + badge -->
+                      <div class="cc-sprint-card__header">
+                        <span class="cc-sprint-card__name" x-text="sprint.nome"></span>
+                        <span class="cc-sprint-card__badge"
+                              :class="sprint.status === 'ativo' ? 'cc-sprint-card__badge--active' : (sprint.status === 'encerrado' ? 'cc-sprint-card__badge--done' : 'cc-sprint-card__badge--planned')"
+                              x-text="sprint.status === 'ativo' ? '● ativo' : (sprint.status === 'encerrado' ? '✓ encerrado' : '○ planejado')">
+                        </span>
+                      </div>
+
+                      <!-- Datas + dias -->
+                      <div class="cc-sprint-card__dates">
+                        <span x-text="new Date(sprint.inicio+'T12:00:00').toLocaleDateString('pt-BR',{day:'numeric',month:'short'})"></span>
+                        <span style="opacity:0.5;margin:0 4px">→</span>
+                        <span x-text="new Date(sprint.fim+'T12:00:00').toLocaleDateString('pt-BR',{day:'numeric',month:'short'})"></span>
+                        <span class="cc-sprint-card__days"
+                              x-text="(function(){
+                                const hoje = new Date(); hoje.setHours(12,0,0,0);
+                                const fim = new Date(sprint.fim+'T12:00:00');
+                                const ini = new Date(sprint.inicio+'T12:00:00');
+                                if(sprint.status==='ativo'){
+                                  const diff = Math.ceil((fim-hoje)/(1000*60*60*24));
+                                  return diff>0 ? diff+' dias restantes' : 'último dia';
+                                } else if(sprint.status==='encerrado'){
+                                  const total = Math.ceil((fim-ini)/(1000*60*60*24))+1;
+                                  return total+' dias';
+                                } else {
+                                  const diff = Math.ceil((ini-hoje)/(1000*60*60*24));
+                                  return 'começa em '+diff+' dias';
+                                }
+                              })()">
+                        </span>
+                      </div>
+
+                      <!-- Barra de progresso -->
+                      <div class="cc-sprint-card__progress-wrap">
+                        <div class="cc-sprint-card__progress-bar">
+                          <div class="cc-sprint-card__progress-fill"
+                               :style="'width:' + (sprint.total > 0 ? Math.round((sprint.concluidas/sprint.total)*100) : 0) + '%'"
+                               :class="sprint.status === 'encerrado' ? 'cc-sprint-card__progress-fill--done' : ''">
+                          </div>
+                        </div>
+                        <div class="cc-sprint-card__progress-meta">
+                          <span x-text="sprint.concluidas + '/' + sprint.total + ' tarefas'"></span>
+                          <span class="cc-sprint-card__pct"
+                                x-text="(sprint.total > 0 ? Math.round((sprint.concluidas/sprint.total)*100) : 0) + '%'">
+                          </span>
+                        </div>
+                      </div>
+
+                      <!-- Highlights como tags -->
+                      <div class="cc-sprint-card__highlights" x-show="sprint.highlights && sprint.highlights.length">
+                        <template x-for="h in (sprint.highlights || [])" :key="h">
+                          <span class="cc-sprint-card__tag" x-text="h"></span>
+                        </template>
+                      </div>
+                      <div class="cc-sprint-card__empty" x-show="!sprint.highlights || !sprint.highlights.length" x-text="sprint.status === 'planejado' ? 'Escopo a definir' : 'Sem destaques'"></div>
+
+                    </div>
+                  </template>
                 </div>
               </div>
             </div>
