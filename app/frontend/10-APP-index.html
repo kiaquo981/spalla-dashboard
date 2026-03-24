@@ -8014,7 +8014,7 @@
             <div style="margin-top:16px" x-show="ui.taskEditId">
               <div style="margin-bottom:8px">
                 <label style="margin:0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b">Dependências</label>
-                <span x-show="taskForm.dependencies?.some(d => !d._new)" style="margin-left:6px;font-size:11px;color:#94a3b8" x-text="'(' + taskForm.dependencies.filter(d=>!d._new).length + ' bloqueadora(s))'"></span>
+                <span x-show="taskForm.dependencies?.some(d => !d._new)" style="margin-left:6px;font-size:11px;color:#94a3b8" x-text="'(' + (taskForm.dependencies || []).filter(d=>!d._new).length + ' bloqueadora(s))'"></span>
               </div>
               <!-- Existing dependencies -->
               <template x-for="dep in (taskForm.dependencies || []).filter(d => !d._new)" :key="dep.dep_id || dep.depends_on">
