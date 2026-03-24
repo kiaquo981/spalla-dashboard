@@ -1,14 +1,14 @@
 ---
-title: CASE Scale — Report de Status Geral para GOB
+title: CASE Scale — Report de Status Geral para Gobbi
 type: governance-report
 status: current
 date: 2026-03-22
 author: Kaique Rodrigues
 ---
 
-# CASE Scale — Status Report GOB
+# CASE Scale — Status Report Gobbi
 **Data de referência:** 22 de março de 2026
-**Destinatário:** GOB (Governança do Negócio)
+**Destinatário:** Gobbi (Governança do Negócio)
 **Escopo:** Software, GitHub, Agentes de IA, Ferramentas, Processos e Backlog
 
 ---
@@ -202,7 +202,7 @@ O sistema tem funcionalidades que existem mas não viraram hábito:
 | 3 | **Download Expert** | ~8 | Extração estruturada de calls de download (Sessões 1-3) | V10 |
 | 4 | **Agentes Mentoria (Funis)** | ~50 | Automação completa dos 11 funis de vendas via WA | V3 atual |
 | 5 | **Lapidação de Perfil** | ~10 | Reposicionamento de Instagram de mentorados | V12 Metodologia Queila |
-| 6 | **Linha Editorial** | ~20 | Geração de ideias, roteiros e conteúdo | v7 GOBBI FINAL |
+| 6 | **Linha Editorial** | ~20 | Geração de ideias, roteiros e conteúdo | v7 GobbiBI FINAL |
 | 7 | **Stories System** | ~5 | Geração de stories para Instagram | V8 |
 | 8 | **QCES (Queila Content Extraction)** | ~7 | Extração de crenças, ganchos e posicionamento das aulas da Queila | v4 |
 | 9 | **Arquitetura de Produto** | ~8 | Mapeia método, aulas e materiais do mentorado | Orquestrador v2 |
@@ -213,14 +213,12 @@ O sistema tem funcionalidades que existem mas não viraram hábito:
 | 14 | **Pablo (Call Vendas)** | ~4 | Análise de calls de vendas + gestor de conhecimento | V2 |
 | 15 | **AI Hub Monitor** | ~5 | Monitoramento de erros, custos, relatório diário IA | — |
 | 16 | **RAG & Vetorização** | ~3 | Embeddings, busca vetorial, contexto de calls | — |
-| 17 | **Agente Produto Lovable** | ~7 | 6 agentes Lovable: mapa, pesquisa, vitrine, método, oferta, copy | — |
-| 18 | **Naming Agent** | ~3 | Geração e validação de nomes + INPI | — |
-| 19 | **Financeiro / Billing** | ~3 | Conta Simples, Hubla→Supabase, Clint Deal Stage | — |
-| 20 | **Ads / Tráfego** | ~4 | Monitor Facebook Ads, análise visual/copy/estratégia | — |
-| 21 | **Zoom / Transcrição** | ~3 | Transcrição de calls, YouTube upload | — |
-| 22 | **Legado / Dev / Descontinuado** | 0 | My workflow X, fluxos antigos, ecomm, airtable | — |
+| 17 | **Agente Produto Lovable** | ~7 | 6 agentes Lovable: mapa, pesquisa, vitrine, método, oferta, copy | 🔄 Refaturar |
+| 18 | **Ads / Tráfego** | ~4 | Monitor Facebook Ads, análise visual/copy/estratégia | — |
+| 19 | **Zoom / Transcrição** | ~3 | Transcrição de calls, YouTube upload | — |
+| 20 | **Legado / Dev / Descontinuado** | 0 | My workflow X, fluxos antigos, ecomm, airtable | — |
 
-**Total estimado ativos CASE: ~190–210 workflows ✅ / ~660–680 ⊘ (arquivados/dev)**
+**Total estimado ativos CASE: ~180–200 workflows ✅ / ~660–680 ⊘ (arquivados/dev) — 20 clusters CASE mapeados**
 
 ---
 
@@ -240,9 +238,9 @@ O sistema tem funcionalidades que existem mas não viraram hábito:
 | WhatsApp Mention Alerts Spalla | ✅ | Alertas WA para Spalla |
 | WhatsApp Response Analyzer Spalla | ✅ | Análise de respostas WA |
 | Zap dos Tópicos | ✅ | Mapeamento de tópicos WA |
-| Fluxo de Agendamento Reuniões e Ligações | ✅ | Agendamento via WA |
-| Parte 2 - Fluxo de Agendamento | ✅ | Continuação do agendamento |
-| Whatsapp Scraper | ✅ | Scraper direto WA |
+| Fluxo de Agendamento Reuniões e Ligações | ⊘ | Não está sendo utilizado |
+| Parte 2 - Fluxo de Agendamento | ⊘ | Não está sendo utilizado |
+| WhatsApp Scraper | ⊘ | Não está sendo utilizado |
 
 ---
 
@@ -277,17 +275,14 @@ O sistema tem funcionalidades que existem mas não viraram hábito:
 
 #### 4.1.4 Cluster 3 — Download Expert (EXTRAÇÃO DE CALLS)
 
+> **Mudança de arquitetura:** o workflow N8N (V10) será substituído. Nova abordagem: call direta com o Expert + um único agente que organiza o output. Os prompts já foram extraídos do N8N e estão no GitHub. Versões V3/V4/V5 arquivadas.
+
 | Workflow | Status | Função |
 |----------|--------|--------|
-| Download Expert V10 FluxoGeral | ✅ | Orquestrador V10 |
-| Download Expert V10 Agente Cadastro | ✅ | Cadastro do mentorado |
-| Download Expert V10 Tools | ✅ | Ferramentas de extração |
-| Download Expert V10 SubWF | ✅ | Sub-workflow V10 |
-| WF_ORCHESTRATOR V10 | ✅ | Orquestrador de sessões |
-| DE V10 Sessao 1 / 2 / 3 | ✅ | Sessões de download |
-| Download Expert V5 (E1-E13) | ⊘ | 13 coletores V5 — arquivados |
-| Download Expert V4 (E1-E13) | ⊘ | 13 coletores V4 — arquivados |
-| Download Expert V3 | ⊘ | Versão original — arquivada |
+| Download Expert V10 (todos os sub-WFs) | 🔄 Em transição | Versão atual ainda em uso — será substituída pela nova arquitetura (call + agente único) |
+| Download Expert V5 (E1-E13) | ⊘ | Arquivados |
+| Download Expert V4 (E1-E13) | ⊘ | Arquivados |
+| Download Expert V3 | ⊘ | Arquivado |
 
 ---
 
@@ -337,7 +332,7 @@ O sistema tem funcionalidades que existem mas não viraram hábito:
 
 > ~30 workflows. Fluxo: Cadastro → Coletores (E1-E6) → Produtores (E1-E3) → Gerador de Ideias → Orquestrador → Polidor → Salva.
 
-**Ativos ✅:** Orquestrador Ideias GOBBI FINAL V2, Gerador de Ideias v2, Etapa 3B Provas Sociais, Etapa 5 Diagnóstico COMPLETO, Etapa 6 Definição Editorial V3, Polidor, Tool Salva Ideia, Tool Salva Linha Editorial, Tool Salva Dados E5, Agente Cadastro CORRIGIDO, Tool Valida Email, Agente Coletor E1/E3B/E6 (CORRIGIDO), Agente Produtor E1-E3 (CORRIGIDO), Agente Bio e Apresentações, Agente Coletor Documentos, Agente Gerador de Ideias GOBBI FINAL, Orquestrador Ideias
+**Ativos ✅:** Orquestrador Ideias GobbiBI FINAL V2, Gerador de Ideias v2, Etapa 3B Provas Sociais, Etapa 5 Diagnóstico COMPLETO, Etapa 6 Definição Editorial V3, Polidor, Tool Salva Ideia, Tool Salva Linha Editorial, Tool Salva Dados E5, Agente Cadastro CORRIGIDO, Tool Valida Email, Agente Coletor E1/E3B/E6 (CORRIGIDO), Agente Produtor E1-E3 (CORRIGIDO), Agente Bio e Apresentações, Agente Coletor Documentos, Agente Gerador de Ideias GobbiBI FINAL, Orquestrador Ideias
 
 **Inativos ⊘:** Versões antigas (v2-v5 de gerador, V6-V7 de roteiros), coletores e produtores não-corrigidos
 
@@ -415,7 +410,6 @@ O sistema tem funcionalidades que existem mas não viraram hábito:
 | SUB_WF_ONBOARDING_04_WHATSAPP_GROUP_V7 | ✅ | Cria grupo WA |
 | SUB_WF_AUDIO_TRANSCRIPTION_V7 | ✅ | Transcreve áudio |
 | Novo Mentorado | ✅ | Disparo de entrada |
-| WorkFlow SDR Case | ✅ | SDR qualificação |
 | DS Stage Notification | ✅ | Notificação de estágio |
 | WF2 Pré-Call 2 | ✅ | Preparação call 2 |
 | WF3 Call 2 - Geração de Documentos | ✅ | Geração de docs na call |
@@ -427,9 +421,11 @@ O sistema tem funcionalidades que existem mas não viraram hábito:
 
 #### 4.1.13 Cluster 12 — Plano de Ação
 
+> Gerado automaticamente no pós-call da Queila **ou** dos consultores (Hugo, Heitor, Lara). Após a call, o sistema gera e salva o plano de ação do mentorado. **Próximo passo:** integrar ao Spalla para criar tarefas automaticamente para consultores e mentorados.
+
 | Workflow | Status | Função |
 |----------|--------|--------|
-| ORQUESTRADOR v5 Plano de Ação | ✅ | Orquestrador principal |
+| ORQUESTRADOR v5 Plano de Ação | ✅ | Orquestrador principal — dispara no pós-call (Queila ou consultores) |
 | Plano de Ação → Google Docs | ✅ | Exporta para Google Docs |
 | SUB: Gerar RAG Embeddings | ✅ | Embeddings do plano |
 | SUB: Validação Priorização | ✅ | Valida e prioriza tarefas |
@@ -477,14 +473,10 @@ O sistema tem funcionalidades que existem mas não viraram hábito:
 
 | Workflow | Status | Função |
 |----------|--------|--------|
-| Agente Produto Lovable (6 agentes) | ✅ | Mapa, Pesquisa, Vitrine, Método, Oferta, Revisor |
+| Agente Produto Lovable (6 agentes) | 🔄 Refaturar | Mapa, Pesquisa, Vitrine, Método, Oferta, Revisor — criados para outro produto, precisam refatoração |
 | Monitor Facebook Ads | ✅ | Monitoramento de anúncios |
 | Zoom Recording YouTube | ✅ | Upload automático Zoom→YouTube |
 | Zoom transcrição Queila | ✅ | Transcrição Queila |
-| Conta Simples | ✅ | Gestão financeira |
-| Hubla→Supabase | ✅ | Sync Hubla |
-| Clint Deal Stage | ✅ | Estágio de deal Clint |
-| Naming Agent + INPI | ✅ | Geração de nomes |
 | Executor de Lembretes - Memory Keyla | ✅ | Lembretes automáticos |
 | Agentes Mentoria Agente Entrega | ✅ | Entrega de materiais |
 | WorkFlow Incompletos Aplicações Case | ✅ | Monitor de incompletos |
@@ -557,7 +549,7 @@ O sistema tem funcionalidades que existem mas não viraram hábito:
 | **AGEN-08** | Mensagens WhatsApp por Tipo de Lead | CONSTRUIR | Variações de mensagem por tipo (ex-aluno, prospect, cold, referral). Curtas, diretas, não-robóticas. Bloqueado por Mariza organizar framework de abordagens. |
 | **AGEN-12** | Revisão do Agente de Ofertas | REVISAR | Gera ofertas com critérios vagos e baixa assertividade. Precisa: Mariza organizar critérios, depois Kaique ajusta. |
 | **AGEN-18** | Recomendador de Funil por Perfil | CONSTRUIR | Dado perfil C1/C2/C3, recomenda funil e gera templates de abordagem. 3 perfis mapeados: demanda+autoridade → Abordagem; resultado sem demanda → Aula; sem demanda+off fraco → Evento. |
-| **AGEN-21** | Agente de Anúncios (Gerador + Analisador) | CONSTRUIR | Gera variações de anúncio por funil + analisa performance de campanhas. Depende de Kit de Tráfego (DOSS-14). |
+| **AGEN-21** | Agente de Anúncios (Gerador + Analisador) | DETALHAR | Já existe estrutura base. Precisa aprofundar: system prompts, critérios de geração e análise. Depois: teste interno → liberação para mentorados. |
 | **AGEN-30** | Follow-up Automático (Pré/Pós Consulta) | CONSTRUIR | Mensagens automáticas de follow-up por etapa do funil. Canais: WhatsApp + Email. Depende de CRM (Kommo para C3). |
 
 #### 4.2.4 Suporte CS & Operações Internas
@@ -717,7 +709,7 @@ Editor visual com nodes e components organizados em 4 categorias:
 
 Funis mapeados (amostra): Abordagem de Lista, Social Seller, Autoridade Instagram, e demais funis CASE.
 
-**Pendências:** Integração com Spalla Dashboard | Mapeamento completo de funis no GOB.
+**Pendências:** Integração com Spalla Dashboard | Mapeamento completo de funis no Gobbi.
 
 #### 6.2.5 PageOS — Criação de Páginas de Captura
 
@@ -734,7 +726,7 @@ Ferramenta proprietária para criação de páginas de captura (landing pages) p
 | Integração com N8N | ❓ A confirmar |
 | O que foi enviado aos clientes | ❓ A confirmar |
 
-**Próximos passos GOB:** Kaique mostra o interior → documentar páginas, templates, status de uso por mentorado.
+**Próximos passos Gobbi:** Kaique mostra o interior → documentar páginas, templates, status de uso por mentorado.
 
 #### 6.2.6 Carousel AI — Produção de Carrosséis com IA
 
@@ -751,7 +743,7 @@ Ferramenta proprietária para produção de carrosséis para Instagram com assis
 | Integração com Social CASE | ❓ A confirmar |
 | O que foi enviado aos clientes | ❓ A confirmar |
 
-**Próximos passos GOB:** Kaique mostra o interior → documentar templates, artefatos criados, status de uso.
+**Próximos passos Gobbi:** Kaique mostra o interior → documentar templates, artefatos criados, status de uso.
 
 ---
 
@@ -838,7 +830,7 @@ Ferramenta proprietária para produção de carrosséis para Instagram com assis
 
 ### 8.4 Pendências de Auditoria (para próximas iterações com Kaique)
 
-> Os itens abaixo requerem que Kaique mostre o interior de cada plataforma para completar o GOB.
+> Os itens abaixo requerem que Kaique mostre o interior de cada plataforma para completar o Gobbi.
 
 | # | Plataforma | O que falta auditar |
 |---|-----------|---------------------|
@@ -857,7 +849,7 @@ Ferramenta proprietária para produção de carrosséis para Instagram com assis
 
 | Termo | Significado |
 |-------|------------|
-| **GOB** | Governança do Negócio — instância de decisão estratégica |
+| **Gobbi** | Governança do Negócio — instância de decisão estratégica |
 | **Gobe** | Responsável por fechar workflows no ClickUp e N8N |
 | **bu-case** | Repositório GitHub com KB, JSONs dos agentes e documentação técnica |
 | **Bill Case** | Drive com documentação técnica dos agentes de IA (espelhado no bu-case) |
