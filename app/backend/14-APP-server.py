@@ -1865,10 +1865,6 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_copilot()
         elif self.path == '/api/ds/update-stage':
             self._handle_ds_update_stage()
-        elif self.path == '/api/financial/update-status':
-            self._handle_financial_update_status()
-        elif self.path == '/api/financial/add-note':
-            self._handle_financial_add_note()
         # ===== Mentee Groups =====
         elif self.path == '/api/mentee-groups':
             self._handle_post_group()

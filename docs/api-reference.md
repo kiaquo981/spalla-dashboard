@@ -1,6 +1,6 @@
 # Spalla Dashboard — API Reference
 
-> **Base URL (production):** `https://spalla-backend.up.railway.app`
+> **Base URL (production):** `https://web-production-2cde5.up.railway.app`
 > **Base URL (local dev):** `http://localhost:9999`
 > **Protocol:** HTTPS only in production
 > **Content-Type:** `application/json` for all requests and responses
@@ -73,7 +73,7 @@ Three steps to make your first authenticated request.
 ### Step 1 — Login
 
 ```bash
-curl -s -X POST https://spalla-backend.up.railway.app/api/auth/login \
+curl -s -X POST https://web-production-2cde5.up.railway.app/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"heitor@case.com.br","password":"minimo6chars"}' | jq .
 ```
@@ -100,7 +100,7 @@ REFRESH="eyJ..."  # refresh_token from login response
 ### Step 3 — Make an authenticated request
 
 ```bash
-curl -s https://spalla-backend.up.railway.app/api/auth/me \
+curl -s https://web-production-2cde5.up.railway.app/api/auth/me \
   -H "Authorization: Bearer $TOKEN" | jq .
 ```
 
@@ -165,7 +165,7 @@ Create a new user account. Not exposed in the public UI — used for onboarding 
 | `role` | string | — | `equipe` \| `admin` \| `mentorado`. Defaults to `equipe` |
 
 ```bash
-curl -s -X POST https://spalla-backend.up.railway.app/api/auth/register \
+curl -s -X POST https://web-production-2cde5.up.railway.app/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "heitor@case.com.br",
@@ -217,7 +217,7 @@ Authenticate with email and password. Returns a JWT token pair.
 | `password` | string | ✅ |
 
 ```bash
-curl -s -X POST https://spalla-backend.up.railway.app/api/auth/login \
+curl -s -X POST https://web-production-2cde5.up.railway.app/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"heitor@case.com.br","password":"minimo6chars"}' | jq .
 ```
@@ -260,7 +260,7 @@ Exchange a `refresh_token` for a new access/refresh token pair. Call this when `
 | `refresh_token` | string | ✅ |
 
 ```bash
-curl -s -X POST https://spalla-backend.up.railway.app/api/auth/refresh \
+curl -s -X POST https://web-production-2cde5.up.railway.app/api/auth/refresh \
   -H "Content-Type: application/json" \
   -d "{\"refresh_token\":\"$REFRESH\"}" | jq .
 ```
@@ -299,7 +299,7 @@ Request a password reset. Always returns `200` regardless of whether the email e
 | `email` | string | ✅ |
 
 ```bash
-curl -s -X POST https://spalla-backend.up.railway.app/api/auth/reset-password \
+curl -s -X POST https://web-production-2cde5.up.railway.app/api/auth/reset-password \
   -H "Content-Type: application/json" \
   -d '{"email":"heitor@case.com.br"}' | jq .
 ```
@@ -322,7 +322,7 @@ Validate the current access token and return the logged-in user profile. Use thi
 **Auth required:** ✅
 
 ```bash
-curl -s https://spalla-backend.up.railway.app/api/auth/me \
+curl -s https://web-production-2cde5.up.railway.app/api/auth/me \
   -H "Authorization: Bearer $TOKEN" | jq .
 ```
 
@@ -360,7 +360,7 @@ Returns all mentorados with their email addresses. This supplements the RLS-prot
 > The full mentee dataset (phases, risks, KPIs, financial status) is read by the frontend directly from `vw_god_overview` via the Supabase JS client. This endpoint only fills the email gap.
 
 ```bash
-curl -s https://spalla-backend.up.railway.app/api/mentees | jq .
+curl -s https://web-production-2cde5.up.railway.app/api/mentees | jq .
 ```
 
 **Response `200 OK`**
@@ -421,7 +421,7 @@ Full scheduling orchestration: create Zoom meeting → create Google Calendar ev
 | anything else | `acompanhamento` |
 
 ```bash
-curl -s -X POST https://spalla-backend.up.railway.app/api/schedule-call \
+curl -s -X POST https://web-production-2cde5.up.railway.app/api/schedule-call \
   -H "Content-Type: application/json" \
   -d '{
     "mentorado": "João Silva",
@@ -491,7 +491,7 @@ Create a standalone Zoom meeting without triggering Calendar or Supabase inserts
 | `invitees` | array[string] | — | Email addresses to invite |
 
 ```bash
-curl -s -X POST https://spalla-backend.up.railway.app/api/zoom/create-meeting \
+curl -s -X POST https://web-production-2cde5.up.railway.app/api/zoom/create-meeting \
   -H "Content-Type: application/json" \
   -d '{
     "topic": "Call Diagnóstico — João Silva",
@@ -537,7 +537,7 @@ Create a standalone Google Calendar event on the configured service account cale
 | `location` | string | — | Physical address or meeting URL |
 
 ```bash
-curl -s -X POST https://spalla-backend.up.railway.app/api/calendar/create-event \
+curl -s -X POST https://web-production-2cde5.up.railway.app/api/calendar/create-event \
   -H "Content-Type: application/json" \
   -d '{
     "summary": "Call Diagnóstico — João Silva",
@@ -567,7 +567,7 @@ List the next 50 upcoming Google Calendar events, ordered chronologically from n
 **Auth required:** No
 
 ```bash
-curl -s https://spalla-backend.up.railway.app/api/calendar/events | jq .
+curl -s https://web-production-2cde5.up.railway.app/api/calendar/events | jq .
 ```
 
 **Response `200 OK`**
@@ -594,7 +594,7 @@ Return all records from `calls_mentoria`, ordered by `data_call` descending (mos
 **Auth required:** No
 
 ```bash
-curl -s https://spalla-backend.up.railway.app/api/calls/upcoming | jq .
+curl -s https://web-production-2cde5.up.railway.app/api/calls/upcoming | jq .
 ```
 
 **Response `200 OK`**
@@ -648,7 +648,7 @@ Returns the current sync state without triggering a sync.
 **Auth required:** No
 
 ```bash
-curl -s https://spalla-backend.up.railway.app/api/sheets/status | jq .
+curl -s https://web-production-2cde5.up.railway.app/api/sheets/status | jq .
 ```
 
 **Response `200 OK`**
@@ -680,7 +680,7 @@ Trigger an immediate manual sync, bypassing the 30-minute interval. Blocks until
 **Request body:** Empty (`{}` or no body)
 
 ```bash
-curl -s -X POST https://spalla-backend.up.railway.app/api/sheets/sync | jq .
+curl -s -X POST https://web-production-2cde5.up.railway.app/api/sheets/sync | jq .
 ```
 
 **Response `200 OK`**
@@ -719,7 +719,7 @@ Generate a time-limited presigned URL for direct S3 access. The URL is valid for
 | `key` | string | ✅ | `evolution-api/{uuid}/{chatId}/audioMessage/abc.ogg` |
 
 ```bash
-curl -s "https://spalla-backend.up.railway.app/api/media/presign?key=evolution-api/uuid/5511999990000%40s.whatsapp.net/audioMessage/abc.ogg" | jq .
+curl -s "https://web-production-2cde5.up.railway.app/api/media/presign?key=evolution-api/uuid/5511999990000%40s.whatsapp.net/audioMessage/abc.ogg" | jq .
 ```
 
 **Response `200 OK`**
@@ -751,7 +751,7 @@ Fetch the S3 object and stream it through the backend. Preserves the correct `Co
 
 ```bash
 # Play audio directly in terminal (requires mpv or ffplay)
-curl -s "https://spalla-backend.up.railway.app/api/media/stream?key=evolution-api/.../abc.ogg" -o audio.ogg
+curl -s "https://web-production-2cde5.up.railway.app/api/media/stream?key=evolution-api/.../abc.ogg" -o audio.ogg
 ```
 
 **Response `200 OK`** — Raw binary with appropriate `Content-Type` header.
@@ -800,7 +800,7 @@ Trigger the processing pipeline for a file already registered in `sp_arquivos`. 
 | `arquivo_id` | string (UUID) | ✅ |
 
 ```bash
-curl -s -X POST https://spalla-backend.up.railway.app/api/storage/process \
+curl -s -X POST https://web-production-2cde5.up.railway.app/api/storage/process \
   -H "Content-Type: application/json" \
   -d '{"arquivo_id":"550e8400-e29b-41d4-a716-446655440000"}' | jq .
 ```
@@ -836,7 +836,7 @@ Semantic, keyword, or hybrid search across all processed file chunks. Uses pgvec
 | `filters.entidade_id` | integer | — | — | Filter to a specific entity |
 
 ```bash
-curl -s -X POST https://spalla-backend.up.railway.app/api/storage/search \
+curl -s -X POST https://web-production-2cde5.up.railway.app/api/storage/search \
   -H "Content-Type: application/json" \
   -d '{
     "query": "protocolo de atendimento para clientes inativos",
@@ -894,10 +894,10 @@ Both params are optional — omit both to list all files.
 
 ```bash
 # All files for mentee 7
-curl -s "https://spalla-backend.up.railway.app/api/storage/files?entidade_tipo=mentorado&entidade_id=7" | jq .
+curl -s "https://web-production-2cde5.up.railway.app/api/storage/files?entidade_tipo=mentorado&entidade_id=7" | jq .
 
 # All files in the system
-curl -s "https://spalla-backend.up.railway.app/api/storage/files" | jq .
+curl -s "https://web-production-2cde5.up.railway.app/api/storage/files" | jq .
 ```
 
 **Response `200 OK`**
@@ -935,7 +935,7 @@ System-wide storage overview: file counts, sizes, processing queue, and provider
 **Auth required:** No
 
 ```bash
-curl -s https://spalla-backend.up.railway.app/api/storage/status | jq .
+curl -s https://web-production-2cde5.up.railway.app/api/storage/status | jq .
 ```
 
 **Response `200 OK`**
@@ -991,12 +991,12 @@ Re-queue files stuck in `pendente` or `erro` status. Processes 5 files per secon
 
 ```bash
 # Reprocess all failed files
-curl -s -X POST https://spalla-backend.up.railway.app/api/storage/reprocess \
+curl -s -X POST https://web-production-2cde5.up.railway.app/api/storage/reprocess \
   -H "Content-Type: application/json" \
   -d '{"status":"erro"}' | jq .
 
 # Reprocess everything (pendente + erro)
-curl -s -X POST https://spalla-backend.up.railway.app/api/storage/reprocess \
+curl -s -X POST https://web-production-2cde5.up.railway.app/api/storage/reprocess \
   -H "Content-Type: application/json" \
   -d '{"status":"all"}' | jq .
 ```
@@ -1016,7 +1016,7 @@ Sanity check — runs a test embedding with a fixed string to verify the embeddi
 **Auth required:** No
 
 ```bash
-curl -s -X POST https://spalla-backend.up.railway.app/api/storage/test | jq .
+curl -s -X POST https://web-production-2cde5.up.railway.app/api/storage/test | jq .
 ```
 
 **Response `200 OK`**
@@ -1053,7 +1053,7 @@ Register a new mentorado from the onboarding wizard. Public endpoint — no auth
 | `whatsapp` | string | — | Used to derive temp password: `{first_name_lowercase}{last4digits}`. Example: `"11999990000"` → `joao0000` |
 
 ```bash
-curl -s -X POST https://spalla-backend.up.railway.app/api/welcome-flow/register \
+curl -s -X POST https://web-production-2cde5.up.railway.app/api/welcome-flow/register \
   -H "Content-Type: application/json" \
   -d '{
     "nome": "João Silva",
@@ -1113,18 +1113,18 @@ All requests to `/api/evolution/*` are proxied transparently to the Evolution Wh
 
 ```bash
 # List messages for a WhatsApp chat
-curl -s "https://spalla-backend.up.railway.app/api/evolution/chat/findMessages/case-spalla?where[key][remoteJid]=5511999990000@s.whatsapp.net" | jq .
+curl -s "https://web-production-2cde5.up.railway.app/api/evolution/chat/findMessages/case-spalla?where[key][remoteJid]=5511999990000@s.whatsapp.net" | jq .
 
 # Send a text message
-curl -s -X POST "https://spalla-backend.up.railway.app/api/evolution/message/sendText/case-spalla" \
+curl -s -X POST "https://web-production-2cde5.up.railway.app/api/evolution/message/sendText/case-spalla" \
   -H "Content-Type: application/json" \
   -d '{"number":"5511999990000","text":"Olá!"}' | jq .
 
 # Fetch all contacts
-curl -s "https://spalla-backend.up.railway.app/api/evolution/chat/findContacts/case-spalla" | jq .
+curl -s "https://web-production-2cde5.up.railway.app/api/evolution/chat/findContacts/case-spalla" | jq .
 
 # Check connection status
-curl -s "https://spalla-backend.up.railway.app/api/evolution/instance/connectionState/case-spalla" | jq .
+curl -s "https://web-production-2cde5.up.railway.app/api/evolution/instance/connectionState/case-spalla" | jq .
 ```
 
 > `case-spalla` is the Evolution instance name, configured via the `EVOLUTION_INSTANCE` env var. See [Evolution API documentation](https://doc.evolution-api.com) for the full endpoint catalog.
@@ -1138,7 +1138,7 @@ Returns the configured Evolution instance name and S3 bucket coordinates for res
 **Auth required:** No
 
 ```bash
-curl -s https://spalla-backend.up.railway.app/api/evolution/instance-uuid | jq .
+curl -s https://web-production-2cde5.up.railway.app/api/evolution/instance-uuid | jq .
 ```
 
 **Response `200 OK`**
@@ -1165,7 +1165,7 @@ Returns the operational status of all integrations. Use this to verify which fea
 **Auth required:** No
 
 ```bash
-curl -s https://spalla-backend.up.railway.app/api/health | jq .
+curl -s https://web-production-2cde5.up.railway.app/api/health | jq .
 ```
 
 **Response `200 OK`**
