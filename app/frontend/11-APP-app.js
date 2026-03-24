@@ -2945,7 +2945,7 @@ function operon() {
           return s === 'bloqueado' || p === 'urgente';
         })
         .slice(0, 6)
-        .map(t => ({ text: t.titulo || t.nome || 'Tarefa', who: (t.responsavel || t.assignee || '?').split(' ')[0], prioridade: t.prioridade || 'alta', url: t.url || null }));
+        .map(t => ({ text: t.titulo || t.nome || 'Tarefa', desc: t.desc || t.descricao || t.contexto || '', who: (t.responsavel || t.assignee || '?').split(' ')[0], prioridade: t.prioridade || 'alta', url: t.url || null }));
     },
 
     async loadCommandCenterData() {

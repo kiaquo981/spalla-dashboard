@@ -1558,9 +1558,16 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             operon_id = t.get('id', '')
             clickup_url = t.get('url', '')
 
+            # Descrição: remove HTML tags simples, trunca em 120 chars
+            raw_desc = t.get('description') or ''
+            clean_desc = re.sub(r'<[^>]+>', '', raw_desc).strip()
+            clean_desc = ' '.join(clean_desc.split())  # normaliza whitespace
+            short_desc = clean_desc[:120] + ('…' if len(clean_desc) > 120 else '')
+
             task_obj = {
                 'id': tid,
                 'titulo': nome,
+                'desc': short_desc,
                 'status': status,
                 # responsavel mantém username ClickUp — frontend resolve via spalla_members
                 'responsavel': ', '.join(
