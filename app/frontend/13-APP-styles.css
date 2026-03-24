@@ -4635,18 +4635,71 @@ img { max-width: 100%; display: block; }
 .ds-marcos__label--prazo.ds-deadline--soon { color: #d68910; }
 .ds-input--danger { border-color: #e74c3c !important; }
 .ds-input--warning { border-color: #f39c12 !important; }
-.ds-input--xs { width: 110px; padding: 1px 3px; font-size: 10px; height: 22px; }
+.ds-input--xs {
+  width: 120px;
+  padding: 3px 6px;
+  font-size: 11px;
+  height: 26px;
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 4px;
+  color: var(--text-primary);
+}
 
 /* Stage Prazos Grid */
-.ds-stage-prazos { margin-top: 8px; }
-.ds-stage-prazos__title { font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; display: block; }
-.ds-stage-prazos__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 4px; }
-.ds-stage-prazos__item { display: flex; align-items: center; gap: 4px; padding: 2px 4px; border-radius: 4px; background: var(--ds-bg-subtle); }
-.ds-stage-prazos__item--active { background: #f0f4ff; outline: 1px solid #93b4f8; }
-.ds-stage-prazos__label { font-size: 10px; white-space: nowrap; padding-left: 4px; min-width: 70px; }
+.ds-stage-prazos {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--ds-bg-subtle, #fafafa);
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #e8e8e8);
+}
+.ds-stage-prazos__title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.ds-stage-prazos__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px 16px;
+}
+@media (max-width: 600px) {
+  .ds-stage-prazos__grid { grid-template-columns: 1fr; }
+}
+.ds-stage-prazos__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid transparent;
+  transition: border-color 0.15s;
+}
+.ds-stage-prazos__item:hover { border-color: #d0d5dd; }
+.ds-stage-prazos__item--active {
+  background: #f0f4ff;
+  border-color: #93b4f8;
+}
+.ds-stage-prazos__label {
+  font-size: 11px;
+  white-space: nowrap;
+  padding-left: 4px;
+  min-width: 85px;
+  font-weight: 500;
+}
 
 /* Timeline prazo badge */
-.ds-timeline__prazo { font-size: 9px; display: block; margin-top: 1px; font-weight: 500; }
+.ds-timeline__prazo {
+  font-size: 9px;
+  display: block;
+  margin-top: 2px;
+  font-weight: 600;
+}
 
 /* --- Table --- */
 .ds-table {
