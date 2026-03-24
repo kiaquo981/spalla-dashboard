@@ -207,6 +207,7 @@ function operon() {
       taskTagsDropdown: false, // tags dropdown open in modal
       taskTagsFilterOpen: false, // tags filter dropdown in toolbar
       syncingSubtasks: false,    // ClickUp subtask sync in progress
+      taskExpandedIds: {},       // { [taskId]: true } for tree expand/collapse
       // Dossiers (legacy)
       dossierFilter: 'all',
       // Dossiê Production System
@@ -1356,6 +1357,23 @@ function operon() {
       }
       list.sort(this._taskSortFn.bind(this));
       return list.slice(0, 100);
+    },
+
+    // Tasks: tree view — flat array with _depth metadata for list view
+    get tasksTree() {
+      const filtered = this.filteredTasks;
+      const roots = filtered.filter(t => !t.parent_task_id);
+      const result = [];
+      for (const root of roots) {
+        const children = this.data.tasks.filter(t => t.parent_task_id === root.id);
+        result.push({ ...root, _depth: 0, _childCount: children.length });
+        if (this.ui.taskExpandedIds[root.id] && children.length) {
+          for (const child of children) {
+            result.push({ ...child, _depth: 1, _childCount: 0 });
+          }
+        }
+      }
+      return result;
     },
 
     // Tasks: grouped by status (ClickUp style board)
@@ -5238,6 +5256,10 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     getChildTasks(taskId) {
       return this.data.tasks.filter(t => t.parent_task_id === taskId);
+    },
+
+    toggleTaskExpand(taskId) {
+      this.ui.taskExpandedIds = { ...this.ui.taskExpandedIds, [taskId]: !this.ui.taskExpandedIds[taskId] };
     },
 
     getParentTask(taskId) {
