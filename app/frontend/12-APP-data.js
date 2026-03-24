@@ -792,10 +792,10 @@ const DS_ESTAGIOS = [
   { id: 'revisao_mariza', label: 'Rev. Mariza', color: '#f59e0b', icon: '◇', responsavel: 'Mariza' },
   { id: 'revisao_kaique', label: 'Rev. Kaique', color: '#3b82f6', icon: '◇', responsavel: 'Kaique' },
   { id: 'revisao_queila', label: 'Rev. Queila', color: '#ec4899', icon: '◉', responsavel: 'Queila' },
-  { id: 'aprovado', label: 'Aprovado', color: '#10b981', icon: '●', responsavel: null },
   { id: 'enviado', label: 'Enviado', color: '#06b6d4', icon: '▸', responsavel: null },
   { id: 'feedback_mentorado', label: 'Feedback', color: '#f97316', icon: '◈', responsavel: 'Mentorado' },
   { id: 'ajustes', label: 'Ajustes', color: '#ef4444', icon: '✦', responsavel: null },
+  { id: 'aprovado', label: 'Aprovado', color: '#10b981', icon: '●', responsavel: null },
   { id: 'finalizado', label: 'Finalizado', color: '#059669', icon: '★', responsavel: null },
 ];
 

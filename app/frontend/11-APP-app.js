@@ -8601,10 +8601,11 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const minStage = Math.min(...stages);
       const maxStage = Math.max(...stages);
 
+      // Ordem: 1=pendente 2=producao_ia 3=rev_mariza 4=rev_kaique 5=rev_queila 6=enviado 7=feedback 8=ajustes 9=aprovado 10=finalizado
       let newStatus;
       if (stages.every(s => s >= 10)) newStatus = 'finalizado';
-      else if (stages.every(s => s >= 7)) newStatus = 'enviado';
-      else if (stages.every(s => s >= 6)) newStatus = 'aprovado';
+      else if (stages.every(s => s >= 9)) newStatus = 'aprovado';
+      else if (stages.every(s => s >= 6)) newStatus = 'enviado';
       else if (minStage >= 3) newStatus = 'revisao';
       else if (minStage >= 2) newStatus = 'producao';
       else newStatus = 'nao_iniciado';
