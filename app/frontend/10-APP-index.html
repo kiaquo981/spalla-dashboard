@@ -4273,6 +4273,11 @@
                 <option value="finalizado">Finalizado</option>
                 <option value="pausado">Pausado/Cancelado</option>
               </select>
+              <select class="op-toolbar__select" x-model="ui.dsCarteira" aria-label="Filtrar por carteira">
+                <option value="all">Todas carteiras</option>
+                <option value="Lara">Lara</option>
+                <option value="Heitor">Heitor</option>
+              </select>
               <span class="op-toolbar__count" x-text="filteredDsProducoes.length + ' produções'" aria-live="polite"></span>
               <div class="op-tabs op-tabs--pills" style="margin-left:auto" role="tablist" aria-label="Modo de visualizacao">
                 <button class="op-tab" :class="{ 'active': ui.dsView === 'painel' }" @click="ui.dsView = 'painel'" role="tab" :aria-selected="ui.dsView === 'painel'">Painel</button>
@@ -4289,7 +4294,10 @@
                     <div class="ds-prod-card__header">
                       <div class="ds-prod-card__avatar" :style="'background:' + avatarGradient(p.mentorado_nome)" x-text="avatarInitials(p.mentorado_nome)"></div>
                       <div class="ds-prod-card__info">
-                        <span class="ds-prod-card__name" x-text="p.mentorado_nome"></span>
+                        <div style="display:flex;align-items:center;gap:4px">
+                          <span class="ds-prod-card__name" x-text="p.mentorado_nome"></span>
+                          <span x-show="p.carteira" style="font-size:9px;font-weight:600;padding:1px 4px;border-radius:3px;background:#f1f5f9;color:#64748b" x-text="p.carteira"></span>
+                        </div>
                         <span class="ds-prod-card__resp" x-text="'Resp: ' + (p.responsavel_atual || '-')"></span>
                       </div>
                       <span class="ds-status-badge" :style="'background:' + dsStatusConfig(p.status).color + '20; color:' + dsStatusConfig(p.status).color" x-text="dsStatusConfig(p.status).label"></span>
@@ -4351,7 +4359,10 @@
                           @dragend="dsDragEnd($event)"
                           @click="openDsDetail(p.producao_id)"
                           :aria-label="p.mentorado_nome">
-                          <span class="ds-pipeline__card-name" x-text="p.mentorado_nome"></span>
+                          <div style="display:flex;align-items:center;gap:4px">
+                            <span class="ds-pipeline__card-name" x-text="p.mentorado_nome"></span>
+                            <span x-show="p.carteira" style="font-size:9px;font-weight:600;padding:1px 4px;border-radius:3px;background:#f1f5f9;color:#64748b" x-text="p.carteira"></span>
+                          </div>
                           <div class="ds-pipeline__card-dots" aria-hidden="true">
                             <template x-for="dt in DS_DOC_TIPOS" :key="dt.id">
                               <span class="ds-pipeline__dot" :style="'background:' + dsEstagioConfig(p[dt.id + '_estagio'] || 'pendente').color" :title="dt.label + ': ' + dsEstagioConfig(p[dt.id + '_estagio'] || 'pendente').label"></span>
@@ -4383,6 +4394,7 @@
                     <th scope="col" @click="dsSortBy('mentorado_nome')" :class="{ 'ds-table__th--sorted': ui.dsSortField === 'mentorado_nome' }">Mentorado <span class="ds-sort-icon" x-text="ui.dsSortField === 'mentorado_nome' ? (ui.dsSortAsc ? '▲' : '▼') : '⇅'"></span></th>
                     <th scope="col" @click="dsSortBy('status')" :class="{ 'ds-table__th--sorted': ui.dsSortField === 'status' }">Status <span class="ds-sort-icon" x-text="ui.dsSortField === 'status' ? (ui.dsSortAsc ? '▲' : '▼') : '⇅'"></span></th>
                     <th scope="col">Responsável</th>
+                    <th scope="col" @click="dsSortBy('carteira')" :class="{ 'ds-table__th--sorted': ui.dsSortField === 'carteira' }">Carteira <span class="ds-sort-icon" x-text="ui.dsSortField === 'carteira' ? (ui.dsSortAsc ? '▲' : '▼') : '⇅'"></span></th>
                     <th scope="col">Oferta</th>
                     <th scope="col">Funil</th>
                     <th scope="col">Conteúdo</th>
@@ -4402,6 +4414,7 @@
                       <td><strong x-text="p.mentorado_nome"></strong></td>
                       <td><span class="ds-status-badge ds-status-badge--sm" :style="'background:' + dsStatusConfig(p.status).color + '20; color:' + dsStatusConfig(p.status).color" x-text="dsStatusConfig(p.status).label"></span></td>
                       <td x-text="p.responsavel_atual || '-'"></td>
+                      <td><span x-show="p.carteira" style="font-size:11px;font-weight:600;padding:1px 5px;border-radius:3px;background:#f1f5f9;color:#64748b" x-text="p.carteira"></span><span x-show="!p.carteira" style="color:#94a3b8">-</span></td>
                       <td class="ds-table__stage-cell"><span class="ds-stage-dot" :style="'background:' + dsEstagioConfig(p.oferta_estagio || 'pendente').color" :title="dsEstagioConfig(p.oferta_estagio || 'pendente').label"></span> <span x-text="dsEstagioConfig(p.oferta_estagio || 'pendente').label"></span></td>
                       <td class="ds-table__stage-cell"><span class="ds-stage-dot" :style="'background:' + dsEstagioConfig(p.funil_estagio || 'pendente').color" :title="dsEstagioConfig(p.funil_estagio || 'pendente').label"></span> <span x-text="dsEstagioConfig(p.funil_estagio || 'pendente').label"></span></td>
                       <td class="ds-table__stage-cell"><span class="ds-stage-dot" :style="'background:' + dsEstagioConfig(p.conteudo_estagio || 'pendente').color" :title="dsEstagioConfig(p.conteudo_estagio || 'pendente').label"></span> <span x-text="dsEstagioConfig(p.conteudo_estagio || 'pendente').label"></span></td>

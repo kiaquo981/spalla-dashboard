@@ -213,6 +213,7 @@ function operon() {
       dossierFilter: 'all',
       // Dossiê Production System
       dsFilter: 'all',
+      dsCarteira: 'all',
       dsView: 'painel',        // painel | pipeline | lista
       dsSearchQuery: '',
       dsExpandedDocs: {},       // { producaoId: true }
@@ -8344,10 +8345,37 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         ]);
         if (prodRes.data) this.data.dsProducoes = prodRes.data;
         if (docsRes.data) this.data.dsAllDocs = docsRes.data;
+        // Auto-sync status for all non-paused/cancelled productions
+        this._autoSyncDsStatuses();
       } catch (e) {
         console.error('[DS] loadDsData error:', e);
       } finally {
         this.ui.dsLoading = false;
+      }
+    },
+
+    async _autoSyncDsStatuses() {
+      if (!sb) return;
+      const skipStatuses = ['pausado', 'cancelado'];
+      for (const prod of this.data.dsProducoes) {
+        if (skipStatuses.includes(prod.status)) continue;
+        const docs = this.data.dsAllDocs.filter(d => d.producao_id === prod.producao_id);
+        if (!docs.length) continue;
+        const stages = docs.map(d => this.dsEstagioNum(d.estagio_atual));
+        const minStage = Math.min(...stages);
+        let expected;
+        if (stages.every(s => s >= 10)) expected = 'finalizado';
+        else if (stages.every(s => s >= 9)) expected = 'aprovado';
+        else if (stages.every(s => s >= 6)) expected = 'enviado';
+        else if (minStage >= 3) expected = 'revisao';
+        else if (minStage >= 2) expected = 'producao';
+        else expected = 'nao_iniciado';
+        if (expected !== prod.status) {
+          const mostBehind = docs.reduce((a, b) => this.dsEstagioNum(a.estagio_atual) <= this.dsEstagioNum(b.estagio_atual) ? a : b);
+          await sb.from('ds_producoes').update({ status: expected, responsavel_atual: mostBehind.responsavel_atual }).eq('id', prod.producao_id);
+          prod.status = expected;
+          prod.responsavel_atual = mostBehind.responsavel_atual;
+        }
       }
     },
 
@@ -8479,6 +8507,10 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         };
         const statuses = statusMap[this.ui.dsFilter] || [this.ui.dsFilter];
         list = list.filter(p => statuses.includes(p.status));
+      }
+      // Carteira filter
+      if (this.ui.dsCarteira && this.ui.dsCarteira !== 'all') {
+        list = list.filter(p => (p.carteira || '').toLowerCase() === this.ui.dsCarteira.toLowerCase());
       }
       // Search filter
       if (this.ui.dsSearchQuery) {
