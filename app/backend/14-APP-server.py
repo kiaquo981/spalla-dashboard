@@ -1585,6 +1585,13 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 f"https://api.clickup.com/api/v2/list/{active['list_id']}/task"
                 f"?include_closed=true&subtasks=true&page=0"
             )
+            # If active sprint is empty, also pull from main-list
+            if not data.get('tasks') and active['list_id'] != main_list['list_id']:
+                active = main_list
+                data = clickup_get(
+                    f"https://api.clickup.com/api/v2/list/{main_list['list_id']}/task"
+                    f"?include_closed=true&subtasks=true&page=0"
+                )
         except Exception as e:
             self._send_json({'error': f'ClickUp API error: {e}'}, 502)
             return
