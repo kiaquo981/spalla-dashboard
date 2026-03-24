@@ -2106,7 +2106,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         Returns: { reply: str, context_used: bool }
         """
         try:
-            body = self._read_json_body()
+            body = json.loads(self._read_body())
             mentee_id = body.get('mentee_id')
             user_message = (body.get('message') or '').strip()
             history = body.get('history') or []
