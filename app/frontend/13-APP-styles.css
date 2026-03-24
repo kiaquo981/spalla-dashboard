@@ -2204,6 +2204,7 @@ img { max-width: 100%; display: block; }
   background-size: cover;
   background-position: center;
   z-index: 1;
+  transition: opacity 0.15s ease;
 }
 .mc-card__risk-dot {
   position: absolute;

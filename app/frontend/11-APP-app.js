@@ -7218,7 +7218,12 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         // Remove from local list immediately (ativo = false → filtered out by view)
         this.data.mentees = this.data.mentees.filter(x => x.id !== m.menteeId);
-        this.toast(`${m.menteeNome} desligado com sucesso`, 'success');
+        // If detail view is open for this mentee, close it
+        if (this.data.detail?.profile?.id === m.menteeId) {
+          this.data.detail = null;
+          this.ui.showDetail = false;
+        }
+        this.toast(`${m.menteeNome} desativado com sucesso`, 'success');
         this.closeOffboardModal();
       } catch (e) {
         this.toast('Erro ao desligar mentorado: ' + e.message, 'error');
@@ -7717,6 +7722,14 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       // Fourth: try local photos directory
       const fileKey = isHandle ? clean : clean.replace(/\s+/g, '_');
       return `photos/${fileKey}.jpg`;
+    },
+
+    // Returns style object for mc-card__avatar-photo.
+    // Returns empty object (not setting background-image) when no photo URL exists,
+    // preventing url(null) being set and the browser flickering on re-evaluation.
+    igPhotoStyle(handleOrName) {
+      const url = this.igPhoto(handleOrName);
+      return url ? { 'background-image': `url(${url})` } : {};
     },
 
     callMenteePhoto(call) {

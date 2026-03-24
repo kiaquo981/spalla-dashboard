@@ -1281,7 +1281,7 @@
                 <div class="mc-card__header">
                   <div class="mc-card__avatar">
                     <div class="mc-card__avatar-inner" :style="'background:' + avatarGradient(m.nome)" x-text="avatarInitials(m.nome)"></div>
-                    <div class="mc-card__avatar-photo" :style="{'background-image': 'url(' + igPhoto(m.instagram || m.nome) + ')'}"></div>
+                    <div class="mc-card__avatar-photo" x-show="igPhoto(m.instagram || m.nome)" :style="igPhotoStyle(m.instagram || m.nome)" x-transition:enter="transition-opacity ease-out duration-150" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"></div>
                     <!-- Risk dot -->
                     <span class="mc-card__risk-dot" :class="'mc-card__risk-dot--' + m.risco_churn"></span>
                   </div>
@@ -1385,7 +1385,7 @@
             <div class="detail-hero">
               <div class="detail-hero__avatar">
                 <div class="avatar avatar--xl avatar--brand" :style="'background:' + avatarGradient(data.detail?.profile?.nome)" x-text="avatarInitials(data.detail?.profile?.nome)"></div>
-                <div class="detail-hero__photo" :style="{'background-image': 'url(' + igPhoto(data.detail?.profile?.instagram || data.detail?.profile?.nome) + ')'}"></div>
+                <div class="detail-hero__photo" x-show="igPhoto(data.detail?.profile?.instagram || data.detail?.profile?.nome)" :style="igPhotoStyle(data.detail?.profile?.instagram || data.detail?.profile?.nome)"></div>
               </div>
               <div class="detail-hero__info">
                 <h1 x-text="data.detail?.profile?.nome"></h1>
@@ -1410,6 +1410,14 @@
                 <div class="stat-box"><div class="stat-box__val" x-text="data.detail?.financial?.qtd_vendas_total || 0"></div><div class="stat-box__label">Vendas</div></div>
                 <div class="stat-box"><div class="stat-box__val" x-text="(data.detail?.phase?.engagement_score || 0) + '%'"></div><div class="stat-box__label">Engajamento</div></div>
                 <div class="stat-box"><div class="stat-box__val" x-text="(data.detail?.phase?.implementation_score || 0) + '%'"></div><div class="stat-box__label">Implementacao</div></div>
+                <div class="stat-box" style="border-top:1px solid var(--error-200,#fecaca);padding-top:8px;margin-top:4px">
+                  <button class="btn btn--ghost btn--sm" style="color:var(--error-600,#dc2626);font-size:11px;padding:4px 8px;width:100%"
+                          @click="openOffboardModal(data.detail.profile.id, data.detail.profile.nome)"
+                          title="Desativar este mentorado do sistema">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                    Desativar
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -6686,13 +6694,6 @@
                             style="font-size:11px;padding:4px 10px">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                       Digest
-                    </button>
-                    <button class="btn btn--ghost btn--sm"
-                            @click="openOffboardModal(m.id, m.nome)"
-                            title="Arquivar mentorado (reembolso ou conclusão)"
-                            style="font-size:11px;padding:4px 10px;color:var(--error-600,#dc2626)">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
-                      Arquivar
                     </button>
                   </div>
                 </div>
