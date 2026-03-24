@@ -302,6 +302,14 @@
   --scrollbar-track: transparent;
   --scrollbar-thumb: var(--neutral-300);
   --scrollbar-thumb-hover: var(--neutral-400);
+
+  /* ── Operon Component Aliases (Copiloto IA, floating panels) ── */
+  --op-primary: var(--brand-900);    /* #35301d — deep olive-brown */
+  --op-surface: var(--bg-primary);   /* #ffffff — white panel background */
+  --op-bg:      var(--bg-secondary); /* #faf9f7 — off-white input background */
+  --op-text:    var(--text-primary);  /* var(--brand-900) — body text */
+  --op-border:  var(--border);       /* var(--neutral-200) — light border */
+  --op-accent:  var(--accent-500);   /* #d4703a — terracotta accent */
 }
 
 /* ===== DARK MODE ===== */

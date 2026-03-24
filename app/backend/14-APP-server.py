@@ -1610,6 +1610,129 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             'concluidas': len(by_status.get('concluida', [])),
         })
 
+    # ===== CLICKUP SYNC SUBTASKS =====
+    def _handle_clickup_sync_subtasks(self):
+        """POST /api/clickup/sync-subtasks — Fetch ClickUp subtasks, upsert into god_task_subtasks"""
+        token = os.environ.get('CLICKUP_API_TOKEN', '')
+        if not token:
+            self._send_json({'error': 'CLICKUP_API_TOKEN not configured'}, 500)
+            return
+
+        sprint_list_ids = ['901113377455', '901113377456', '901113377457']
+        headers = {'Authorization': token, 'Content-Type': 'application/json'}
+
+        def clickup_get(url):
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=15) as r:
+                return json.loads(r.read())
+
+        def normalize_status(raw):
+            s = (raw or '').lower().strip()
+            if s in ('in progress', 'em andamento', 'doing', 'in_progress'):
+                return 'em_andamento'
+            if s in ('review', 'em revisão', 'in review', 'em_revisao', 'em revisao'):
+                return 'em_revisao'
+            if s in ('done', 'complete', 'concluída', 'concluido', 'closed'):
+                return 'concluida'
+            return 'pendente'
+
+        def ms_to_date(ms_val):
+            if not ms_val:
+                return None
+            try:
+                return datetime.fromtimestamp(int(ms_val) // 1000, tz=timezone.utc).strftime('%Y-%m-%d')
+            except Exception:
+                return None
+
+        try:
+            # 1. Collect all ClickUp subtasks across sprint lists
+            clickup_subs = {}  # parent_clickup_id → [subtask, ...]
+            for list_id in sprint_list_ids:
+                try:
+                    data = clickup_get(
+                        f"https://api.clickup.com/api/v2/list/{list_id}/task"
+                        f"?include_closed=true&subtasks=true&page=0"
+                    )
+                except Exception:
+                    continue
+                for item in data.get('tasks', []):
+                    if item.get('parent'):
+                        clickup_subs.setdefault(item['parent'], []).append(item)
+
+            # 2. Fetch god_tasks that have operon_id set (maps ClickUp ID → Supabase UUID)
+            gt_rows = supabase_request('GET', 'god_tasks?select=id,operon_id&operon_id=not.is.null')
+            if isinstance(gt_rows, dict) and gt_rows.get('error'):
+                self._send_json({'error': f"DB error: {gt_rows['error']}"}, 500)
+                return
+            operon_to_uuid = {r['operon_id']: r['id'] for r in (gt_rows or [])}
+
+            # 3. Find parents that exist both in ClickUp subtasks and god_tasks
+            matched_parents = {
+                cu_id: operon_to_uuid[cu_id]
+                for cu_id in clickup_subs
+                if cu_id in operon_to_uuid
+            }
+
+            if not matched_parents:
+                self._send_json({
+                    'synced': 0,
+                    'tasks_matched': 0,
+                    'message': 'No god_tasks matched ClickUp parent IDs — check operon_id column',
+                })
+                return
+
+            # 4. Fetch existing clickup-sourced subtasks for matched task UUIDs
+            uuid_csv = ','.join(matched_parents.values())
+            existing_rows = supabase_request(
+                'GET',
+                f'god_task_subtasks?select=id,task_id,clickup_id&task_id=in.({uuid_csv})&clickup_id=not.is.null'
+            )
+            existing_map = {}  # (task_uuid, clickup_id) → subtask row id
+            for row in (existing_rows or []):
+                if row.get('clickup_id'):
+                    existing_map[(row['task_id'], row['clickup_id'])] = row['id']
+
+            # 5. Upsert subtasks
+            synced = 0
+            errors = 0
+            for cu_parent_id, god_task_uuid in matched_parents.items():
+                for st in clickup_subs[cu_parent_id]:
+                    cu_st_id = st.get('id', '')
+                    status = normalize_status(st.get('status', {}).get('status', ''))
+                    row = {
+                        'task_id':     god_task_uuid,
+                        'texto':       st.get('name', ''),
+                        'done':        status == 'concluida',
+                        'status':      status,
+                        'responsavel': ', '.join(
+                            (a.get('username') or a.get('email') or '').split('@')[0]
+                            for a in st.get('assignees', [])
+                        ) or None,
+                        'data_inicio': ms_to_date(st.get('start_date')),
+                        'data_fim':    ms_to_date(st.get('due_date')),
+                        'prioridade':  'normal',
+                        'clickup_id':  cu_st_id,
+                    }
+                    key = (god_task_uuid, cu_st_id)
+                    if key in existing_map:
+                        result = supabase_request('PATCH', f'god_task_subtasks?id=eq.{existing_map[key]}', row)
+                    else:
+                        result = supabase_request('POST', 'god_task_subtasks', row)
+                    if isinstance(result, dict) and result.get('error'):
+                        errors += 1
+                    else:
+                        synced += 1
+
+            self._send_json({
+                'synced': synced,
+                'errors': errors,
+                'tasks_matched': len(matched_parents),
+                'subtasks_found': sum(len(v) for v in clickup_subs.values()),
+            })
+
+        except Exception as e:
+            self._send_json({'error': f'Sync failed: {e}'}, 500)
+
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -1740,6 +1863,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         elif re.match(r'^/api/mentee-groups/(\d+)/members$', self.path):
             _m = re.match(r'^/api/mentee-groups/(\d+)/members$', self.path)
             self._handle_post_group_member(_m.group(1))
+        elif self.path == '/api/clickup/sync-subtasks':
+            self._handle_clickup_sync_subtasks()
         else:
             self._send_json({'error': 'Not found'}, 404)
 
