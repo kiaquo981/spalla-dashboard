@@ -1558,11 +1558,13 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             operon_id = t.get('id', '')
             clickup_url = t.get('url', '')
 
-            # Descrição: remove HTML tags simples, trunca em 120 chars
+            # Descrição: pega primeira linha não-vazia, remove markdown/HTML, trunca 80
             raw_desc = t.get('description') or ''
-            clean_desc = re.sub(r'<[^>]+>', '', raw_desc).strip()
-            clean_desc = ' '.join(clean_desc.split())  # normaliza whitespace
-            short_desc = clean_desc[:120] + ('…' if len(clean_desc) > 120 else '')
+            clean_desc = re.sub(r'<[^>]+>', '', raw_desc)
+            clean_desc = re.sub(r'[*_`#>]', '', clean_desc)  # remove markdown
+            # primeira linha não-vazia
+            first_line = next((l.strip() for l in clean_desc.splitlines() if l.strip()), '')
+            short_desc = first_line[:80] + ('…' if len(first_line) > 80 else '')
 
             task_obj = {
                 'id': tid,
