@@ -503,23 +503,34 @@ _sheets_last_result = None
 
 
 def get_sheets_service():
-    """Initialize Google Sheets API service using service account"""
+    """Initialize Google Sheets API service using service account (env var or file)"""
     global _sheets_service
     if _sheets_service:
         return _sheets_service
 
     try:
+        import base64
         from google.oauth2 import service_account
         from googleapiclient.discovery import build
 
-        if not os.path.exists(GOOGLE_SA_PATH):
-            log_error('Sheets', f'Service account not found at {GOOGLE_SA_PATH}')
+        SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
+
+        sa_json = os.environ.get('GOOGLE_SA_JSON', '') or os.environ.get('GOOGLE_SA_CREDENTIALS_B64', '')
+        if sa_json:
+            info = json.loads(base64.b64decode(sa_json))
+            credentials = service_account.Credentials.from_service_account_info(
+                info, scopes=SCOPES
+            )
+            print('[Sheets] using GOOGLE_SA_JSON/GOOGLE_SA_CREDENTIALS_B64')
+        elif os.path.exists(GOOGLE_SA_PATH):
+            credentials = service_account.Credentials.from_service_account_file(
+                GOOGLE_SA_PATH, scopes=SCOPES
+            )
+            print(f'[Sheets] using GOOGLE_SA_PATH: {GOOGLE_SA_PATH}')
+        else:
+            log_error('Sheets', f'No credentials found (GOOGLE_SA_JSON not set, {GOOGLE_SA_PATH} not found)')
             return None
 
-        SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
-        credentials = service_account.Credentials.from_service_account_file(
-            GOOGLE_SA_PATH, scopes=SCOPES
-        )
         _sheets_service = build('sheets', 'v4', credentials=credentials)
         return _sheets_service
     except Exception as e:
@@ -1834,7 +1845,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({
                 'status': 'ok',
                 'zoom_configured': bool(ZOOM_ACCOUNT_ID and ZOOM_CLIENT_ID),
-                'gcal_configured': os.path.exists(GOOGLE_SA_PATH),
+                'gcal_configured': bool(os.environ.get('GOOGLE_SA_JSON') or os.environ.get('GOOGLE_SA_CREDENTIALS_B64') or os.path.exists(GOOGLE_SA_PATH)),
                 'supabase_configured': bool(SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY),
                 'sheets_configured': get_sheets_service() is not None,
                 'openai_configured': bool(OPENAI_API_KEY),
