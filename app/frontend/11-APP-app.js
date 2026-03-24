@@ -218,6 +218,12 @@ function operon() {
       dsExpandedDocs: {},       // { producaoId: true }
       dsLoading: false,
       dsModal: false,
+      dsCreateModal: false,
+      dsCreateForm: { mentorado_id: '', responsavel: '', briefing: '', docs: ['oferta', 'funil', 'conteudo'] },
+      dsCreateUploading: false,
+      dsCreateFiles: [],
+      dsRecording: false,
+      dsMediaRecorder: null,
       dsDetailProducaoId: null, // for detail view
       dsConfirm: null,          // { title, msg, onConfirm }
       dsSortField: 'mentorado_nome',
@@ -8766,6 +8772,124 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.data.dsMenteeDetail = null;
       this.data.dsEventos = [];
       this.data.dsAjustes = [];
+    },
+
+    // --- DS Create Production ---
+    async openDsCreateModal() {
+      this.ui.dsCreateModal = true;
+      this.ui.dsCreateForm = { mentorado_id: '', responsavel: '', briefing: '', docs: ['oferta', 'funil', 'conteudo'] };
+      this.ui.dsCreateFiles = [];
+      // Load mentorados list if not cached
+      if (!this._dsMentoradosList) {
+        const { data } = await sb.from('mentorados').select('id, nome').eq('status', 'ativo').order('nome');
+        this._dsMentoradosList = data || [];
+      }
+    },
+
+    get dsMentoradosList() { return this._dsMentoradosList || []; },
+
+    async dsCreateProducao() {
+      if (!sb) return;
+      const f = this.ui.dsCreateForm;
+      if (!f.mentorado_id) { this.toast('Selecione um mentorado', 'warning'); return; }
+      if (!f.docs.length) { this.toast('Selecione pelo menos um dossiê', 'warning'); return; }
+
+      this.ui.dsCreateUploading = true;
+      try {
+        // 1. Create producao
+        const { data: prod, error: prodErr } = await sb.from('ds_producoes').insert({
+          mentorado_id: parseInt(f.mentorado_id),
+          status: 'nao_iniciado',
+          responsavel_atual: f.responsavel || null,
+          briefing: f.briefing || null,
+        }).select().single();
+        if (prodErr) throw prodErr;
+
+        // 2. Create documents
+        const docs = f.docs.map((tipo, i) => ({
+          producao_id: prod.id,
+          mentorado_id: parseInt(f.mentorado_id),
+          tipo,
+          titulo: tipo === 'oferta' ? 'Dossiê de Oferta' : tipo === 'funil' ? 'Dossiê de Funil' : 'Dossiê de Posicionamento',
+          estagio_atual: 'pendente',
+          responsavel_atual: f.responsavel || null,
+          ordem: i + 1,
+        }));
+        const { error: docsErr } = await sb.from('ds_documentos').insert(docs);
+        if (docsErr) throw docsErr;
+
+        // 3. Upload files
+        for (const file of this.ui.dsCreateFiles) {
+          const path = `${prod.id}/${Date.now()}_${file.name}`;
+          const { error: uploadErr } = await sb.storage.from('dossie-briefings').upload(path, file);
+          if (!uploadErr) {
+            await sb.from('ds_briefing_files').insert({
+              producao_id: prod.id,
+              nome: file.name,
+              tipo: file.type,
+              tamanho: file.size,
+              storage_path: path,
+              uploaded_by: this.currentUserName,
+            });
+          }
+        }
+
+        // 4. Log event
+        await this._logDsEvento(prod.id, null, 'nota', null, 'producao_criada', this.currentUserName, 'Produção criada com briefing');
+
+        this.ui.dsCreateModal = false;
+        await this.loadDsData();
+        this.toast('Produção criada com sucesso!', 'success');
+      } catch (e) {
+        console.error('[DS] createProducao error:', e);
+        this.toast('Erro ao criar: ' + (e.message || e), 'error');
+      } finally {
+        this.ui.dsCreateUploading = false;
+      }
+    },
+
+    dsToggleDocType(tipo) {
+      const idx = this.ui.dsCreateForm.docs.indexOf(tipo);
+      if (idx >= 0) this.ui.dsCreateForm.docs.splice(idx, 1);
+      else this.ui.dsCreateForm.docs.push(tipo);
+    },
+
+    dsHandleFileInput(event) {
+      const files = Array.from(event.target.files || []);
+      this.ui.dsCreateFiles.push(...files);
+      event.target.value = '';
+    },
+
+    dsRemoveFile(idx) {
+      this.ui.dsCreateFiles.splice(idx, 1);
+    },
+
+    async dsStartRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const recorder = new MediaRecorder(stream);
+        const chunks = [];
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = () => {
+          const blob = new Blob(chunks, { type: 'audio/webm' });
+          const file = new File([blob], `audio_${Date.now()}.webm`, { type: 'audio/webm' });
+          this.ui.dsCreateFiles.push(file);
+          stream.getTracks().forEach(t => t.stop());
+          this.ui.dsRecording = false;
+          this.toast('Audio gravado', 'success');
+        };
+        recorder.start();
+        this.ui.dsMediaRecorder = recorder;
+        this.ui.dsRecording = true;
+      } catch (e) {
+        this.toast('Erro ao acessar microfone: ' + e.message, 'error');
+      }
+    },
+
+    dsStopRecording() {
+      if (this.ui.dsMediaRecorder && this.ui.dsMediaRecorder.state === 'recording') {
+        this.ui.dsMediaRecorder.stop();
+      }
     },
 
     dsFormatDate(d) {
