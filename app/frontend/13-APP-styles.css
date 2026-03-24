@@ -4645,6 +4645,116 @@ img { max-width: 100%; display: block; }
   color: var(--text-primary);
 }
 
+/* --- Create Dossiê Modal --- */
+.ds-modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.35);
+  z-index: 999;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.ds-create-modal {
+  background: var(--ds-bg-surface, #fff);
+  border-radius: 12px;
+  width: 100%; max-width: 580px;
+  box-shadow: 0 24px 64px rgba(0,0,0,.12), 0 2px 8px rgba(0,0,0,.06);
+  display: flex; flex-direction: column;
+  max-height: 90vh;
+}
+.ds-create-modal__header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--ds-border, #e8e8e8);
+}
+.ds-create-modal__header h3 { margin: 0; font-size: 15px; font-weight: 700; }
+.ds-create-modal__close {
+  background: none; border: none;
+  width: 28px; height: 28px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; color: var(--text-secondary); cursor: pointer;
+  transition: background .15s;
+}
+.ds-create-modal__close:hover { background: var(--ds-bg-subtle, #f5f5f5); }
+.ds-create-modal__body {
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 18px 20px;
+  overflow-y: auto; flex: 1;
+}
+.ds-create-modal__row { display: flex; gap: 12px; }
+.ds-create-modal__field { display: flex; flex-direction: column; flex: 1; }
+.ds-create-modal__label {
+  font-size: 12px; font-weight: 600;
+  color: var(--text-secondary); margin-bottom: 5px;
+  text-transform: uppercase; letter-spacing: .3px;
+}
+.ds-create-modal__field .ds-input { width: 100%; }
+.ds-create-modal__field textarea.ds-input { font-size: 13px; line-height: 1.5; }
+
+/* Checks (dossiê toggle) */
+.ds-create-modal__checks { display: flex; gap: 8px; }
+.ds-create-modal__check {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 8px;
+  border: 1.5px solid var(--ds-border, #e2e8f0);
+  background: var(--ds-bg-surface, #fff);
+  font-size: 13px; font-weight: 500; color: #94a3b8;
+  cursor: pointer; transition: all .15s; flex: 1;
+}
+.ds-create-modal__check:hover { border-color: #c0c6d0; }
+.ds-create-modal__check--on {
+  border-color: var(--check-color, #6366f1);
+  background: color-mix(in srgb, var(--check-color, #6366f1) 6%, white);
+  color: var(--check-color, #6366f1);
+}
+.ds-create-modal__check-box {
+  width: 18px; height: 18px; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0;
+  background: #d0d5dd; transition: background .15s;
+}
+.ds-create-modal__check--on .ds-create-modal__check-box {
+  background: var(--check-color, #6366f1);
+}
+
+/* Dropzone */
+.ds-create-modal__dropzone {
+  border: 2px dashed var(--ds-border, #d0d5dd);
+  border-radius: 8px; padding: 14px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; transition: border-color .15s;
+  font-size: 12px; color: var(--text-secondary);
+}
+.ds-create-modal__dropzone:hover,
+.ds-create-modal__dropzone--active { border-color: var(--primary, #6366f1); }
+.ds-create-modal__dropzone svg { stroke: var(--text-secondary); }
+
+/* File list */
+.ds-create-modal__files { display: flex; flex-direction: column; gap: 3px; }
+.ds-create-modal__file {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 10px; background: var(--ds-bg-subtle, #f8fafc);
+  border-radius: 6px; font-size: 11px;
+}
+.ds-create-modal__file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-create-modal__file-size { color: #94a3b8; flex-shrink: 0; }
+.ds-create-modal__file-rm {
+  background: none; border: none; color: #ef4444;
+  cursor: pointer; font-size: 14px; padding: 0; line-height: 1;
+}
+
+/* Footer */
+.ds-create-modal__footer {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--ds-border, #e8e8e8);
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .ds-create-modal__row { flex-direction: column; }
+  .ds-create-modal__checks { flex-direction: column; }
+}
+
 /* Stage Prazos Grid */
 .ds-stage-prazos {
   margin-top: 12px;
