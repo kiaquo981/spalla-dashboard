@@ -1558,7 +1558,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         today_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
         active = next(
             (s for s in sprint_lists if s['inicio'] <= today_str <= s['fim']),
-            main_list  # Fallback to main-list if no active sprint
+            sprint_lists[-1]  # Fallback to last sprint if none matches today
         )
 
         headers = {'Authorization': token, 'Content-Type': 'application/json'}
@@ -1581,22 +1581,30 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             return 'backlog'
 
         try:
+            # Fetch sprint tasks
             data = clickup_get(
                 f"https://api.clickup.com/api/v2/list/{active['list_id']}/task"
                 f"?include_closed=true&subtasks=true&page=0"
             )
-            # If active sprint is empty, also pull from main-list
-            if not data.get('tasks') and active['list_id'] != main_list['list_id']:
-                active = main_list
-                data = clickup_get(
-                    f"https://api.clickup.com/api/v2/list/{main_list['list_id']}/task"
-                    f"?include_closed=true&subtasks=true&page=0"
-                )
+            all_items = data.get('tasks', [])
+
+            # Also fetch main-list (backlog) and merge — sprint stays as active reference
+            if main_list['list_id'] != active['list_id']:
+                try:
+                    backlog_data = clickup_get(
+                        f"https://api.clickup.com/api/v2/list/{main_list['list_id']}/task"
+                        f"?include_closed=true&subtasks=true&page=0"
+                    )
+                    # Add backlog tasks that aren't already in the sprint
+                    sprint_ids = {t['id'] for t in all_items}
+                    for t in backlog_data.get('tasks', []):
+                        if t['id'] not in sprint_ids:
+                            all_items.append(t)
+                except Exception:
+                    pass  # Non-fatal: backlog fetch failure doesn't block sprint view
         except Exception as e:
             self._send_json({'error': f'ClickUp API error: {e}'}, 502)
             return
-
-        all_items = data.get('tasks', [])
         # Separate parent tasks from subtasks (subtasks have a non-null 'parent' field)
         tasks     = [t for t in all_items if not t.get('parent')]
         subtasks  = [t for t in all_items if t.get('parent')]
