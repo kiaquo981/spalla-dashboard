@@ -4893,7 +4893,19 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (isNew && this.auth.currentUser) row.created_by = this.auth.currentUser.id;
       try {
         const { error } = await sb.from('god_tasks').upsert(row, { onConflict: 'id' });
-        if (error) { console.warn('[Spalla] Task upsert error:', error.message); return { ok: false, error }; }
+        if (error) {
+          // Graceful degradation: if bloqueio columns not in DB yet, retry without them
+          if (error.code === '42703' && error.message && error.message.includes('bloqueio_')) {
+            const fallback = { ...row };
+            delete fallback.bloqueio_motivo;
+            delete fallback.bloqueio_responsavel;
+            const { error: err2 } = await sb.from('god_tasks').upsert(fallback, { onConflict: 'id' });
+            if (err2) { console.warn('[Spalla] Task upsert error:', err2.message); return { ok: false, error: err2 }; }
+            console.warn('[Spalla] bloqueio colunas ausentes — aplique a migration 20260324120000_add_bloqueio_motivo.sql');
+            return { ok: true };
+          }
+          console.warn('[Spalla] Task upsert error:', error.message); return { ok: false, error };
+        }
         return { ok: true };
       } catch (e) { console.warn('[Spalla] Task upsert error:', e.message); return { ok: false }; }
     },
