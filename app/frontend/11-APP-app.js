@@ -2945,7 +2945,14 @@ function operon() {
           return s === 'bloqueado' || p === 'urgente';
         })
         .slice(0, 6)
-        .map(t => ({ text: t.titulo || t.nome || 'Tarefa', desc: t.desc || t.descricao || t.contexto || '', who: (t.responsavel || t.assignee || '?').split(' ')[0], prioridade: t.prioridade || 'alta', url: t.url || null }));
+        .map(t => {
+          const rawDesc = t.desc || t.descricao || t.contexto || '';
+          const cleanDesc = rawDesc.replace(/[*_`#>]/g, '').trim();
+          const firstLine = cleanDesc.split('\n').find(l => l.trim()) || '';
+          const s = firstLine.trim();
+          const shortDesc = s.length > 60 ? s.slice(0, 60) + '…' : s;
+          return { text: t.titulo || t.nome || 'Tarefa', desc: shortDesc, who: (t.responsavel || t.assignee || '?').split(' ')[0], prioridade: t.prioridade || 'alta', url: t.url || null };
+        });
     },
 
     async loadCommandCenterData() {
