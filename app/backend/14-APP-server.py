@@ -1547,17 +1547,18 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': 'CLICKUP_API_TOKEN not configured'}, 500)
             return
 
-        # Sprint list IDs — id == list_id para bater com god_lists.id no Supabase
+        # All known lists — sprint lists + main backlog
         sprint_lists = [
             {'id': '901113377455', 'list_id': '901113377455', 'nome': 'Sprint 1 (3/16 - 3/22)', 'inicio': '2026-03-16', 'fim': '2026-03-22'},
             {'id': '901113377456', 'list_id': '901113377456', 'nome': 'Sprint 2 (3/23 - 3/29)', 'inicio': '2026-03-23', 'fim': '2026-03-29'},
             {'id': '901113377457', 'list_id': '901113377457', 'nome': 'Sprint 3 (3/30 - 4/5)',  'inicio': '2026-03-30', 'fim': '2026-04-05'},
         ]
+        main_list = {'id': '901113375992', 'list_id': '901113375992', 'nome': 'Backlog Geral', 'inicio': '2026-01-01', 'fim': '2099-12-31'}
 
         today_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
         active = next(
             (s for s in sprint_lists if s['inicio'] <= today_str <= s['fim']),
-            sprint_lists[0]
+            main_list  # Fallback to main-list if no active sprint
         )
 
         headers = {'Authorization': token, 'Content-Type': 'application/json'}
@@ -1690,7 +1691,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': 'CLICKUP_API_TOKEN not configured'}, 500)
             return
 
-        sprint_list_ids = ['901113377455', '901113377456', '901113377457']
+        sprint_list_ids = ['901113375992', '901113377455', '901113377456', '901113377457']
         headers = {'Authorization': token, 'Content-Type': 'application/json'}
 
         def clickup_get(url):
