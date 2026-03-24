@@ -2956,44 +2956,68 @@ function operon() {
     },
 
     ccDailyMap() {
-      const tasks = this.data.tasks || [];
+      const memberColors = ['#7c3aed','#0ea5e9','#10b981','#f59e0b','#ec4899','#6366f1','#ef4444','#8b5cf6'];
       const today = new Date(); today.setHours(0,0,0,0);
       const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
       const todayStr = today.toISOString().slice(0,10);
       const yesterdayStr = yesterday.toISOString().slice(0,10);
-      const memberColors = ['#7c3aed','#0ea5e9','#10b981','#f59e0b','#ec4899','#6366f1','#ef4444','#8b5cf6'];
-      const members = {};
 
+      // HOJE: usa ccMemberWorkload que já tem dados corretos do ClickUp (em_andamento + em_revisao)
+      const workload = this.ccMemberWorkload();
+      const members = {};
+      workload.forEach(m => {
+        members[m.name.toLowerCase()] = {
+          name: m.name, initial: m.initial, color: m.color,
+          hoje: [...m.inProgress, ...(m.review || [])],
+          ontem: [], bloqueios: [],
+        };
+      });
+
+      // ONTEM + BLOQUEIOS: enriquece com god_tasks (data.tasks)
+      const tasks = this.data.tasks || [];
       tasks.forEach(t => {
         const fullName = (t.responsavel || '').trim();
         const firstName = fullName.split(' ')[0];
         if (!firstName) return;
-        // normalize key to avoid "Kaique" vs "kaique" duplicates
         const key = firstName.toLowerCase();
         if (!members[key]) {
           const idx = Object.keys(members).length;
           const displayName = firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
           members[key] = { name: displayName, initial: displayName.charAt(0).toUpperCase(), color: memberColors[idx % memberColors.length], hoje: [], ontem: [], bloqueios: [] };
         }
-        const dueStr = (t.data_fim || t.prazo || '').slice(0, 10);
         const st = (t.status || '').toLowerCase().trim();
         const isDone = ['concluido','done','concluída','concluida','concluído','feito','closed'].includes(st);
-        const isActive = ['em andamento','em-andamento','inprogress','in_progress','in progress','doing','fazendo'].includes(st);
         const isBlocked = t.is_blocked || st === 'bloqueado';
         const updatedStr = (t.updated_at || '').slice(0, 10);
+        const dueStr = (t.data_fim || t.prazo || '').slice(0, 10);
 
         if (isBlocked) {
-          members[key].bloqueios.push(t);
-        } else if (!isDone && (dueStr === todayStr || isActive)) {
-          // vence hoje OU está em andamento → prioridade do dia
-          members[key].hoje.push(t);
+          if (!members[key].bloqueios.find(b => (b.titulo || b.nome) === (t.titulo || t.nome)))
+            members[key].bloqueios.push(t);
         } else if (isDone && (updatedStr === todayStr || updatedStr === yesterdayStr)) {
-          // concluída hoje ou ontem → ontem
           members[key].ontem.push(t);
         } else if (dueStr === yesterdayStr && !isDone) {
-          // vencia ontem e não concluída → ontem (atrasada)
           members[key].ontem.push(t);
         }
+      });
+
+      // BLOQUEIOS: também verifica ccData.by_status.bloqueado (ClickUp)
+      const ccBlocked = this.data.ccData?.by_status?.bloqueado || [];
+      const membersList = this.data.members || [];
+      ccBlocked.forEach(t => {
+        const assignees = (t.responsavel || '').split(', ').filter(Boolean);
+        assignees.forEach(username => {
+          const found = membersList.find(m => m.clickup_username === username || m.nome_curto?.toLowerCase() === username.toLowerCase());
+          const displayName = found ? found.nome_curto : username.split('.')[0];
+          if (!displayName) return;
+          const key = displayName.toLowerCase();
+          if (!members[key]) {
+            const idx = Object.keys(members).length;
+            members[key] = { name: displayName, initial: displayName.charAt(0).toUpperCase(), color: memberColors[idx % memberColors.length], hoje: [], ontem: [], bloqueios: [] };
+          }
+          if (!members[key].bloqueios.find(b => (b.titulo || b.nome) === t.titulo))
+            members[key].bloqueios.push(t);
+        });
       });
 
       return Object.values(members)
