@@ -1824,8 +1824,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         _notes_post = re.match(r'^/api/mentees/(\d+)/notes$', self.path)
+        _offboard = re.match(r'^/api/mentees/(\d+)/offboard$', self.path)
         if _notes_post:
             self._handle_post_note(_notes_post.group(1))
+        elif _offboard:
+            self._handle_offboard_mentee(_offboard.group(1))
         elif self.path == '/api/auth/register':
             self._handle_auth_register()
         elif self.path == '/api/auth/login':
@@ -2766,6 +2769,53 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json(result)
         except Exception as e:
             log_error('PatchMentee', f'_handle_patch_mentee failed: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_offboard_mentee(self, mentee_id):
+        """POST /api/mentees/{id}/offboard — desativa um mentorado (ativo = false).
+        Body: { motivo: 'reembolso'|'conclusao'|'cancelamento'|'outro', obs?: string }
+        """
+        try:
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Unauthorized'}, 401)
+                return
+            token = auth_header[7:]
+            payload = verify_jwt_token(token)
+            if not payload or payload.get('type') == 'refresh':
+                self._send_json({'error': 'Invalid token'}, 401)
+                return
+
+            try:
+                body = json.loads(self._read_body())
+            except Exception:
+                self._send_json({'error': 'Invalid JSON'}, 400)
+                return
+
+            motivo = body.get('motivo', '').strip()
+            valid_motivos = {'reembolso', 'conclusao', 'cancelamento', 'outro'}
+            if motivo not in valid_motivos:
+                self._send_json({'error': f'motivo deve ser um de: {", ".join(valid_motivos)}'}, 400)
+                return
+
+            from datetime import date
+            updates = {
+                'ativo': False,
+                'motivo_inativacao': motivo,
+                'data_inativacao': date.today().isoformat(),
+            }
+            obs = (body.get('obs') or '').strip()
+            if obs:
+                updates['obs_inativacao'] = obs
+
+            result = supabase_request(
+                'PATCH',
+                f'mentorados?id=eq.{mentee_id}&select=id,nome,ativo,motivo_inativacao,data_inativacao',
+                updates
+            )
+            self._send_json(result)
+        except Exception as e:
+            log_error('OffboardMentee', f'_handle_offboard_mentee failed: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_bulk_patch_mentees(self):

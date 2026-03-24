@@ -194,20 +194,24 @@ ALTER TABLE public.god_spaces     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.god_lists      ENABLE ROW LEVEL SECURITY;
 
 -- Leitura pública (autenticados) — estrutura organizacional não é sensível
+DROP POLICY IF EXISTS "spalla_members: leitura autenticados" ON public.spalla_members;
 CREATE POLICY "spalla_members: leitura autenticados"
   ON public.spalla_members FOR SELECT
   USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "god_spaces: leitura autenticados" ON public.god_spaces;
 CREATE POLICY "god_spaces: leitura autenticados"
   ON public.god_spaces FOR SELECT
   USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "god_lists: leitura autenticados" ON public.god_lists;
 CREATE POLICY "god_lists: leitura autenticados"
   ON public.god_lists FOR SELECT
   USING (auth.role() = 'authenticated');
 
 -- Escrita: apenas service_role (backend) ou usuário autenticado
 -- god_lists: permite update de sprint_total/sprint_concluidas pelo front (cache)
+DROP POLICY IF EXISTS "god_lists: escrita autenticados" ON public.god_lists;
 CREATE POLICY "god_lists: escrita autenticados"
   ON public.god_lists FOR UPDATE
   USING (auth.role() = 'authenticated')
@@ -236,10 +240,12 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_spalla_members_updated_at ON public.spalla_members;
 CREATE TRIGGER trg_spalla_members_updated_at
   BEFORE UPDATE ON public.spalla_members
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
+DROP TRIGGER IF EXISTS trg_god_lists_updated_at ON public.god_lists;
 CREATE TRIGGER trg_god_lists_updated_at
   BEFORE UPDATE ON public.god_lists
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();

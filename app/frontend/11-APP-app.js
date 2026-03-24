@@ -251,6 +251,7 @@ function operon() {
       waFaseDropdownId: null,           // id of mentee with open fase dropdown
       // WA Management — Notas Estruturadas
       notesDrawer: { open: false, menteeId: null, menteeNome: '', tipo: 'livre' },
+      offboardModal: { open: false, menteeId: null, menteeNome: '', motivo: '', obs: '', loading: false },
       notesDrawerTab: 'notes',   // I-5: 'notes' | 'files'
       notesSaving: false,
       notesForm: {
@@ -4887,13 +4888,28 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     async _sbUpsertTask(task, isNew = false) {
       if (!sb) return { ok: false };
       const VALID_COLS = ['id','titulo','descricao','status','prioridade','responsavel','acompanhante','mentorado_id','mentorado_nome','data_inicio','data_fim','space_id','list_id','parent_task_id','tags','fonte','doc_link','created_at','updated_at','created_by','recorrencia','dia_recorrencia','recorrencia_ativa','recorrencia_origem_id','bloqueio_motivo','bloqueio_responsavel'];
+      const DATE_COLS = ['data_inicio', 'data_fim'];
       const row = {};
       for (const k of VALID_COLS) { if (task[k] !== undefined) row[k] = task[k]; }
+      // Empty string is invalid for DATE columns — convert to null
+      for (const k of DATE_COLS) { if (row[k] === '') row[k] = null; }
       if (row.mentorado_id) row.mentorado_id = parseInt(row.mentorado_id) || null;
       if (isNew && this.auth.currentUser) row.created_by = this.auth.currentUser.id;
       try {
         const { error } = await sb.from('god_tasks').upsert(row, { onConflict: 'id' });
-        if (error) { console.warn('[Spalla] Task upsert error:', error.message); return { ok: false, error }; }
+        if (error) {
+          // Graceful degradation: if bloqueio columns not in DB yet, retry without them
+          if (error.code === '42703' && error.message && error.message.includes('bloqueio_')) {
+            const fallback = { ...row };
+            delete fallback.bloqueio_motivo;
+            delete fallback.bloqueio_responsavel;
+            const { error: err2 } = await sb.from('god_tasks').upsert(fallback, { onConflict: 'id' });
+            if (err2) { console.warn('[Spalla] Task upsert error:', err2.message); return { ok: false, error: err2 }; }
+            console.warn('[Spalla] bloqueio colunas ausentes — aplique a migration 20260324120000_add_bloqueio_motivo.sql');
+            return { ok: true };
+          }
+          console.warn('[Spalla] Task upsert error:', error.message); return { ok: false, error };
+        }
         return { ok: true };
       } catch (e) { console.warn('[Spalla] Task upsert error:', e.message); return { ok: false }; }
     },
@@ -7178,6 +7194,44 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.toast(`Mentorado snoozeado por ${dias} dias`, 'success');
     },
 
+    openOffboardModal(menteeId, menteeNome) {
+      this.ui.offboardModal = { open: true, menteeId, menteeNome, motivo: '', obs: '', loading: false };
+    },
+
+    closeOffboardModal() {
+      this.ui.offboardModal = { open: false, menteeId: null, menteeNome: '', motivo: '', obs: '', loading: false };
+    },
+
+    async confirmOffboard() {
+      const m = this.ui.offboardModal;
+      if (!m.motivo) { this.toast('Selecione o motivo do desligamento', 'warning'); return; }
+      m.loading = true;
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/mentees/${m.menteeId}/offboard`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.auth.accessToken}`,
+          },
+          body: JSON.stringify({ motivo: m.motivo, obs: m.obs }),
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        // Remove from local list immediately (ativo = false → filtered out by view)
+        this.data.mentees = this.data.mentees.filter(x => x.id !== m.menteeId);
+        // If detail view is open for this mentee, close it
+        if (this.data.detail?.profile?.id === m.menteeId) {
+          this.data.detail = null;
+          this.ui.showDetail = false;
+        }
+        this.toast(`${m.menteeNome} desativado com sucesso`, 'success');
+        this.closeOffboardModal();
+      } catch (e) {
+        this.toast('Erro ao desligar mentorado: ' + e.message, 'error');
+      } finally {
+        m.loading = false;
+      }
+    },
+
     // ===================== NOTAS ESTRUTURADAS =====================
 
     openNotesDrawer(menteeId, menteeNome) {
@@ -7668,6 +7722,14 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       // Fourth: try local photos directory
       const fileKey = isHandle ? clean : clean.replace(/\s+/g, '_');
       return `photos/${fileKey}.jpg`;
+    },
+
+    // Returns style object for mc-card__avatar-photo.
+    // Returns empty object (not setting background-image) when no photo URL exists,
+    // preventing url(null) being set and the browser flickering on re-evaluation.
+    igPhotoStyle(handleOrName) {
+      const url = this.igPhoto(handleOrName);
+      return url ? { 'background-image': `url(${url})` } : {};
     },
 
     callMenteePhoto(call) {
