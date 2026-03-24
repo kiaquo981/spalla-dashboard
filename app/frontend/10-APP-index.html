@@ -3961,17 +3961,32 @@
                     <label class="ds-marcos__label">Call Onboarding</label>
                     <input type="date" class="ds-input" :value="data.dsMenteeDetail.data_call_onboarding || ''" @change="setCallDate(ui.dsDetailProducaoId, 'data_call_onboarding', $event.target.value)">
                   </div>
-                  <div class="ds-marcos__item">
+                  <div class="ds-marcos__item" x-show="getDsDocs(ui.dsDetailProducaoId).some(d => d.tipo === 'oferta')">
                     <label class="ds-marcos__label">◆ Apres. Oferta</label>
                     <input type="date" class="ds-input" :value="data.dsMenteeDetail.data_call_apresentacao_oferta || ''" @change="setCallDate(ui.dsDetailProducaoId, 'data_call_apresentacao_oferta', $event.target.value)">
                   </div>
-                  <div class="ds-marcos__item">
+                  <div class="ds-marcos__item" x-show="getDsDocs(ui.dsDetailProducaoId).some(d => d.tipo === 'funil' || d.tipo === 'conteudo')">
                     <label class="ds-marcos__label">▽◈ Apres. Pos+Funil</label>
                     <input type="date" class="ds-input" :value="data.dsMenteeDetail.data_call_apresentacao_pos_funil || ''" @change="setCallDate(ui.dsDetailProducaoId, 'data_call_apresentacao_pos_funil', $event.target.value)">
                   </div>
                   <div class="ds-marcos__item">
                     <label class="ds-marcos__label ds-marcos__label--prazo" :class="dsPrazoClass(data.dsMenteeDetail.prazo_entrega)">Prazo de Entrega</label>
                     <input type="date" class="ds-input" :class="{ 'ds-input--danger': dsPrazoClass(data.dsMenteeDetail.prazo_entrega) === 'ds-deadline--overdue', 'ds-input--warning': dsPrazoClass(data.dsMenteeDetail.prazo_entrega) === 'ds-deadline--soon' }" :value="data.dsMenteeDetail.prazo_entrega || ''" @change="setCallDate(ui.dsDetailProducaoId, 'prazo_entrega', $event.target.value)">
+                  </div>
+                </div>
+
+                <!-- Briefing -->
+                <div x-show="data.dsMenteeDetail?.briefing || data.dsBriefingFiles.length" style="margin-bottom:16px">
+                  <h3 class="ds-section-title">Briefing</h3>
+                  <div x-show="data.dsMenteeDetail?.briefing" style="padding:10px 14px;background:var(--ds-bg-subtle);border-radius:8px;font-size:13px;line-height:1.6;white-space:pre-wrap;margin-bottom:8px" x-text="data.dsMenteeDetail.briefing"></div>
+                  <div x-show="data.dsBriefingFiles.length" style="display:flex;flex-wrap:wrap;gap:6px">
+                    <template x-for="f in data.dsBriefingFiles" :key="f.id">
+                      <a :href="dsBriefingFileUrl(f.storage_path)" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:4px;padding:6px 10px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;text-decoration:none;color:var(--neutral-800);transition:border-color .15s" @mouseenter="$el.style.borderColor='var(--primary)'" @mouseleave="$el.style.borderColor='#e2e8f0'">
+                        <span x-text="f.tipo?.startsWith('audio') ? '🎤' : f.tipo?.includes('pdf') ? '📄' : f.tipo?.startsWith('image') ? '🖼' : '📎'"></span>
+                        <span style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="f.nome"></span>
+                        <span style="color:#94a3b8;font-size:10px" x-text="(f.tamanho / 1024).toFixed(0) + ' KB'"></span>
+                      </a>
+                    </template>
                   </div>
                 </div>
 
@@ -4166,11 +4181,12 @@
                       </select>
                     </div>
                     <div>
-                      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Dossiês a criar</label>
-                      <div style="display:flex;gap:8px;flex-wrap:wrap">
+                      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px">Quais dossiês entregar?</label>
+                      <div style="display:flex;flex-direction:column;gap:6px">
                         <template x-for="dt in DS_DOC_TIPOS" :key="dt.id">
-                          <label style="display:flex;align-items:center;gap:4px;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;border:1px solid;transition:all .15s" :style="ui.dsCreateForm.docs.includes(dt.id) ? 'background:' + dt.color + '15;border-color:' + dt.color + ';color:' + dt.color : 'background:#fff;border-color:#e2e8f0;color:#94a3b8'" @click="dsToggleDocType(dt.id)">
-                            <span x-text="dt.icon + ' ' + dt.label"></span>
+                          <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;border:1px solid;transition:all .15s" :style="ui.dsCreateForm.docs.includes(dt.id) ? 'background:' + dt.color + '10;border-color:' + dt.color : 'background:#fff;border-color:#e2e8f0'" @click="dsToggleDocType(dt.id)">
+                            <span style="width:18px;height:18px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0" :style="ui.dsCreateForm.docs.includes(dt.id) ? 'background:' + dt.color : 'background:#d0d5dd'" x-text="ui.dsCreateForm.docs.includes(dt.id) ? '✓' : ''"></span>
+                            <span x-text="dt.icon + '  ' + dt.label" :style="ui.dsCreateForm.docs.includes(dt.id) ? 'color:' + dt.color : 'color:#94a3b8'"></span>
                           </label>
                         </template>
                       </div>
