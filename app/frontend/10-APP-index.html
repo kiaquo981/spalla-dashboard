@@ -5993,6 +5993,43 @@
           </div>
         </div>
 
+        <!-- ===== MODAL: OFFBOARD MENTORADO ===== -->
+        <div class="fin-modal-overlay" x-show="ui.offboardModal.open" @click.self="closeOffboardModal()" x-transition style="z-index:1100">
+          <div class="fin-modal" style="max-width:440px">
+            <div class="fin-modal__header">
+              <h3>Arquivar Mentorado</h3>
+              <span x-text="ui.offboardModal.menteeNome" style="color:#6b7280;font-size:0.875rem"></span>
+            </div>
+            <div style="padding:0 0 16px">
+              <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px">
+                O mentorado sera removido do dashboard imediatamente. Esta acao pode ser revertida diretamente no Supabase se necessario.
+              </p>
+              <label style="display:block;font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em">Motivo *</label>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <template x-for="opt in [{v:'reembolso',l:'Pediu reembolso'},{v:'conclusao',l:'Concluiu o programa'},{v:'cancelamento',l:'Cancelou antes de terminar'},{v:'outro',l:'Outro'}]" :key="opt.v">
+                  <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--neutral-200);border-radius:var(--r-md);cursor:pointer;font-size:13px"
+                         :style="ui.offboardModal.motivo === opt.v ? 'border-color:var(--error-400,#f87171);background:var(--error-50,#fef2f2)' : ''">
+                    <input type="radio" :value="opt.v" x-model="ui.offboardModal.motivo" style="accent-color:#dc2626">
+                    <span x-text="opt.l"></span>
+                  </label>
+                </template>
+              </div>
+              <div x-show="ui.offboardModal.motivo === 'outro'" style="margin-top:12px">
+                <textarea class="fin-modal__textarea" x-model="ui.offboardModal.obs" placeholder="Descreva o motivo..." rows="3" style="resize:vertical"></textarea>
+              </div>
+            </div>
+            <div class="fin-modal__footer">
+              <button class="btn btn--ghost" @click="closeOffboardModal()" :disabled="ui.offboardModal.loading">Cancelar</button>
+              <button class="btn btn--primary" @click="confirmOffboard()"
+                      :disabled="!ui.offboardModal.motivo || ui.offboardModal.loading"
+                      style="background:#dc2626;border-color:#dc2626">
+                <span x-show="!ui.offboardModal.loading">Arquivar</span>
+                <span x-show="ui.offboardModal.loading">Arquivando...</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- ===== PAGE: SETTINGS ===== -->
         <div class="page-content" x-show="ui.page === 'settings'" x-transition>
           <div class="page-header">
@@ -6649,6 +6686,13 @@
                             style="font-size:11px;padding:4px 10px">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                       Digest
+                    </button>
+                    <button class="btn btn--ghost btn--sm"
+                            @click="openOffboardModal(m.id, m.nome)"
+                            title="Arquivar mentorado (reembolso ou conclusão)"
+                            style="font-size:11px;padding:4px 10px;color:var(--error-600,#dc2626)">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                      Arquivar
                     </button>
                   </div>
                 </div>

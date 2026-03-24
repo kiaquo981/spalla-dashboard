@@ -251,6 +251,7 @@ function operon() {
       waFaseDropdownId: null,           // id of mentee with open fase dropdown
       // WA Management — Notas Estruturadas
       notesDrawer: { open: false, menteeId: null, menteeNome: '', tipo: 'livre' },
+      offboardModal: { open: false, menteeId: null, menteeNome: '', motivo: '', obs: '', loading: false },
       notesDrawerTab: 'notes',   // I-5: 'notes' | 'files'
       notesSaving: false,
       notesForm: {
@@ -7191,6 +7192,39 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       dt.setDate(dt.getDate() + dias);
       await this.patchMentee(menteeId, { snoozed_until: dt.toISOString() });
       this.toast(`Mentorado snoozeado por ${dias} dias`, 'success');
+    },
+
+    openOffboardModal(menteeId, menteeNome) {
+      this.ui.offboardModal = { open: true, menteeId, menteeNome, motivo: '', obs: '', loading: false };
+    },
+
+    closeOffboardModal() {
+      this.ui.offboardModal = { open: false, menteeId: null, menteeNome: '', motivo: '', obs: '', loading: false };
+    },
+
+    async confirmOffboard() {
+      const m = this.ui.offboardModal;
+      if (!m.motivo) { this.toast('Selecione o motivo do desligamento', 'warning'); return; }
+      m.loading = true;
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/mentees/${m.menteeId}/offboard`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.auth.accessToken}`,
+          },
+          body: JSON.stringify({ motivo: m.motivo, obs: m.obs }),
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        // Remove from local list immediately (ativo = false → filtered out by view)
+        this.data.mentees = this.data.mentees.filter(x => x.id !== m.menteeId);
+        this.toast(`${m.menteeNome} desligado com sucesso`, 'success');
+        this.closeOffboardModal();
+      } catch (e) {
+        this.toast('Erro ao desligar mentorado: ' + e.message, 'error');
+      } finally {
+        m.loading = false;
+      }
     },
 
     // ===================== NOTAS ESTRUTURADAS =====================
