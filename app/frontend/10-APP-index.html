@@ -635,6 +635,23 @@
                       </template>
                     </div>
                   </template>
+                  <!-- Alocação compacta do time no sprint -->
+                  <div x-show="ccMemberWorkload().length" style="margin-top:4px">
+                    <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary);margin-bottom:8px">Alocação</div>
+                    <div style="display:flex;flex-direction:column;gap:6px">
+                      <template x-for="member in ccMemberWorkload().slice(0,4)" :key="member.name">
+                        <div style="display:flex;align-items:center;gap:8px">
+                          <div style="width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0" :style="'background:' + member.color" x-text="member.initial"></div>
+                          <div style="font-size:11px;font-weight:600;color:var(--neutral-800);min-width:52px" x-text="member.name"></div>
+                          <div style="display:flex;gap:4px;flex-wrap:wrap">
+                            <span x-show="member.inProgress.length" class="cc-person-pill cc-person-pill--active" x-text="member.inProgress.length + ' em and.'"></span>
+                            <span x-show="member.review.length" class="cc-person-pill cc-person-pill--review" x-text="member.review.length + ' rev.'"></span>
+                            <span x-show="member.done > 0" class="cc-person-pill cc-person-pill--done" x-text="member.done + ' ✓'"></span>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
                 </div>
               </div>
             </template>
@@ -643,26 +660,44 @@
             <div class="bento-card bento-card--hero">
               <div class="bento-card__header">
                 <span class="bento-card__title">Time</span>
-                <span style="font-size:11px;color:var(--text-secondary)" x-text="data.tasks.length + ' tarefas'"></span>
+                <span style="font-size:11px;color:var(--text-secondary)" x-text="ccMemberWorkload().length + ' pessoas'"></span>
               </div>
-              <div class="bento-card__body" style="justify-content:flex-start">
-                <div class="cc-team-grid" x-show="data.tasks.length">
-                  <template x-for="[name, count] in Object.entries(ccTasksByMember()).slice(0,6)" :key="name">
-                    <div class="cc-team-member" @click="navigateWithFilter('tasks', name)">
-                      <div class="cc-team-member__avatar" :style="'background:' + (['#7c3aed','#0ea5e9','#10b981','#f59e0b','#ec4899','#6366f1'][Object.keys(ccTasksByMember()).indexOf(name) % 6])">
-                        <span x-text="name.charAt(0).toUpperCase()"></span>
-                        <span class="cc-team-member__badge" :class="count > 20 ? 'cc-team-member__badge--high' : ''" x-text="count"></span>
+              <div class="bento-card__body" style="justify-content:flex-start;overflow-y:auto;padding-right:2px">
+                <!-- person workload cards -->
+                <div x-show="ccMemberWorkload().length" style="display:flex;flex-direction:column;gap:8px;width:100%">
+                  <template x-for="member in ccMemberWorkload().slice(0,5)" :key="member.name">
+                    <div class="cc-person-card" @click="navigateWithFilter('tasks', member.name)">
+                      <div class="cc-person-card__header">
+                        <div class="cc-person-card__avatar" :style="'background:' + member.color">
+                          <span x-text="member.initial"></span>
+                        </div>
+                        <div class="cc-person-card__info">
+                          <div class="cc-person-card__name" x-text="member.name"></div>
+                          <div class="cc-person-card__pills">
+                            <span x-show="member.inProgress.length" class="cc-person-pill cc-person-pill--active" x-text="member.inProgress.length + ' em and.'"></span>
+                            <span x-show="member.review.length" class="cc-person-pill cc-person-pill--review" x-text="member.review.length + ' revisão'"></span>
+                            <span x-show="member.done > 0" class="cc-person-pill cc-person-pill--done" x-text="member.done + ' ✓'"></span>
+                          </div>
+                        </div>
                       </div>
-                      <div class="cc-team-member__name" x-text="name"></div>
+                      <div class="cc-person-card__tasks" x-show="member.inProgress.length + member.review.length > 0">
+                        <template x-for="(task, ti) in [...member.inProgress, ...member.review].slice(0,3)" :key="ti">
+                          <div class="cc-person-card__task" x-text="task.titulo"></div>
+                        </template>
+                        <div x-show="member.inProgress.length + member.review.length > 3" class="cc-person-card__more" x-text="'+' + (member.inProgress.length + member.review.length - 3) + ' mais'"></div>
+                      </div>
                     </div>
                   </template>
                 </div>
                 <!-- skeleton -->
-                <div x-show="!data.tasks.length" style="display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem">
-                  <template x-for="i in [1,2,3,4,5,6]" :key="i">
-                    <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
-                      <div class="cc-skeleton" style="width:40px;height:40px;border-radius:50%"></div>
-                      <div class="cc-skeleton" style="width:48px;height:10px"></div>
+                <div x-show="!ccMemberWorkload().length" style="display:flex;flex-direction:column;gap:8px;width:100%">
+                  <template x-for="i in [1,2,3]" :key="i">
+                    <div style="display:flex;gap:10px;align-items:center;padding:10px;background:#faf9f7;border-radius:10px">
+                      <div class="cc-skeleton" style="width:36px;height:36px;border-radius:50%;flex-shrink:0"></div>
+                      <div style="flex:1;display:flex;flex-direction:column;gap:5px">
+                        <div class="cc-skeleton" style="height:11px;width:60%"></div>
+                        <div class="cc-skeleton" style="height:8px;width:80%"></div>
+                      </div>
                     </div>
                   </template>
                 </div>

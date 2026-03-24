@@ -2827,6 +2827,56 @@ function operon() {
       return map;
     },
 
+    // Workload por membro: avatar + tasks ativas para o Team card
+    ccMemberWorkload() {
+      const members = this.data.members || [];
+      const memberColors = ['#7c3aed','#0ea5e9','#10b981','#f59e0b','#ec4899','#6366f1'];
+      const resolveDisplayName = (username) => {
+        if (!username) return '';
+        const m = members.find(m =>
+          m.clickup_username === username ||
+          m.nome_curto?.toLowerCase() === username.toLowerCase()
+        );
+        return m ? m.nome_curto : username.split('.')[0];
+      };
+      const allCcTasks = [
+        ...(this.data.ccData?.by_status?.em_andamento || []),
+        ...(this.data.ccData?.by_status?.em_revisao || []),
+        ...(this.data.ccData?.by_status?.backlog || []),
+        ...(this.data.ccData?.by_status?.concluida || []),
+      ];
+      const workload = {};
+      for (const task of allCcTasks) {
+        const assignees = task.responsavel ? task.responsavel.split(', ').filter(Boolean) : [];
+        for (const username of assignees) {
+          const name = resolveDisplayName(username);
+          if (!name) continue;
+          if (!workload[name]) workload[name] = { name, inProgress: [], review: [], done: 0, total: 0 };
+          workload[name].total++;
+          if (task.status === 'em_andamento') workload[name].inProgress.push({ titulo: task.titulo, url: task.url });
+          else if (task.status === 'em_revisao') workload[name].review.push({ titulo: task.titulo, url: task.url });
+          else if (task.status === 'concluida') workload[name].done++;
+        }
+      }
+      // Fallback: se não tem dados do ClickUp, usa data.tasks
+      if (!allCcTasks.length) {
+        const tasks = this.data.tasks || [];
+        for (const t of tasks) {
+          const name = (t.responsavel || '').split(' ')[0];
+          if (!name) continue;
+          if (!workload[name]) workload[name] = { name, inProgress: [], review: [], done: 0, total: 0 };
+          workload[name].total++;
+          if (t.status === 'em_andamento') workload[name].inProgress.push({ titulo: t.titulo, url: null });
+          else if (t.status === 'em_revisao') workload[name].review.push({ titulo: t.titulo, url: null });
+          else if (t.status === 'concluida') workload[name].done++;
+        }
+      }
+      return Object.values(workload)
+        .filter(m => m.total > 0)
+        .sort((a, b) => b.inProgress.length - a.inProgress.length || b.total - a.total)
+        .map((m, i) => ({ ...m, color: memberColors[i % memberColors.length], initial: m.name.charAt(0).toUpperCase() }));
+    },
+
     ccSprintProgress() {
       if (this.data.ccData?.sprint && (this.ui.ccWeekOffset || 0) === 0) {
         const total = this.data.ccData.total || 0;
