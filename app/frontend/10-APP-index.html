@@ -2666,7 +2666,7 @@
           <div class="op-drawer-overlay" x-show="ui.taskDetailDrawer" x-transition.opacity @click.self="closeTaskDetail()">
             <div class="op-drawer" x-show="ui.taskDetailDrawer" x-transition:enter="slide-in" @click.stop>
               <template x-if="activeTaskDetail">
-                <div>
+                <div style="display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden">
                   <div class="op-drawer__header">
                     <div class="op-drawer__header-left">
                       <span class="badge" :class="'badge--' + prioClass(activeTaskDetail.prioridade)" x-text="prioLabel(activeTaskDetail.prioridade)"></span>
