@@ -2473,7 +2473,7 @@
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :style="ui.syncingSubtasks ? 'animation:spin 1s linear infinite' : ''"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                   <span x-text="ui.syncingSubtasks ? 'Sincronizando…' : 'Sync ClickUp'"></span>
                 </button>
-                <span class="op-toolbar__count" x-text="(ui.taskView === 'list' ? filteredTasks.length : data.tasks.length) + ' tarefas'"></span>
+                <span class="op-toolbar__count" x-text="(ui.taskView === 'list' ? tasksTree.filter(t=>t._depth===0).length : data.tasks.length) + ' tarefas'"></span>
               </div>
 
               <!-- BOARD VIEW -->
@@ -2585,13 +2585,21 @@
                   <div class="task-list__col task-list__col--prio">Prio</div>
                   <div class="task-list__col task-list__col--actions"></div>
                 </div>
-                <template x-for="t in filteredTasks" :key="t.id">
-                  <div class="task-list__row" :class="{ 'task-list__row--done': t.status === 'concluida', 'task-list__row--overdue': t.status === 'pendente' && isOverdue(t.data_fim || t.prazo), 'task-list__row--mine': isMyTask(t) }" @click="openTaskDetail(t.id)">
+                <template x-for="t in tasksTree" :key="t.id + '-' + t._depth">
+                  <div class="task-list__row" :class="{ 'task-list__row--done': t.status === 'concluida', 'task-list__row--overdue': t.status === 'pendente' && isOverdue(t.data_fim || t.prazo), 'task-list__row--mine': isMyTask(t), 'task-list__row--child': t._depth > 0 }" @click="openTaskDetail(t.id)">
                     <div class="task-list__col task-list__col--check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
-                    <div class="task-list__col task-list__col--title">
+                    <div class="task-list__col task-list__col--title" :style="t._depth > 0 ? 'padding-left:24px' : ''">
+                      <div style="display:flex;align-items:flex-start;gap:4px">
+                        <button x-show="t._depth === 0 && t._childCount > 0" @click.stop="toggleTaskExpand(t.id)" class="task-tree__toggle" :class="{ 'task-tree__toggle--open': ui.taskExpandedIds[t.id] }" :title="ui.taskExpandedIds[t.id] ? 'Recolher subtarefas' : 'Expandir subtarefas (' + t._childCount + ')'">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                        </button>
+                        <span x-show="t._depth === 0 && !t._childCount" style="display:inline-block;width:14px;flex-shrink:0"></span>
+                        <span x-show="t._depth > 0" class="task-tree__child-indicator">↳</span>
+                        <div style="flex:1;min-width:0">
 <div class="task-list__title"><span x-text="t.titulo"></span><span x-show="t.is_blocked" style="margin-left:4px;font-size:10px;padding:1px 4px;border-radius:3px;background:#fee2e2;color:#991b1b;font-weight:600">⛔</span><span class="task-auto-badge" x-show="t.auto_gerada">Auto</span><span class="task-recurring-badge" x-show="t.recorrencia && t.recorrencia !== 'nenhuma'" :title="'Recorrente: ' + recorrenciaLabel(t.recorrencia)"><svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span></div>
-                      <div class="task-list__tags" x-show="t.tags?.length"><template x-for="tag in (t.tags||[]).slice(0,2)" :key="tag.id||tag.name||tag"><span class="task-tag" :style="tag.color ? 'background:'+tag.color+'22;color:'+tag.color+';border-color:'+tag.color+'55' : ''" x-text="tag.name||tag"></span></template></div>
-                      <div x-show="t.parent_task_id" style="font-size:10px;color:#94a3b8">subtarefa</div>
+                          <div class="task-list__tags" x-show="t.tags?.length"><template x-for="tag in (t.tags||[]).slice(0,2)" :key="tag.id||tag.name||tag"><span class="task-tag" :style="tag.color ? 'background:'+tag.color+'22;color:'+tag.color+';border-color:'+tag.color+'55' : ''" x-text="tag.name||tag"></span></template></div>
+                        </div>
+                      </div>
                     </div>
                     <div class="task-list__col task-list__col--assignee">
                       <span x-show="t.responsavel" class="task-list__assignee-pill">
@@ -2622,7 +2630,7 @@
                     </div>
                   </div>
                 </template>
-                <div class="empty-state" x-show="!filteredTasks.length"><p>Nenhuma tarefa encontrada.</p><button class="btn btn--brand" @click="openTaskModal()">Criar primeira tarefa</button></div>
+                <div class="empty-state" x-show="!tasksTree.length"><p>Nenhuma tarefa encontrada.</p><button class="btn btn--brand" @click="openTaskModal()">Criar primeira tarefa</button></div>
               </div>
 
               <!-- GANTT VIEW -->
