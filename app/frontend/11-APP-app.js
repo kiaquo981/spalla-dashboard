@@ -8669,6 +8669,16 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       return dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
     },
 
+    dsPrazoClass(prazo) {
+      if (!prazo) return '';
+      const today = new Date(); today.setHours(0,0,0,0);
+      const dt = new Date(prazo + 'T00:00:00');
+      const diff = Math.round((dt - today) / 86400000);
+      if (diff < 0) return 'ds-deadline--overdue';
+      if (diff <= 7) return 'ds-deadline--soon';
+      return '';
+    },
+
     dsFormatDateTime(d) {
       if (!d) return '-';
       const dt = new Date(d);
