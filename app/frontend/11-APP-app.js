@@ -2955,6 +2955,49 @@ function operon() {
         });
     },
 
+    ccDailyMap() {
+      const tasks = this.data.tasks || [];
+      const today = new Date(); today.setHours(0,0,0,0);
+      const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+      const todayStr = today.toISOString().slice(0,10);
+      const yesterdayStr = yesterday.toISOString().slice(0,10);
+      const memberColors = ['#7c3aed','#0ea5e9','#10b981','#f59e0b','#ec4899','#6366f1','#ef4444','#8b5cf6'];
+      const members = {};
+
+      tasks.forEach(t => {
+        const fullName = (t.responsavel || '').trim();
+        const firstName = fullName.split(' ')[0];
+        if (!firstName) return;
+        if (!members[firstName]) {
+          const idx = Object.keys(members).length;
+          members[firstName] = { name: firstName, initial: firstName.charAt(0).toUpperCase(), color: memberColors[idx % memberColors.length], hoje: [], ontem: [], bloqueios: [] };
+        }
+        const dueStr = (t.data_fim || t.prazo || '').slice(0,10);
+        const st = (t.status || '').toLowerCase();
+        const isDone = ['concluido','done','concluída','concluida','feito','closed'].includes(st);
+        const isBlocked = t.is_blocked || st === 'bloqueado';
+        if (isBlocked) {
+          members[firstName].bloqueios.push(t);
+        } else if (dueStr === todayStr && !isDone) {
+          members[firstName].hoje.push(t);
+        } else if (dueStr === yesterdayStr || (isDone && (t.updated_at || '').slice(0,10) === yesterdayStr)) {
+          members[firstName].ontem.push(t);
+        }
+      });
+
+      // fallback: if no date-based results, show people with in-progress tasks
+      const withActivity = Object.values(members).filter(m => m.hoje.length + m.ontem.length + m.bloqueios.length > 0);
+      if (withActivity.length) return withActivity.sort((a,b) => (b.hoje.length + b.bloqueios.length) - (a.hoje.length + a.bloqueios.length));
+
+      // fallback 2: use ccMemberWorkload data
+      return this.ccMemberWorkload().map(m => ({
+        name: m.name, initial: m.initial, color: m.color,
+        hoje: m.inProgress.concat(m.review || []),
+        ontem: [],
+        bloqueios: [],
+      }));
+    },
+
     async loadCommandCenterData() {
       try {
         const res = await fetch(`${CONFIG.API_BASE}/api/clickup/command-center`);
