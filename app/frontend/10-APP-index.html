@@ -3994,6 +3994,10 @@
                           </template>
                           <span>Responsavel: <strong x-text="doc.responsavel_atual || '-'"></strong></span>
                           <span class="ds-aging" :class="dsAgingClass(Math.floor((Date.now() - new Date(doc.estagio_desde).getTime()) / 86400000))" x-text="Math.floor((Date.now() - new Date(doc.estagio_desde).getTime()) / 86400000) + 'd no estagio'"></span>
+                          <span style="display:inline-flex;align-items:center;gap:4px">
+                            <label style="font-size:11px;color:var(--text-secondary)">Prazo:</label>
+                            <input type="date" class="ds-input ds-input--inline" :class="{ 'ds-input--danger': dsPrazoClass(doc.prazo_entrega) === 'ds-deadline--overdue', 'ds-input--warning': dsPrazoClass(doc.prazo_entrega) === 'ds-deadline--soon' }" :value="doc.prazo_entrega || ''" @change="setDocPrazo(doc.id, doc.producao_id, $event.target.value)" style="width:130px;padding:2px 4px;font-size:11px">
+                          </span>
                         </div>
 
                         <!-- Actions -->
@@ -4181,6 +4185,7 @@
                             <div class="ds-doc-bar__fill" :style="'width:' + dsProgressPercent(p[dt.id + '_estagio'] || 'pendente') + '%; background:' + dt.color"></div>
                           </div>
                           <span class="ds-prod-card__doc-stage" :style="'color:' + dsEstagioConfig(p[dt.id + '_estagio'] || 'pendente').color" x-text="dsEstagioConfig(p[dt.id + '_estagio'] || 'pendente').label"></span>
+                          <span x-show="p[dt.id + '_prazo']" class="ds-deadline-badge ds-deadline-badge--sm" :class="dsPrazoClass(p[dt.id + '_prazo'])" x-text="dsFormatDate(p[dt.id + '_prazo'])"></span>
                         </div>
                       </template>
                     </div>
@@ -4237,9 +4242,11 @@
                             <span x-text="p.responsavel_atual || '-'"></span>
                             <span class="ds-aging ds-aging--sm" :class="dsAgingClass(p.dias_no_estagio)" x-show="p.dias_no_estagio" x-text="p.dias_no_estagio + 'd'"></span>
                           </div>
-                          <div x-show="p.prazo_entrega" class="ds-pipeline__card-prazo">
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                            <span :class="dsPrazoClass(p.prazo_entrega)" x-text="dsFormatDate(p.prazo_entrega)"></span>
+                          <div x-show="p.prazo_entrega || p.oferta_prazo || p.funil_prazo || p.conteudo_prazo" class="ds-pipeline__card-prazo" style="flex-direction:column;align-items:flex-start;gap:2px">
+                            <span x-show="p.prazo_entrega" class="ds-deadline-badge ds-deadline-badge--sm" :class="dsPrazoClass(p.prazo_entrega)" title="Prazo Global">🎯 <span x-text="dsFormatDate(p.prazo_entrega)"></span></span>
+                            <template x-for="dt in DS_DOC_TIPOS" :key="dt.id">
+                              <span x-show="p[dt.id + '_prazo']" class="ds-deadline-badge ds-deadline-badge--sm" :class="dsPrazoClass(p[dt.id + '_prazo'])" :title="dt.label"><span x-text="dt.icon"></span> <span x-text="dsFormatDate(p[dt.id + '_prazo'])"></span></span>
+                            </template>
                           </div>
                         </div>
                       </template>
@@ -4261,7 +4268,10 @@
                     <th scope="col">Funil</th>
                     <th scope="col">Conteúdo</th>
                     <th scope="col">Call</th>
-                    <th scope="col" @click="dsSortBy('prazo_entrega')" :class="{ 'ds-table__th--sorted': ui.dsSortField === 'prazo_entrega' }">Prazo <span class="ds-sort-icon" x-text="ui.dsSortField === 'prazo_entrega' ? (ui.dsSortAsc ? '▲' : '▼') : '⇅'"></span></th>
+                    <th scope="col" @click="dsSortBy('prazo_entrega')" :class="{ 'ds-table__th--sorted': ui.dsSortField === 'prazo_entrega' }">Prazo Global <span class="ds-sort-icon" x-text="ui.dsSortField === 'prazo_entrega' ? (ui.dsSortAsc ? '▲' : '▼') : '⇅'"></span></th>
+                    <th scope="col" @click="dsSortBy('oferta_prazo')" :class="{ 'ds-table__th--sorted': ui.dsSortField === 'oferta_prazo' }">◆ Prazo <span class="ds-sort-icon" x-text="ui.dsSortField === 'oferta_prazo' ? (ui.dsSortAsc ? '▲' : '▼') : '⇅'"></span></th>
+                    <th scope="col" @click="dsSortBy('funil_prazo')" :class="{ 'ds-table__th--sorted': ui.dsSortField === 'funil_prazo' }">▽ Prazo <span class="ds-sort-icon" x-text="ui.dsSortField === 'funil_prazo' ? (ui.dsSortAsc ? '▲' : '▼') : '⇅'"></span></th>
+                    <th scope="col" @click="dsSortBy('conteudo_prazo')" :class="{ 'ds-table__th--sorted': ui.dsSortField === 'conteudo_prazo' }">◈ Prazo <span class="ds-sort-icon" x-text="ui.dsSortField === 'conteudo_prazo' ? (ui.dsSortAsc ? '▲' : '▼') : '⇅'"></span></th>
                     <th scope="col" @click="dsSortBy('dias_no_estagio')" :class="{ 'ds-table__th--sorted': ui.dsSortField === 'dias_no_estagio' }">Aging <span class="ds-sort-icon" x-text="ui.dsSortField === 'dias_no_estagio' ? (ui.dsSortAsc ? '▲' : '▼') : '⇅'"></span></th>
                     <th scope="col">Ajustes</th>
                   </tr>
@@ -4277,8 +4287,20 @@
                       <td class="ds-table__stage-cell"><span class="ds-stage-dot" :style="'background:' + dsEstagioConfig(p.conteudo_estagio || 'pendente').color" :title="dsEstagioConfig(p.conteudo_estagio || 'pendente').label"></span> <span x-text="dsEstagioConfig(p.conteudo_estagio || 'pendente').label"></span></td>
                       <td x-text="p.data_call_estrategia ? dsFormatDate(p.data_call_estrategia) : '-'"></td>
                       <td>
-                        <span x-show="p.prazo_entrega" class="ds-deadline-badge" :class="dsPrazoClass(p.prazo_entrega)" x-text="p.prazo_entrega ? dsFormatDate(p.prazo_entrega) : ''"></span>
+                        <span x-show="p.prazo_entrega" class="ds-deadline-badge" :class="dsPrazoClass(p.prazo_entrega)" x-text="dsFormatDate(p.prazo_entrega)"></span>
                         <span x-show="!p.prazo_entrega" style="color:#94a3b8">-</span>
+                      </td>
+                      <td>
+                        <span x-show="p.oferta_prazo" class="ds-deadline-badge" :class="dsPrazoClass(p.oferta_prazo)" x-text="dsFormatDate(p.oferta_prazo)"></span>
+                        <span x-show="!p.oferta_prazo" style="color:#94a3b8">-</span>
+                      </td>
+                      <td>
+                        <span x-show="p.funil_prazo" class="ds-deadline-badge" :class="dsPrazoClass(p.funil_prazo)" x-text="dsFormatDate(p.funil_prazo)"></span>
+                        <span x-show="!p.funil_prazo" style="color:#94a3b8">-</span>
+                      </td>
+                      <td>
+                        <span x-show="p.conteudo_prazo" class="ds-deadline-badge" :class="dsPrazoClass(p.conteudo_prazo)" x-text="dsFormatDate(p.conteudo_prazo)"></span>
+                        <span x-show="!p.conteudo_prazo" style="color:#94a3b8">-</span>
                       </td>
                       <td><span class="ds-aging ds-aging--sm" :class="dsAgingClass(p.dias_no_estagio)" x-text="(p.dias_no_estagio || 0) + 'd'"></span></td>
                       <td x-text="p.ajustes_pendentes || 0"></td>
