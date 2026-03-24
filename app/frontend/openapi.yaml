@@ -15,30 +15,13 @@ info:
     3. Envie `Authorization: Bearer <token>` em todas as requests autenticadas
     4. Quando o token expirar (60 min), use `POST /api/auth/refresh` com o `refresh_token`
 
-    ## Status dos endpoints
+    ## Tags
 
-    | Badge | Significado |
-    |-------|-------------|
-    | *(sem badge)* | Endpoint estável e em produção |
-    | `planned` | Mapeado no roadmap, backend ainda não implementado |
-    | `beta` | Implementado mas sujeito a mudanças |
-
-    ## Fluxos de automação
-
-    O Spalla é projetado para ser consumido por agentes de IA e automações N8N:
-
-    - **WhatsApp → Spalla → ClickUp**: mensagem no WhatsApp dispara webhook → cria tarefa no ClickUp
-    - **N8N → Spalla**: qualquer step de workflow pode chamar a API para ler contexto de mentorado
-    - **AI Agent → Spalla**: agentes podem buscar contexto completo de um mentorado antes de responder
-
-  contact:
-    name: CASE — Equipe Técnica
-    email: tech@case.com.br
-  license:
-    name: Proprietary
+    Os endpoints estão organizados por domínio funcional. Consulte cada tag
+    para entender o contexto de cada grupo de rotas.
 
 servers:
-  - url: https://spalla-backend.up.railway.app
+  - url: https://web-production-2cde5.up.railway.app
     description: Produção (Railway)
   - url: http://localhost:9999
     description: Desenvolvimento local
@@ -47,7 +30,11 @@ tags:
   - name: Auth
     description: Autenticação e gestão de sessão
   - name: Mentees
-    description: Dados de mentorados (leitura complementar — principal via Supabase direct)
+    description: Dados de mentorados, portfolio, triage, notes, offboard
+  - name: Mentee Groups
+    description: Agrupamento de mentorados
+  - name: WhatsApp
+    description: Inbox, media, labels, presence (WA DM v2)
   - name: Scheduling
     description: Agendamento de calls — Zoom + Google Calendar + registro no banco
   - name: Sheets Sync
@@ -56,673 +43,886 @@ tags:
     description: Acesso a arquivos de mídia do WhatsApp (Hetzner S3)
   - name: Storage & Search
     description: Pipeline de processamento de arquivos e busca semântica (pgvector)
+  - name: Copilot
+    description: AI assistant contextual para consultores
+  - name: Dossiê Production
+    description: Produção e controle de dossiês (state machine)
+  - name: Biblioteca
+    description: Documentos e dossiês publicados
   - name: Welcome Flow
     description: Onboarding de novos mentorados
   - name: Evolution / WhatsApp
     description: Proxy para Evolution API — WhatsApp via S2S
   - name: ClickUp
-    description: |
-      **[planned]** Integração com ClickUp para gestão de tarefas.
-      Requer `CLICKUP_API_TOKEN` e `CLICKUP_WORKSPACE_ID` no ambiente.
-  - name: Actions
-    description: |
-      **[planned]** Ações compostas — combinam múltiplos serviços em uma chamada única.
-      Ideal para N8N e agentes de IA.
-  - name: Webhooks
-    description: |
-      **[planned]** Receptores de eventos externos (Evolution, N8N, Zapier).
+    description: Integração com ClickUp para gestão de tarefas e sprints
   - name: System
     description: Health check e status de integrações
 
 components:
   securitySchemes:
-    bearerAuth:
+    BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
       description: |
-        Token JWT obtido via `POST /api/auth/login`.
-        TTL: 60 minutos. Renove com `POST /api/auth/refresh`.
+        JWT HMAC-SHA256. Obtido via POST /api/auth/login.
+        TTL do access_token: 60 minutos.
+        Renove via POST /api/auth/refresh com o refresh_token.
 
   schemas:
+    # ── Auth ──────────────────────────────────────────────
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: consultor@case.com.br
+        password:
+          type: string
+          minLength: 6
+          example: "s3cur3P@ss"
+        fullName:
+          type: string
+          example: Maria Silva
+        role:
+          type: string
+          enum: [equipe, admin, mentorado]
+          default: equipe
 
-    # ── Core ──────────────────────────────────────────────────────────────────
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: consultor@case.com.br
+        password:
+          type: string
+          example: "s3cur3P@ss"
 
-    Error:
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+
+    ResetPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+
+    AuthTokenResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        user:
+          $ref: "#/components/schemas/UserSummary"
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_in:
+          type: integer
+          description: Tempo de expiração em segundos
+          example: 3600
+
+    UserSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+
+    MeResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/UserSummary"
+
+    # ── Mentees ───────────────────────────────────────────
+    MenteeBasic:
+      type: object
+      properties:
+        id:
+          type: integer
+        nome:
+          type: string
+          example: João Oliveira
+        email:
+          type: string
+          format: email
+
+    MenteePortfolioItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        nome:
+          type: string
+        email:
+          type: string
+        health:
+          type: string
+          enum: [green, yellow, red]
+          description: Indicador de saúde do mentorado
+        priority_score:
+          type: number
+          format: float
+        snoozed:
+          type: boolean
+        days_since_activity:
+          type: integer
+        unread_count:
+          type: integer
+        negative_topics:
+          type: integer
+        recent_topics:
+          type: array
+          items:
+            type: string
+
+    TriageItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        nome:
+          type: string
+        score:
+          type: number
+          format: float
+        level:
+          type: string
+        factors:
+          type: array
+          items:
+            type: string
+
+    NoteObject:
+      type: object
+      properties:
+        id:
+          type: integer
+        mentorado_id:
+          type: integer
+        tipo:
+          type: string
+          enum:
+            - checkpoint_mensal
+            - feedback_aula
+            - registro_ligacao
+            - livre
+            - nota_livre
+        conteudo:
+          type: object
+        tags:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        created_by:
+          type: string
+
+    CreateNoteRequest:
+      type: object
+      required: [tipo]
+      properties:
+        tipo:
+          type: string
+          enum:
+            - checkpoint_mensal
+            - feedback_aula
+            - registro_ligacao
+            - livre
+            - nota_livre
+        conteudo:
+          type: object
+          description: Conteúdo livre da nota (JSON)
+        tags:
+          type: array
+          items:
+            type: string
+
+    OffboardRequest:
+      type: object
+      required: [motivo]
+      properties:
+        motivo:
+          type: string
+          enum: [reembolso, conclusao, cancelamento, outro]
+        obs:
+          type: string
+
+    UpdateMenteeRequest:
+      type: object
+      properties:
+        fase_jornada:
+          type: string
+          enum: [onboarding, execucao, resultado, renovacao, encerrado]
+        snoozed_until:
+          type: string
+          format: date-time
+        wa_status:
+          type: string
+          enum: [aguardando, em_andamento, bloqueado, resolvido]
+
+    BulkUpdateRequest:
+      type: object
+      required: [ids, updates]
+      properties:
+        ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        updates:
+          type: object
+          properties:
+            fase_jornada:
+              type: string
+              enum: [onboarding, execucao, resultado, renovacao, encerrado]
+            snoozed_until:
+              type: string
+              format: date-time
+
+    BulkUpdateResponse:
+      type: object
+      properties:
+        updated:
+          type: integer
+        mentees:
+          type: array
+          items:
+            type: object
+
+    # ── Mentee Groups ─────────────────────────────────────
+    MenteeGroup:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        nome:
+          type: string
+        cor:
+          type: string
+          example: "#6366f1"
+        icon:
+          type: string
+          example: folder
+        member_count:
+          type: integer
+        member_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    CreateGroupRequest:
+      type: object
+      required: [nome]
+      properties:
+        nome:
+          type: string
+          example: Turma Q1 2026
+        cor:
+          type: string
+          default: "#6366f1"
+          example: "#6366f1"
+        icon:
+          type: string
+          default: folder
+          example: folder
+
+    AddMemberRequest:
+      type: object
+      required: [mentee_id]
+      properties:
+        mentee_id:
+          type: string
+          format: uuid
+
+    # ── WhatsApp ──────────────────────────────────────────
+    InboxItem:
+      type: object
+      description: Linha da view vw_wa_mentee_inbox
+      properties:
+        id:
+          type: integer
+        nome:
+          type: string
+        health_status:
+          type: string
+          enum: [verde, amarelo, vermelho, snoozed]
+        fase_jornada:
+          type: string
+        unread_count:
+          type: integer
+        last_message_at:
+          type: string
+          format: date-time
+        sla_hours:
+          type: number
+
+    WaMediaItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        media_key:
+          type: string
+        mime_type:
+          type: string
+        file_name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    LabelSummaryItem:
+      type: object
+      properties:
+        slug:
+          type: string
+        name:
+          type: string
+        color:
+          type: string
+        icon:
+          type: string
+        count:
+          type: integer
+
+    PresenceItem:
+      type: object
+      properties:
+        user_email:
+          type: string
+          format: email
+        user_name:
+          type: string
+        last_seen:
+          type: string
+          format: date-time
+
+    PresenceHeartbeatRequest:
+      type: object
+      required: [mentorado_id, user_email]
+      properties:
+        mentorado_id:
+          type: integer
+        user_email:
+          type: string
+          format: email
+        user_name:
+          type: string
+
+    # ── Scheduling ────────────────────────────────────────
+    ScheduleCallRequest:
+      type: object
+      required: [mentorado, data]
+      properties:
+        mentorado:
+          type: string
+          description: Nome do mentorado
+        data:
+          type: string
+          format: date
+          example: "2026-04-01"
+        mentorado_id:
+          type: integer
+        email:
+          type: string
+          format: email
+        tipo:
+          type: string
+          enum: [acompanhamento, diagnostico, planejamento, onboarding, estrategia]
+          default: acompanhamento
+        horario:
+          type: string
+          pattern: '^\d{2}:\d{2}$'
+          default: "10:00"
+          example: "10:00"
+        duracao:
+          type: integer
+          default: 60
+          description: Duração em minutos
+        notas:
+          type: string
+
+    CreateZoomMeetingRequest:
+      type: object
+      properties:
+        topic:
+          type: string
+        start_time:
+          type: string
+          format: date-time
+        duration:
+          type: integer
+          default: 60
+        invitees:
+          type: array
+          items:
+            type: string
+            format: email
+
+    CreateCalendarEventRequest:
+      type: object
+      properties:
+        summary:
+          type: string
+        start_iso:
+          type: string
+          format: date-time
+        end_iso:
+          type: string
+          format: date-time
+        description:
+          type: string
+        attendees:
+          type: array
+          items:
+            type: string
+            format: email
+        location:
+          type: string
+
+    # ── Sheets Sync ───────────────────────────────────────
+    SheetsSyncStatus:
+      type: object
+      properties:
+        sheets_configured:
+          type: boolean
+        last_sync:
+          type: string
+          format: date-time
+          nullable: true
+        last_result:
+          type: string
+          nullable: true
+        payments_sheet:
+          type: string
+          nullable: true
+        contracts_sheet:
+          type: string
+          nullable: true
+
+    # ── Storage & Search ──────────────────────────────────
+    ProcessFileRequest:
+      type: object
+      properties:
+        arquivo_id:
+          type: integer
+
+    SearchRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          example: "plano de ação mentorado"
+        mode:
+          type: string
+          enum: [semantic, keyword, hybrid]
+          default: hybrid
+        limit:
+          type: integer
+          default: 10
+          maximum: 50
+        filters:
+          type: object
+          properties:
+            entidade_tipo:
+              type: string
+              enum: [mentorado, equipe, global]
+            entidade_id:
+              type: integer
+
+    SearchResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+        total:
+          type: integer
+        query_time_ms:
+          type: number
+
+    StorageStatus:
+      type: object
+      properties:
+        overview:
+          type: object
+        queue:
+          type: object
+        providers:
+          type: object
+
+    ReprocessRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pendente, erro, all]
+          default: pendente
+
+    # ── Copilot ───────────────────────────────────────────
+    CopilotRequest:
+      type: object
+      required: [message]
+      properties:
+        mentee_id:
+          type: integer
+          nullable: true
+        message:
+          type: string
+          example: "Quais são os próximos passos pra esse mentorado?"
+        history:
+          type: array
+          items:
+            type: object
+            properties:
+              role:
+                type: string
+                enum: [user, assistant]
+              content:
+                type: string
+
+    CopilotResponse:
+      type: object
+      properties:
+        reply:
+          type: string
+        context_used:
+          type: boolean
+
+    # ── Dossiê Production ─────────────────────────────────
+    UpdateStageRequest:
+      type: object
+      required: [mentorado_slug, dossie_tipo, estagio]
+      properties:
+        mentorado_slug:
+          type: string
+          example: joao-oliveira
+        dossie_tipo:
+          type: string
+          enum: [oferta, funil, conteudo]
+        estagio:
+          type: string
+          enum:
+            - pendente
+            - producao_ia
+            - revisao_mariza
+            - revisao_kaique
+            - revisao_queila
+            - aprovado
+            - publicado
+
+    UpdateStageResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        mentorado:
+          type: string
+        tipo:
+          type: string
+        estagio:
+          type: string
+        responsavel:
+          type: string
+        audit_event:
+          type: object
+
+    # ── Biblioteca ────────────────────────────────────────
+    DocumentListItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        mentorado_id:
+          type: integer
+        tipo:
+          type: string
+        titulo:
+          type: string
+        deep_link_slug:
+          type: string
+        estagio:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    DocumentFull:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        mentorado_id:
+          type: integer
+        tipo:
+          type: string
+        titulo:
+          type: string
+        deep_link_slug:
+          type: string
+        estagio:
+          type: string
+        conteudo_md:
+          type: string
+          description: Conteúdo completo em Markdown
+        created_at:
+          type: string
+          format: date-time
+
+    # ── Welcome Flow ──────────────────────────────────────
+    WelcomeRegisterRequest:
+      type: object
+      required: [nome, email]
+      properties:
+        nome:
+          type: string
+          example: Maria Silva
+        email:
+          type: string
+          format: email
+          example: maria@email.com
+        whatsapp:
+          type: string
+          example: "5511999998888"
+
+    WelcomeRegisterResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        credentials:
+          type: object
+          properties:
+            email:
+              type: string
+            temp_password:
+              type: string
+              description: "Formato: {primeiroNome_lowercase}{últimos4digitos_whatsapp}"
+
+    # ── ClickUp ───────────────────────────────────────────
+    CommandCenterResponse:
+      type: object
+      properties:
+        sprint:
+          type: object
+        total:
+          type: integer
+        subtasks_total:
+          type: integer
+        by_status:
+          type: object
+        by_member:
+          type: object
+        activity:
+          type: array
+          items:
+            type: object
+        concluidas:
+          type: array
+          items:
+            type: object
+
+    # ── System ────────────────────────────────────────────
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        zoom_configured:
+          type: boolean
+        gcal_configured:
+          type: boolean
+        supabase_configured:
+          type: boolean
+        sheets_configured:
+          type: boolean
+        openai_configured:
+          type: boolean
+        storage_search:
+          type: boolean
+
+    # ── Shared ────────────────────────────────────────────
+    OkResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+
+    ErrorResponse:
       type: object
       properties:
         error:
           type: string
-          example: "Email and password required"
-      required: [error]
+        details:
+          type: string
 
-    User:
-      type: object
-      properties:
-        id:
-          type: integer
-          example: 42
-        email:
-          type: string
-          format: email
-          example: heitor@case.com.br
-        full_name:
-          type: string
-          example: Heitor Lima
-        role:
-          type: string
-          enum: [equipe, admin, mentorado]
-          example: equipe
-
-    TokenPair:
-      type: object
-      properties:
-        access_token:
-          type: string
-          description: "JWT de acesso — envie no header `Authorization: Bearer <token>`"
-          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-        refresh_token:
-          type: string
-          description: JWT de renovação — use em `POST /api/auth/refresh`
-          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-        expires_in:
-          type: integer
-          description: Segundos até o access_token expirar
-          example: 3600
-
-    AuthResponse:
-      allOf:
-        - type: object
-          properties:
-            success:
-              type: boolean
-              example: true
-            user:
-              $ref: '#/components/schemas/User'
-        - $ref: '#/components/schemas/TokenPair'
-
-    # ── Mentees ───────────────────────────────────────────────────────────────
-
-    MenteeEmail:
-      type: object
-      description: Subconjunto de dados do mentorado com email (para formulários)
-      properties:
-        id:
-          type: integer
-          example: 7
-        nome:
-          type: string
-          example: "João Silva"
-        email:
-          type: string
-          format: email
-          nullable: true
-          example: "joao@silva.com"
-
-    MenteeOverview:
-      type: object
-      description: View completa vw_god_overview — lida diretamente via Supabase JS client
-      properties:
-        id:
-          type: integer
-        nome:
-          type: string
-        fase_jornada:
-          type: string
-          enum: [onboarding, concepcao, validacao, otimizacao, escala]
-        risco_churn:
-          type: string
-          enum: [baixo, medio, alto, critico]
-        cohort:
-          type: string
-          example: "N1"
-        consultor_responsavel:
-          type: string
-          nullable: true
-        msgs_pendentes_resposta:
-          type: integer
-          description: Derivado de vw_god_pendencias (reconciliado no frontend)
-        tarefas_atrasadas:
-          type: integer
-        horas_sem_resposta_equipe:
-          type: number
-          nullable: true
-        status_contrato:
-          type: string
-          nullable: true
-        status_pagamento:
-          type: string
-          nullable: true
-
-    MenteeContext:
-      type: object
-      description: Contexto completo para consumo por agentes de IA
-      properties:
-        mentee:
-          $ref: '#/components/schemas/MenteeOverview'
-        recent_interactions:
-          type: array
-          items:
-            $ref: '#/components/schemas/Interaction'
-          description: Últimas 20 interações WhatsApp
-        pending_messages:
-          type: array
-          items:
-            $ref: '#/components/schemas/Pendencia'
-        upcoming_calls:
-          type: array
-          items:
-            $ref: '#/components/schemas/Call'
-        plano_acao:
-          type: object
-          nullable: true
-          description: Status atual do Plano de Ação
-        files:
-          type: array
-          items:
-            $ref: '#/components/schemas/Arquivo'
-
-    Pendencia:
-      type: object
-      properties:
-        interacao_id:
-          type: integer
-        mentorado_id:
-          type: integer
-        mentorado_nome:
-          type: string
-        mensagem:
-          type: string
-        prioridade_calculada:
-          type: string
-        horas_sem_resposta:
-          type: number
-        created_at:
-          type: string
-          format: date-time
-
-    Interaction:
-      type: object
-      properties:
-        id:
-          type: integer
-        mentorado_id:
-          type: integer
-        tipo:
-          type: string
-          enum: [whatsapp_in, whatsapp_out, nota_interna, call, email]
-        mensagem:
-          type: string
-          nullable: true
-        respondido:
-          type: boolean
-        created_at:
-          type: string
-          format: date-time
-
-    # ── Scheduling ────────────────────────────────────────────────────────────
-
-    Call:
-      type: object
-      properties:
-        id:
-          type: integer
-        mentorado_id:
-          type: integer
-          nullable: true
-        data_call:
-          type: string
-          format: date-time
-        tipo_call:
-          type: string
-          enum: [acompanhamento, diagnostico, planejamento]
-        duracao_minutos:
-          type: integer
-          nullable: true
-        zoom_meeting_id:
-          type: string
-          nullable: true
-        zoom_topic:
-          type: string
-          nullable: true
-        status_call:
-          type: string
-          enum: [realizada, cancelada, processando]
-          nullable: true
-        link_gravacao:
-          type: string
-          nullable: true
-        link_transcricao:
-          type: string
-          nullable: true
-        observacoes_equipe:
-          type: string
-          nullable: true
-
-    ZoomMeeting:
-      type: object
-      properties:
-        meeting_id:
-          type: string
-          example: "123456789"
-        join_url:
-          type: string
-          format: uri
-          example: "https://zoom.us/j/123456789"
-        password:
-          type: string
-          example: "abc123"
-        start_url:
-          type: string
-          format: uri
-          description: URL do host com ZAK token (expira em ~2h)
-
-    CalendarEvent:
-      type: object
-      properties:
-        event_id:
-          type: string
-          example: "gcal_event_id"
-        html_link:
-          type: string
-          format: uri
-          example: "https://calendar.google.com/calendar/event?eid=..."
-
-    # ── Files & Storage ───────────────────────────────────────────────────────
-
-    Arquivo:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        nome_original:
-          type: string
-          example: "relatorio-abril.pdf"
-        tipo_mime:
-          type: string
-          example: "application/pdf"
-        tamanho_bytes:
-          type: integer
-          example: 204800
-        status_processamento:
-          type: string
-          enum: [pendente, processando, concluido, erro]
-        total_chunks:
-          type: integer
-          nullable: true
-        entidade_tipo:
-          type: string
-          enum: [mentorado, equipe, global]
-        entidade_id:
-          type: integer
-          nullable: true
-        storage_path:
-          type: string
-        created_at:
-          type: string
-          format: date-time
-
-    SearchResult:
-      type: object
-      properties:
-        chunk_id:
-          type: string
-          format: uuid
-        arquivo_id:
-          type: string
-          format: uuid
-        arquivo_nome:
-          type: string
-        mentorado_nome:
-          type: string
-          nullable: true
-        texto:
-          type: string
-          description: Chunk de texto extraído (~500 tokens)
-        score:
-          type: number
-          format: float
-          minimum: 0
-          maximum: 1
-          description: Similaridade coseno (semantic) ou rank (keyword)
-        score_type:
-          type: string
-          enum: [cosine, rank, combined]
-        page_num:
-          type: integer
-          nullable: true
-          description: Página no documento original (PDF only)
-
-    # ── ClickUp ───────────────────────────────────────────────────────────────
-
-    ClickUpTask:
-      type: object
-      properties:
-        id:
-          type: string
-          example: "abc123def"
-        name:
-          type: string
-          example: "Revisar PA do João Silva"
-        status:
-          type: string
-          example: "in progress"
-        priority:
-          type: integer
-          nullable: true
-          description: "1=Urgent, 2=High, 3=Normal, 4=Low"
-        assignees:
-          type: array
-          items:
-            type: string
-          example: ["heitor", "lara"]
-        due_date:
-          type: string
-          format: date
-          nullable: true
-        description:
-          type: string
-          nullable: true
-        url:
-          type: string
-          format: uri
-          example: "https://app.clickup.com/t/abc123def"
-        list_id:
-          type: string
-          example: "901113377455"
-        mentorado_id:
-          type: integer
-          nullable: true
-          description: ID do mentorado vinculado (campo customizado no ClickUp)
-
-    ClickUpList:
-      type: object
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-          example: "Sprint 1 (3/16 - 3/22)"
-        task_count:
-          type: integer
-
-    ClickUpMember:
-      type: object
-      properties:
-        id:
-          type: integer
-        username:
-          type: string
-        email:
-          type: string
-          format: email
-        profilePicture:
-          type: string
-          nullable: true
-
-    # ── Webhooks ──────────────────────────────────────────────────────────────
-
-    EvolutionWebhookPayload:
-      type: object
-      description: Payload enviado pela Evolution API quando um evento ocorre
-      properties:
-        event:
-          type: string
-          enum:
-            - messages.upsert
-            - messages.update
-            - connection.update
-            - qr.updated
-            - send.message
-          example: "messages.upsert"
-        instance:
-          type: string
-          example: "case-spalla"
-        data:
-          type: object
-          description: Dados do evento — varia por tipo
-          properties:
-            key:
-              type: object
-              properties:
-                remoteJid:
-                  type: string
-                  example: "5511999990000@s.whatsapp.net"
-                fromMe:
-                  type: boolean
-                id:
-                  type: string
-            message:
-              type: object
-              description: Conteúdo da mensagem (conversationMessage, imageMessage, audioMessage, etc.)
-            pushName:
-              type: string
-              example: "João Silva"
-            messageTimestamp:
-              type: integer
-
-    ActionCreateTaskPayload:
-      type: object
-      properties:
-        name:
-          type: string
-          example: "Follow up com João Silva — sem resposta há 48h"
-        list_id:
-          type: string
-          example: "901113377455"
-          description: ID da lista/sprint no ClickUp. Usa lista padrão se omitido.
-        mentorado_id:
-          type: integer
-          nullable: true
-          description: Vincula a tarefa a um mentorado específico
-        description:
-          type: string
-          nullable: true
-        assignees:
-          type: array
-          items:
-            type: string
-          description: Usernames do ClickUp
-        priority:
-          type: integer
-          enum: [1, 2, 3, 4]
-          description: "1=Urgent, 2=High, 3=Normal, 4=Low. Default: 3"
-          nullable: true
-        due_date:
-          type: string
-          format: date
-          nullable: true
-        whatsapp_context:
-          type: object
-          nullable: true
-          description: Contexto da mensagem WhatsApp que originou a tarefa
-          properties:
-            remoteJid:
-              type: string
-            mensagem:
-              type: string
-            timestamp:
-              type: integer
-
-    ActionLogInteractionPayload:
-      type: object
-      required: [mentorado_id, tipo, mensagem]
-      properties:
-        mentorado_id:
-          type: integer
-        tipo:
-          type: string
-          enum: [whatsapp_in, whatsapp_out, nota_interna, call, email]
-        mensagem:
-          type: string
-        respondido:
-          type: boolean
-          default: false
-        metadata:
-          type: object
-          nullable: true
-          description: Dados adicionais (media_key, zoom_id, etc.)
-
-security:
-  - {} # Most endpoints don't require auth — specified per-operation
+# ═══════════════════════════════════════════════════════════
+# PATHS
+# ═══════════════════════════════════════════════════════════
 
 paths:
-
-  # ══════════════════════════════════════════════════════════════════════════
-  # AUTH
-  # ══════════════════════════════════════════════════════════════════════════
-
+  # ── Auth ────────────────────────────────────────────────
   /api/auth/register:
     post:
       tags: [Auth]
       summary: Criar conta
-      description: Cria um novo usuário no sistema. Não exposto no UI público — usado para onboarding da equipe.
-      operationId: authRegister
+      description: |
+        Registra um novo usuário no sistema. Não requer autenticação.
+        Retorna o par de tokens (access + refresh) junto com os dados do usuário.
+      operationId: register
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [email, password]
-              properties:
-                email:
-                  type: string
-                  format: email
-                  example: heitor@case.com.br
-                password:
-                  type: string
-                  minLength: 6
-                  example: minimo6chars
-                fullName:
-                  type: string
-                  example: Heitor Lima
-                role:
-                  type: string
-                  enum: [equipe, admin, mentorado]
-                  default: equipe
+              $ref: "#/components/schemas/RegisterRequest"
       responses:
-        "201":
-          description: Conta criada
+        "200":
+          description: Conta criada com sucesso
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthResponse'
+                $ref: "#/components/schemas/AuthTokenResponse"
         "400":
-          description: Campos inválidos
+          description: Dados inválidos (email duplicado, senha curta, etc.)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-              examples:
-                missing:
-                  value: { error: "Email and password required" }
-                short_password:
-                  value: { error: "Password must be at least 6 characters" }
-        "409":
-          description: Email já cadastrado
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                value: { error: "Email already exists" }
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/auth/login:
     post:
       tags: [Auth]
       summary: Login
       description: |
-        Autentica com email e senha. Retorna par de tokens JWT.
-
-        > Hashes SHA-256 legados são migrados automaticamente para bcrypt no primeiro login.
-      operationId: authLogin
+        Autentica o usuário e retorna par de tokens JWT.
+        O access_token expira em 60 minutos.
+      operationId: login
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [email, password]
-              properties:
-                email:
-                  type: string
-                  format: email
-                  example: heitor@case.com.br
-                password:
-                  type: string
-                  example: minimo6chars
+              $ref: "#/components/schemas/LoginRequest"
       responses:
         "200":
           description: Login bem-sucedido
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthResponse'
+                $ref: "#/components/schemas/AuthTokenResponse"
+        "400":
+          description: Email ou senha ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Credenciais inválidas
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                value: { error: "Invalid email or password" }
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/auth/refresh:
     post:
       tags: [Auth]
       summary: Renovar token
-      description: Troca um refresh_token por um novo par access/refresh sem exigir senha.
-      operationId: authRefresh
+      description: |
+        Gera um novo par de tokens a partir do refresh_token.
+        Use quando o access_token expirar (60 min).
+      operationId: refreshToken
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [refresh_token]
-              properties:
-                refresh_token:
-                  type: string
-                  example: "eyJ..."
+              $ref: "#/components/schemas/RefreshRequest"
       responses:
         "200":
-          description: Novo par de tokens
+          description: Novo par de tokens gerado
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthResponse'
+                $ref: "#/components/schemas/AuthTokenResponse"
+        "400":
+          description: refresh_token ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
-          description: Token inválido ou expirado
+          description: refresh_token inválido ou expirado
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/auth/reset-password:
     post:
       tags: [Auth]
-      summary: Solicitar reset de senha
+      summary: Solicitar reset de senha (stub)
       description: |
-        Sempre retorna 200 (previne enumeração de emails).
-
-        > ⚠️ Envio de email ainda não implementado. A solicitação é logada server-side.
-      operationId: authResetPassword
+        Endpoint de reset de senha. Atualmente é um stub que sempre retorna 200
+        independentemente do email fornecido.
+      operationId: resetPassword
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [email]
-              properties:
-                email:
-                  type: string
-                  format: email
+              $ref: "#/components/schemas/ResetPasswordRequest"
       responses:
         "200":
-          description: Sempre 200
+          description: Solicitação recebida (sempre retorna sucesso)
           content:
             application/json:
               schema:
@@ -730,49 +930,51 @@ paths:
                 properties:
                   success:
                     type: boolean
+                    example: true
                   message:
                     type: string
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/auth/me:
     get:
       tags: [Auth]
-      summary: Usuário atual
-      description: Valida o access_token e retorna o perfil do usuário logado.
-      operationId: authMe
+      summary: Retorna usuário atual
+      description: Retorna os dados do usuário autenticado pelo JWT.
+      operationId: getMe
       security:
-        - bearerAuth: []
+        - BearerAuth: []
       responses:
         "200":
-          description: Perfil do usuário
+          description: Dados do usuário
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  user:
-                    $ref: '#/components/schemas/User'
+                $ref: "#/components/schemas/MeResponse"
         "401":
-          description: Token inválido ou ausente
+          description: Token ausente ou inválido
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
-  # ══════════════════════════════════════════════════════════════════════════
-  # MENTEES
-  # ══════════════════════════════════════════════════════════════════════════
-
+  # ── Mentees ─────────────────────────────────────────────
   /api/mentees:
     get:
       tags: [Mentees]
-      summary: Listar mentorados (com email)
-      description: |
-        Retorna todos os mentorados com email. Complementa a view `vw_god_overview`
-        lida diretamente via Supabase JS client (que não expõe email por RLS).
-
-        Para dados completos (fases, riscos, KPIs, financeiro), acesse `vw_god_overview`
-        diretamente no Supabase com o JS client.
-      operationId: getMentees
+      summary: Listar mentorados com email
+      description: Retorna a lista completa de mentorados com id, nome e email.
+      operationId: listMentees
       responses:
         "200":
           description: Lista de mentorados
@@ -781,264 +983,890 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/MenteeEmail'
+                  $ref: "#/components/schemas/MenteeBasic"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
-  /api/mentees/{id}/context:
+  /api/mentees/portfolio:
     get:
       tags: [Mentees]
-      summary: Contexto completo do mentorado
+      summary: Carteira do consultor
       description: |
-        **[planned]** Retorna contexto agregado de um mentorado para consumo por agentes de IA
-        ou N8N: dados da view, últimas interações, mensagens pendentes, próximas calls, PA, arquivos.
+        Retorna mentorados atribuídos ao consultor autenticado,
+        enriquecidos com health score, priority score, contadores de
+        mensagens não lidas, tópicos negativos e atividade recente.
+        Filtra automaticamente por `consultor_responsavel` = email do JWT.
+      operationId: getPortfolio
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Carteira enriquecida
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MenteePortfolioItem"
+        "401":
+          description: Token ausente ou inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
-        Ideal para pré-carregar contexto antes de um agente responder uma mensagem no WhatsApp.
-      operationId: getMenteeContext
-      x-status: planned
+  /api/mentees/triage:
+    get:
+      tags: [Mentees]
+      summary: Triage scores (server-side)
+      description: |
+        Retorna a lista de mentorados com scores de triage calculados
+        no servidor, ordenados por score decrescente. Inclui fatores
+        que contribuíram para o score.
+      operationId: getMenteeTriage
+      responses:
+        "200":
+          description: Lista de triage ordenada por score
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TriageItem"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/mentees/{id}/notes:
+    get:
+      tags: [Mentees]
+      summary: Listar notas de um mentorado
+      description: Retorna todas as notas associadas ao mentorado especificado.
+      operationId: listMenteeNotes
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
-          example: 7
+          description: ID do mentorado
       responses:
         "200":
-          description: Contexto completo
+          description: Lista de notas
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MenteeContext'
-        "404":
-          description: Mentorado não encontrado
+                type: array
+                items:
+                  $ref: "#/components/schemas/NoteObject"
+        "401":
+          description: Token ausente ou inválido
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-
-  /api/mentees/{id}/interactions:
-    get:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
       tags: [Mentees]
-      summary: Histórico de interações
+      summary: Criar nota
       description: |
-        **[planned]** Retorna o histórico de interações de um mentorado (WhatsApp, calls, notas internas).
-        Suporta paginação e filtro por tipo.
-      operationId: getMenteeInteractions
-      x-status: planned
+        Cria uma nova nota para o mentorado. O tipo define a categoria
+        da nota (checkpoint, feedback, registro de ligação, etc.).
+      operationId: createMenteeNote
+      security:
+        - BearerAuth: []
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
-        - name: tipo
-          in: query
-          schema:
-            type: string
-            enum: [whatsapp_in, whatsapp_out, nota_interna, call, email]
-        - name: limit
-          in: query
+          description: ID do mentorado
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNoteRequest"
+      responses:
+        "201":
+          description: Nota criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoteObject"
+        "400":
+          description: Dados inválidos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Token ausente ou inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/mentees/{id}/offboard:
+    post:
+      tags: [Mentees]
+      summary: Desativar mentorado
+      description: |
+        Desativa (offboard) um mentorado com o motivo informado.
+        Possíveis motivos: reembolso, conclusão, cancelamento ou outro.
+      operationId: offboardMentee
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
           schema:
             type: integer
-            default: 50
-            maximum: 200
-        - name: offset
-          in: query
-          schema:
-            type: integer
-            default: 0
+          description: ID do mentorado
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OffboardRequest"
       responses:
         "200":
-          description: Histórico de interações
+          description: Mentorado desativado
           content:
             application/json:
               schema:
                 type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Interaction'
-                  total:
-                    type: integer
-                  limit:
-                    type: integer
-                  offset:
-                    type: integer
+                description: Mentorado atualizado
+        "400":
+          description: Motivo ausente ou inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Token ausente ou inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
-  # ══════════════════════════════════════════════════════════════════════════
-  # SCHEDULING
-  # ══════════════════════════════════════════════════════════════════════════
+  /api/mentees/{id}:
+    patch:
+      tags: [Mentees]
+      summary: Atualizar campos do mentorado
+      description: |
+        Atualiza campos específicos de um mentorado: fase da jornada,
+        snooze (silenciar temporariamente) e status do WhatsApp.
+      operationId: updateMentee
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID do mentorado
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMenteeRequest"
+      responses:
+        "200":
+          description: Mentorado atualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Mentorado com campos atualizados
+        "401":
+          description: Token ausente ou inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
+  /api/mentees/bulk:
+    patch:
+      tags: [Mentees]
+      summary: Bulk update mentorados
+      description: |
+        Atualiza múltiplos mentorados de uma vez. Recebe uma lista de IDs
+        e os campos a serem atualizados (fase_jornada, snoozed_until).
+      operationId: bulkUpdateMentees
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkUpdateRequest"
+      responses:
+        "200":
+          description: Mentorados atualizados
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkUpdateResponse"
+        "400":
+          description: IDs ou updates ausentes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Token ausente ou inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Mentee Groups ───────────────────────────────────────
+  /api/mentee-groups:
+    get:
+      tags: [Mentee Groups]
+      summary: Listar grupos com member counts
+      description: Retorna todos os grupos de mentorados com contagem e IDs dos membros.
+      operationId: listMenteeGroups
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Lista de grupos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MenteeGroup"
+        "401":
+          description: Token ausente ou inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags: [Mentee Groups]
+      summary: Criar grupo
+      description: Cria um novo grupo de mentorados com nome, cor e ícone opcionais.
+      operationId: createMenteeGroup
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGroupRequest"
+      responses:
+        "201":
+          description: Grupo criado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MenteeGroup"
+        "400":
+          description: Nome ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Token ausente ou inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/mentee-groups/{id}:
+    delete:
+      tags: [Mentee Groups]
+      summary: Deletar grupo
+      description: Remove um grupo de mentorados. Os mentorados não são afetados.
+      operationId: deleteMenteeGroup
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID do grupo
+      responses:
+        "200":
+          description: Grupo deletado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "401":
+          description: Token ausente ou inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Grupo não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/mentee-groups/{id}/members:
+    get:
+      tags: [Mentee Groups]
+      summary: Listar membros de um grupo
+      description: Retorna os mentorados que pertencem ao grupo especificado.
+      operationId: listGroupMembers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID do grupo
+      responses:
+        "200":
+          description: Lista de membros
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        "401":
+          description: Token ausente ou inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags: [Mentee Groups]
+      summary: Adicionar mentorado ao grupo
+      description: Adiciona um mentorado como membro do grupo especificado.
+      operationId: addGroupMember
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID do grupo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddMemberRequest"
+      responses:
+        "201":
+          description: Membro adicionado
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: mentee_id ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Token ausente ou inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/mentee-groups/{id}/members/{mentee_id}:
+    delete:
+      tags: [Mentee Groups]
+      summary: Remover mentorado do grupo
+      description: Remove um mentorado do grupo especificado.
+      operationId: removeGroupMember
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID do grupo
+        - name: mentee_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID do mentorado
+      responses:
+        "200":
+          description: Membro removido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "401":
+          description: Token ausente ou inválido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Membro não encontrado no grupo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── WhatsApp ────────────────────────────────────────────
+  /api/wa/inbox:
+    get:
+      tags: [WhatsApp]
+      summary: Inbox de mentorados
+      description: |
+        Retorna a inbox do WhatsApp com dados da view `vw_wa_mentee_inbox`.
+        Suporta filtros por saúde, fase, busca textual e ordenação.
+      operationId: getWaInbox
+      parameters:
+        - name: health_status
+          in: query
+          schema:
+            type: string
+            enum: [verde, amarelo, vermelho, snoozed]
+          description: Filtrar por status de saúde
+        - name: fase_jornada
+          in: query
+          schema:
+            type: string
+            enum: [onboarding, execucao, resultado, renovacao]
+          description: Filtrar por fase da jornada
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Busca textual no nome (ilike)
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [sla_desc, unread_desc, last_message_desc]
+            default: sla_desc
+          description: Ordenação dos resultados
+      responses:
+        "200":
+          description: Inbox do WhatsApp
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InboxItem"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/wa/media:
+    get:
+      tags: [WhatsApp]
+      summary: Mídia WA de mentorado
+      description: Retorna os arquivos de mídia do WhatsApp associados ao mentorado.
+      operationId: getWaMedia
+      parameters:
+        - name: mentee_id
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: ID do mentorado
+      responses:
+        "200":
+          description: Lista de arquivos de mídia
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WaMediaItem"
+        "400":
+          description: mentee_id ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/wa/labels/summary:
+    get:
+      tags: [WhatsApp]
+      summary: Contagem de labels por tipo de tópico
+      description: |
+        Retorna a contagem de labels (tópicos) agrupados por slug.
+        Opcionalmente filtra por mentorado e janela de tempo.
+      operationId: getWaLabelsSummary
+      parameters:
+        - name: mentee_id
+          in: query
+          schema:
+            type: integer
+          description: Filtrar por mentorado (opcional)
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+          description: Janela de tempo em dias
+      responses:
+        "200":
+          description: Resumo de labels
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LabelSummaryItem"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/wa/presence/{mentorado_id}:
+    get:
+      tags: [WhatsApp]
+      summary: Presenças ativas (últimos 60s)
+      description: |
+        Retorna os usuários que estão ativamente visualizando a conversa
+        com o mentorado especificado (heartbeat nos últimos 60 segundos).
+      operationId: getWaPresence
+      parameters:
+        - name: mentorado_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID do mentorado
+      responses:
+        "200":
+          description: Lista de presenças ativas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PresenceItem"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/wa/presence:
+    post:
+      tags: [WhatsApp]
+      summary: Heartbeat de presença
+      description: |
+        Registra que um usuário está ativo na conversa de um mentorado.
+        Deve ser chamado periodicamente (a cada ~30s) para manter presença.
+      operationId: sendPresenceHeartbeat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PresenceHeartbeatRequest"
+      responses:
+        "200":
+          description: Presença registrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "400":
+          description: Campos obrigatórios ausentes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags: [WhatsApp]
+      summary: Limpar presença
+      description: Remove a presença de um usuário na conversa de um mentorado.
+      operationId: clearPresence
+      parameters:
+        - name: mentorado_id
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: ID do mentorado
+        - name: user_email
+          in: query
+          required: true
+          schema:
+            type: string
+            format: email
+          description: Email do usuário
+      responses:
+        "200":
+          description: Presença removida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+        "400":
+          description: Parâmetros ausentes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Scheduling ──────────────────────────────────────────
   /api/schedule-call:
     post:
       tags: [Scheduling]
-      summary: Agendar call completa
+      summary: Agendar call (orquestração completa)
       description: |
-        Orquestra três serviços em sequência: cria reunião Zoom → cria evento no Google Calendar
-        → insere registro em `calls_mentoria`.
-
-        Falha parcial é normal — se Zoom não estiver configurado, Calendar e Supabase ainda funcionam.
+        Orquestra criação completa de uma call: cria reunião no Zoom,
+        evento no Google Calendar e registro no banco de dados.
+        Fluxo: Zoom → Calendar → DB (calls_mentoria).
       operationId: scheduleCall
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [mentorado, data]
-              properties:
-                mentorado:
-                  type: string
-                  example: "João Silva"
-                data:
-                  type: string
-                  format: date
-                  example: "2026-04-10"
-                mentorado_id:
-                  type: integer
-                  nullable: true
-                  description: Se fornecido, insere registro em calls_mentoria
-                email:
-                  type: string
-                  format: email
-                  nullable: true
-                  description: Convidado para Zoom e Google Calendar
-                tipo:
-                  type: string
-                  enum: [acompanhamento, diagnostico, planejamento, onboarding, estrategia]
-                  default: acompanhamento
-                horario:
-                  type: string
-                  pattern: '^\d{2}:\d{2}$'
-                  example: "10:00"
-                  default: "10:00"
-                duracao:
-                  type: integer
-                  description: Duração em minutos
-                  default: 60
-                notas:
-                  type: string
-                  nullable: true
+              $ref: "#/components/schemas/ScheduleCallRequest"
       responses:
         "200":
-          description: Call agendada (mesmo com sub-falhas parciais)
+          description: Call agendada com sucesso
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  mentorado:
-                    type: string
-                  data:
-                    type: string
-                  horario:
-                    type: string
-                  tipo:
-                    type: string
+                  success:
+                    type: boolean
                   zoom:
-                    oneOf:
-                      - $ref: '#/components/schemas/ZoomMeeting'
-                      - $ref: '#/components/schemas/Error'
-                  calendar:
-                    oneOf:
-                      - $ref: '#/components/schemas/CalendarEvent'
-                      - $ref: '#/components/schemas/Error'
-                  supabase:
                     type: object
-                    properties:
-                      inserted:
-                        type: boolean
-                      id:
-                        type: integer
+                    description: Dados da reunião Zoom criada
+                  calendar:
+                    type: object
+                    description: Dados do evento Calendar criado
+                  db:
+                    type: object
+                    description: Registro inserido no banco
         "400":
           description: Campos obrigatórios ausentes
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro na criação (Zoom, Calendar ou DB)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/zoom/create-meeting:
     post:
       tags: [Scheduling]
-      summary: Criar reunião Zoom
-      description: Cria uma reunião Zoom standalone sem acionar Calendar ou Supabase.
-      operationId: zoomCreateMeeting
+      summary: Criar reunião Zoom standalone
+      description: Cria uma reunião no Zoom sem integração com Calendar ou banco.
+      operationId: createZoomMeeting
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                topic:
-                  type: string
-                  example: "Call Diagnóstico — João Silva"
-                start_time:
-                  type: string
-                  format: date-time
-                  example: "2026-04-10T10:00:00"
-                duration:
-                  type: integer
-                  default: 60
-                invitees:
-                  type: array
-                  items:
-                    type: string
-                    format: email
+              $ref: "#/components/schemas/CreateZoomMeetingRequest"
       responses:
         "200":
-          description: Reunião criada
+          description: Reunião Zoom criada
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ZoomMeeting'
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  join_url:
+                    type: string
+                    format: uri
+                  start_url:
+                    type: string
+                    format: uri
+                  topic:
+                    type: string
+        "500":
+          description: Erro ao criar reunião
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/calendar/create-event:
     post:
       tags: [Scheduling]
       summary: Criar evento no Google Calendar
-      description: Cria um evento standalone no Google Calendar da conta de serviço.
-      operationId: calendarCreateEvent
+      description: Cria um evento no Google Calendar com os dados fornecidos.
+      operationId: createCalendarEvent
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                summary:
-                  type: string
-                start:
-                  type: string
-                  format: date-time
-                end:
-                  type: string
-                  format: date-time
-                description:
-                  type: string
-                  nullable: true
-                attendees:
-                  type: array
-                  items:
-                    type: string
-                    format: email
-                location:
-                  type: string
-                  nullable: true
+              $ref: "#/components/schemas/CreateCalendarEventRequest"
       responses:
         "200":
           description: Evento criado
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CalendarEvent'
+                type: object
+                properties:
+                  id:
+                    type: string
+                  htmlLink:
+                    type: string
+                    format: uri
+                  summary:
+                    type: string
+                  start:
+                    type: object
+                  end:
+                    type: object
+        "500":
+          description: Erro ao criar evento
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/calendar/events:
     get:
       tags: [Scheduling]
       summary: Listar próximos eventos
-      description: Lista os próximos 50 eventos do Google Calendar (do agora em diante).
-      operationId: calendarListEvents
+      description: Retorna os próximos eventos do Google Calendar configurado.
+      operationId: listCalendarEvents
       responses:
         "200":
           description: Lista de eventos
@@ -1048,33 +1876,54 @@ paths:
                 type: array
                 items:
                   type: object
-                  properties:
-                    id:
-                      type: string
-                    summary:
-                      type: string
-                    start:
-                      type: string
-                      format: date-time
-                    end:
-                      type: string
-                      format: date-time
-                    location:
-                      type: string
-                      nullable: true
-                    attendees:
-                      type: array
-                      items:
-                        type: string
+        "500":
+          description: Erro ao listar eventos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/calendar/event/{event_id}:
+    delete:
+      tags: [Scheduling]
+      summary: Deletar evento do Calendar
+      description: Remove um evento do Google Calendar pelo ID.
+      operationId: deleteCalendarEvent
+      parameters:
+        - name: event_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID do evento no Google Calendar
+      responses:
+        "200":
+          description: Evento deletado
+          content:
+            application/json:
+              schema:
+                type: object
+        "404":
+          description: Evento não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro ao deletar
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/calls/upcoming:
     get:
       tags: [Scheduling]
-      summary: Listar calls (calls_mentoria)
+      summary: Listar calls agendadas
       description: |
-        Retorna todos os registros de `calls_mentoria` ordenados por data decrescente.
-        Limite fixo de 500 registros.
-      operationId: callsUpcoming
+        Retorna as calls registradas na tabela calls_mentoria,
+        ordenadas por data decrescente (limite 500).
+      operationId: listUpcomingCalls
       responses:
         "200":
           description: Lista de calls
@@ -1083,95 +1932,102 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Call'
-                maxItems: 500
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    mentorado:
+                      type: string
+                    data:
+                      type: string
+                      format: date
+                    tipo:
+                      type: string
+                    zoom_link:
+                      type: string
+                    status:
+                      type: string
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
-  # ══════════════════════════════════════════════════════════════════════════
-  # SHEETS SYNC
-  # ══════════════════════════════════════════════════════════════════════════
-
+  # ── Sheets Sync ─────────────────────────────────────────
   /api/sheets/status:
     get:
       tags: [Sheets Sync]
       summary: Status da sincronização
-      description: Retorna estado atual do sync sem disparar nova sincronização.
-      operationId: sheetsStatus
+      description: |
+        Retorna informações sobre a configuração e último estado de
+        sincronização entre Google Sheets e Supabase.
+      operationId: getSheetsSyncStatus
       responses:
         "200":
-          description: Status do sync
+          description: Status da sync
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  sheets_configured:
-                    type: boolean
-                  last_sync:
-                    type: string
-                    format: date-time
-                    nullable: true
-                  last_result:
-                    type: object
-                    nullable: true
-                    properties:
-                      updated:
-                        type: integer
-                      created:
-                        type: integer
-                      errors:
-                        type: integer
-                  payments_sheet:
-                    type: string
-                    nullable: true
-                  contracts_sheet:
-                    type: string
-                    nullable: true
+                $ref: "#/components/schemas/SheetsSyncStatus"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/sheets/sync:
     post:
       tags: [Sheets Sync]
       summary: Disparar sync manual
-      description: Força sincronização imediata dos Google Sheets. Bloqueia até concluir.
-      operationId: sheetsSync
+      description: |
+        Dispara sincronização manual das planilhas Google Sheets
+        (pagamentos e contratos) para o Supabase.
+      operationId: triggerSheetsSync
       responses:
         "200":
-          description: Resultado do sync
+          description: Resultado da sincronização
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  updated:
+                  success:
+                    type: boolean
+                  synced:
                     type: integer
-                  created:
-                    type: integer
+                    description: Número de registros sincronizados
                   errors:
-                    type: integer
-                  duration_ms:
-                    type: integer
+                    type: array
+                    items:
+                      type: string
+        "500":
+          description: Erro na sincronização
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
-  # ══════════════════════════════════════════════════════════════════════════
-  # MEDIA
-  # ══════════════════════════════════════════════════════════════════════════
-
+  # ── Media ───────────────────────────────────────────────
   /api/media/presign:
     get:
       tags: [Media]
-      summary: Gerar URL presignada (S3)
+      summary: Gerar URL presignada S3
       description: |
-        Gera URL temporária para acesso direto ao arquivo no Hetzner S3.
-        Válida por ~1 hora. Use para streaming de áudio/vídeo no browser.
-      operationId: mediaPresign
+        Gera uma URL presignada para acesso direto a um arquivo
+        no Hetzner S3. Útil para downloads ou exibição de mídia.
+      operationId: getPresignedUrl
       parameters:
         - name: key
           in: query
           required: true
           schema:
             type: string
-          example: "evolution-api/uuid/5511999990000@s.whatsapp.net/audioMessage/abc.ogg"
+          description: "Caminho do objeto no S3 (ex: media/audio/abc123.ogg)"
       responses:
         "200":
-          description: URL presignada
+          description: URL presignada gerada
           content:
             application/json:
               schema:
@@ -1189,23 +2045,30 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro ao gerar URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/media/stream:
     get:
       tags: [Media]
-      summary: Stream de arquivo S3 via backend
+      summary: Stream de arquivo S3 (proxy)
       description: |
-        Faz proxy do arquivo S3 através do backend para evitar CORS.
-        Resposta é binária com Content-Type correto.
-      operationId: mediaStream
+        Faz proxy/stream de um arquivo do Hetzner S3, retornando o conteúdo
+        binário com o content-type correto. Usado para reprodução de áudio/vídeo
+        e exibição de imagens diretamente no frontend.
+      operationId: streamMedia
       parameters:
         - name: key
           in: query
           required: true
           schema:
             type: string
-          example: "evolution-api/uuid/5511999990000@s.whatsapp.net/audioMessage/abc.ogg"
+          description: Caminho do objeto no S3
       responses:
         "200":
           description: Conteúdo binário do arquivo
@@ -1214,126 +2077,139 @@ paths:
               schema:
                 type: string
                 format: binary
+            image/*:
+              schema:
+                type: string
+                format: binary
+            audio/*:
+              schema:
+                type: string
+                format: binary
+            video/*:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Parâmetro key ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Arquivo não encontrado no S3
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro ao acessar S3
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
-  # ══════════════════════════════════════════════════════════════════════════
-  # STORAGE & SEARCH
-  # ══════════════════════════════════════════════════════════════════════════
-
+  # ── Storage & Search ────────────────────────────────────
   /api/storage/process:
     post:
       tags: [Storage & Search]
       summary: Processar arquivo
       description: |
-        Dispara pipeline de processamento para um arquivo já registrado em `sp_arquivos`:
-        download → extração de texto → chunking → embedding → pgvector.
-
-        Resposta imediata — processamento ocorre em background thread.
-        Poll `GET /api/storage/files` ou `GET /api/storage/status` para acompanhar.
-      operationId: storageProcess
+        Pipeline completo de processamento: download do arquivo,
+        extração de texto, chunking, geração de embeddings e
+        armazenamento no pgvector para busca semântica.
+      operationId: processFile
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [arquivo_id]
-              properties:
-                arquivo_id:
-                  type: string
-                  format: uuid
+              $ref: "#/components/schemas/ProcessFileRequest"
       responses:
         "200":
-          description: Processamento iniciado
+          description: Arquivo processado com sucesso
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  status:
-                    type: string
-                    example: "processing"
+                  success:
+                    type: boolean
+                  chunks:
+                    type: integer
+                    description: Número de chunks gerados
                   arquivo_id:
-                    type: string
-                    format: uuid
+                    type: integer
+        "400":
+          description: arquivo_id ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro no processamento
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/storage/search:
     post:
       tags: [Storage & Search]
-      summary: Busca semântica em arquivos
+      summary: Busca semântica/keyword/hybrid
       description: |
-        Busca nos chunks processados usando similaridade vetorial (pgvector).
+        Realiza busca nos documentos processados usando três modos:
+        - **semantic**: busca por similaridade de embeddings (pgvector)
+        - **keyword**: busca textual (full-text search)
+        - **hybrid**: combinação de ambos (padrão)
 
-        **Modos:**
-        - `semantic` — cosine similarity via embedding
-        - `keyword` — full-text search Postgres
-        - `hybrid` — combina os dois (padrão)
-      operationId: storageSearch
+        Aceita filtros opcionais por entidade (mentorado, equipe, global).
+      operationId: searchStorage
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [query]
-              properties:
-                query:
-                  type: string
-                  example: "protocolo de atendimento para clientes inativos"
-                mode:
-                  type: string
-                  enum: [semantic, keyword, hybrid]
-                  default: hybrid
-                limit:
-                  type: integer
-                  default: 10
-                  maximum: 50
-                filters:
-                  type: object
-                  properties:
-                    entidade_tipo:
-                      type: string
-                      enum: [mentorado, equipe, global]
-                    entidade_id:
-                      type: integer
+              $ref: "#/components/schemas/SearchRequest"
       responses:
         "200":
           description: Resultados da busca
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  results:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/SearchResult'
-                  total:
-                    type: integer
-                  query:
-                    type: string
-                  mode:
-                    type: string
-                  query_time_ms:
-                    type: integer
+                $ref: "#/components/schemas/SearchResponse"
+        "400":
+          description: Query ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro na busca
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/storage/files:
     get:
       tags: [Storage & Search]
       summary: Listar arquivos
-      description: Lista arquivos em `sp_arquivos` com filtros opcionais por entidade.
-      operationId: storageFiles
+      description: |
+        Retorna a lista de arquivos registrados na tabela sp_arquivos.
+        Pode ser filtrado por tipo e ID da entidade.
+      operationId: listStorageFiles
       parameters:
         - name: entidade_tipo
           in: query
           schema:
             type: string
             enum: [mentorado, equipe, global]
+          description: Filtrar por tipo de entidade
         - name: entidade_id
           in: query
           schema:
             type: integer
+          description: Filtrar por ID da entidade
       responses:
         "200":
           description: Lista de arquivos
@@ -1342,91 +2218,60 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Arquivo'
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    nome:
+                      type: string
+                    mime_type:
+                      type: string
+                    status:
+                      type: string
+                    entidade_tipo:
+                      type: string
+                    entidade_id:
+                      type: integer
+                    created_at:
+                      type: string
+                      format: date-time
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/storage/status:
     get:
       tags: [Storage & Search]
       summary: Status do sistema de storage
-      description: Visão geral de arquivos, chunks, fila e providers configurados.
-      operationId: storageStatus
+      description: |
+        Retorna informações sobre o estado do sistema de storage:
+        visão geral, fila de processamento e provedores configurados.
+      operationId: getStorageStatus
       responses:
         "200":
           description: Status do storage
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  overview:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        entidade_tipo:
-                          type: string
-                        total_arquivos:
-                          type: integer
-                        total_chunks:
-                          type: integer
-                        tamanho_total_mb:
-                          type: number
-                        pendentes:
-                          type: integer
-                        com_erro:
-                          type: integer
-                  queue:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Arquivo'
-                  embedding_provider:
-                    type: string
-                  embedding_dims:
-                    type: integer
-                  voyage_configured:
-                    type: boolean
-                  openai_configured:
-                    type: boolean
-                  gemini_configured:
-                    type: boolean
-
-  /api/storage/reprocess:
-    post:
-      tags: [Storage & Search]
-      summary: Reprocessar arquivos com falha
-      description: |
-        Reenfileira arquivos em `pendente` ou `erro` para reprocessamento.
-        Taxa: 5 arquivos/segundo para não estourar limites da Voyage AI / OpenAI.
-      operationId: storageReprocess
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                status:
-                  type: string
-                  enum: [pendente, erro, all]
-                  default: pendente
-      responses:
-        "200":
-          description: Reprocessamento iniciado
+                $ref: "#/components/schemas/StorageStatus"
+        "500":
+          description: Erro interno
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  queued:
-                    type: integer
-                  status_filter:
-                    type: string
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/storage/test:
     post:
       tags: [Storage & Search]
       summary: Testar pipeline de embedding
-      description: Executa um embedding de teste para verificar se o pipeline está operacional.
-      operationId: storageTest
+      description: |
+        Executa um teste do pipeline de embedding, retornando as
+        dimensões do vetor e informações do provedor configurado.
+      operationId: testStoragePipeline
       responses:
         "200":
           description: Resultado do teste
@@ -1435,132 +2280,316 @@ paths:
               schema:
                 type: object
                 properties:
-                  status:
-                    type: string
-                    example: "ok"
+                  success:
+                    type: boolean
+                  dimensions:
+                    type: integer
+                    description: Dimensões do vetor de embedding
                   provider:
                     type: string
-                  dims:
+                    description: Provedor de embeddings em uso
+        "500":
+          description: Erro no teste
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/storage/reprocess:
+    post:
+      tags: [Storage & Search]
+      summary: Reprocessar arquivos com falha
+      description: |
+        Reprocessa arquivos que falharam ou estão pendentes.
+        Seleciona por status: pendente, erro ou todos.
+      operationId: reprocessFiles
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReprocessRequest"
+      responses:
+        "200":
+          description: Resultado do reprocessamento
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  reprocessed:
                     type: integer
-                  first_values:
+                  errors:
                     type: array
                     items:
-                      type: number
-                  voyage_key_set:
-                    type: boolean
-                  openai_key_set:
-                    type: boolean
+                      type: string
+        "500":
+          description: Erro no reprocessamento
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
-  # ══════════════════════════════════════════════════════════════════════════
-  # WELCOME FLOW
-  # ══════════════════════════════════════════════════════════════════════════
+  # ── Copilot ─────────────────────────────────────────────
+  /api/copilot:
+    post:
+      tags: [Copilot]
+      summary: AI assistant contextual
+      description: |
+        Assistente de IA contextual para consultores. Utiliza GPT-4o-mini
+        com enriquecimento de contexto do mentorado (quando mentee_id é
+        fornecido). Suporta histórico de conversa para contexto multi-turn.
+      operationId: askCopilot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CopilotRequest"
+      responses:
+        "200":
+          description: Resposta do Copilot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopilotResponse"
+        "400":
+          description: message ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro na geração da resposta
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
+  # ── Dossiê Production ───────────────────────────────────
+  /api/ds/update-stage:
+    post:
+      tags: [Dossiê Production]
+      summary: Atualizar estágio de dossiê (state machine)
+      description: |
+        Atualiza o estágio de produção de um dossiê seguindo uma state machine.
+        Transições inválidas retornam 409.
+
+        **Transições válidas:**
+        pendente → producao_ia → revisao_mariza → revisao_kaique →
+        revisao_queila → aprovado → publicado
+
+        Requer JWT com role `admin` ou `equipe`.
+      operationId: updateDossieStage
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStageRequest"
+      responses:
+        "200":
+          description: Estágio atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateStageResponse"
+        "400":
+          description: Campos obrigatórios ausentes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Token ausente, inválido ou role insuficiente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Transição de estado inválida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Biblioteca ──────────────────────────────────────────
+  /api/biblioteca:
+    get:
+      tags: [Biblioteca]
+      summary: Listar documentos ou buscar por slug
+      description: |
+        Sem parâmetros: retorna lista de documentos (sem conteúdo) da view
+        `vw_sp_documentos_lista`.
+
+        Com `slug`: retorna documento único identificado pelo deep_link_slug.
+
+        Com `mentee_id` e/ou `tipo`: filtra a listagem.
+      operationId: listBiblioteca
+      parameters:
+        - name: slug
+          in: query
+          schema:
+            type: string
+          description: deep_link_slug do documento (retorna documento único)
+        - name: mentee_id
+          in: query
+          schema:
+            type: integer
+          description: Filtrar por mentorado
+        - name: tipo
+          in: query
+          schema:
+            type: string
+          description: Filtrar por tipo de documento
+      responses:
+        "200":
+          description: Lista de documentos ou documento único
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: array
+                    items:
+                      $ref: "#/components/schemas/DocumentListItem"
+                  - $ref: "#/components/schemas/DocumentFull"
+        "404":
+          description: Documento não encontrado (quando slug fornecido)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/biblioteca/{id}:
+    get:
+      tags: [Biblioteca]
+      summary: Documento por UUID (com conteúdo)
+      description: |
+        Retorna documento completo incluindo o campo conteudo_md
+        (conteúdo em Markdown).
+      operationId: getBibliotecaDocument
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID do documento
+      responses:
+        "200":
+          description: Documento completo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentFull"
+        "404":
+          description: Documento não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Welcome Flow ────────────────────────────────────────
   /api/welcome-flow/register:
     post:
       tags: [Welcome Flow]
-      summary: Registrar novo mentorado (onboarding)
+      summary: Onboarding de novo mentorado (público, idempotente)
       description: |
-        Endpoint público — sem auth. Cria conta de usuário e registro de mentorado.
+        Registra um novo mentorado no fluxo de boas-vindas. Endpoint público
+        (sem autenticação). Idempotente: se o email já existe, retorna as
+        credenciais existentes sem erro.
 
-        Senha temporária gerada automaticamente: `{primeiro_nome_lowercase}{últimos4dígitos_whatsapp}`
+        Gera senha temporária automaticamente no formato:
+        `{primeiroNome_lowercase}{últimos4digitos_whatsapp}`
 
-        Exemplo: nome="João Silva", whatsapp="11999990000" → senha="joao0000"
-
-        **Idempotente:** se o email já existe, retorna `already_exists: true` ao invés de erro.
+        Exemplo: nome "Maria Silva", whatsapp "5511999998888" → senha "maria8888"
       operationId: welcomeFlowRegister
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [nome, email]
-              properties:
-                nome:
-                  type: string
-                  example: "João Silva"
-                email:
-                  type: string
-                  format: email
-                  example: "joao@silva.com"
-                whatsapp:
-                  type: string
-                  example: "11999990000"
-                  description: Usado para derivar senha temporária
+              $ref: "#/components/schemas/WelcomeRegisterRequest"
       responses:
-        "201":
-          description: Mentorado registrado
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  user_id:
-                    type: integer
-                  credentials:
-                    type: object
-                    properties:
-                      email:
-                        type: string
-                      temp_password:
-                        type: string
         "200":
-          description: Mentorado já existe
+          description: Mentorado registrado (ou já existente)
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  already_exists:
-                    type: boolean
-                    example: true
-                  user_id:
-                    type: integer
+                $ref: "#/components/schemas/WelcomeRegisterResponse"
+        "400":
+          description: Nome ou email ausente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
-  # ══════════════════════════════════════════════════════════════════════════
-  # EVOLUTION / WHATSAPP
-  # ══════════════════════════════════════════════════════════════════════════
-
+  # ── Evolution / WhatsApp Proxy ──────────────────────────
   /api/evolution/instance-uuid:
     get:
       tags: [Evolution / WhatsApp]
       summary: Info da instância Evolution
-      description: Nome da instância e coordenadas S3 para resolução de paths de mídia.
-      operationId: evolutionInstanceUuid
+      description: |
+        Retorna informações da instância Evolution configurada:
+        nome da instância e coordenadas do S3.
+      operationId: getEvolutionInstanceInfo
       responses:
         "200":
-          description: Info da instância
+          description: Informações da instância
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  instance:
+                  instance_name:
                     type: string
-                    example: "case-spalla"
                   s3_bucket:
                     type: string
                   s3_endpoint:
                     type: string
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/evolution/{path}:
     get:
       tags: [Evolution / WhatsApp]
-      summary: "Proxy GET → Evolution API"
+      summary: Proxy GET para Evolution API
       description: |
-        Todas as requests para `/api/evolution/*` são proxiadas para a Evolution API,
-        com injeção automática do `apikey` server-side.
-
-        **Exemplos de paths úteis:**
-        - `GET /api/evolution/chat/findMessages/case-spalla` — busca mensagens
-        - `GET /api/evolution/chat/findContacts/case-spalla` — lista contatos
-        - `GET /api/evolution/instance/connectionState/case-spalla` — status de conexão
-
-        Veja [Evolution API docs](https://doc.evolution-api.com) para o catálogo completo.
+        Proxy transparente para a Evolution API. Injeta automaticamente
+        o apikey configurado no servidor. O path é encaminhado integralmente.
       operationId: evolutionProxyGet
       parameters:
         - name: path
@@ -1568,18 +2597,26 @@ paths:
           required: true
           schema:
             type: string
-          example: "chat/findContacts/case-spalla"
+          description: "Caminho da Evolution API (ex: instance/info)"
       responses:
         "200":
-          description: Resposta da Evolution API (pass-through)
-
+          description: Resposta da Evolution API
+          content:
+            application/json:
+              schema:
+                type: object
+        "500":
+          description: Erro no proxy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     post:
       tags: [Evolution / WhatsApp]
-      summary: "Proxy POST → Evolution API"
+      summary: Proxy POST para Evolution API
       description: |
-        **Exemplos:**
-        - `POST /api/evolution/message/sendText/case-spalla` — enviar mensagem de texto
-        - `POST /api/evolution/message/sendMedia/case-spalla` — enviar mídia
+        Proxy transparente para a Evolution API (POST).
+        Injeta automaticamente o apikey e encaminha body + path.
       operationId: evolutionProxyPost
       parameters:
         - name: path
@@ -1587,18 +2624,32 @@ paths:
           required: true
           schema:
             type: string
+          description: Caminho da Evolution API
       requestBody:
         content:
           application/json:
             schema:
               type: object
+              description: Body encaminhado para a Evolution API
       responses:
         "200":
           description: Resposta da Evolution API
-
+          content:
+            application/json:
+              schema:
+                type: object
+        "500":
+          description: Erro no proxy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     put:
       tags: [Evolution / WhatsApp]
-      summary: "Proxy PUT → Evolution API"
+      summary: Proxy PUT para Evolution API
+      description: |
+        Proxy transparente para a Evolution API (PUT).
+        Injeta automaticamente o apikey e encaminha body + path.
       operationId: evolutionProxyPut
       parameters:
         - name: path
@@ -1606,18 +2657,32 @@ paths:
           required: true
           schema:
             type: string
+          description: Caminho da Evolution API
       requestBody:
         content:
           application/json:
             schema:
               type: object
+              description: Body encaminhado para a Evolution API
       responses:
         "200":
           description: Resposta da Evolution API
-
+          content:
+            application/json:
+              schema:
+                type: object
+        "500":
+          description: Erro no proxy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     delete:
       tags: [Evolution / WhatsApp]
-      summary: "Proxy DELETE → Evolution API"
+      summary: Proxy DELETE para Evolution API
+      description: |
+        Proxy transparente para a Evolution API (DELETE).
+        Injeta automaticamente o apikey e encaminha o path.
       operationId: evolutionProxyDelete
       parameters:
         - name: path
@@ -1625,503 +2690,95 @@ paths:
           required: true
           schema:
             type: string
+          description: Caminho da Evolution API
       responses:
         "200":
           description: Resposta da Evolution API
+          content:
+            application/json:
+              schema:
+                type: object
+        "500":
+          description: Erro no proxy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
-  # ══════════════════════════════════════════════════════════════════════════
-  # CLICKUP [planned]
-  # ══════════════════════════════════════════════════════════════════════════
-
-  /api/clickup/tasks:
+  # ── ClickUp ────────────────────────────────────────────
+  /api/clickup/command-center:
     get:
       tags: [ClickUp]
-      summary: Listar tarefas
+      summary: Sprint tasks, team summary, activity
       description: |
-        **[planned]** Lista tarefas do workspace ClickUp com filtros.
-
-        Requer: `CLICKUP_API_TOKEN` + `CLICKUP_WORKSPACE_ID` no ambiente.
-      operationId: clickupListTasks
-      x-status: planned
-      parameters:
-        - name: list_id
-          in: query
-          schema:
-            type: string
-          description: ID da lista/sprint. Usa lista padrão se omitido.
-          example: "901113377455"
-        - name: status
-          in: query
-          schema:
-            type: string
-          example: "in progress"
-        - name: mentorado_id
-          in: query
-          schema:
-            type: integer
-          description: Filtra tarefas vinculadas a um mentorado específico
-        - name: assignee
-          in: query
-          schema:
-            type: string
-          description: Username do membro
+        Retorna visão consolidada do Command Center: tasks da sprint atual,
+        totais, subtasks, distribuição por status e membro, atividade recente
+        e tarefas concluídas. Requer CLICKUP_API_TOKEN configurado no servidor.
+      operationId: getClickUpCommandCenter
       responses:
         "200":
-          description: Lista de tarefas
+          description: Dados do Command Center
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandCenterResponse"
+        "500":
+          description: Erro ao consultar ClickUp
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/clickup/sync-subtasks:
+    post:
+      tags: [ClickUp]
+      summary: Sync subtasks do ClickUp para god_task_subtasks
+      description: |
+        Busca subtasks do ClickUp e faz upsert na tabela god_task_subtasks
+        do Supabase, sincronizando o estado das tarefas.
+      operationId: syncClickUpSubtasks
+      responses:
+        "200":
+          description: Resultado da sincronização
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  tasks:
+                  success:
+                    type: boolean
+                  synced:
+                    type: integer
+                  errors:
                     type: array
                     items:
-                      $ref: '#/components/schemas/ClickUpTask'
-                  total:
-                    type: integer
-
-    post:
-      tags: [ClickUp]
-      summary: Criar tarefa
-      description: |
-        **[planned]** Cria uma nova tarefa no ClickUp.
-
-        Pode ser chamado via N8N quando uma mensagem WhatsApp exige follow-up,
-        ou por agente de IA após análise do contexto do mentorado.
-      operationId: clickupCreateTask
-      x-status: planned
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ActionCreateTaskPayload'
-      responses:
-        "201":
-          description: Tarefa criada
+                      type: string
+        "500":
+          description: Erro na sincronização
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  task:
-                    $ref: '#/components/schemas/ClickUpTask'
+                $ref: "#/components/schemas/ErrorResponse"
 
-  /api/clickup/tasks/{task_id}:
-    patch:
-      tags: [ClickUp]
-      summary: Atualizar tarefa
-      description: |
-        **[planned]** Atualiza status, assignees ou outros campos de uma tarefa.
-      operationId: clickupUpdateTask
-      x-status: planned
-      parameters:
-        - name: task_id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                status:
-                  type: string
-                  example: "complete"
-                assignees:
-                  type: object
-                  properties:
-                    add:
-                      type: array
-                      items:
-                        type: integer
-                    rem:
-                      type: array
-                      items:
-                        type: integer
-                due_date:
-                  type: string
-                  format: date
-                priority:
-                  type: integer
-                  enum: [1, 2, 3, 4]
-      responses:
-        "200":
-          description: Tarefa atualizada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ClickUpTask'
-
-  /api/clickup/tasks/{task_id}/comments:
-    post:
-      tags: [ClickUp]
-      summary: Comentar em tarefa
-      description: |
-        **[planned]** Adiciona comentário em uma tarefa do ClickUp.
-        Útil para N8N logar eventos ("Call realizada às 10h").
-      operationId: clickupAddComment
-      x-status: planned
-      parameters:
-        - name: task_id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [comment_text]
-              properties:
-                comment_text:
-                  type: string
-                  example: "Call realizada. PA revisado. Próxima call: 24/04."
-      responses:
-        "201":
-          description: Comentário adicionado
-
-  /api/clickup/lists:
-    get:
-      tags: [ClickUp]
-      summary: Listar sprints/listas
-      description: |
-        **[planned]** Retorna as listas/sprints disponíveis no workspace.
-        Útil para popular dropdowns de seleção de sprint ao criar tarefas.
-      operationId: clickupListLists
-      x-status: planned
-      responses:
-        "200":
-          description: Listas disponíveis
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ClickUpList'
-
-  /api/clickup/members:
-    get:
-      tags: [ClickUp]
-      summary: Listar membros do workspace
-      description: |
-        **[planned]** Retorna membros do workspace com seus IDs numéricos.
-        Necessário para assignee lookup ao criar/atualizar tarefas.
-      operationId: clickupListMembers
-      x-status: planned
-      responses:
-        "200":
-          description: Membros do workspace
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ClickUpMember'
-
-  # ══════════════════════════════════════════════════════════════════════════
-  # ACTIONS [planned]
-  # ══════════════════════════════════════════════════════════════════════════
-
-  /api/actions/create-task:
-    post:
-      tags: [Actions]
-      summary: Criar tarefa ClickUp (com contexto Spalla)
-      description: |
-        **[planned]** Ação composta: cria tarefa no ClickUp e vincula ao mentorado no Spalla.
-
-        Ideal para ser chamado por:
-        - N8N quando Evolution detecta mensagem sem resposta há X horas
-        - Agente de IA após análise do contexto do mentorado
-        - WhatsApp: enviar mensagem específica → N8N → esta action
-
-        O campo `whatsapp_context` preserva o contexto da mensagem original.
-      operationId: actionCreateTask
-      x-status: planned
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ActionCreateTaskPayload'
-            examples:
-              from_wa:
-                summary: Criado a partir de mensagem WhatsApp
-                value:
-                  name: "Follow up — João Silva sem resposta"
-                  list_id: "901113377455"
-                  mentorado_id: 7
-                  priority: 2
-                  assignees: ["heitor"]
-                  whatsapp_context:
-                    remoteJid: "5511999990000@s.whatsapp.net"
-                    mensagem: "Oi, queria saber sobre a call da semana passada"
-                    timestamp: 1713600000
-              manual:
-                summary: Criado manualmente (sem contexto WhatsApp)
-                value:
-                  name: "Revisar PA — João Silva estagnado"
-                  list_id: "901113377455"
-                  mentorado_id: 7
-                  priority: 3
-      responses:
-        "201":
-          description: Tarefa criada e vinculada
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  task:
-                    $ref: '#/components/schemas/ClickUpTask'
-                  spalla_linked:
-                    type: boolean
-
-  /api/actions/log-interaction:
-    post:
-      tags: [Actions]
-      summary: Registrar interação
-      description: |
-        **[planned]** Registra uma interação manualmente em `interacoes_mentoria`.
-
-        Útil para N8N logar:
-        - Mensagem enviada manualmente fora do Evolution
-        - Nota interna da equipe
-        - Call não agendada pelo sistema
-      operationId: actionLogInteraction
-      x-status: planned
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ActionLogInteractionPayload'
-      responses:
-        "201":
-          description: Interação registrada
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  interacao_id:
-                    type: integer
-
-  /api/actions/schedule-call-from-message:
-    post:
-      tags: [Actions]
-      summary: Agendar call a partir de mensagem WhatsApp
-      description: |
-        **[planned]** Ação composta para fluxo WhatsApp → Agendar Call:
-
-        1. Recebe contexto da mensagem WhatsApp
-        2. Identifica o mentorado pelo número
-        3. Cria Zoom + Calendar + calls_mentoria
-        4. Envia confirmação de volta via WhatsApp (Evolution API)
-
-        Ideal para comando via WhatsApp: "agendar call para amanhã às 10h"
-      operationId: actionScheduleCallFromMessage
-      x-status: planned
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [remoteJid, data]
-              properties:
-                remoteJid:
-                  type: string
-                  description: JID do contato WhatsApp
-                  example: "5511999990000@s.whatsapp.net"
-                data:
-                  type: string
-                  format: date
-                  example: "2026-04-11"
-                horario:
-                  type: string
-                  example: "10:00"
-                tipo:
-                  type: string
-                  enum: [acompanhamento, diagnostico, planejamento]
-                  default: acompanhamento
-                confirm_via_whatsapp:
-                  type: boolean
-                  default: true
-                  description: Se true, envia mensagem de confirmação via Evolution
-      responses:
-        "200":
-          description: Call agendada e confirmação enviada
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  scheduled:
-                    type: boolean
-                  call:
-                    $ref: '#/components/schemas/Call'
-                  confirmation_sent:
-                    type: boolean
-                  zoom:
-                    $ref: '#/components/schemas/ZoomMeeting'
-
-  # ══════════════════════════════════════════════════════════════════════════
-  # WEBHOOKS [planned]
-  # ══════════════════════════════════════════════════════════════════════════
-
-  /api/webhooks/evolution:
-    post:
-      tags: [Webhooks]
-      summary: Receptor de eventos Evolution API
-      description: |
-        **[planned]** Recebe eventos da Evolution API via webhook.
-
-        Configure na Evolution API:
-        `POST /webhook/set/case-spalla` com URL: `https://spalla-backend.up.railway.app/api/webhooks/evolution`
-
-        **Eventos processados:**
-        - `messages.upsert` — nova mensagem recebida → registra em `interacoes_mentoria`, atualiza `respondido`
-        - `messages.update` — atualização de status (lida, entregue)
-        - `connection.update` — mudança de estado da conexão WhatsApp
-
-        **Fluxo padrão:**
-        mensagem recebida → identifica mentorado → registra interação → verifica regras de auto-resposta N8N
-      operationId: webhookEvolution
-      x-status: planned
-      security:
-        - {} # Autenticação via header X-Evolution-Token
-      parameters:
-        - name: X-Evolution-Token
-          in: header
-          schema:
-            type: string
-          description: Token de validação configurado na Evolution API
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/EvolutionWebhookPayload'
-      responses:
-        "200":
-          description: Evento processado
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  received:
-                    type: boolean
-                  processed:
-                    type: boolean
-                  interaction_id:
-                    type: integer
-                    nullable: true
-
-  /api/webhooks/n8n:
-    post:
-      tags: [Webhooks]
-      summary: Receptor genérico N8N
-      description: |
-        **[planned]** Endpoint genérico para receber triggers do N8N.
-
-        Suporta um campo `action` que determina o que fazer:
-        - `create_task` — cria tarefa no ClickUp
-        - `log_interaction` — registra interação no Spalla
-        - `sync_sheets` — dispara sync de Sheets
-        - `schedule_call` — agenda call
-
-        Facilita automações complexas em N8N sem precisar de múltiplos endpoints.
-      operationId: webhookN8n
-      x-status: planned
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [action]
-              properties:
-                action:
-                  type: string
-                  enum: [create_task, log_interaction, sync_sheets, schedule_call]
-                payload:
-                  type: object
-                  description: Dados específicos da ação (veja endpoints individuais)
-                source:
-                  type: string
-                  description: Identificador do workflow N8N
-                  example: "whatsapp-auto-responder-v2"
-      responses:
-        "200":
-          description: Ação executada
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                  action:
-                    type: string
-                  result:
-                    type: object
-
-  # ══════════════════════════════════════════════════════════════════════════
-  # SYSTEM
-  # ══════════════════════════════════════════════════════════════════════════
-
+  # ── System ──────────────────────────────────────────────
   /api/health:
     get:
       tags: [System]
       summary: Health check
-      description: Retorna status operacional de todas as integrações. Sem auth.
-      operationId: health
+      description: |
+        Retorna o status geral do sistema e a configuração das integrações
+        (Zoom, Google Calendar, Supabase, Sheets, OpenAI, Storage/Search).
+      operationId: healthCheck
       responses:
         "200":
-          description: Status do servidor
+          description: Status do sistema
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: "ok"
-                  zoom_configured:
-                    type: boolean
-                  gcal_configured:
-                    type: boolean
-                  supabase_configured:
-                    type: boolean
-                  sheets_configured:
-                    type: boolean
-                  openai_configured:
-                    type: boolean
-                  storage_search:
-                    type: boolean
-                  evolution_configured:
-                    type: boolean
-                  s3_configured:
-                    type: boolean
-              example:
-                status: "ok"
-                zoom_configured: true
-                gcal_configured: true
-                supabase_configured: true
-                sheets_configured: false
-                openai_configured: true
-                storage_search: true
-                evolution_configured: true
-                s3_configured: true
+                $ref: "#/components/schemas/HealthResponse"
+        "500":
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"

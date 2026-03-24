@@ -8816,6 +8816,30 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       return data?.publicUrl || '#';
     },
 
+    async dsDeleteProducao(producaoId) {
+      if (!sb || !producaoId) return;
+      const prod = this.data.dsProducoes.find(p => p.producao_id === producaoId);
+      const nome = prod?.mentorado_nome || 'esta produção';
+      if (!confirm(`Excluir a produção de dossiê de "${nome}"?\n\nIsso remove todos os documentos, ajustes, eventos e arquivos associados. Esta ação não pode ser desfeita.`)) return;
+      try {
+        // Delete storage files
+        const files = this.data.dsBriefingFiles || [];
+        if (files.length) {
+          const paths = files.map(f => f.storage_path);
+          await sb.storage.from('dossie-briefings').remove(paths);
+        }
+        // Delete producao (CASCADE removes docs, ajustes, eventos, briefing_files)
+        const { error } = await sb.from('ds_producoes').delete().eq('id', producaoId);
+        if (error) throw error;
+        this.closeDsDetail();
+        await this.loadDsData();
+        this.toast(`Produção de "${nome}" excluída`, 'success');
+      } catch (e) {
+        console.error('[DS] deleteProducao error:', e);
+        this.toast('Erro ao excluir: ' + (e.message || e), 'error');
+      }
+    },
+
     // --- DS Create Production ---
     async openDsCreateModal() {
       this.ui.dsCreateModal = true;
