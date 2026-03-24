@@ -1363,15 +1363,34 @@ function operon() {
     // Tasks: tree view — flat array with _depth metadata for list view
     get tasksTree() {
       const filtered = this.filteredTasks;
-      const roots = filtered.filter(t => !t.parent_task_id);
       const result = [];
-      for (const root of roots) {
-        const children = this.data.tasks.filter(t => t.parent_task_id === root.id);
-        result.push({ ...root, _depth: 0, _childCount: children.length });
-        if (this.ui.taskExpandedIds[root.id] && children.length) {
-          for (const child of children) {
-            result.push({ ...child, _depth: 1, _childCount: 0 });
-          }
+      for (const task of filtered) {
+        const childCount = (task.subtasks || []).length;
+        result.push({ ...task, _depth: 0, _childCount: childCount });
+        if (this.ui.taskExpandedIds[task.id] && childCount > 0) {
+          (task.subtasks || []).forEach((sub, idx) => {
+            result.push({
+              id: sub.id || ('sub_' + task.id + '_' + idx),
+              titulo: sub.text || '',
+              status: sub.status || (sub.done ? 'concluida' : 'pendente'),
+              prioridade: sub.prioridade || 'normal',
+              responsavel: sub.responsavel || '',
+              acompanhante: null,
+              mentorado_nome: null,
+              data_inicio: sub.data_inicio || null,
+              data_fim: sub.data_fim || null,
+              prazo: sub.data_fim || null,
+              tags: [],
+              is_blocked: false,
+              auto_gerada: false,
+              recorrencia: 'nenhuma',
+              _depth: 1,
+              _childCount: 0,
+              _isSubtask: true,
+              _parentId: task.id,
+              _subIdx: idx,
+            });
+          });
         }
       }
       return result;

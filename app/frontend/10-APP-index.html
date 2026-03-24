@@ -2586,8 +2586,8 @@
                   <div class="task-list__col task-list__col--actions"></div>
                 </div>
                 <template x-for="t in tasksTree" :key="t.id + '-' + t._depth">
-                  <div class="task-list__row" :class="{ 'task-list__row--done': t.status === 'concluida', 'task-list__row--overdue': t.status === 'pendente' && isOverdue(t.data_fim || t.prazo), 'task-list__row--mine': isMyTask(t), 'task-list__row--child': t._depth > 0 }" @click="openTaskDetail(t.id)">
-                    <div class="task-list__col task-list__col--check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
+                  <div class="task-list__row" :class="{ 'task-list__row--done': t.status === 'concluida', 'task-list__row--overdue': t.status === 'pendente' && isOverdue(t.data_fim || t.prazo), 'task-list__row--mine': isMyTask(t), 'task-list__row--child': t._depth > 0 }" @click="t._isSubtask ? openTaskDetail(t._parentId) : openTaskDetail(t.id)">
+                    <div class="task-list__col task-list__col--check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="t._isSubtask ? toggleSubtask(t._parentId, t._subIdx) : updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
                     <div class="task-list__col task-list__col--title" :style="t._depth > 0 ? 'padding-left:24px' : ''">
                       <div style="display:flex;align-items:flex-start;gap:4px">
                         <button x-show="t._depth === 0 && t._childCount > 0" @click.stop="toggleTaskExpand(t.id)" class="task-tree__toggle" :class="{ 'task-tree__toggle--open': ui.taskExpandedIds[t.id] }" :title="ui.taskExpandedIds[t.id] ? 'Recolher subtarefas' : 'Expandir subtarefas (' + t._childCount + ')'">
@@ -2620,7 +2620,7 @@
                       <span x-show="t.data_fim || t.prazo" :class="{ 'text-red': isOverdue(t.data_fim || t.prazo) }" x-text="formatDate(t.data_fim || t.prazo)" style="font-size:11px"></span>
                     </div>
                     <div class="task-list__col task-list__col--prio"><span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span></div>
-                    <div class="task-list__col task-list__col--actions" @click.stop>
+                    <div class="task-list__col task-list__col--actions" @click.stop x-show="!t._isSubtask">
                       <button class="task-card__btn" @click="openTaskModal(t)" title="Editar">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                       </button>
