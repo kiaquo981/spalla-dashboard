@@ -389,6 +389,7 @@ function operon() {
       dsMenteeDetail: null,     // full detail for one mentee
       dsEventos: [],            // audit trail for detail view
       dsAjustes: [],            // ajustes for detail view
+      dsBriefingFiles: [],      // briefing files for detail view
       // Tags & Custom Fields
       taskTags: [],             // god_task_tags — all available tags
       fieldDefs: [],            // applicable god_task_field_defs for current modal
@@ -8383,16 +8384,18 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (!sb) return;
       this.ui.dsLoading = true;
       try {
-        const [prodRes, docsRes, eventsRes, ajustesRes] = await Promise.all([
+        const [prodRes, docsRes, eventsRes, ajustesRes, filesRes] = await Promise.all([
           sb.from('ds_producoes').select('*').eq('id', producaoId).single(),
           sb.from('ds_documentos').select('*').eq('producao_id', producaoId).order('ordem'),
           sb.from('ds_eventos').select('*').eq('producao_id', producaoId).order('created_at', { ascending: false }).limit(50),
           sb.from('ds_ajustes').select('*').eq('producao_id', producaoId).order('created_at', { ascending: false }),
+          sb.from('ds_briefing_files').select('*').eq('producao_id', producaoId).order('created_at'),
         ]);
         if (prodRes.data) this.data.dsMenteeDetail = prodRes.data;
         if (docsRes.data) this.data.dsAllDocs = docsRes.data;
         if (eventsRes.data) this.data.dsEventos = eventsRes.data;
         if (ajustesRes.data) this.data.dsAjustes = ajustesRes.data;
+        this.data.dsBriefingFiles = filesRes?.data || [];
       } catch (e) {
         console.error('[DS] loadDsMenteeDetail error:', e);
       } finally {
@@ -8804,6 +8807,13 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.data.dsMenteeDetail = null;
       this.data.dsEventos = [];
       this.data.dsAjustes = [];
+      this.data.dsBriefingFiles = [];
+    },
+
+    dsBriefingFileUrl(path) {
+      if (!sb || !path) return '#';
+      const { data } = sb.storage.from('dossie-briefings').getPublicUrl(path);
+      return data?.publicUrl || '#';
     },
 
     // --- DS Create Production ---
@@ -8813,7 +8823,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.ui.dsCreateFiles = [];
       // Load mentorados list if not cached
       if (!this._dsMentoradosList) {
-        const { data } = await sb.from('mentorados').select('id, nome').eq('status', 'ativo').order('nome');
+        const { data } = await sb.from('mentorados').select('id, nome').eq('status', 'ativo').not('consultor_responsavel', 'is', null).order('nome');
         this._dsMentoradosList = data || [];
       }
     },
