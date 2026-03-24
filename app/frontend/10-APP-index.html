@@ -675,7 +675,15 @@
                             <div>
                               <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#ef4444;margin-bottom:3px">⚠ Bloqueio</div>
                               <template x-for="(t,i) in member.bloqueios.slice(0,2)" :key="i">
-                                <div style="font-size:10px;color:#ef4444;line-height:1.4;padding:1px 0 1px 8px" x-text="t.titulo || t.nome"></div>
+                                <div style="padding:4px 8px;margin-bottom:3px;background:#fff5f5;border-left:2px solid #ef4444;border-radius:0 4px 4px 0">
+                                  <div style="font-size:10px;font-weight:600;color:#991b1b;line-height:1.4" x-text="t.titulo || t.nome"></div>
+                                  <template x-if="t.bloqueio_motivo">
+                                    <div style="font-size:9px;color:#ef4444;margin-top:2px;line-height:1.4" x-text="t.bloqueio_motivo"></div>
+                                  </template>
+                                  <template x-if="t.bloqueio_responsavel">
+                                    <div style="font-size:9px;color:#b45309;margin-top:1px" x-text="'&#128273; ' + t.bloqueio_responsavel"></div>
+                                  </template>
+                                </div>
                               </template>
                             </div>
                           </template>
@@ -7803,6 +7811,43 @@
                   <option value="start_to_finish">Iniciar → Terminar</option>
                 </select>
                 <button type="button" class="btn btn--sm btn--brand" @click="if(taskForm.newDependsOn){ taskForm.dependencies = [...(taskForm.dependencies||[]), { _new: true, depends_on: taskForm.newDependsOn, tipo: taskForm.newDependsOnType }]; taskForm.newDependsOn=''; }">+ Adicionar</button>
+              </div>
+            </div>
+
+
+            <!-- Bloqueio -->
+            <div style="margin-top:12px;border-top:1px solid var(--border-light,#ece9e2);padding-top:12px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                <label style="margin:0;display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:600;color:var(--neutral-800)">
+                  <input type="checkbox"
+                    :checked="!!taskForm.bloqueio_motivo"
+                    @change="if(!$event.target.checked){ taskForm.bloqueio_motivo=''; taskForm.bloqueio_responsavel=''; }"
+                    style="width:14px;height:14px;cursor:pointer;accent-color:#ef4444">
+                  <span :style="taskForm.bloqueio_motivo ? 'color:#ef4444' : ''">&#9940; Tarefa bloqueada</span>
+                </label>
+              </div>
+              <template x-if="taskForm.bloqueio_motivo !== null && taskForm.bloqueio_motivo !== undefined">
+                <div x-show="!!taskForm.bloqueio_motivo || taskForm._showBloqueioForm" style="display:flex;flex-direction:column;gap:6px">
+                  <div>
+                    <label style="font-size:11px;color:var(--text-secondary);font-weight:600">O que está travando?</label>
+                    <textarea class="modal__input" x-model="taskForm.bloqueio_motivo"
+                      placeholder="Ex: Aguardando aprovação do cliente, acesso ao sistema X não liberado, dependência de outra tarefa..."
+                      rows="2" style="width:100%;resize:vertical;font-size:12px;margin-top:3px;border-color:#fca5a5"
+                      @focus="taskForm._showBloqueioForm = true"></textarea>
+                  </div>
+                  <div>
+                    <label style="font-size:11px;color:var(--text-secondary);font-weight:600">Quem pode desbloquear? <span style="font-weight:400">(opcional)</span></label>
+                    <input type="text" class="modal__input" x-model="taskForm.bloqueio_responsavel"
+                      placeholder="Ex: Queila, cliente, squad de infra..."
+                      style="width:100%;font-size:12px;margin-top:3px">
+                  </div>
+                </div>
+              </template>
+              <div x-show="!taskForm.bloqueio_motivo">
+                <button type="button" style="font-size:11px;color:#ef4444;background:none;border:none;cursor:pointer;padding:0;text-decoration:underline"
+                  @click="taskForm._showBloqueioForm = true; $nextTick(() => $el.closest('[style*=margin-top]').querySelector('textarea').focus())">
+                  + Registrar bloqueio
+                </button>
               </div>
             </div>
 
