@@ -54,7 +54,7 @@ SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
 GOOGLE_CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID', 'primary')
 
 # ===== HETZNER S3 CONFIG =====
-S3_ACCESS_KEY = os.environ.get('S3_ACCESS_KEY', '')
+S3_ACCESS_KEY = os.environ.get('S3_ACCESS_KEY', '') or os.environ.get('S3_ACESS_KEY', '')
 S3_SECRET_KEY = os.environ.get('S3_SECRET_KEY', '')
 S3_BUCKET     = os.environ.get('S3_BUCKET', 'case-evolution-media')
 S3_ENDPOINT   = os.environ.get('S3_ENDPOINT', 'hel1.your-objectstorage.com')
@@ -376,7 +376,7 @@ def get_gcal_service():
         from googleapiclient.discovery import build
 
         SCOPES = ['https://www.googleapis.com/auth/calendar']
-        sa_json = os.environ.get('GOOGLE_SA_JSON', '')
+        sa_json = os.environ.get('GOOGLE_SA_JSON', '') or os.environ.get('GOOGLE_SA_CREDENTIALS_B64', '')
 
         if sa_json:
             info = json.loads(base64.b64decode(sa_json))
