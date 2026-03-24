@@ -3987,6 +3987,7 @@
                             }">
                               <div class="ds-timeline__dot" :style="dsEstagioNum(doc.estagio_atual) >= si + 1 ? 'background:' + stage.color : ''" :aria-label="stage.label"></div>
                               <span class="ds-timeline__label" x-text="stage.icon + ' ' + stage.label"></span>
+                              <span x-show="getStagePrazo(doc, stage.id)" class="ds-timeline__prazo" :class="dsPrazoClass(getStagePrazo(doc, stage.id))" x-text="dsFormatDate(getStagePrazo(doc, stage.id))"></span>
                             </div>
                           </template>
                         </div>
@@ -3998,10 +3999,19 @@
                           </template>
                           <span>Responsavel: <strong x-text="doc.responsavel_atual || '-'"></strong></span>
                           <span class="ds-aging" :class="dsAgingClass(Math.floor((Date.now() - new Date(doc.estagio_desde).getTime()) / 86400000))" x-text="Math.floor((Date.now() - new Date(doc.estagio_desde).getTime()) / 86400000) + 'd no estagio'"></span>
-                          <span style="display:inline-flex;align-items:center;gap:4px">
-                            <label style="font-size:11px;color:var(--text-secondary)">Prazo:</label>
-                            <input type="date" class="ds-input ds-input--inline" :class="{ 'ds-input--danger': dsPrazoClass(doc.prazo_entrega) === 'ds-deadline--overdue', 'ds-input--warning': dsPrazoClass(doc.prazo_entrega) === 'ds-deadline--soon' }" :value="doc.prazo_entrega || ''" @change="setDocPrazo(doc.id, doc.producao_id, $event.target.value)" style="width:130px;padding:2px 4px;font-size:11px">
-                          </span>
+                        </div>
+
+                        <!-- Prazos por etapa -->
+                        <div class="ds-stage-prazos">
+                          <span class="ds-stage-prazos__title">Prazos por etapa</span>
+                          <div class="ds-stage-prazos__grid">
+                            <template x-for="(stage, si) in DS_ESTAGIOS.filter(s => s.id !== 'pendente' && s.id !== 'finalizado')" :key="stage.id">
+                              <div class="ds-stage-prazos__item" :class="{ 'ds-stage-prazos__item--active': doc.estagio_atual === stage.id }">
+                                <label class="ds-stage-prazos__label" :class="dsPrazoClass(getStagePrazo(doc, stage.id))" x-text="stage.icon + ' ' + stage.label" :style="'border-left: 2px solid ' + stage.color"></label>
+                                <input type="date" class="ds-input ds-input--xs" :class="{ 'ds-input--danger': dsPrazoClass(getStagePrazo(doc, stage.id)) === 'ds-deadline--overdue', 'ds-input--warning': dsPrazoClass(getStagePrazo(doc, stage.id)) === 'ds-deadline--soon' }" :value="getStagePrazo(doc, stage.id)" @change="setStagePrazo(doc.id, doc.producao_id, stage.id, $event.target.value)">
+                              </div>
+                            </template>
+                          </div>
                         </div>
 
                         <!-- Actions -->

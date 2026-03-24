@@ -8333,7 +8333,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       try {
         const [prodRes, docsRes] = await Promise.all([
           sb.from('vw_ds_pipeline').select('*').order('mentorado_nome'),
-          sb.from('ds_documentos').select('id, producao_id, mentorado_id, tipo, titulo, estagio_atual, responsavel_atual, estagio_desde, link_doc, ordem, prazo_entrega').order('ordem'),
+          sb.from('ds_documentos').select('id, producao_id, mentorado_id, tipo, titulo, estagio_atual, responsavel_atual, estagio_desde, link_doc, ordem, prazo_entrega, prazos_etapas').order('ordem'),
         ]);
         if (prodRes.data) this.data.dsProducoes = prodRes.data;
         if (docsRes.data) this.data.dsAllDocs = docsRes.data;
@@ -8391,7 +8391,10 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     get filteredDsProducoes() {
       let list = this.data.dsProducoes;
       // Status filter
-      if (this.ui.dsFilter !== 'all') {
+      if (this.ui.dsFilter === 'all') {
+        // Hide paused/cancelled by default
+        list = list.filter(p => !['pausado', 'cancelado'].includes(p.status));
+      } else {
         const statusMap = {
           nao_iniciado: ['nao_iniciado', 'call_estrategia'],
           producao: ['producao'],
@@ -8545,6 +8548,27 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         await this.loadDsData();
         this.toast('Data atualizada', 'success');
       }
+    },
+
+    getStagePrazo(doc, stageId) {
+      if (!doc || !doc.prazos_etapas) return '';
+      return doc.prazos_etapas[stageId] || '';
+    },
+
+    async setStagePrazo(docId, producaoId, stageId, data) {
+      if (!sb) return;
+      const doc = this.data.dsAllDocs.find(d => d.id === docId);
+      if (!doc) return;
+      const prazos = { ...(doc.prazos_etapas || {}) };
+      if (data) prazos[stageId] = data;
+      else delete prazos[stageId];
+      const { error } = await sb.from('ds_documentos').update({ prazos_etapas: prazos }).eq('id', docId);
+      if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      doc.prazos_etapas = prazos;
+      const user = this.currentUserName;
+      const stageLabel = DS_ESTAGIOS.find(s => s.id === stageId)?.label || stageId;
+      await this._logDsEvento(producaoId, docId, 'nota', null, data, user, `Prazo ${stageLabel}: ${data || 'removido'}`);
+      this.toast(`Prazo ${stageLabel} atualizado`, 'success');
     },
 
     async setDocPrazo(docId, producaoId, data) {
