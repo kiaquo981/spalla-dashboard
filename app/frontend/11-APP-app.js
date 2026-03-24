@@ -4887,8 +4887,11 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     async _sbUpsertTask(task, isNew = false) {
       if (!sb) return { ok: false };
       const VALID_COLS = ['id','titulo','descricao','status','prioridade','responsavel','acompanhante','mentorado_id','mentorado_nome','data_inicio','data_fim','space_id','list_id','parent_task_id','tags','fonte','doc_link','created_at','updated_at','created_by','recorrencia','dia_recorrencia','recorrencia_ativa','recorrencia_origem_id','bloqueio_motivo','bloqueio_responsavel'];
+      const DATE_COLS = ['data_inicio', 'data_fim'];
       const row = {};
       for (const k of VALID_COLS) { if (task[k] !== undefined) row[k] = task[k]; }
+      // Empty string is invalid for DATE columns — convert to null
+      for (const k of DATE_COLS) { if (row[k] === '') row[k] = null; }
       if (row.mentorado_id) row.mentorado_id = parseInt(row.mentorado_id) || null;
       if (isNew && this.auth.currentUser) row.created_by = this.auth.currentUser.id;
       try {
