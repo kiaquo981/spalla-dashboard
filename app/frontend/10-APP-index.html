@@ -3943,12 +3943,16 @@
                     <input type="date" class="ds-input" :value="data.dsMenteeDetail.data_call_estrategia || ''" @change="setCallDate(ui.dsDetailProducaoId, 'data_call_estrategia', $event.target.value)">
                   </div>
                   <div class="ds-marcos__item">
-                    <label class="ds-marcos__label">Call Apresentação</label>
-                    <input type="date" class="ds-input" :value="data.dsMenteeDetail.data_call_apresentacao || ''" @change="setCallDate(ui.dsDetailProducaoId, 'data_call_apresentacao', $event.target.value)">
-                  </div>
-                  <div class="ds-marcos__item">
                     <label class="ds-marcos__label">Call Onboarding</label>
                     <input type="date" class="ds-input" :value="data.dsMenteeDetail.data_call_onboarding || ''" @change="setCallDate(ui.dsDetailProducaoId, 'data_call_onboarding', $event.target.value)">
+                  </div>
+                  <div class="ds-marcos__item">
+                    <label class="ds-marcos__label">◆ Apres. Oferta</label>
+                    <input type="date" class="ds-input" :value="data.dsMenteeDetail.data_call_apresentacao_oferta || ''" @change="setCallDate(ui.dsDetailProducaoId, 'data_call_apresentacao_oferta', $event.target.value)">
+                  </div>
+                  <div class="ds-marcos__item">
+                    <label class="ds-marcos__label">▽◈ Apres. Pos+Funil</label>
+                    <input type="date" class="ds-input" :value="data.dsMenteeDetail.data_call_apresentacao_pos_funil || ''" @change="setCallDate(ui.dsDetailProducaoId, 'data_call_apresentacao_pos_funil', $event.target.value)">
                   </div>
                   <div class="ds-marcos__item">
                     <label class="ds-marcos__label ds-marcos__label--prazo" :class="dsPrazoClass(data.dsMenteeDetail.prazo_entrega)">Prazo de Entrega</label>
@@ -4267,7 +4271,8 @@
                     <th scope="col">Oferta</th>
                     <th scope="col">Funil</th>
                     <th scope="col">Conteúdo</th>
-                    <th scope="col">Call</th>
+                    <th scope="col">◆ Apres.</th>
+                    <th scope="col">▽◈ Apres.</th>
                     <th scope="col" @click="dsSortBy('prazo_entrega')" :class="{ 'ds-table__th--sorted': ui.dsSortField === 'prazo_entrega' }">Prazo Global <span class="ds-sort-icon" x-text="ui.dsSortField === 'prazo_entrega' ? (ui.dsSortAsc ? '▲' : '▼') : '⇅'"></span></th>
                     <th scope="col" @click="dsSortBy('oferta_prazo')" :class="{ 'ds-table__th--sorted': ui.dsSortField === 'oferta_prazo' }">◆ Prazo <span class="ds-sort-icon" x-text="ui.dsSortField === 'oferta_prazo' ? (ui.dsSortAsc ? '▲' : '▼') : '⇅'"></span></th>
                     <th scope="col" @click="dsSortBy('funil_prazo')" :class="{ 'ds-table__th--sorted': ui.dsSortField === 'funil_prazo' }">▽ Prazo <span class="ds-sort-icon" x-text="ui.dsSortField === 'funil_prazo' ? (ui.dsSortAsc ? '▲' : '▼') : '⇅'"></span></th>
@@ -4285,7 +4290,8 @@
                       <td class="ds-table__stage-cell"><span class="ds-stage-dot" :style="'background:' + dsEstagioConfig(p.oferta_estagio || 'pendente').color" :title="dsEstagioConfig(p.oferta_estagio || 'pendente').label"></span> <span x-text="dsEstagioConfig(p.oferta_estagio || 'pendente').label"></span></td>
                       <td class="ds-table__stage-cell"><span class="ds-stage-dot" :style="'background:' + dsEstagioConfig(p.funil_estagio || 'pendente').color" :title="dsEstagioConfig(p.funil_estagio || 'pendente').label"></span> <span x-text="dsEstagioConfig(p.funil_estagio || 'pendente').label"></span></td>
                       <td class="ds-table__stage-cell"><span class="ds-stage-dot" :style="'background:' + dsEstagioConfig(p.conteudo_estagio || 'pendente').color" :title="dsEstagioConfig(p.conteudo_estagio || 'pendente').label"></span> <span x-text="dsEstagioConfig(p.conteudo_estagio || 'pendente').label"></span></td>
-                      <td x-text="p.data_call_estrategia ? dsFormatDate(p.data_call_estrategia) : '-'"></td>
+                      <td><span x-show="p.data_call_apresentacao_oferta" class="ds-deadline-badge" :class="dsPrazoClass(p.data_call_apresentacao_oferta)" x-text="dsFormatDate(p.data_call_apresentacao_oferta)"></span><span x-show="!p.data_call_apresentacao_oferta" style="color:#94a3b8">-</span></td>
+                      <td><span x-show="p.data_call_apresentacao_pos_funil" class="ds-deadline-badge" :class="dsPrazoClass(p.data_call_apresentacao_pos_funil)" x-text="dsFormatDate(p.data_call_apresentacao_pos_funil)"></span><span x-show="!p.data_call_apresentacao_pos_funil" style="color:#94a3b8">-</span></td>
                       <td>
                         <span x-show="p.prazo_entrega" class="ds-deadline-badge" :class="dsPrazoClass(p.prazo_entrega)" x-text="dsFormatDate(p.prazo_entrega)"></span>
                         <span x-show="!p.prazo_entrega" style="color:#94a3b8">-</span>
