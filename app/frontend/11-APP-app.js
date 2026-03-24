@@ -2968,34 +2968,37 @@ function operon() {
         const fullName = (t.responsavel || '').trim();
         const firstName = fullName.split(' ')[0];
         if (!firstName) return;
-        if (!members[firstName]) {
+        // normalize key to avoid "Kaique" vs "kaique" duplicates
+        const key = firstName.toLowerCase();
+        if (!members[key]) {
           const idx = Object.keys(members).length;
-          members[firstName] = { name: firstName, initial: firstName.charAt(0).toUpperCase(), color: memberColors[idx % memberColors.length], hoje: [], ontem: [], bloqueios: [] };
+          const displayName = firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
+          members[key] = { name: displayName, initial: displayName.charAt(0).toUpperCase(), color: memberColors[idx % memberColors.length], hoje: [], ontem: [], bloqueios: [] };
         }
-        const dueStr = (t.data_fim || t.prazo || '').slice(0,10);
-        const st = (t.status || '').toLowerCase();
-        const isDone = ['concluido','done','concluída','concluida','feito','closed'].includes(st);
+        const dueStr = (t.data_fim || t.prazo || '').slice(0, 10);
+        const st = (t.status || '').toLowerCase().trim();
+        const isDone = ['concluido','done','concluída','concluida','concluído','feito','closed'].includes(st);
+        const isActive = ['em andamento','em-andamento','inprogress','in_progress','in progress','doing','fazendo'].includes(st);
         const isBlocked = t.is_blocked || st === 'bloqueado';
+        const updatedStr = (t.updated_at || '').slice(0, 10);
+
         if (isBlocked) {
-          members[firstName].bloqueios.push(t);
-        } else if (dueStr === todayStr && !isDone) {
-          members[firstName].hoje.push(t);
-        } else if (dueStr === yesterdayStr || (isDone && (t.updated_at || '').slice(0,10) === yesterdayStr)) {
-          members[firstName].ontem.push(t);
+          members[key].bloqueios.push(t);
+        } else if (!isDone && (dueStr === todayStr || isActive)) {
+          // vence hoje OU está em andamento → prioridade do dia
+          members[key].hoje.push(t);
+        } else if (isDone && (updatedStr === todayStr || updatedStr === yesterdayStr)) {
+          // concluída hoje ou ontem → ontem
+          members[key].ontem.push(t);
+        } else if (dueStr === yesterdayStr && !isDone) {
+          // vencia ontem e não concluída → ontem (atrasada)
+          members[key].ontem.push(t);
         }
       });
 
-      // fallback: if no date-based results, show people with in-progress tasks
-      const withActivity = Object.values(members).filter(m => m.hoje.length + m.ontem.length + m.bloqueios.length > 0);
-      if (withActivity.length) return withActivity.sort((a,b) => (b.hoje.length + b.bloqueios.length) - (a.hoje.length + a.bloqueios.length));
-
-      // fallback 2: use ccMemberWorkload data
-      return this.ccMemberWorkload().map(m => ({
-        name: m.name, initial: m.initial, color: m.color,
-        hoje: m.inProgress.concat(m.review || []),
-        ontem: [],
-        bloqueios: [],
-      }));
+      return Object.values(members)
+        .filter(m => m.hoje.length + m.ontem.length + m.bloqueios.length > 0)
+        .sort((a, b) => (b.hoje.length + b.bloqueios.length) - (a.hoje.length + a.bloqueios.length));
     },
 
     async loadCommandCenterData() {

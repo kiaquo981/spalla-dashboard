@@ -591,7 +591,7 @@
             <!-- 1. SPRINT CARD (hero 2×2) -->
             <template x-if="ccSelectedSprint()">
               <div class="bento-card bento-card--hero">
-                <div class="cc-sprint-hero">
+                <div class="cc-sprint-hero" style="overflow-y:auto">
                   <div>
                     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--primary);margin-bottom:4px" x-text="ui.ccWeekOffset === 0 ? 'Semana atual' : ccSelectedSprint()?.status === 'encerrado' ? 'Sprint encerrado' : 'Sprint planejado'"></div>
                     <div class="cc-sprint-hero__name" x-text="ccSelectedSprint()?.nome"></div>
@@ -649,6 +649,56 @@
                         </div>
                       </template>
                     </div>
+                  </div>
+
+                  <!-- Daily Map — ontem / hoje / bloqueios por pessoa -->
+                  <div x-show="ccDailyMap().length" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-light,#ece9e2)">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-secondary)">Daily</div>
+                      <div style="font-size:9px;color:var(--text-secondary)" x-text="new Date().toLocaleDateString('pt-BR',{weekday:'short',day:'numeric',month:'short'})"></div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:10px">
+                      <template x-for="member in ccDailyMap()" :key="member.name">
+                        <div style="padding:9px 10px;background:var(--neutral-50,#faf9f7);border-radius:8px;border:1px solid var(--neutral-100,#f1ede6)">
+                          <!-- nome + avatar -->
+                          <div style="display:flex;align-items:center;gap:7px;margin-bottom:7px">
+                            <div :style="'width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff;flex-shrink:0;background:' + member.color" x-text="member.initial"></div>
+                            <span style="font-size:11px;font-weight:700;color:var(--neutral-800);text-transform:capitalize" x-text="member.name"></span>
+                            <span x-show="member.bloqueios.length" style="font-size:9px;font-weight:700;color:#ef4444;margin-left:auto" x-text="'⚠ ' + member.bloqueios.length + ' bloqueio'"></span>
+                          </div>
+                          <!-- hoje -->
+                          <template x-if="member.hoje.length">
+                            <div style="margin-bottom:5px">
+                              <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#f59e0b;margin-bottom:3px">↗ Hoje</div>
+                              <template x-for="(t,i) in member.hoje.slice(0,4)" :key="i">
+                                <div style="font-size:10px;color:var(--neutral-700);line-height:1.4;padding:1px 0 1px 8px" x-text="t.titulo || t.nome"></div>
+                              </template>
+                              <div x-show="member.hoje.length > 4" style="font-size:9px;color:var(--text-secondary);padding-left:8px" x-text="'+' + (member.hoje.length - 4) + ' mais'"></div>
+                            </div>
+                          </template>
+                          <!-- ontem -->
+                          <template x-if="member.ontem.length">
+                            <div style="margin-bottom:5px">
+                              <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#10b981;margin-bottom:3px">✓ Ontem</div>
+                              <template x-for="(t,i) in member.ontem.slice(0,3)" :key="i">
+                                <div style="font-size:10px;color:var(--neutral-500);line-height:1.4;padding:1px 0 1px 8px;text-decoration:line-through" x-text="t.titulo || t.nome"></div>
+                              </template>
+                              <div x-show="member.ontem.length > 3" style="font-size:9px;color:var(--text-secondary);padding-left:8px" x-text="'+' + (member.ontem.length - 3) + ' mais'"></div>
+                            </div>
+                          </template>
+                          <!-- bloqueios -->
+                          <template x-if="member.bloqueios.length">
+                            <div>
+                              <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#ef4444;margin-bottom:3px">⚠ Bloqueio</div>
+                              <template x-for="(t,i) in member.bloqueios.slice(0,2)" :key="i">
+                                <div style="font-size:10px;color:#ef4444;line-height:1.4;padding:1px 0 1px 8px" x-text="t.titulo || t.nome"></div>
+                              </template>
+                            </div>
+                          </template>
+                        </div>
+                      </template>
+                    </div>
+                    <button @click="navigate('tasks')" style="margin-top:6px;font-size:10px;color:var(--primary);background:none;border:none;cursor:pointer;text-align:left;padding:2px 0">+ Adicionar tarefa →</button>
                   </div>
                 </div>
               </div>
@@ -841,93 +891,6 @@
                   <!-- link to tasks -->
                   <button @click="navigate('tasks')" style="margin-top:4px;font-size:11px;color:var(--primary);background:none;border:none;cursor:pointer;text-align:left;padding:2px 0">Ver todas as tarefas →</button>
                 </div>
-              </div>
-            </div>
-
-            <!-- 6. DAILY MAP (full row) -->
-            <div class="bento-card bento-card--full" style="height:auto">
-              <div class="bento-card__header">
-                <span class="bento-card__title">Daily</span>
-                <span style="font-size:11px;color:var(--text-secondary)" x-text="new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'})"></span>
-              </div>
-              <div class="bento-card__body" style="padding-bottom:1.25rem">
-
-                <!-- person columns grid -->
-                <div x-show="ccDailyMap().length"
-                     style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;align-items:start">
-                  <template x-for="member in ccDailyMap()" :key="member.name">
-                    <div style="background:var(--neutral-50,#faf9f7);border:1px solid var(--border-light,#ece9e2);border-radius:12px;padding:12px 14px">
-
-                      <!-- person header -->
-                      <div style="display:flex;align-items:center;gap:9px;margin-bottom:11px;padding-bottom:9px;border-bottom:1px solid var(--neutral-100,#f1ede6)">
-                        <div style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;flex-shrink:0"
-                             :style="'background:' + member.color"
-                             x-text="member.initial"></div>
-                        <div>
-                          <div style="font-size:13px;font-weight:700;color:var(--neutral-900)" x-text="member.name"></div>
-                          <div style="display:flex;gap:7px;margin-top:1px">
-                            <span x-show="member.ontem.length" style="font-size:9px;font-weight:600;color:#10b981" x-text="member.ontem.length + ' ontem'"></span>
-                            <span x-show="member.hoje.length" style="font-size:9px;font-weight:600;color:#f59e0b" x-text="member.hoje.length + ' hoje'"></span>
-                            <span x-show="member.bloqueios.length" style="font-size:9px;font-weight:600;color:#ef4444" x-text="member.bloqueios.length + ' bloqueio'"></span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <!-- ontem -->
-                      <template x-if="member.ontem.length">
-                        <div style="margin-bottom:10px">
-                          <div style="font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#10b981;margin-bottom:5px">✓ Ontem</div>
-                          <template x-for="(t,ti) in member.ontem.slice(0,4)" :key="ti">
-                            <div style="display:flex;gap:6px;align-items:flex-start;padding:3px 0">
-                              <span style="color:#10b981;font-size:11px;flex-shrink:0;margin-top:1px;line-height:1">✓</span>
-                              <span style="font-size:11px;color:var(--neutral-700);line-height:1.4" x-text="t.titulo || t.nome"></span>
-                            </div>
-                          </template>
-                          <div x-show="member.ontem.length > 4" style="font-size:10px;color:var(--text-secondary);padding-left:17px" x-text="'+' + (member.ontem.length - 4) + ' mais'"></div>
-                        </div>
-                      </template>
-
-                      <!-- hoje -->
-                      <template x-if="member.hoje.length">
-                        <div style="margin-bottom:10px">
-                          <div style="font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#f59e0b;margin-bottom:5px">↗ Hoje</div>
-                          <template x-for="(t,ti) in member.hoje.slice(0,4)" :key="ti">
-                            <div style="display:flex;gap:6px;align-items:flex-start;padding:3px 0">
-                              <span style="color:#f59e0b;font-size:14px;flex-shrink:0;line-height:1.1">·</span>
-                              <span style="font-size:11px;color:var(--neutral-700);line-height:1.4" x-text="t.titulo || t.nome"></span>
-                            </div>
-                          </template>
-                          <div x-show="member.hoje.length > 4" style="font-size:10px;color:var(--text-secondary);padding-left:17px" x-text="'+' + (member.hoje.length - 4) + ' mais'"></div>
-                        </div>
-                      </template>
-
-                      <!-- bloqueios -->
-                      <template x-if="member.bloqueios.length">
-                        <div>
-                          <div style="font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#ef4444;margin-bottom:5px">⚠ Bloqueio</div>
-                          <template x-for="(t,ti) in member.bloqueios.slice(0,3)" :key="ti">
-                            <div style="display:flex;gap:6px;align-items:flex-start;padding:3px 0">
-                              <span style="color:#ef4444;font-size:10px;flex-shrink:0;margin-top:1px;line-height:1.3">⚠</span>
-                              <span style="font-size:11px;color:#ef4444;line-height:1.4" x-text="t.titulo || t.nome"></span>
-                            </div>
-                          </template>
-                        </div>
-                      </template>
-
-                      <!-- sem atividade -->
-                      <div x-show="!member.ontem.length && !member.hoje.length && !member.bloqueios.length"
-                           style="font-size:11px;color:var(--text-secondary);text-align:center;padding:8px 0">sem tarefas hoje</div>
-                    </div>
-                  </template>
-                </div>
-
-                <!-- empty state -->
-                <div x-show="!ccDailyMap().length" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--text-secondary);padding:2rem 0">
-                  <span style="font-size:28px">📋</span>
-                  <span style="font-size:12px">Nenhuma tarefa cadastrada para hoje</span>
-                  <button @click="navigate('tasks')" style="font-size:11px;color:var(--primary);background:none;border:none;cursor:pointer;margin-top:4px">Adicionar tarefa →</button>
-                </div>
-
               </div>
             </div>
 
