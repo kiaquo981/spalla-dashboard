@@ -5045,8 +5045,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         this.taskForm = {
           titulo: task.titulo,
           descricao: task.descricao || '',
-          responsavel: task.responsavel || '',
-          acompanhante: task.acompanhante || '',
+          responsavel: (TEAM_MEMBERS.find(m => m.name.toLowerCase() === (task.responsavel||'').toLowerCase())?.name) || task.responsavel || '',
+          acompanhante: (TEAM_MEMBERS.find(m => m.name.toLowerCase() === (task.acompanhante||'').toLowerCase())?.name) || task.acompanhante || '',
           mentorado_nome: task.mentorado_nome || '',
           prioridade: task.prioridade || 'normal',
           prazo: task.data_fim || task.prazo || '',
