@@ -187,7 +187,7 @@ function operon() {
       toasts: [],
       // Tasks
       taskFilter: 'all', // all | pendente | em_andamento | concluida | atrasada
-      taskAssignee: '',
+      taskAssignee: '', // '' = todos; '__mine__' = minhas tarefas
       taskModal: false,
       taskEditId: null,
       taskView: 'board', // 'list' | 'board'
@@ -199,6 +199,7 @@ function operon() {
       taskGanttRange: 'month', // 'week' | 'month' | 'quarter'
       taskSpaceFilter: 'all', // space_id filter
       taskListFilter: 'all', // list_id filter
+      ccWeekOffset: 0,       // Command Center week nav: 0=current, -1=prev, +1=next
       spaceExpanded: null,   // which space has sub-lists visible
       docsTab: 'arquivos',   // 'arquivos' | 'biblioteca' | 'google_docs'
       taskGroupBy: 'status', // 'status' | 'assignee' | 'priority' | 'list'
@@ -1362,15 +1363,34 @@ function operon() {
     // Tasks: tree view — flat array with _depth metadata for list view
     get tasksTree() {
       const filtered = this.filteredTasks;
-      const roots = filtered.filter(t => !t.parent_task_id);
       const result = [];
-      for (const root of roots) {
-        const children = this.data.tasks.filter(t => t.parent_task_id === root.id);
-        result.push({ ...root, _depth: 0, _childCount: children.length });
-        if (this.ui.taskExpandedIds[root.id] && children.length) {
-          for (const child of children) {
-            result.push({ ...child, _depth: 1, _childCount: 0 });
-          }
+      for (const task of filtered) {
+        const childCount = (task.subtasks || []).length;
+        result.push({ ...task, _depth: 0, _childCount: childCount });
+        if (this.ui.taskExpandedIds[task.id] && childCount > 0) {
+          (task.subtasks || []).forEach((sub, idx) => {
+            result.push({
+              id: sub.id || ('sub_' + task.id + '_' + idx),
+              titulo: sub.text || '',
+              status: sub.status || (sub.done ? 'concluida' : 'pendente'),
+              prioridade: sub.prioridade || 'normal',
+              responsavel: sub.responsavel || '',
+              acompanhante: null,
+              mentorado_nome: null,
+              data_inicio: sub.data_inicio || null,
+              data_fim: sub.data_fim || null,
+              prazo: sub.data_fim || null,
+              tags: [],
+              is_blocked: false,
+              auto_gerada: false,
+              recorrencia: 'nenhuma',
+              _depth: 1,
+              _childCount: 0,
+              _isSubtask: true,
+              _parentId: task.id,
+              _subIdx: idx,
+            });
+          });
         }
       }
       return result;
@@ -2717,9 +2737,46 @@ function operon() {
 
     // ===================== COMMAND CENTER COMPUTED =====================
 
+    ccSelectedSprint() {
+      const sprints = (this.data.sprints || []).slice().sort((a, b) => (a.inicio || '').localeCompare(b.inicio || ''));
+      if (!sprints.length) return null;
+      const today = new Date().toISOString().slice(0, 10);
+      let activeIdx = sprints.findIndex(s => s.inicio <= today && today <= s.fim);
+      if (activeIdx < 0) activeIdx = sprints.findIndex(s => s.status === 'ativo');
+      if (activeIdx < 0) activeIdx = 0;
+      const idx = Math.max(0, Math.min(sprints.length - 1, activeIdx + (this.ui.ccWeekOffset || 0)));
+      return sprints[idx];
+    },
+
+    ccWeekNavLabel() {
+      if (this.ui.ccWeekOffset === 0) return 'Esta semana';
+      const sel = this.ccSelectedSprint();
+      return sel ? sel.nome : (this.ui.ccWeekOffset < 0 ? 'Semana anterior' : 'Próxima semana');
+    },
+
+    ccWeekNavCanPrev() {
+      const sprints = (this.data.sprints || []).slice().sort((a, b) => (a.inicio || '').localeCompare(b.inicio || ''));
+      if (sprints.length <= 1) return false;
+      const today = new Date().toISOString().slice(0, 10);
+      let activeIdx = sprints.findIndex(s => s.inicio <= today && today <= s.fim);
+      if (activeIdx < 0) activeIdx = sprints.findIndex(s => s.status === 'ativo');
+      if (activeIdx < 0) activeIdx = 0;
+      return activeIdx + (this.ui.ccWeekOffset || 0) > 0;
+    },
+
+    ccWeekNavCanNext() {
+      const sprints = (this.data.sprints || []).slice().sort((a, b) => (a.inicio || '').localeCompare(b.inicio || ''));
+      if (sprints.length <= 1) return false;
+      const today = new Date().toISOString().slice(0, 10);
+      let activeIdx = sprints.findIndex(s => s.inicio <= today && today <= s.fim);
+      if (activeIdx < 0) activeIdx = sprints.findIndex(s => s.status === 'ativo');
+      if (activeIdx < 0) activeIdx = 0;
+      return activeIdx + (this.ui.ccWeekOffset || 0) < sprints.length - 1;
+    },
+
     ccTasksByStatus() {
-      // Prefer live ClickUp data
-      if (this.data.ccData?.by_status) {
+      // Use live ClickUp data only for current week (offset=0)
+      if (this.data.ccData?.by_status && (this.ui.ccWeekOffset || 0) === 0) {
         const s = this.data.ccData.by_status;
         return {
           backlog:    s.backlog    || [],
@@ -2729,11 +2786,14 @@ function operon() {
         };
       }
       const tasks = this.data.tasks || [];
+      const sel = this.ccSelectedSprint();
+      // Filter to tasks belonging to the selected sprint
+      const sprintTasks = sel ? tasks.filter(t => t.list_id === sel.id) : tasks;
       return {
-        backlog:    tasks.filter(t => t.status === 'pendente'),
-        inProgress: tasks.filter(t => t.status === 'em_andamento'),
-        review:     tasks.filter(t => t.status === 'revisao' || t.status === 'em_revisao'),
-        done:       tasks.filter(t => t.status === 'concluida' || t.status === 'concluído'),
+        backlog:    sprintTasks.filter(t => t.status === 'pendente'),
+        inProgress: sprintTasks.filter(t => t.status === 'em_andamento'),
+        review:     sprintTasks.filter(t => t.status === 'revisao' || t.status === 'em_revisao'),
+        done:       sprintTasks.filter(t => t.status === 'concluida' || t.status === 'concluído'),
       };
     },
 
@@ -2768,30 +2828,40 @@ function operon() {
     },
 
     ccSprintProgress() {
-      if (this.data.ccData?.sprint) {
-        const s = this.data.ccData.sprint;
+      if (this.data.ccData?.sprint && (this.ui.ccWeekOffset || 0) === 0) {
         const total = this.data.ccData.total || 0;
         const done  = this.data.ccData.concluidas || 0;
         if (!total) return 0;
         return Math.round((done / total) * 100);
       }
-      const today = new Date().toISOString().slice(0, 10);
-      const sprint = (this.data.sprints || []).find(s => s.inicio <= today && today <= s.fim)
-                  || (this.data.sprints || []).find(s => s.status === 'ativo');
+      const sprint = this.ccSelectedSprint();
       if (!sprint || !sprint.total) return 0;
-      return Math.round((sprint.concluidas / sprint.total) * 100);
+      return Math.round(((sprint.concluidas || 0) / sprint.total) * 100);
     },
 
     ccRecentActivity() {
+      const actionLabel = (status) => {
+        if (!status) return 'atualizou';
+        const s = status.toLowerCase();
+        if (s === 'concluida' || s === 'concluído' || s === 'done') return 'concluiu';
+        if (s === 'em_andamento' || s === 'in_progress' || s === 'em andamento') return 'iniciou';
+        if (s === 'revisao' || s === 'em_revisao' || s === 'review') return 'enviou pra revisão';
+        if (s === 'bloqueado') return 'bloqueou';
+        return 'atualizou';
+      };
       // Prefer live ClickUp data
       if (this.data.ccData?.activity?.length) {
-        return this.data.ccData.activity.slice(0, 12).map(a => ({
-          text: a.text,
-          who: a.who,
-          time: a.time,
-          url: a.url,
-          operon_id: a.operon_id || null,
-        }));
+        return this.data.ccData.activity.slice(0, 12).map(a => {
+          const task = (this.data.tasks || []).find(t => t.operon_id === a.operon_id);
+          return {
+            text: a.text,
+            who: a.who,
+            time: a.time,
+            url: a.url,
+            operon_id: a.operon_id || null,
+            action: task ? actionLabel(task.status) : 'atualizou',
+          };
+        });
       }
       const tasks = [...(this.data.tasks || [])];
       return tasks
@@ -2804,6 +2874,7 @@ function operon() {
           who: (t.responsavel || '?').split(' ')[0],
           time: t.updated_at || t.created_at,
           status: t.status,
+          action: actionLabel(t.status),
         }));
     },
 
@@ -2833,6 +2904,38 @@ function operon() {
         if (!res.ok) return;
         const d = await res.json();
         this.data.ccData = d;
+        // Enrich data.tasks with ClickUp subtasks for tree view
+        if (d.by_status) {
+          const allCcTasks = [
+            ...(d.by_status.backlog || []),
+            ...(d.by_status.em_andamento || []),
+            ...(d.by_status.em_revisao || []),
+            ...(d.by_status.concluida || []),
+          ];
+          const ccByOperon = {};
+          for (const ct of allCcTasks) {
+            if (ct.id) ccByOperon[ct.id] = ct;
+          }
+          this.data.tasks = this.data.tasks.map(t => {
+            if (t.operon_id && ccByOperon[t.operon_id]?.subtasks?.length) {
+              const ccSubs = ccByOperon[t.operon_id].subtasks;
+              return {
+                ...t,
+                subtasks: ccSubs.map(s => ({
+                  id: s.id || null,
+                  text: s.titulo || '',
+                  done: s.status === 'concluida',
+                  sort_order: 0,
+                  status: s.status || 'pendente',
+                  responsavel: s.responsavel || '',
+                  prioridade: 'normal',
+                  clickup_id: s.clickup_id || s.id || null,
+                })),
+              };
+            }
+            return t;
+          });
+        }
         // Sync active sprint totals into data.sprints for the header/timeline card
         if (d.sprint) {
           const patch = { total: d.total, concluidas: d.concluidas, status: 'ativo' };
