@@ -8333,7 +8333,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       try {
         const [prodRes, docsRes] = await Promise.all([
           sb.from('vw_ds_pipeline').select('*').order('mentorado_nome'),
-          sb.from('ds_documentos').select('id, producao_id, mentorado_id, tipo, titulo, estagio_atual, responsavel_atual, estagio_desde, link_doc, ordem').order('ordem'),
+          sb.from('ds_documentos').select('id, producao_id, mentorado_id, tipo, titulo, estagio_atual, responsavel_atual, estagio_desde, link_doc, ordem, prazo_entrega').order('ordem'),
         ]);
         if (prodRes.data) this.data.dsProducoes = prodRes.data;
         if (docsRes.data) this.data.dsAllDocs = docsRes.data;
@@ -8544,6 +8544,19 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         await this._logDsEvento(producaoId, null, 'nota', null, data, user, `${campo} definido: ${data}`);
         await this.loadDsData();
         this.toast('Data atualizada', 'success');
+      }
+    },
+
+    async setDocPrazo(docId, producaoId, data) {
+      if (!sb) return;
+      const { error } = await sb.from('ds_documentos').update({ prazo_entrega: data || null }).eq('id', docId);
+      if (error) this.toast('Erro: ' + error.message, 'error');
+      else {
+        const user = this.currentUserName;
+        await this._logDsEvento(producaoId, docId, 'nota', null, data, user, `prazo_entrega doc definido: ${data}`);
+        await this.loadDsData();
+        if (this.data.dsMenteeDetail) await this.loadDsMenteeDetail(producaoId);
+        this.toast('Prazo do dossiê atualizado', 'success');
       }
     },
 
