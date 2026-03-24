@@ -4248,6 +4248,7 @@ function operon() {
       this.ui.page = page;
       this.ui.mobileMenuOpen = false;
       if (page === 'financeiro') this.loadFinanceiro();
+      if (page === 'command_center' && !this.data.dsProducoes.length) this.loadDsData();
       if (page === 'carteira') this.initWaKeyboardShortcuts();
       localStorage.setItem('spalla_page', page);
       // Update URL without reload
@@ -8374,6 +8375,72 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     // --- DS KPIs ---
+    // --- DS News (Command Center card) ---
+    dsNewsEntregues() {
+      const now = new Date(); now.setHours(0,0,0,0);
+      const weekAgo = new Date(now.getTime() - 7 * 86400000);
+      return this.data.dsAllDocs.filter(d => {
+        if (d.estagio_atual !== 'finalizado') return false;
+        const dt = d.updated_at ? new Date(d.updated_at) : null;
+        return dt && dt >= weekAgo;
+      }).map(d => {
+        const prod = this.data.dsProducoes.find(p => p.producao_id === d.producao_id);
+        return { ...d, mentorado_nome: prod?.mentorado_nome || '?', responsavel: d.responsavel_atual || prod?.responsavel_atual || '-' };
+      });
+    },
+    dsNewsEmProducao() {
+      return this.data.dsAllDocs.filter(d => {
+        if (d.estagio_atual === 'finalizado' || d.estagio_atual === 'pendente') return false;
+        const prod = this.data.dsProducoes.find(p => p.producao_id === d.producao_id);
+        return prod && !['pausado', 'cancelado', 'finalizado'].includes(prod.status);
+      }).map(d => {
+        const prod = this.data.dsProducoes.find(p => p.producao_id === d.producao_id);
+        const aging = d.estagio_desde ? Math.floor((Date.now() - new Date(d.estagio_desde).getTime()) / 86400000) : 0;
+        return { ...d, mentorado_nome: prod?.mentorado_nome || '?', aging };
+      }).sort((a, b) => b.aging - a.aging);
+    },
+    dsNewsCriticos() {
+      const today = new Date(); today.setHours(0,0,0,0);
+      return this.data.dsAllDocs.filter(d => {
+        if (d.estagio_atual === 'finalizado') return false;
+        const prod = this.data.dsProducoes.find(p => p.producao_id === d.producao_id);
+        if (!prod || ['pausado', 'cancelado'].includes(prod.status)) return false;
+        if (d.prazo_entrega) { const dt = new Date(d.prazo_entrega + 'T00:00:00'); if ((dt - today) / 86400000 <= 3) return true; }
+        if (d.prazos_etapas && d.prazos_etapas[d.estagio_atual]) { const dt = new Date(d.prazos_etapas[d.estagio_atual] + 'T00:00:00'); if ((dt - today) / 86400000 <= 3) return true; }
+        if (prod.prazo_entrega) { const dt = new Date(prod.prazo_entrega + 'T00:00:00'); if ((dt - today) / 86400000 <= 3) return true; }
+        return false;
+      }).map(d => {
+        const prod = this.data.dsProducoes.find(p => p.producao_id === d.producao_id);
+        const prazo = d.prazo_entrega || d.prazos_etapas?.[d.estagio_atual] || prod?.prazo_entrega;
+        const diff = prazo ? Math.round((new Date(prazo + 'T00:00:00') - today) / 86400000) : null;
+        return { ...d, mentorado_nome: prod?.mentorado_nome || '?', prazo, diff, producao_id: d.producao_id };
+      }).sort((a, b) => (a.diff ?? 99) - (b.diff ?? 99));
+    },
+    dsNewsProximasApresentacoes() {
+      const today = new Date(); today.setHours(0,0,0,0);
+      const results = [];
+      this.data.dsProducoes.forEach(p => {
+        if (['pausado', 'cancelado', 'finalizado'].includes(p.status)) return;
+        if (p.data_call_apresentacao_oferta) {
+          const dt = new Date(p.data_call_apresentacao_oferta + 'T00:00:00');
+          if (dt >= new Date(today.getTime() - 86400000)) results.push({ mentorado_nome: p.mentorado_nome, tipo: '◆ Apres. Oferta', data: p.data_call_apresentacao_oferta, diff: Math.round((dt - today) / 86400000), producao_id: p.producao_id });
+        }
+        if (p.data_call_apresentacao_pos_funil) {
+          const dt = new Date(p.data_call_apresentacao_pos_funil + 'T00:00:00');
+          if (dt >= new Date(today.getTime() - 86400000)) results.push({ mentorado_nome: p.mentorado_nome, tipo: '▽◈ Apres. Pos+Funil', data: p.data_call_apresentacao_pos_funil, diff: Math.round((dt - today) / 86400000), producao_id: p.producao_id });
+        }
+        const docs = this.data.dsAllDocs.filter(d => d.producao_id === p.producao_id && d.prazo_entrega && d.estagio_atual !== 'finalizado');
+        docs.forEach(d => {
+          const dt = new Date(d.prazo_entrega + 'T00:00:00');
+          if (dt >= new Date(today.getTime() - 86400000)) {
+            const icon = d.tipo === 'oferta' ? '◆' : d.tipo === 'funil' ? '▽' : '◈';
+            results.push({ mentorado_nome: p.mentorado_nome, tipo: icon + ' Entrega ' + (this.dsDocTipoConfig(d.tipo)?.label || d.tipo), data: d.prazo_entrega, diff: Math.round((dt - today) / 86400000), producao_id: p.producao_id });
+          }
+        });
+      });
+      return results.sort((a, b) => a.diff - b.diff);
+    },
+
     dsPageKpis() {
       const prods = this.data.dsProducoes;
       const total = prods.length;
