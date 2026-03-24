@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Operon — Dashboard de Mentorados</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%236366f1'/%3E%3Ctext x='50' y='50' text-anchor='middle' dominant-baseline='central' font-size='56' fill='white' font-family='system-ui,sans-serif' font-weight='700'%3EO%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="14-APP-operon-tokens.css?v=2">
+  <link rel="stylesheet" href="14-APP-operon-tokens.css?v=3">
   <link rel="stylesheet" href="15-APP-operon-atoms.css?v=3">
   <link rel="stylesheet" href="16-APP-operon-molecules.css?v=3">
   <link rel="stylesheet" href="17-APP-operon-utilities.css?v=2">
@@ -2469,6 +2469,10 @@
                     <button x-show="ui.taskTagFilter.length" @click="ui.taskTagFilter=[];ui.taskTagsFilterOpen=false" style="width:100%;padding:6px;font-size:12px;color:#ef4444;background:none;border:none;border-top:1px solid #f1f5f9;cursor:pointer;text-align:left">Limpar filtro de tags</button>
                   </div>
                 </div>
+                <button class="btn btn--sm btn--outline" @click="syncClickUpSubtasks()" :disabled="ui.syncingSubtasks" style="margin-left:auto;display:flex;align-items:center;gap:6px" title="Sincronizar subtasks do ClickUp">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :style="ui.syncingSubtasks ? 'animation:spin 1s linear infinite' : ''"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                  <span x-text="ui.syncingSubtasks ? 'Sincronizando…' : 'Sync ClickUp'"></span>
+                </button>
                 <span class="op-toolbar__count" x-text="(ui.taskView === 'list' ? filteredTasks.length : data.tasks.length) + ' tarefas'"></span>
               </div>
 
@@ -7224,10 +7228,10 @@
              x-transition:enter="transition ease-out duration-200"
              x-transition:enter-start="opacity:0;transform:translateY(12px) scale(.97)"
              x-transition:enter-end="opacity:1;transform:translateY(0) scale(1)"
-             style="width:360px;height:480px;background:var(--op-surface);border:1px solid var(--op-border);border-radius:var(--r-xl);box-shadow:0 8px 32px rgba(0,0,0,.15);display:flex;flex-direction:column;overflow:hidden">
+             style="width:360px;height:480px;background:var(--op-surface,#fff);border:1px solid var(--op-border,#e5e3dc);border-radius:var(--r-xl,16px);box-shadow:0 8px 32px rgba(0,0,0,.15);display:flex;flex-direction:column;overflow:hidden">
 
           <!-- Header -->
-          <div style="padding:12px 16px;border-bottom:1px solid var(--op-border);display:flex;align-items:center;justify-content:space-between;background:var(--op-primary);color:#fff;border-radius:var(--r-xl) var(--r-xl) 0 0">
+          <div style="padding:12px 16px;border-bottom:1px solid var(--op-border,#e5e3dc);display:flex;align-items:center;justify-content:space-between;background:var(--op-primary,#35301d);color:#fff;border-radius:var(--r-xl,16px) var(--r-xl,16px) 0 0">
             <div style="display:flex;flex-direction:column">
               <span style="font-size:13px;font-weight:600">Copiloto IA</span>
               <span x-show="ui.copilotMenteeNome"
@@ -7264,15 +7268,17 @@
           </div>
 
           <!-- Input -->
-          <div style="padding:10px 12px;border-top:1px solid var(--op-border);display:flex;gap:8px;align-items:flex-end">
+          <div style="padding:10px 12px;border-top:1px solid var(--op-border,#e5e3dc);display:flex;gap:8px;align-items:flex-end;background:var(--op-surface,#fff)">
             <textarea x-model="ui.copilotInput"
                       @keydown.enter.prevent="if(!$event.shiftKey) sendCopilotMessage()"
                       placeholder="Digite sua pergunta… (Enter para enviar)"
                       rows="2"
-                      style="flex:1;resize:none;border:1px solid var(--op-border);border-radius:var(--r-md);padding:6px 10px;font-size:12px;background:var(--op-bg);color:var(--op-text);outline:none;font-family:inherit;line-height:1.4"></textarea>
+                      style="flex:1;resize:none;border:1.5px solid var(--neutral-200,#e5e3dc);border-radius:var(--r-md);padding:6px 10px;font-size:12px;background:#fff;color:var(--text-primary,#35301d);outline:none;font-family:inherit;line-height:1.4;transition:border-color .15s"
+                      @focus="$el.style.borderColor='var(--brand-500,#8a7d52)'"
+                      @blur="$el.style.borderColor='var(--neutral-200,#e5e3dc)'"></textarea>
             <button @click="sendCopilotMessage()"
                     :disabled="!ui.copilotInput.trim() || ui.copilotLoading"
-                    style="padding:8px 14px;border-radius:var(--r-md);background:var(--op-primary);color:#fff;border:none;cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap;opacity:var(--btn-opacity,1)"
+                    style="padding:8px 14px;border-radius:var(--r-md,8px);background:var(--op-primary,#35301d);color:#fff;border:none;cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap"
                     :style="{ opacity: (!ui.copilotInput.trim() || ui.copilotLoading) ? '.5' : '1' }">
               <template x-if="!ui.copilotLoading">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>

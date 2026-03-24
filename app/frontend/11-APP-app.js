@@ -207,6 +207,7 @@ function operon() {
       taskDateFilter: 'all', // all | today | next7 | next30 | overdue | no_date
       taskTagsDropdown: false, // tags dropdown open in modal
       taskTagsFilterOpen: false, // tags filter dropdown in toolbar
+      syncingSubtasks: false,    // ClickUp subtask sync in progress
       // Dossiers (legacy)
       dossierFilter: 'all',
       // Dossiê Production System
@@ -4954,6 +4955,27 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const r = await this._sbDeleteTask(taskId);
       if (!r.ok && backup) { this.data.tasks.push(backup); this._cacheTasksLocal(); this.toast('Erro ao remover tarefa', 'error'); return; }
       this.toast('Tarefa removida', 'info');
+    },
+
+    async syncClickUpSubtasks() {
+      this.ui.syncingSubtasks = true;
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/clickup/sync-subtasks`, { method: 'POST' });
+        const json = await res.json();
+        if (!res.ok) {
+          this.toast(json.error || 'Erro ao sincronizar subtasks', 'error');
+          return;
+        }
+        const msg = json.tasks_matched === 0
+          ? 'Nenhuma tarefa com operon_id encontrada'
+          : `${json.synced} subtask(s) sincronizada(s) em ${json.tasks_matched} tarefa(s)`;
+        this.toast(msg, json.synced > 0 ? 'success' : 'info');
+        if (json.synced > 0) await this.loadTasks();
+      } catch (e) {
+        this.toast('Erro de conexão ao sincronizar subtasks', 'error');
+      } finally {
+        this.ui.syncingSubtasks = false;
+      }
     },
 
     addSubtask() {
