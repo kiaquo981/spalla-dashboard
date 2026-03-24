@@ -6704,6 +6704,91 @@ img { max-width: 100%; display: block; }
   max-width: 60px;
 }
 
+/* ===== Person workload cards (Team card) ===== */
+.cc-person-card {
+  background: #faf9f7;
+  border: 1px solid var(--border-light, #ece9e2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.cc-person-card:hover { background: #f3f1ec; border-color: var(--primary-200, #d4c9b0); }
+
+.cc-person-card__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cc-person-card__avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+.cc-person-card__info {
+  flex: 1;
+  min-width: 0;
+}
+.cc-person-card__name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--neutral-800, #2d2a24);
+  text-transform: capitalize;
+  margin-bottom: 3px;
+}
+.cc-person-card__pills {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.cc-person-pill {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.cc-person-pill--active  { background: #fef3c7; color: #92400e; }
+.cc-person-pill--review  { background: #dbeafe; color: #1e40af; }
+.cc-person-pill--done    { background: #d1fae5; color: #065f46; }
+
+.cc-person-card__tasks {
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--border-light, #ece9e2);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.cc-person-card__task {
+  font-size: 11px;
+  color: var(--neutral-600, #6b6355);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-left: 2px;
+}
+.cc-person-card__task::before {
+  content: '·';
+  margin-right: 5px;
+  color: var(--primary, #8a7d52);
+  font-weight: 700;
+}
+.cc-person-card__more {
+  font-size: 10px;
+  color: var(--text-secondary);
+  font-style: italic;
+  padding-left: 12px;
+  margin-top: 1px;
+}
+
 /* ===== PROJECT CARDS ===== */
 .cc-project-list {
   display: flex;
