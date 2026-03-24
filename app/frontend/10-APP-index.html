@@ -3939,16 +3939,20 @@
                 <!-- Marcos Globais -->
                 <div class="ds-marcos">
                   <div class="ds-marcos__item">
-                    <label class="ds-marcos__label">Call Estrategia</label>
+                    <label class="ds-marcos__label">Call Estratégia</label>
                     <input type="date" class="ds-input" :value="data.dsMenteeDetail.data_call_estrategia || ''" @change="setCallDate(ui.dsDetailProducaoId, 'data_call_estrategia', $event.target.value)">
                   </div>
                   <div class="ds-marcos__item">
-                    <label class="ds-marcos__label">Call Apresentacao</label>
+                    <label class="ds-marcos__label">Call Apresentação</label>
                     <input type="date" class="ds-input" :value="data.dsMenteeDetail.data_call_apresentacao || ''" @change="setCallDate(ui.dsDetailProducaoId, 'data_call_apresentacao', $event.target.value)">
                   </div>
                   <div class="ds-marcos__item">
                     <label class="ds-marcos__label">Call Onboarding</label>
                     <input type="date" class="ds-input" :value="data.dsMenteeDetail.data_call_onboarding || ''" @change="setCallDate(ui.dsDetailProducaoId, 'data_call_onboarding', $event.target.value)">
+                  </div>
+                  <div class="ds-marcos__item">
+                    <label class="ds-marcos__label ds-marcos__label--prazo" :class="dsPrazoClass(data.dsMenteeDetail.prazo_entrega)">Prazo de Entrega</label>
+                    <input type="date" class="ds-input" :class="{ 'ds-input--danger': dsPrazoClass(data.dsMenteeDetail.prazo_entrega) === 'ds-deadline--overdue', 'ds-input--warning': dsPrazoClass(data.dsMenteeDetail.prazo_entrega) === 'ds-deadline--soon' }" :value="data.dsMenteeDetail.prazo_entrega || ''" @change="setCallDate(ui.dsDetailProducaoId, 'prazo_entrega', $event.target.value)">
                   </div>
                 </div>
 
@@ -4093,7 +4097,7 @@
 
           <!-- Main page (hidden when detail is open) -->
           <div x-show="!ui.dsDetailProducaoId">
-            <div class="page-header"><h2>Producao de Dossies</h2></div>
+            <div class="page-header"><h2>Produção de Dossiês</h2></div>
 
             <!-- Skeleton Loading -->
             <div x-show="ui.dsLoading">
@@ -4113,11 +4117,11 @@
               </div>
               <div class="op-stat">
                 <div class="op-stat__icon op-stat__icon--purple"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></div>
-                <div class="op-stat__body"><div class="op-stat__value ds-page-kpis__val--producao" x-text="dsPageKpis().producaoIa"></div><div class="op-stat__label">Producao</div></div>
+                <div class="op-stat__body"><div class="op-stat__value ds-page-kpis__val--producao" x-text="dsPageKpis().producaoIa"></div><div class="op-stat__label">Produção</div></div>
               </div>
               <div class="op-stat">
                 <div class="op-stat__icon op-stat__icon--warning"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
-                <div class="op-stat__body"><div class="op-stat__value ds-page-kpis__val--revisao" x-text="dsPageKpis().emRevisao"></div><div class="op-stat__label">Em Revisao</div></div>
+                <div class="op-stat__body"><div class="op-stat__value ds-page-kpis__val--revisao" x-text="dsPageKpis().emRevisao"></div><div class="op-stat__label">Em Revisão</div></div>
               </div>
               <div class="op-stat">
                 <div class="op-stat__icon op-stat__icon--success"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
@@ -4138,15 +4142,15 @@
               <input type="text" class="input" placeholder="Buscar mentorado..." x-model.debounce.300ms="ui.dsSearchQuery" aria-label="Buscar mentorado">
               <select class="op-toolbar__select" x-model="ui.dsFilter" aria-label="Filtrar por status">
                 <option value="all">Todos</option>
-                <option value="nao_iniciado">Nao Iniciado</option>
-                <option value="producao">Producao</option>
-                <option value="revisao">Em Revisao</option>
+                <option value="nao_iniciado">Não Iniciado</option>
+                <option value="producao">Produção</option>
+                <option value="revisao">Em Revisão</option>
                 <option value="aprovado">Aprovado</option>
                 <option value="enviado">Enviado</option>
                 <option value="finalizado">Finalizado</option>
                 <option value="pausado">Pausado/Cancelado</option>
               </select>
-              <span class="op-toolbar__count" x-text="filteredDsProducoes.length + ' producoes'" aria-live="polite"></span>
+              <span class="op-toolbar__count" x-text="filteredDsProducoes.length + ' produções'" aria-live="polite"></span>
               <div class="op-tabs op-tabs--pills" style="margin-left:auto" role="tablist" aria-label="Modo de visualizacao">
                 <button class="op-tab" :class="{ 'active': ui.dsView === 'painel' }" @click="ui.dsView = 'painel'" role="tab" :aria-selected="ui.dsView === 'painel'">Painel</button>
                 <button class="op-tab" :class="{ 'active': ui.dsView === 'pipeline' }" @click="ui.dsView = 'pipeline'" role="tab" :aria-selected="ui.dsView === 'pipeline'">Pipeline</button>
@@ -4186,6 +4190,10 @@
                       <span x-show="p.data_call_estrategia" style="display:inline-flex;align-items:center;gap:3px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span x-text="dsFormatDate(p.data_call_estrategia)"></span></span>
                       <span style="display:inline-flex;align-items:center;gap:3px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg><span x-text="(p.ajustes_pendentes || 0)"></span></span>
                       <span class="ds-aging" :class="dsAgingClass(p.dias_no_estagio)" x-show="p.dias_no_estagio != null" x-text="p.dias_no_estagio + 'd'"></span>
+                      <span x-show="p.prazo_entrega" class="ds-deadline-badge" :class="dsPrazoClass(p.prazo_entrega)" style="margin-left:auto;display:inline-flex;align-items:center;gap:3px">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        <span x-text="dsFormatDate(p.prazo_entrega)"></span>
+                      </span>
                     </div>
                   </div>
                 </template>
@@ -4229,6 +4237,10 @@
                             <span x-text="p.responsavel_atual || '-'"></span>
                             <span class="ds-aging ds-aging--sm" :class="dsAgingClass(p.dias_no_estagio)" x-show="p.dias_no_estagio" x-text="p.dias_no_estagio + 'd'"></span>
                           </div>
+                          <div x-show="p.prazo_entrega" class="ds-pipeline__card-prazo">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                            <span :class="dsPrazoClass(p.prazo_entrega)" x-text="dsFormatDate(p.prazo_entrega)"></span>
+                          </div>
                         </div>
                       </template>
                     </div>
@@ -4239,16 +4251,17 @@
 
             <!-- VIEW: Lista (Tabela) -->
             <div x-show="ui.dsView === 'lista' && !ui.dsLoading" style="overflow-x:auto;" role="tabpanel">
-              <table class="op-table ds-table" aria-label="Lista de producoes">
+              <table class="op-table ds-table" aria-label="Lista de produções">
                 <thead>
                   <tr>
                     <th scope="col" @click="dsSortBy('mentorado_nome')" :class="{ 'ds-table__th--sorted': ui.dsSortField === 'mentorado_nome' }">Mentorado <span class="ds-sort-icon" x-text="ui.dsSortField === 'mentorado_nome' ? (ui.dsSortAsc ? '▲' : '▼') : '⇅'"></span></th>
                     <th scope="col" @click="dsSortBy('status')" :class="{ 'ds-table__th--sorted': ui.dsSortField === 'status' }">Status <span class="ds-sort-icon" x-text="ui.dsSortField === 'status' ? (ui.dsSortAsc ? '▲' : '▼') : '⇅'"></span></th>
-                    <th scope="col">Responsavel</th>
+                    <th scope="col">Responsável</th>
                     <th scope="col">Oferta</th>
                     <th scope="col">Funil</th>
-                    <th scope="col">Conteudo</th>
+                    <th scope="col">Conteúdo</th>
                     <th scope="col">Call</th>
+                    <th scope="col" @click="dsSortBy('prazo_entrega')" :class="{ 'ds-table__th--sorted': ui.dsSortField === 'prazo_entrega' }">Prazo <span class="ds-sort-icon" x-text="ui.dsSortField === 'prazo_entrega' ? (ui.dsSortAsc ? '▲' : '▼') : '⇅'"></span></th>
                     <th scope="col" @click="dsSortBy('dias_no_estagio')" :class="{ 'ds-table__th--sorted': ui.dsSortField === 'dias_no_estagio' }">Aging <span class="ds-sort-icon" x-text="ui.dsSortField === 'dias_no_estagio' ? (ui.dsSortAsc ? '▲' : '▼') : '⇅'"></span></th>
                     <th scope="col">Ajustes</th>
                   </tr>
@@ -4263,6 +4276,10 @@
                       <td class="ds-table__stage-cell"><span class="ds-stage-dot" :style="'background:' + dsEstagioConfig(p.funil_estagio || 'pendente').color" :title="dsEstagioConfig(p.funil_estagio || 'pendente').label"></span> <span x-text="dsEstagioConfig(p.funil_estagio || 'pendente').label"></span></td>
                       <td class="ds-table__stage-cell"><span class="ds-stage-dot" :style="'background:' + dsEstagioConfig(p.conteudo_estagio || 'pendente').color" :title="dsEstagioConfig(p.conteudo_estagio || 'pendente').label"></span> <span x-text="dsEstagioConfig(p.conteudo_estagio || 'pendente').label"></span></td>
                       <td x-text="p.data_call_estrategia ? dsFormatDate(p.data_call_estrategia) : '-'"></td>
+                      <td>
+                        <span x-show="p.prazo_entrega" class="ds-deadline-badge" :class="dsPrazoClass(p.prazo_entrega)" x-text="p.prazo_entrega ? dsFormatDate(p.prazo_entrega) : ''"></span>
+                        <span x-show="!p.prazo_entrega" style="color:#94a3b8">-</span>
+                      </td>
                       <td><span class="ds-aging ds-aging--sm" :class="dsAgingClass(p.dias_no_estagio)" x-text="(p.dias_no_estagio || 0) + 'd'"></span></td>
                       <td x-text="p.ajustes_pendentes || 0"></td>
                     </tr>

@@ -4598,6 +4598,39 @@ img { max-width: 100%; display: block; }
   font-size: var(--ds-text-sm);
   color: var(--text-secondary);
 }
+.ds-pipeline__card-prazo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* --- Deadline Badge --- */
+.ds-deadline-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--ds-text-xs);
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--ds-bg-subtle);
+  color: var(--text-secondary);
+}
+.ds-deadline--overdue {
+  color: #c0392b;
+  background: #fdf0ef;
+}
+.ds-deadline--soon {
+  color: #d68910;
+  background: #fef9e7;
+}
+.ds-marcos__label--prazo.ds-deadline--overdue { color: #c0392b; }
+.ds-marcos__label--prazo.ds-deadline--soon { color: #d68910; }
+.ds-input--danger { border-color: #e74c3c !important; }
+.ds-input--warning { border-color: #f39c12 !important; }
 
 /* --- Table --- */
 .ds-table {
