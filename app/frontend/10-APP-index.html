@@ -645,7 +645,7 @@
                 <span class="bento-card__title">Time</span>
                 <span style="font-size:11px;color:var(--text-secondary)" x-text="data.tasks.length + ' tarefas'"></span>
               </div>
-              <div class="bento-card__body" style="justify-content:center">
+              <div class="bento-card__body" style="justify-content:flex-start">
                 <div class="cc-team-grid" x-show="data.tasks.length">
                   <template x-for="[name, count] in Object.entries(ccTasksByMember()).slice(0,6)" :key="name">
                     <div class="cc-team-member" @click="navigateWithFilter('tasks', name)">
@@ -681,7 +681,10 @@
                     <a class="cc-activity-item" href="#" @click.prevent="navigateToActivityTask(item)" style="text-decoration:none;color:inherit;cursor:pointer">
                       <div class="cc-activity-item__avatar" x-text="item.who.charAt(0)"></div>
                       <div class="cc-activity-item__content">
-                        <div class="cc-activity-item__who" x-text="item.who" style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:1px"></div>
+                        <div class="cc-activity-item__who" style="font-size:11px;font-weight:700;color:var(--primary);margin-bottom:1px">
+                          <span x-text="item.who"></span>
+                          <span x-show="item.action" style="font-weight:400;color:var(--text-secondary)" x-text="' ' + item.action + ':'"></span>
+                        </div>
                         <div class="cc-activity-item__text" x-text="item.text"></div>
                         <div class="cc-activity-item__time" x-text="item.time ? new Date(item.time).toLocaleDateString('pt-BR') : ''"></div>
                       </div>

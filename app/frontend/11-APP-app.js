@@ -2840,15 +2840,28 @@ function operon() {
     },
 
     ccRecentActivity() {
+      const actionLabel = (status) => {
+        if (!status) return 'atualizou';
+        const s = status.toLowerCase();
+        if (s === 'concluida' || s === 'concluído' || s === 'done') return 'concluiu';
+        if (s === 'em_andamento' || s === 'in_progress' || s === 'em andamento') return 'iniciou';
+        if (s === 'revisao' || s === 'em_revisao' || s === 'review') return 'enviou pra revisão';
+        if (s === 'bloqueado') return 'bloqueou';
+        return 'atualizou';
+      };
       // Prefer live ClickUp data
       if (this.data.ccData?.activity?.length) {
-        return this.data.ccData.activity.slice(0, 12).map(a => ({
-          text: a.text,
-          who: a.who,
-          time: a.time,
-          url: a.url,
-          operon_id: a.operon_id || null,
-        }));
+        return this.data.ccData.activity.slice(0, 12).map(a => {
+          const task = (this.data.tasks || []).find(t => t.operon_id === a.operon_id);
+          return {
+            text: a.text,
+            who: a.who,
+            time: a.time,
+            url: a.url,
+            operon_id: a.operon_id || null,
+            action: task ? actionLabel(task.status) : 'atualizou',
+          };
+        });
       }
       const tasks = [...(this.data.tasks || [])];
       return tasks
@@ -2861,6 +2874,7 @@ function operon() {
           who: (t.responsavel || '?').split(' ')[0],
           time: t.updated_at || t.created_at,
           status: t.status,
+          action: actionLabel(t.status),
         }));
     },
 
@@ -2890,6 +2904,38 @@ function operon() {
         if (!res.ok) return;
         const d = await res.json();
         this.data.ccData = d;
+        // Enrich data.tasks with ClickUp subtasks for tree view
+        if (d.by_status) {
+          const allCcTasks = [
+            ...(d.by_status.backlog || []),
+            ...(d.by_status.em_andamento || []),
+            ...(d.by_status.em_revisao || []),
+            ...(d.by_status.concluida || []),
+          ];
+          const ccByOperon = {};
+          for (const ct of allCcTasks) {
+            if (ct.id) ccByOperon[ct.id] = ct;
+          }
+          this.data.tasks = this.data.tasks.map(t => {
+            if (t.operon_id && ccByOperon[t.operon_id]?.subtasks?.length) {
+              const ccSubs = ccByOperon[t.operon_id].subtasks;
+              return {
+                ...t,
+                subtasks: ccSubs.map(s => ({
+                  id: s.id || null,
+                  text: s.titulo || '',
+                  done: s.status === 'concluida',
+                  sort_order: 0,
+                  status: s.status || 'pendente',
+                  responsavel: s.responsavel || '',
+                  prioridade: 'normal',
+                  clickup_id: s.clickup_id || s.id || null,
+                })),
+              };
+            }
+            return t;
+          });
+        }
         // Sync active sprint totals into data.sprints for the header/timeline card
         if (d.sprint) {
           const patch = { total: d.total, concluidas: d.concluidas, status: 'ativo' };
