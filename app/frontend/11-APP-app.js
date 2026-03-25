@@ -209,6 +209,7 @@ function operon() {
       taskTagsFilterOpen: false, // tags filter dropdown in toolbar
       syncingSubtasks: false,    // ClickUp subtask sync in progress
       taskExpandedIds: {},       // { [taskId]: true } for tree expand/collapse
+      taskActivity: [],          // activity events for current task detail
       listColumnsOpen: false,    // column config dropdown
       listColumns: {
         responsavel:  { label: 'Responsável',   visible: true },
@@ -5372,6 +5373,32 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     // Task detail drawer
     openTaskDetail(taskId) {
       this.ui.taskDetailDrawer = taskId;
+      this.ui.taskActivity = [];
+      this._loadTaskActivity(taskId);
+    },
+
+    formatActivity(evt) {
+      if (evt.action === 'created') return `criou esta tarefa`;
+      if (evt.action === 'field_change') {
+        const labels = { status: 'status', responsavel: 'responsável', prioridade: 'prioridade' };
+        const fieldLabel = labels[evt.field] || evt.field;
+        if (evt.old_value && evt.new_value) return `alterou ${fieldLabel} de "${evt.old_value}" para "${evt.new_value}"`;
+        if (evt.new_value) return `definiu ${fieldLabel} como "${evt.new_value}"`;
+        return `alterou ${fieldLabel}`;
+      }
+      return evt.action;
+    },
+
+    async _loadTaskActivity(taskId) {
+      if (!sb || !taskId) return;
+      try {
+        const { data, error } = await sb.from('god_task_activity')
+          .select('*')
+          .eq('task_id', taskId)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        if (!error && data) this.ui.taskActivity = data;
+      } catch (e) { console.warn('[Activity] load error:', e); }
     },
 
     closeTaskDetail() {
