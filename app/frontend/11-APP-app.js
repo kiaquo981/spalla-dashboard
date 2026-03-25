@@ -5420,12 +5420,15 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     // Renderiza texto de comentário com @menções estilizadas
     renderCommentText(text) {
       if (!text) return '';
-      const escaped = text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/\n/g, '<br>');
-      return escaped.replace(/@(\w+)/g, '<span class="comment-mention">@$1</span>');
+      // Render markdown if marked is available, otherwise fallback
+      let html = '';
+      if (typeof marked !== 'undefined') {
+        try { html = marked.parse(text); } catch (e) { html = text.replace(/\n/g, '<br>'); }
+      } else {
+        html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+      }
+      // Highlight @mentions in rendered output
+      return html.replace(/@(\w+)/g, '<span class="comment-mention">@$1</span>');
     },
 
     // Tags
