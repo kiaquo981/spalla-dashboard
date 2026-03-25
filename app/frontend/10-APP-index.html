@@ -7391,7 +7391,13 @@
 
               <!-- === NOTA LIVRE === -->
               <div x-show="ui.notesDrawer.tipo === 'livre'">
-                <textarea class="op-input" x-model="ui.notesForm.conteudo" placeholder="Escreva uma observacao livre..." rows="4" style="width:100%;resize:vertical;font-size:.85rem"></textarea>
+                <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
+                  <button type="button" @click="ui.noteRichEdit = !ui.noteRichEdit; if(ui.noteRichEdit) { $nextTick(() => window.OperonEditor.mount($refs.noteEditor, { markdown: ui.notesForm.conteudo || '', onChange: md => ui.notesForm.conteudo = md, placeholder: 'Escreva uma observacao livre...' })) } else { ui.notesForm.conteudo = window.OperonEditor.getMarkdown($refs.noteEditor); window.OperonEditor.unmount($refs.noteEditor) }"
+                    style="font-size:.7rem;padding:2px 8px;border-radius:4px;border:1px solid var(--op-border);background:var(--op-bg-2);cursor:pointer;color:var(--op-text-2)"
+                    x-text="ui.noteRichEdit ? 'Texto simples' : 'Editor rico'"></button>
+                </div>
+                <textarea x-show="!ui.noteRichEdit" class="op-input" x-model="ui.notesForm.conteudo" placeholder="Escreva uma observacao livre..." rows="4" style="width:100%;resize:vertical;font-size:.85rem"></textarea>
+                <div x-ref="noteEditor" x-show="ui.noteRichEdit" style="min-height:120px;border:1px solid var(--op-border);border-radius:8px;overflow:hidden"></div>
               </div>
 
               <!-- === CHECKPOINT MENSAL === -->
@@ -7799,8 +7805,13 @@
             <label>Titulo *</label>
             <input type="text" x-model="taskForm.titulo" placeholder="O que precisa ser feito?" class="modal__input">
 
-            <label>Descricao</label>
-            <textarea x-model="taskForm.descricao" placeholder="Detalhes, orientacoes..." class="modal__textarea"></textarea>
+            <label>Descricao
+              <button type="button" @click="ui.taskRichEdit = !ui.taskRichEdit; if(ui.taskRichEdit) { $nextTick(() => window.OperonEditor.mount($refs.taskDescEditor, { markdown: taskForm.descricao || '', onChange: md => taskForm.descricao = md, placeholder: 'Detalhes, orientacoes...' })) } else { taskForm.descricao = window.OperonEditor.getMarkdown($refs.taskDescEditor); window.OperonEditor.unmount($refs.taskDescEditor) }"
+                style="float:right;font-size:.7rem;padding:2px 8px;border-radius:4px;border:1px solid var(--op-border);background:var(--op-bg-2);cursor:pointer;color:var(--op-text-2)"
+                x-text="ui.taskRichEdit ? 'Texto simples' : 'Editor rico'"></button>
+            </label>
+            <textarea x-show="!ui.taskRichEdit" x-model="taskForm.descricao" placeholder="Detalhes, orientacoes..." class="modal__textarea"></textarea>
+            <div x-ref="taskDescEditor" x-show="ui.taskRichEdit" style="min-height:150px;border:1px solid var(--op-border);border-radius:8px;overflow:hidden"></div>
 
             <!-- Mentorado + Responsavel -->
             <div class="modal__row">
@@ -8231,6 +8242,43 @@
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
   <script src="11-APP-app.js?v=89"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+  <!-- Operon Editor (BlockNote) — lazy loaded on first use -->
+  <script>
+    window.OperonEditor = {
+      _loaded: false,
+      _queue: [],
+      _load() {
+        if (this._loading) return this._loading;
+        this._loading = new Promise((resolve) => {
+          const css = document.createElement('link');
+          css.rel = 'stylesheet';
+          css.href = 'operon-editor.css?v=1';
+          document.head.appendChild(css);
+          const js = document.createElement('script');
+          js.src = 'operon-editor.umd.js?v=1';
+          js.onload = () => { this._loaded = true; resolve(); };
+          document.body.appendChild(js);
+        });
+        return this._loading;
+      },
+      async mount(el, opts) {
+        if (!this._loaded) await this._load();
+        return window.OperonEditor.mount(el, opts);
+      },
+      async unmount(el) {
+        if (!this._loaded) return;
+        return window.OperonEditor.unmount(el);
+      },
+      getMarkdown(el) {
+        if (!this._loaded) return '';
+        return window.OperonEditor.getMarkdown(el);
+      },
+      isActive(el) {
+        if (!this._loaded) return false;
+        return window.OperonEditor.isActive(el);
+      }
+    };
+  </script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {
