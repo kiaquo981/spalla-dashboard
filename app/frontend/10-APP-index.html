@@ -4207,21 +4207,30 @@
                     <div style="font-size:11px;margin-top:4px;color:#c9c3ba">Ajuste os filtros ou aguarde o seed</div>
                   </div>
                 </template>
-                <template x-for="(doc, i) in bib.filtered" :key="doc.id">
-                  <div>
-                    <!-- Separador por mentorado -->
-                    <template x-if="i === 0 || bib.filtered[i-1].mentee_nome !== doc.mentee_nome">
-                      <div class="bib-list-sep" x-text="doc.mentee_nome || 'Geral'"></div>
-                    </template>
-                    <div class="bib-card" :class="bib.activeDoc?.id === doc.id ? 'bib-card--active' : ''" @click="bibOpenDoc(doc.id)">
-                      <span class="bib-card__tipo" :class="'bib-card__tipo--' + doc.tipo" x-text="{ dossie: 'Dossiê', roteiro: 'Roteiro', material: 'Material' }[doc.tipo] || doc.tipo"></span>
-                      <div class="bib-card__titulo" x-text="doc.titulo"></div>
-                      <div class="bib-card__sub" x-text="doc.subtitulo || ''" x-show="doc.subtitulo" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;"></div>
-                      <div class="bib-card__meta">
-                        <span x-text="doc.total_secoes + ' seções'"></span>
-                        <span x-text="Math.round((doc.tamanho_chars || 0) / 1000) + 'k chars'"></span>
-                        <span x-text="doc.versao"></span>
-                      </div>
+                <template x-for="group in bibGroupedDocs" :key="group.mentee">
+                  <div style="margin-bottom:4px">
+                    <!-- Mentorado header -->
+                    <div @click="bib.expandedMentees = {...bib.expandedMentees, [group.mentee]: !bib.expandedMentees?.[group.mentee]}"
+                      style="display:flex;align-items:center;gap:8px;padding:10px 16px;cursor:pointer;font-size:13px;font-weight:700;color:#2d4a3e;letter-spacing:.01em;border-bottom:1px solid #f0ece4;transition:background .1s"
+                      @mouseover="$el.style.background='#f5f3ec'" @mouseout="$el.style.background='transparent'">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#8b6f47" stroke-width="2.5" style="transition:transform .15s;flex-shrink:0"
+                        :style="bib.expandedMentees?.[group.mentee] !== false ? 'transform:rotate(90deg)' : ''">
+                        <polyline points="9 18 15 12 9 6"/></svg>
+                      <span x-text="group.mentee"></span>
+                      <span style="font-size:10px;font-weight:400;color:#a09888;margin-left:auto" x-text="group.docs.length + ' doc' + (group.docs.length > 1 ? 's' : '')"></span>
+                    </div>
+                    <!-- Docs of this mentorado (expanded by default) -->
+                    <div x-show="bib.expandedMentees?.[group.mentee] !== false" x-collapse>
+                      <template x-for="doc in group.docs" :key="doc.id">
+                        <div @click="bibOpenDoc(doc.id)"
+                          style="display:flex;align-items:center;gap:8px;padding:8px 16px 8px 36px;cursor:pointer;font-size:12px;color:#475569;transition:all .1s;border-left:2px solid transparent"
+                          :style="bib.activeDoc?.id === doc.id ? 'background:#ede9de;border-left-color:#8b6f47;color:#2d4a3e;font-weight:600' : ''"
+                          @mouseover="if(bib.activeDoc?.id !== doc.id) $el.style.background='#faf9f5'" @mouseout="if(bib.activeDoc?.id !== doc.id) $el.style.background='transparent'">
+                          <span style="font-size:14px;flex-shrink:0"
+                            x-text="(doc.titulo||'').includes('Oferta') ? '📦' : (doc.titulo||'').includes('Funil') ? '🎯' : (doc.titulo||'').includes('Posicion') ? '📱' : '📄'"></span>
+                          <span x-text="(doc.titulo||'').replace('Dossiê de ','').replace('Dossiê ','')"></span>
+                        </div>
+                      </template>
                     </div>
                   </div>
                 </template>
