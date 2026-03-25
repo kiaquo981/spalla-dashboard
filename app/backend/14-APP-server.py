@@ -2824,10 +2824,6 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': str(e)}, 500)
 
     def _handle_get_mentees(self):
-        auth = check_auth_any(self.headers)
-        if not auth:
-            self._send_json({'error': 'Authentication required'}, 401)
-            return
         result = get_mentees_with_email()
         self._send_json(result if isinstance(result, list) else [result])
 
