@@ -3301,6 +3301,38 @@
                               </button>
                             </div>
                             <div class="task-drawer__comment-text" x-html="renderCommentText(cm.text)" style="font-size:13px;color:#475569;line-height:1.55"></div>
+                            <!-- Reactions + Reply -->
+                            <div style="display:flex;align-items:center;gap:4px;margin-top:8px;padding-top:6px;border-top:1px solid #f8fafc">
+                              <!-- Existing reactions -->
+                              <template x-for="(count, emoji) in (cm.reactions || {})" :key="emoji">
+                                <button @click.stop="toggleReaction(activeTaskDetail.id, cm.id, emoji)"
+                                  style="display:flex;align-items:center;gap:3px;padding:2px 6px;border-radius:12px;font-size:12px;cursor:pointer;transition:all .15s;border:1px solid #e2e8f0;background:#fafaf8"
+                                  @mouseover="$el.style.borderColor='#8b6f47'" @mouseout="$el.style.borderColor='#e2e8f0'">
+                                  <span x-text="emoji"></span>
+                                  <span style="font-size:10px;color:#64748b" x-text="count"></span>
+                                </button>
+                              </template>
+                              <!-- Add reaction button -->
+                              <div style="position:relative">
+                                <button @click.stop="ui.reactionPicker = ui.reactionPicker === cm.id ? null : cm.id"
+                                  style="padding:2px 6px;border-radius:12px;font-size:12px;cursor:pointer;border:1px solid transparent;background:none;color:#94a3b8;transition:all .15s"
+                                  @mouseover="$el.style.color='#475569';$el.style.borderColor='#e2e8f0'" @mouseout="$el.style.color='#94a3b8';$el.style.borderColor='transparent'">😀</button>
+                                <!-- Emoji picker popover -->
+                                <div x-show="ui.reactionPicker === cm.id" @click.outside="ui.reactionPicker = null"
+                                  style="position:absolute;bottom:100%;left:0;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:6px;display:flex;gap:2px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:300">
+                                  <template x-for="e in ['👍','👎','❤️','🔥','👀','🎉','💡','⚠️']" :key="e">
+                                    <button @click.stop="toggleReaction(activeTaskDetail.id, cm.id, e); ui.reactionPicker = null"
+                                      style="padding:4px;font-size:18px;cursor:pointer;border:none;background:none;border-radius:4px;transition:background .1s"
+                                      @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'" x-text="e"></button>
+                                  </template>
+                                </div>
+                              </div>
+                              <div style="flex:1"></div>
+                              <!-- Reply button -->
+                              <button @click.stop="taskForm.newComment = '> ' + (cm.text||'').split('\n')[0].slice(0,60) + '\n\n'"
+                                style="font-size:11px;color:#94a3b8;background:none;border:none;cursor:pointer;padding:2px 6px;transition:color .15s"
+                                @mouseover="$el.style.color='#475569'" @mouseout="$el.style.color='#94a3b8'">Responder</button>
+                            </div>
                           </div>
                         </template>
 

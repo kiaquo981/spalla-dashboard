@@ -210,6 +210,7 @@ function operon() {
       syncingSubtasks: false,    // ClickUp subtask sync in progress
       taskExpandedIds: {},       // { [taskId]: true } for tree expand/collapse
       taskActivity: [],          // activity events for current task detail
+      reactionPicker: null,      // comment id with open emoji picker
       listColumnsOpen: false,    // column config dropdown
       listColumns: {
         responsavel:  { label: 'Responsável',   visible: true },
@@ -5423,6 +5424,27 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         this.taskForm.newComment = '';
         this._cacheTasksLocal();
         this._sbAddComment(taskId, authorName, commentText);
+      }
+    },
+
+    toggleReaction(taskId, commentId, emoji) {
+      const t = this.data.tasks.find(x => x.id === taskId);
+      if (!t || !t.comments) return;
+      const cm = t.comments.find(c => c.id === commentId);
+      if (!cm) return;
+      if (!cm.reactions) cm.reactions = {};
+      if (cm.reactions[emoji]) {
+        cm.reactions[emoji]--;
+        if (cm.reactions[emoji] <= 0) delete cm.reactions[emoji];
+      } else {
+        cm.reactions[emoji] = (cm.reactions[emoji] || 0) + 1;
+      }
+      this._cacheTasksLocal();
+      // Persist reactions to Supabase
+      if (sb) {
+        sb.from('god_task_comments').update({ reactions: cm.reactions }).eq('id', commentId).then(({ error }) => {
+          if (error) console.warn('[Reactions] save error:', error);
+        });
       }
     },
 
