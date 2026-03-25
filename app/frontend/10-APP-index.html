@@ -3178,15 +3178,18 @@
                             </button>
                           </template>
                         </div>
-                        <textarea x-model="taskForm.newComment"
-                                  placeholder="Escreva um comentario... (@ para mencionar)"
-                                  x-ref="commentTextarea"
-                                  @keyup="onCommentKeyup($event)"
-                                  @keydown="onCommentKeydown($event)"
-                                  style="width:100%;min-height:56px;max-height:120px;resize:vertical;padding:10px 12px;font-size:13px;border:1px solid var(--neutral-200, #e2e8f0);border-radius:8px;outline:none;background:#fafaf8;font-family:inherit;transition:border-color .15s"
-                                  @focus="$el.style.borderColor='var(--brand-300, #a3bfb0)'" @blur="$el.style.borderColor='var(--neutral-200, #e2e8f0)'"></textarea>
+                        <div x-ref="commentEditor"
+                             x-init="$watch('ui.taskDetailDrawer', v => {
+                               if(v && window.OperonEditor) $nextTick(() => window.OperonEditor.mount($refs.commentEditor, {
+                                 markdown: '',
+                                 onChange: md => taskForm.newComment = md,
+                                 placeholder: 'Escreva um comentario... Digite / para formatar'
+                               }));
+                               else if(window.OperonEditor && window.OperonEditor.isActive($refs.commentEditor)) window.OperonEditor.unmount($refs.commentEditor);
+                             })"
+                             style="min-height:60px;max-height:140px;overflow-y:auto;border:1px solid var(--neutral-200, #e2e8f0);border-radius:8px;background:#fafaf8"></div>
                         <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:6px">
-                          <button class="btn btn--sm btn--brand" @click="addComment(activeTaskDetail.id)" :disabled="!taskForm.newComment?.trim()"
+                          <button class="btn btn--sm btn--brand" @click="addComment(activeTaskDetail.id); if(window.OperonEditor) { window.OperonEditor.unmount($refs.commentEditor); window.OperonEditor.mount($refs.commentEditor, { markdown: '', onChange: md => taskForm.newComment = md, placeholder: 'Escreva um comentario...' }) }" :disabled="!taskForm.newComment?.trim()"
                                   style="display:flex;align-items:center;gap:5px;padding:6px 14px;font-size:12px;border-radius:8px">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                             Comentar
