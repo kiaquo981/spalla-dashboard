@@ -3873,6 +3873,23 @@
                         <template x-if="bib.activeDoc.deep_link_slug">
                           <button class="btn btn--sm" style="padding:2px 8px;font-size:11px;" @click="bibCopyDeepLink(bib.activeDoc.deep_link_slug)" title="Copiar deep link">🔗 Deep link</button>
                         </template>
+                        <button class="btn btn--sm" style="padding:2px 10px;font-size:11px;"
+                          @click="bib.editMode = !bib.editMode;
+                            if(bib.editMode) {
+                              $nextTick(() => window.OperonEditor && window.OperonEditor.mount($refs.bibEditor, {
+                                markdown: bib.activeDoc.conteudo_md || '',
+                                onChange: md => bib.activeDoc.conteudo_md = md,
+                                placeholder: 'Digite / para comandos...'
+                              }));
+                            } else if(window.OperonEditor && window.OperonEditor.isActive($refs.bibEditor)) {
+                              bib.activeDoc.conteudo_md = window.OperonEditor.getMarkdown($refs.bibEditor);
+                              window.OperonEditor.unmount($refs.bibEditor);
+                              bib.renderedHtml = (typeof marked !== 'undefined') ? marked.parse(bib.activeDoc.conteudo_md || '') : bib.activeDoc.conteudo_md;
+                            }"
+                          x-text="bib.editMode ? '👁 Visualizar' : '✏️ Editar'"></button>
+                        <button class="btn btn--sm" style="padding:2px 10px;font-size:11px;background:var(--op-accent);color:#fff;"
+                          x-show="bib.editMode"
+                          @click="bibSaveDoc()">💾 Salvar</button>
                       </div>
                     </div>
 
@@ -3888,10 +3905,12 @@
                         </template>
                       </div>
 
-                      <!-- Artigo renderizado -->
-                      <div class="bib__article" id="bib-article" @scroll="bibUpdateActiveSec()">
+                      <!-- Artigo renderizado / Editor -->
+                      <div class="bib__article" id="bib-article" @scroll="bibUpdateActiveSec()" x-show="!bib.editMode">
                         <div x-html="bib.renderedHtml"></div>
                       </div>
+                      <div x-ref="bibEditor" x-show="bib.editMode"
+                           style="flex:1;overflow-y:auto;border-left:1px solid var(--op-border);background:var(--op-bg-1)"></div>
                     </div>
                   </div>
                 </template>
