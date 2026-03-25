@@ -2957,6 +2957,82 @@
                         </div>
                       </div>
 
+                      <!-- Custom Fields (Campos) -->
+                      <div class="task-drawer__section" style="margin-bottom:20px"
+                           x-init="$watch('ui.taskDetailDrawer', v => { if(v && activeTaskDetail) loadFieldDefs(activeTaskDetail.space_id, activeTaskDetail.list_id, activeTaskDetail.id) })"
+                           x-show="data.fieldDefs?.length">
+                        <h4 style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#475569;margin:0 0 10px">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                          Campos
+                        </h4>
+                        <div style="display:grid;grid-template-columns:140px 1fr;gap:6px 12px;font-size:13px">
+                          <template x-for="field in data.fieldDefs" :key="field.field_id">
+                            <template x-if="true">
+                              <div style="display:contents">
+                                <div style="color:#64748b;font-weight:500;padding:6px 0" x-text="field.name"></div>
+                                <div style="padding:6px 0">
+                                  <!-- URL field -->
+                                  <template x-if="field.field_type === 'url'">
+                                    <div style="display:flex;align-items:center;gap:6px">
+                                      <input type="url" :value="field.value?.v || ''"
+                                        @change="taskForm.fieldValues = {...(taskForm.fieldValues||{}), [field.field_id]: $event.target.value}; saveFieldValues(activeTaskDetail.id)"
+                                        placeholder="https://..."
+                                        style="flex:1;padding:4px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;outline:none;background:#fafaf8">
+                                      <a x-show="field.value?.v" :href="field.value?.v" target="_blank" rel="noopener"
+                                        style="color:#6366f1;font-size:11px;white-space:nowrap">Abrir ↗</a>
+                                    </div>
+                                  </template>
+                                  <!-- Checkbox field -->
+                                  <template x-if="field.field_type === 'checkbox'">
+                                    <input type="checkbox" :checked="field.value?.v === true"
+                                      @change="taskForm.fieldValues = {...(taskForm.fieldValues||{}), [field.field_id]: $event.target.checked}; saveFieldValues(activeTaskDetail.id)"
+                                      style="width:16px;height:16px;cursor:pointer">
+                                  </template>
+                                  <!-- Text field -->
+                                  <template x-if="field.field_type === 'text'">
+                                    <input type="text" :value="field.value?.v || ''"
+                                      @change="taskForm.fieldValues = {...(taskForm.fieldValues||{}), [field.field_id]: $event.target.value}; saveFieldValues(activeTaskDetail.id)"
+                                      style="width:100%;padding:4px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;outline:none;background:#fafaf8">
+                                  </template>
+                                  <!-- Number field -->
+                                  <template x-if="field.field_type === 'number'">
+                                    <input type="number" :value="field.value?.v || ''"
+                                      @change="taskForm.fieldValues = {...(taskForm.fieldValues||{}), [field.field_id]: parseFloat($event.target.value)}; saveFieldValues(activeTaskDetail.id)"
+                                      style="width:80px;padding:4px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;outline:none;background:#fafaf8">
+                                  </template>
+                                  <!-- Date field -->
+                                  <template x-if="field.field_type === 'date'">
+                                    <input type="date" :value="field.value?.v || ''"
+                                      @change="taskForm.fieldValues = {...(taskForm.fieldValues||{}), [field.field_id]: $event.target.value}; saveFieldValues(activeTaskDetail.id)"
+                                      style="padding:4px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;outline:none;background:#fafaf8">
+                                  </template>
+                                  <!-- Select field -->
+                                  <template x-if="field.field_type === 'select'">
+                                    <select @change="taskForm.fieldValues = {...(taskForm.fieldValues||{}), [field.field_id]: $event.target.value}; saveFieldValues(activeTaskDetail.id)"
+                                      style="padding:4px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;outline:none;background:#fafaf8">
+                                      <option value="">—</option>
+                                      <template x-for="opt in (field.options || [])" :key="opt.value || opt">
+                                        <option :value="opt.value || opt" :selected="(field.value?.v) === (opt.value || opt)" x-text="opt.label || opt.value || opt"></option>
+                                      </template>
+                                    </select>
+                                  </template>
+                                  <!-- Rating field -->
+                                  <template x-if="field.field_type === 'rating'">
+                                    <div style="display:flex;gap:2px">
+                                      <template x-for="n in [1,2,3,4,5]" :key="n">
+                                        <button @click="taskForm.fieldValues = {...(taskForm.fieldValues||{}), [field.field_id]: n}; saveFieldValues(activeTaskDetail.id)"
+                                          :style="n <= (field.value?.v || 0) ? 'color:#f59e0b' : 'color:#d1d5db'"
+                                          style="background:none;border:none;cursor:pointer;font-size:16px;padding:0">★</button>
+                                      </template>
+                                    </div>
+                                  </template>
+                                </div>
+                              </div>
+                            </template>
+                          </template>
+                        </div>
+                      </div>
+
                       <!-- Subtasks -->
                       <div class="task-drawer__section" style="margin-bottom:24px">
                         <h4 style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#475569;margin:0 0 10px">
