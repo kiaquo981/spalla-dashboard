@@ -209,6 +209,23 @@ function operon() {
       taskTagsFilterOpen: false, // tags filter dropdown in toolbar
       syncingSubtasks: false,    // ClickUp subtask sync in progress
       taskExpandedIds: {},       // { [taskId]: true } for tree expand/collapse
+      taskActivity: [],          // activity events for current task detail
+      reactionPicker: null,      // comment id with open emoji picker
+      listColumnsOpen: false,    // column config dropdown
+      listColumns: {
+        responsavel:  { label: 'Responsável',   visible: true },
+        acompanhante: { label: 'Acompanhante',  visible: true },
+        mentorado:    { label: 'Mentorado',      visible: true },
+        datas:        { label: 'Datas',          visible: true },
+        prioridade:   { label: 'Prioridade',     visible: true },
+        status:       { label: 'Status',         visible: false },
+        tags:         { label: 'Tags',           visible: false },
+        fonte:        { label: 'Fonte',          visible: false },
+        space:        { label: 'Space / Lista',  visible: false },
+        comentarios:  { label: 'Comentários',    visible: false },
+        criado_em:    { label: 'Criado em',      visible: false },
+        atualizado:   { label: 'Atualizado',     visible: false },
+      },
       // Dossiers (legacy)
       dossierFilter: 'all',
       // Dossiê Production System
@@ -1375,11 +1392,36 @@ function operon() {
     // Tasks: tree view — flat array with _depth metadata for list view
     get tasksTree() {
       const filtered = this.filteredTasks;
+      const allTasks = this.data.tasks;
       const result = [];
+
+      // Index child tasks by parent_task_id
+      const childTasksByParent = {};
+      for (const t of allTasks) {
+        if (t.parent_task_id) {
+          if (!childTasksByParent[t.parent_task_id]) childTasksByParent[t.parent_task_id] = [];
+          childTasksByParent[t.parent_task_id].push(t);
+        }
+      }
+
       for (const task of filtered) {
-        const childCount = (task.subtasks || []).length;
-        result.push({ ...task, _depth: 0, _childCount: childCount });
-        if (this.ui.taskExpandedIds[task.id] && childCount > 0) {
+        // Skip tasks that are children (they show under their parent)
+        if (task.parent_task_id) continue;
+
+        const subtaskCount = (task.subtasks || []).length;
+        const childTasks = childTasksByParent[task.id] || [];
+        const checklistCount = (task.checklist || []).length;
+        const totalChildren = subtaskCount + childTasks.length + checklistCount;
+
+        result.push({ ...task, _depth: 0, _childCount: totalChildren });
+
+        if (this.ui.taskExpandedIds[task.id] && totalChildren > 0) {
+          // 1) Child tasks (real god_tasks with parent_task_id)
+          for (const child of childTasks) {
+            const grandchildren = (child.subtasks || []).length + (childTasksByParent[child.id] || []).length;
+            result.push({ ...child, _depth: 1, _childCount: grandchildren, _isChildTask: true, _parentId: task.id });
+          }
+          // 2) Inline subtasks
           (task.subtasks || []).forEach((sub, idx) => {
             result.push({
               id: sub.id || ('sub_' + task.id + '_' + idx),
@@ -1387,20 +1429,25 @@ function operon() {
               status: sub.status || (sub.done ? 'concluida' : 'pendente'),
               prioridade: sub.prioridade || 'normal',
               responsavel: sub.responsavel || '',
-              acompanhante: null,
-              mentorado_nome: null,
+              acompanhante: null, mentorado_nome: null,
               data_inicio: sub.data_inicio || null,
-              data_fim: sub.data_fim || null,
-              prazo: sub.data_fim || null,
-              tags: [],
-              is_blocked: false,
-              auto_gerada: false,
-              recorrencia: 'nenhuma',
-              _depth: 1,
-              _childCount: 0,
-              _isSubtask: true,
-              _parentId: task.id,
-              _subIdx: idx,
+              data_fim: sub.data_fim || null, prazo: sub.data_fim || null,
+              tags: [], is_blocked: false, auto_gerada: false, recorrencia: 'nenhuma',
+              _depth: 1, _childCount: 0, _isSubtask: true, _parentId: task.id, _subIdx: idx,
+            });
+          });
+          // 3) Checklist items
+          (task.checklist || []).forEach((ci, idx) => {
+            result.push({
+              id: 'check_' + task.id + '_' + idx,
+              titulo: '☐ ' + (ci.text || ''),
+              status: ci.done ? 'concluida' : 'pendente',
+              prioridade: 'normal',
+              responsavel: ci.assignee || '',
+              acompanhante: null, mentorado_nome: null,
+              data_inicio: null, data_fim: ci.due_date || null, prazo: ci.due_date || null,
+              tags: [], is_blocked: false, auto_gerada: false, recorrencia: 'nenhuma',
+              _depth: 1, _childCount: 0, _isChecklist: true, _parentId: task.id, _checkIdx: idx,
             });
           });
         }
@@ -5198,6 +5245,19 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.toast('Tarefa salva', 'success');
     },
 
+    async updateTaskField(taskId, field, value) {
+      const t = this.data.tasks.find(x => x.id === taskId);
+      if (!t) return;
+      const old = t[field];
+      t[field] = value;
+      t.updated_at = new Date().toISOString();
+      this._cacheTasksLocal();
+      if (sb) {
+        const { error } = await sb.from('god_tasks').update({ [field]: value, updated_at: t.updated_at }).eq('id', taskId);
+        if (error) { t[field] = old; this._cacheTasksLocal(); this.toast('Erro ao atualizar ' + field, 'error'); }
+      }
+    },
+
     async updateTaskStatus(taskId, newStatus) {
       const t = this.data.tasks.find(x => x.id === taskId);
       if (!t) return;
@@ -5314,6 +5374,32 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     // Task detail drawer
     openTaskDetail(taskId) {
       this.ui.taskDetailDrawer = taskId;
+      this.ui.taskActivity = [];
+      this._loadTaskActivity(taskId);
+    },
+
+    formatActivity(evt) {
+      if (evt.action === 'created') return `criou esta tarefa`;
+      if (evt.action === 'field_change') {
+        const labels = { status: 'status', responsavel: 'responsável', prioridade: 'prioridade' };
+        const fieldLabel = labels[evt.field] || evt.field;
+        if (evt.old_value && evt.new_value) return `alterou ${fieldLabel} de "${evt.old_value}" para "${evt.new_value}"`;
+        if (evt.new_value) return `definiu ${fieldLabel} como "${evt.new_value}"`;
+        return `alterou ${fieldLabel}`;
+      }
+      return evt.action;
+    },
+
+    async _loadTaskActivity(taskId) {
+      if (!sb || !taskId) return;
+      try {
+        const { data, error } = await sb.from('god_task_activity')
+          .select('*')
+          .eq('task_id', taskId)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        if (!error && data) this.ui.taskActivity = data;
+      } catch (e) { console.warn('[Activity] load error:', e); }
     },
 
     closeTaskDetail() {
@@ -5338,6 +5424,27 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         this.taskForm.newComment = '';
         this._cacheTasksLocal();
         this._sbAddComment(taskId, authorName, commentText);
+      }
+    },
+
+    toggleReaction(taskId, commentId, emoji) {
+      const t = this.data.tasks.find(x => x.id === taskId);
+      if (!t || !t.comments) return;
+      const cm = t.comments.find(c => c.id === commentId);
+      if (!cm) return;
+      if (!cm.reactions) cm.reactions = {};
+      if (cm.reactions[emoji]) {
+        cm.reactions[emoji]--;
+        if (cm.reactions[emoji] <= 0) delete cm.reactions[emoji];
+      } else {
+        cm.reactions[emoji] = (cm.reactions[emoji] || 0) + 1;
+      }
+      this._cacheTasksLocal();
+      // Persist reactions to Supabase
+      if (sb) {
+        sb.from('god_task_comments').update({ reactions: cm.reactions }).eq('id', commentId).then(({ error }) => {
+          if (error) console.warn('[Reactions] save error:', error);
+        });
       }
     },
 
@@ -5407,12 +5514,15 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     // Renderiza texto de comentário com @menções estilizadas
     renderCommentText(text) {
       if (!text) return '';
-      const escaped = text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/\n/g, '<br>');
-      return escaped.replace(/@(\w+)/g, '<span class="comment-mention">@$1</span>');
+      // Render markdown if marked is available, otherwise fallback
+      let html = '';
+      if (typeof marked !== 'undefined') {
+        try { html = marked.parse(text); } catch (e) { html = text.replace(/\n/g, '<br>'); }
+      } else {
+        html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+      }
+      // Highlight @mentions in rendered output
+      return html.replace(/@(\w+)/g, '<span class="comment-mention">@$1</span>');
     },
 
     // Tags
