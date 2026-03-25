@@ -2096,6 +2096,44 @@ function operon() {
       }
     },
 
+    async navigateToDossieDoc(mentoradoId, tipo) {
+      // Navigate from Dossiês tab → Biblioteca, opening the matching doc
+      // Map ds_documentos tipo to sp_documentos
+      const tipoMap = { oferta: 'dossie', funil: 'dossie', conteudo: 'dossie' };
+      const spTipo = tipoMap[tipo] || 'dossie';
+
+      // Find matching doc in biblioteca
+      if (!this.bib.docs.length) {
+        // Load biblioteca if not loaded
+        await this.loadBiblioteca();
+      }
+
+      const doc = this.bib.docs.find(d =>
+        d.mentee_id === mentoradoId || d.mentee_id === String(mentoradoId)
+      );
+
+      if (doc) {
+        this.ui.page = 'biblioteca';
+        this.$nextTick(() => this.bibOpenDoc(doc.id));
+      } else {
+        // Try to find by searching all docs for this mentee
+        try {
+          const resp = await fetch(`${CONFIG.API_BASE}/api/biblioteca?mentee_id=${mentoradoId}`, {
+            headers: { 'Authorization': `Bearer ${this.auth.accessToken}` }
+          });
+          if (resp.ok) {
+            const docs = await resp.json();
+            if (docs.length) {
+              this.ui.page = 'biblioteca';
+              this.$nextTick(() => this.bibOpenDoc(docs[0].id));
+              return;
+            }
+          }
+        } catch (e) { console.warn('[Dossie→Bib] fetch error:', e); }
+        this.toast('Documento não encontrado na Biblioteca', 'info');
+      }
+    },
+
     async bibSaveDoc() {
       const doc = this.bib.activeDoc;
       if (!doc || !doc.id) return;
