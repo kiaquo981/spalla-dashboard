@@ -21,13 +21,8 @@ import { BlockNoteView } from "@blocknote/mantine";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import { useEffect, useCallback, useRef } from "react";
-import {
-  BlockNoteEditor,
-  locales,
-} from "@blocknote/core";
-
-// Portuguese (BR) dictionary — BlockNote has pt locale
-const ptBR = locales.pt;
+import type { BlockNoteEditor } from "@blocknote/core";
+import { pt } from "@blocknote/core/locales";
 
 export interface OperonEditorProps {
   initialMarkdown?: string;
@@ -51,7 +46,7 @@ export function OperonEditor({
 
   const editor = useCreateBlockNote({
     // Localization
-    dictionary: ptBR,
+    dictionary: pt,
 
     // Placeholder
     domAttributes: {
@@ -81,6 +76,13 @@ export function OperonEditor({
       })();
     }
   }, [editor]); // Only on mount
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   // Handle changes with debounce
   const handleChange = useCallback(() => {

@@ -3949,7 +3949,7 @@
                   <button class="btn btn--sm" @click="closeDsDetail()" aria-label="Voltar para lista">← Voltar</button>
                   <h2 class="ds-detail__title" x-text="data.dsProducoes.find(p => p.producao_id === ui.dsDetailProducaoId)?.mentorado_nome || 'Detalhe'"></h2>
                   <span class="ds-status-badge" :style="'background:' + dsStatusConfig(data.dsMenteeDetail.status).color + '20; color:' + dsStatusConfig(data.dsMenteeDetail.status).color" x-text="dsStatusConfig(data.dsMenteeDetail.status).label"></span>
-                  <button class="btn btn--sm" style="margin-left:8px;color:#ef4444;border-color:#fecaca" @click="dsDeleteProducao(ui.dsDetailProducaoId)" title="Excluir produção">
+                  <button class="btn btn--sm" style="margin-left:8px;color:#ef4444;border-color:#fecaca" @click="dsDeleteProducao(ui.dsDetailProducaoId)" title="Excluir produção" aria-label="Excluir produção">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                   </button>
                 </div>
@@ -7396,17 +7396,22 @@
                 </template>
                 <template x-if="window.OperonEditor && window.OperonEditor.mount">
                   <div x-ref="noteEditor"
-                       x-effect="if(ui.notesDrawer.tipo === 'livre' && $refs.noteEditor) {
-                         $nextTick(() => {
-                           if(!window.OperonEditor.isActive($refs.noteEditor)) {
-                             window.OperonEditor.mount($refs.noteEditor, {
-                               markdown: ui.notesForm.conteudo || '',
-                               onChange: md => ui.notesForm.conteudo = md,
-                               placeholder: 'Digite / para comandos...'
-                             });
-                           }
-                         });
-                       }"
+                       x-effect="
+                         if(ui.notesDrawer.tipo === 'livre' && $refs.noteEditor) {
+                           $nextTick(() => {
+                             if(!window.OperonEditor.isActive($refs.noteEditor)) {
+                               window.OperonEditor.mount($refs.noteEditor, {
+                                 markdown: ui.notesForm.conteudo || '',
+                                 onChange: md => ui.notesForm.conteudo = md,
+                                 placeholder: 'Digite / para comandos...'
+                               });
+                             }
+                           });
+                         } else if($refs.noteEditor && window.OperonEditor.isActive($refs.noteEditor)) {
+                           ui.notesForm.conteudo = window.OperonEditor.getMarkdown($refs.noteEditor);
+                           window.OperonEditor.unmount($refs.noteEditor);
+                         }
+                       "
                        style="min-height:120px;border:1px solid var(--op-border);border-radius:8px;overflow:hidden;background:var(--op-bg-1)"></div>
                 </template>
               </div>

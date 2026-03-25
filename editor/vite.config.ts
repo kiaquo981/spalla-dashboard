@@ -10,7 +10,6 @@ export default defineConfig({
       formats: ['iife'],
       fileName: () => 'operon-editor.umd.js',
     },
-    cssFileName: 'operon-editor',
     rollupOptions: {
       output: {
         assetFileNames: 'operon-editor.[ext]',
