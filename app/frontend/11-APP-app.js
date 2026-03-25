@@ -2097,34 +2097,30 @@ function operon() {
     },
 
     async navigateToDossieDoc(mentoradoId, tipo) {
-      // Navigate from Dossiês tab → Biblioteca, opening the matching doc
-      // Map ds_documentos tipo to sp_documentos
-      const tipoMap = { oferta: 'dossie', funil: 'dossie', conteudo: 'dossie' };
-      const spTipo = tipoMap[tipo] || 'dossie';
+      // Navigate from Dossiês → Documentos/Biblioteca, opening the matching doc
 
-      // Find matching doc in biblioteca
+      // 1. Switch to Documentos page, Biblioteca tab
+      this.navigate('documentos');
+      this.ui.docsTab = 'biblioteca';
+
+      // 2. Load biblioteca if needed
       if (!this.bib.docs.length) {
-        // Load biblioteca if not loaded
         await this.loadBiblioteca();
       }
 
-      const doc = this.bib.docs.find(d =>
-        d.mentee_id === mentoradoId || d.mentee_id === String(mentoradoId)
-      );
+      // 3. Find matching doc by mentorado_id
+      const mid = typeof mentoradoId === 'string' ? parseInt(mentoradoId) : mentoradoId;
+      const doc = this.bib.docs.find(d => d.mentee_id === mid || d.mentee_id === String(mid));
 
       if (doc) {
-        this.ui.page = 'biblioteca';
         this.$nextTick(() => this.bibOpenDoc(doc.id));
       } else {
-        // Try to find by searching all docs for this mentee
+        // Fallback: fetch from API
         try {
-          const resp = await fetch(`${CONFIG.API_BASE}/api/biblioteca?mentee_id=${mentoradoId}`, {
-            headers: { 'Authorization': `Bearer ${this.auth.accessToken}` }
-          });
+          const resp = await fetch(`${CONFIG.API_BASE}/api/biblioteca?mentee_id=${mentoradoId}`);
           if (resp.ok) {
             const docs = await resp.json();
             if (docs.length) {
-              this.ui.page = 'biblioteca';
               this.$nextTick(() => this.bibOpenDoc(docs[0].id));
               return;
             }
@@ -3348,6 +3344,7 @@ function operon() {
       'planos-acao': 'planos_acao',
       'onboarding': 'onboarding',
       'docs': 'docs',
+      'documentos': 'documentos',
       'arquivos': 'arquivos',
       'settings': 'settings',
       'jornada': 'kanban',
