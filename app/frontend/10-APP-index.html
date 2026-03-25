@@ -3222,17 +3222,30 @@
                       <!-- Activity timeline / Comments list -->
                       <div style="flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:12px">
 
-                        <!-- Task creation event -->
-                        <div style="display:flex;align-items:flex-start;gap:10px;font-size:12px;color:#94a3b8">
+                        <!-- Activity timeline from database -->
+                        <template x-for="evt in ui.taskActivity" :key="evt.id">
+                          <div style="display:flex;align-items:flex-start;gap:10px;font-size:12px;color:#94a3b8">
+                            <div style="width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:5px"
+                              :style="evt.action === 'created' ? 'background:#22c55e' : evt.field === 'status' ? 'background:#3b82f6' : evt.field === 'responsavel' ? 'background:#f59e0b' : 'background:#cbd5e1'"></div>
+                            <div style="flex:1">
+                              <span style="color:#64748b;font-weight:500" x-text="evt.actor"></span>
+                              <span x-text="' ' + formatActivity(evt)"></span>
+                              <div style="font-size:11px;margin-top:2px" x-text="formatDateFull(evt.created_at)"></div>
+                            </div>
+                          </div>
+                        </template>
+
+                        <!-- Fallback if no activity yet -->
+                        <div x-show="!ui.taskActivity?.length" style="display:flex;align-items:flex-start;gap:10px;font-size:12px;color:#94a3b8">
                           <div style="width:6px;height:6px;border-radius:50%;background:#cbd5e1;flex-shrink:0;margin-top:5px"></div>
                           <div>
-                            <span style="color:#64748b;font-weight:500" x-text="activeTaskDetail.responsavel || 'Sistema'"></span>
+                            <span style="color:#64748b;font-weight:500" x-text="activeTaskDetail.created_by || activeTaskDetail.responsavel || 'Sistema'"></span>
                             <span> criou esta tarefa</span>
                             <div style="font-size:11px;margin-top:2px" x-text="formatDateFull(activeTaskDetail.created_at)"></div>
                           </div>
                         </div>
 
-                        <!-- Handoff events in timeline -->
+                        <!-- Handoff events -->
                         <template x-for="(h, hi) in activeTaskDetail.handoffs || []" :key="'h'+hi">
                           <div style="display:flex;align-items:flex-start;gap:10px;font-size:12px;color:#94a3b8">
                             <div style="width:6px;height:6px;border-radius:50%;background:#f59e0b;flex-shrink:0;margin-top:5px"></div>
