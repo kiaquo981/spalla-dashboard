@@ -2685,8 +2685,8 @@
                   <div class="task-list__col task-list__col--actions"></div>
                 </div>
                 <template x-for="t in tasksTree" :key="t.id + '-' + t._depth">
-                  <div class="task-list__row" :class="{ 'task-list__row--done': t.status === 'concluida', 'task-list__row--overdue': t.status === 'pendente' && isOverdue(t.data_fim || t.prazo), 'task-list__row--mine': isMyTask(t), 'task-list__row--child': t._depth > 0 }" @click="t._isSubtask ? openTaskDetail(t._parentId) : openTaskDetail(t.id)">
-                    <div class="task-list__col task-list__col--check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="t._isSubtask ? toggleSubtask(t._parentId, t._subIdx) : updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
+                  <div class="task-list__row" :class="{ 'task-list__row--done': t.status === 'concluida', 'task-list__row--overdue': t.status === 'pendente' && isOverdue(t.data_fim || t.prazo), 'task-list__row--mine': isMyTask(t), 'task-list__row--child': t._depth > 0 }" @click="t._isChecklist ? openTaskDetail(t._parentId) : t._isSubtask ? openTaskDetail(t._parentId) : t._isChildTask ? openTaskDetail(t.id) : openTaskDetail(t.id)">
+                    <div class="task-list__col task-list__col--check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="t._isChecklist ? toggleCheckItem(t._parentId, t._checkIdx) : t._isSubtask ? toggleSubtask(t._parentId, t._subIdx) : updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
                     <div class="task-list__col task-list__col--title" :style="t._depth > 0 ? 'padding-left:24px' : ''">
                       <div style="display:flex;align-items:flex-start;gap:4px">
                         <button x-show="t._depth === 0 && t._childCount > 0" @click.stop="toggleTaskExpand(t.id)" class="task-tree__toggle" :class="{ 'task-tree__toggle--open': ui.taskExpandedIds[t.id] }" :title="ui.taskExpandedIds[t.id] ? 'Recolher subtarefas' : 'Expandir subtarefas (' + t._childCount + ')'">

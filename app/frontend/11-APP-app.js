@@ -1375,11 +1375,36 @@ function operon() {
     // Tasks: tree view — flat array with _depth metadata for list view
     get tasksTree() {
       const filtered = this.filteredTasks;
+      const allTasks = this.data.tasks;
       const result = [];
+
+      // Index child tasks by parent_task_id
+      const childTasksByParent = {};
+      for (const t of allTasks) {
+        if (t.parent_task_id) {
+          if (!childTasksByParent[t.parent_task_id]) childTasksByParent[t.parent_task_id] = [];
+          childTasksByParent[t.parent_task_id].push(t);
+        }
+      }
+
       for (const task of filtered) {
-        const childCount = (task.subtasks || []).length;
-        result.push({ ...task, _depth: 0, _childCount: childCount });
-        if (this.ui.taskExpandedIds[task.id] && childCount > 0) {
+        // Skip tasks that are children (they show under their parent)
+        if (task.parent_task_id) continue;
+
+        const subtaskCount = (task.subtasks || []).length;
+        const childTasks = childTasksByParent[task.id] || [];
+        const checklistCount = (task.checklist || []).length;
+        const totalChildren = subtaskCount + childTasks.length + checklistCount;
+
+        result.push({ ...task, _depth: 0, _childCount: totalChildren });
+
+        if (this.ui.taskExpandedIds[task.id] && totalChildren > 0) {
+          // 1) Child tasks (real god_tasks with parent_task_id)
+          for (const child of childTasks) {
+            const grandchildren = (child.subtasks || []).length + (childTasksByParent[child.id] || []).length;
+            result.push({ ...child, _depth: 1, _childCount: grandchildren, _isChildTask: true, _parentId: task.id });
+          }
+          // 2) Inline subtasks
           (task.subtasks || []).forEach((sub, idx) => {
             result.push({
               id: sub.id || ('sub_' + task.id + '_' + idx),
@@ -1387,20 +1412,25 @@ function operon() {
               status: sub.status || (sub.done ? 'concluida' : 'pendente'),
               prioridade: sub.prioridade || 'normal',
               responsavel: sub.responsavel || '',
-              acompanhante: null,
-              mentorado_nome: null,
+              acompanhante: null, mentorado_nome: null,
               data_inicio: sub.data_inicio || null,
-              data_fim: sub.data_fim || null,
-              prazo: sub.data_fim || null,
-              tags: [],
-              is_blocked: false,
-              auto_gerada: false,
-              recorrencia: 'nenhuma',
-              _depth: 1,
-              _childCount: 0,
-              _isSubtask: true,
-              _parentId: task.id,
-              _subIdx: idx,
+              data_fim: sub.data_fim || null, prazo: sub.data_fim || null,
+              tags: [], is_blocked: false, auto_gerada: false, recorrencia: 'nenhuma',
+              _depth: 1, _childCount: 0, _isSubtask: true, _parentId: task.id, _subIdx: idx,
+            });
+          });
+          // 3) Checklist items
+          (task.checklist || []).forEach((ci, idx) => {
+            result.push({
+              id: 'check_' + task.id + '_' + idx,
+              titulo: '☐ ' + (ci.text || ''),
+              status: ci.done ? 'concluida' : 'pendente',
+              prioridade: 'normal',
+              responsavel: ci.assignee || '',
+              acompanhante: null, mentorado_nome: null,
+              data_inicio: null, data_fim: ci.due_date || null, prazo: ci.due_date || null,
+              tags: [], is_blocked: false, auto_gerada: false, recorrencia: 'nenhuma',
+              _depth: 1, _childCount: 0, _isChecklist: true, _parentId: task.id, _checkIdx: idx,
             });
           });
         }
