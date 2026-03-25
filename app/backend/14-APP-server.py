@@ -180,8 +180,8 @@ def verify_api_key(key):
                 {'last_used_at': datetime.now(timezone.utc).isoformat()})
             return {'label': result[0].get('label', ''), 'source': 'supabase',
                     'role': result[0].get('role', 'integration')}
-    except Exception:
-        pass
+    except Exception as e:
+        log_error('APIKeys', f'verify_api_key failed: {e}')
     return None
 
 
@@ -2006,6 +2006,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             Uses vw_wa_mentee_inbox + wa_topics to compute priority scores.
             Returns: [{ id, nome, score, level, factors }] sorted by score desc.
             """
+            auth = check_auth_any(self.headers)
+            if not auth:
+                self._send_json({'error': 'Authentication required'}, 401)
+                return
             try:
                 inbox = supabase_request('GET',
                     'vw_wa_mentee_inbox?select=*&order=horas_sem_resposta_equipe.desc.nullslast')
@@ -2294,6 +2298,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
           search:        ilike match on nome
           sort:          sla_desc (default) | unread_desc | last_message_desc
         """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Authentication required'}, 401)
+            return
         parsed = urllib.parse.urlparse(self.path)
         params = urllib.parse.parse_qs(parsed.query)
 
@@ -2816,6 +2824,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': str(e)}, 500)
 
     def _handle_get_mentees(self):
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Authentication required'}, 401)
+            return
         result = get_mentees_with_email()
         self._send_json(result if isinstance(result, list) else [result])
 
@@ -3571,12 +3583,13 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': 'Nome and email are required'}, 400)
                 return
 
-            # Generate temp password: first name lowercase + last 4 digits of whatsapp
+            # Generate temp password: first name lowercase + last 4 digits of whatsapp + random suffix
             first_name = nome.split()[0].lower()
             # Remove non-digit chars and get last 4 digits
             digits = ''.join(filter(str.isdigit, whatsapp))
             last4 = digits[-4:] if len(digits) >= 4 else digits
-            temp_password = f"{first_name}{last4}"
+            random_suffix = secrets.token_hex(2)  # 4 random hex chars
+            temp_password = f"{first_name}{last4}{random_suffix}"
 
             if len(temp_password) < 4:
                 self._send_json({'error': 'Could not generate valid password — check nome and whatsapp'}, 400)
@@ -3613,10 +3626,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({
                 'success': True,
                 'user_id': user_id,
-                'credentials': {
-                    'email': email,
-                    'temp_password': temp_password,
-                }
+                'email': email,
             }, 201)
         except Exception as e:
             log_error('WELCOME', f'Welcome flow registration failed: {e}')

@@ -8826,7 +8826,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         const files = this.data.dsBriefingFiles || [];
         if (files.length) {
           const paths = files.map(f => f.storage_path);
-          await sb.storage.from('dossie-briefings').remove(paths);
+          const { error: storageErr } = await sb.storage.from('dossie-briefings').remove(paths);
+          if (storageErr) console.warn('[DS] storage remove error (continuing):', storageErr);
         }
         // Delete producao (CASCADE removes docs, ajustes, eventos, briefing_files)
         const { error } = await sb.from('ds_producoes').delete().eq('id', producaoId);
