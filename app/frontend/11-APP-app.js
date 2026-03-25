@@ -209,6 +209,21 @@ function operon() {
       taskTagsFilterOpen: false, // tags filter dropdown in toolbar
       syncingSubtasks: false,    // ClickUp subtask sync in progress
       taskExpandedIds: {},       // { [taskId]: true } for tree expand/collapse
+      listColumnsOpen: false,    // column config dropdown
+      listColumns: {
+        responsavel:  { label: 'Responsável',   visible: true },
+        acompanhante: { label: 'Acompanhante',  visible: true },
+        mentorado:    { label: 'Mentorado',      visible: true },
+        datas:        { label: 'Datas',          visible: true },
+        prioridade:   { label: 'Prioridade',     visible: true },
+        status:       { label: 'Status',         visible: false },
+        tags:         { label: 'Tags',           visible: false },
+        fonte:        { label: 'Fonte',          visible: false },
+        space:        { label: 'Space / Lista',  visible: false },
+        comentarios:  { label: 'Comentários',    visible: false },
+        criado_em:    { label: 'Criado em',      visible: false },
+        atualizado:   { label: 'Atualizado',     visible: false },
+      },
       // Dossiers (legacy)
       dossierFilter: 'all',
       // Dossiê Production System
