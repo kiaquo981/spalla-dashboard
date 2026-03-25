@@ -2097,7 +2097,15 @@ function operon() {
     },
 
     async navigateToDossieDoc(mentoradoId, tipo) {
-      // Navigate from Dossiês → Documentos/Biblioteca, opening the matching doc
+      // Navigate from Dossiês → Documentos/Biblioteca, opening the matching doc by type
+      // tipo from ds_documentos: oferta, funil, conteudo
+      // Map to sp_documentos titulo keywords
+      const tipoKeywords = {
+        oferta: 'oferta',
+        funil: 'funil',
+        conteudo: 'posicionamento',
+      };
+      const keyword = tipoKeywords[tipo] || tipo;
 
       // 1. Switch to Documentos page, Biblioteca tab
       this.navigate('documentos');
@@ -2108,20 +2116,31 @@ function operon() {
         await this.loadBiblioteca();
       }
 
-      // 3. Find matching doc by mentorado_id
+      // 3. Find matching doc by mentorado_id + tipo
       const mid = typeof mentoradoId === 'string' ? parseInt(mentoradoId) : mentoradoId;
-      const doc = this.bib.docs.find(d => d.mentee_id === mid || d.mentee_id === String(mid));
+
+      // First try exact match by mentorado + tipo keyword in titulo or slug
+      let doc = this.bib.docs.find(d =>
+        (d.mentee_id === mid || d.mentee_id === String(mid)) &&
+        ((d.titulo || '').toLowerCase().includes(keyword) || (d.deep_link_slug || '').includes(keyword))
+      );
+
+      // Fallback: any doc of this mentorado
+      if (!doc) {
+        doc = this.bib.docs.find(d => d.mentee_id === mid || d.mentee_id === String(mid));
+      }
 
       if (doc) {
         this.$nextTick(() => this.bibOpenDoc(doc.id));
       } else {
-        // Fallback: fetch from API
+        // Last resort: fetch from API
         try {
           const resp = await fetch(`${CONFIG.API_BASE}/api/biblioteca?mentee_id=${mentoradoId}`);
           if (resp.ok) {
             const docs = await resp.json();
-            if (docs.length) {
-              this.$nextTick(() => this.bibOpenDoc(docs[0].id));
+            const match = docs.find(d => (d.titulo || '').toLowerCase().includes(keyword)) || docs[0];
+            if (match) {
+              this.$nextTick(() => this.bibOpenDoc(match.id));
               return;
             }
           }
