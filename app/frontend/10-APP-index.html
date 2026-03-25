@@ -7391,29 +7391,24 @@
 
               <!-- === NOTA LIVRE === -->
               <div x-show="ui.notesDrawer.tipo === 'livre'">
-                <template x-if="!window.OperonEditor || !window.OperonEditor.mount">
-                  <textarea class="op-input" x-model="ui.notesForm.conteudo" placeholder="Escreva uma observacao livre..." rows="4" style="width:100%;resize:vertical;font-size:.85rem"></textarea>
-                </template>
-                <template x-if="window.OperonEditor && window.OperonEditor.mount">
-                  <div x-ref="noteEditor"
-                       x-effect="
-                         if(ui.notesDrawer.tipo === 'livre' && $refs.noteEditor) {
-                           $nextTick(() => {
-                             if(!window.OperonEditor.isActive($refs.noteEditor)) {
-                               window.OperonEditor.mount($refs.noteEditor, {
-                                 markdown: ui.notesForm.conteudo || '',
-                                 onChange: md => ui.notesForm.conteudo = md,
-                                 placeholder: 'Digite / para comandos...'
-                               });
-                             }
-                           });
-                         } else if($refs.noteEditor && window.OperonEditor.isActive($refs.noteEditor)) {
-                           ui.notesForm.conteudo = window.OperonEditor.getMarkdown($refs.noteEditor);
-                           window.OperonEditor.unmount($refs.noteEditor);
-                         }
-                       "
-                       style="min-height:120px;border:1px solid var(--op-border);border-radius:8px;overflow:hidden;background:var(--op-bg-1)"></div>
-                </template>
+                <div x-ref="noteEditor"
+                     x-effect="
+                       if(ui.notesDrawer.tipo === 'livre' && $refs.noteEditor && window.OperonEditor) {
+                         $nextTick(() => {
+                           if(!window.OperonEditor.isActive($refs.noteEditor)) {
+                             window.OperonEditor.mount($refs.noteEditor, {
+                               markdown: ui.notesForm.conteudo || '',
+                               onChange: md => ui.notesForm.conteudo = md,
+                               placeholder: 'Digite / para comandos...'
+                             });
+                           }
+                         });
+                       } else if($refs.noteEditor && window.OperonEditor && window.OperonEditor.isActive($refs.noteEditor)) {
+                         ui.notesForm.conteudo = window.OperonEditor.getMarkdown($refs.noteEditor);
+                         window.OperonEditor.unmount($refs.noteEditor);
+                       }
+                     "
+                     style="min-height:120px;border:1px solid var(--op-border);border-radius:8px;overflow:hidden;background:var(--op-bg-1)"></div>
               </div>
 
               <!-- === CHECKPOINT MENSAL === -->
@@ -7822,24 +7817,19 @@
             <input type="text" x-model="taskForm.titulo" placeholder="O que precisa ser feito?" class="modal__input">
 
             <label>Descricao</label>
-            <template x-if="!window.OperonEditor || !window.OperonEditor.mount">
-              <textarea x-model="taskForm.descricao" placeholder="Detalhes, orientacoes..." class="modal__textarea"></textarea>
-            </template>
-            <template x-if="window.OperonEditor && window.OperonEditor.mount">
-              <div x-ref="taskDescEditor"
-                   x-init="$watch('ui.taskModal', v => {
-                     if(v) $nextTick(() => window.OperonEditor.mount($refs.taskDescEditor, {
-                       markdown: taskForm.descricao || '',
-                       onChange: md => taskForm.descricao = md,
-                       placeholder: 'Digite / para comandos...'
-                     }));
-                     else if(window.OperonEditor.isActive($refs.taskDescEditor)) {
-                       taskForm.descricao = window.OperonEditor.getMarkdown($refs.taskDescEditor);
-                       window.OperonEditor.unmount($refs.taskDescEditor);
-                     }
-                   })"
-                   style="min-height:150px;border:1px solid var(--op-border);border-radius:8px;overflow:hidden;background:var(--op-bg-1)"></div>
-            </template>
+            <div x-ref="taskDescEditor"
+                 x-init="$watch('ui.taskModal', v => {
+                   if(v && window.OperonEditor) $nextTick(() => window.OperonEditor.mount($refs.taskDescEditor, {
+                     markdown: taskForm.descricao || '',
+                     onChange: md => taskForm.descricao = md,
+                     placeholder: 'Digite / para comandos...'
+                   }));
+                   else if(window.OperonEditor && window.OperonEditor.isActive($refs.taskDescEditor)) {
+                     taskForm.descricao = window.OperonEditor.getMarkdown($refs.taskDescEditor);
+                     window.OperonEditor.unmount($refs.taskDescEditor);
+                   }
+                 })"
+                 style="min-height:150px;border:1px solid var(--op-border);border-radius:8px;overflow:hidden;background:var(--op-bg-1)"></div>
 
             <!-- Mentorado + Responsavel -->
             <div class="modal__row">
