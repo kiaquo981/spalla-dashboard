@@ -1,6 +1,5 @@
 {
-  "buildCommand": "cd editor && npm ci && npm run build && cp dist/operon-editor.umd.js dist/operon-editor.css ../app/frontend/",
-  "installCommand": "cd editor && npm ci",
+  "buildCommand": "echo Static SPA",
   "outputDirectory": "app/frontend",
   "rewrites": [
     { "source": "/api-docs", "destination": "/api-docs.html" },
