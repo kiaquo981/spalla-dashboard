@@ -2725,11 +2725,18 @@
                         </div>
                       </div>
                     </div>
-                    <div class="task-list__col task-list__col--assignee" x-show="ui.listColumns.responsavel.visible">
-                      <span x-show="t.responsavel" class="task-list__assignee-pill">
-                        <span class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel)" x-text="avatarInitials(t.responsavel)" style="width:20px;height:20px;font-size:8px"></span>
-                        <span x-text="t.responsavel"></span>
-                      </span>
+                    <div class="task-list__col task-list__col--assignee" x-show="ui.listColumns.responsavel.visible" @click.stop>
+                      <div style="display:flex;align-items:center;gap:4px">
+                        <span class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel || '?')" x-text="avatarInitials(t.responsavel || '?')" style="width:20px;height:20px;font-size:8px;flex-shrink:0"></span>
+                        <select :value="t.responsavel || ''" @change="updateTaskField(t.id, 'responsavel', $event.target.value)"
+                          style="font-size:11px;padding:1px 2px;border:1px solid transparent;border-radius:4px;cursor:pointer;background:none;max-width:100px;appearance:none;-webkit-appearance:none"
+                          @focus="$el.style.borderColor='#8b6f47'" @blur="$el.style.borderColor='transparent'">
+                          <option value="">—</option>
+                          <template x-for="m in data.members || []" :key="m.id || m.name">
+                            <option :value="m.nome_curto || m.name" x-text="m.nome_curto || m.name"></option>
+                          </template>
+                        </select>
+                      </div>
                     </div>
                     <div class="task-list__col task-list__col--tracker" x-show="ui.listColumns.acompanhante.visible">
                       <span x-show="t.acompanhante" class="task-list__tracker-pill">
@@ -2743,8 +2750,27 @@
                       <span x-show="t.data_inicio && (t.data_fim || t.prazo)" style="font-size:10px;color:#94a3b8"> → </span>
                       <span x-show="t.data_fim || t.prazo" :class="{ 'text-red': isOverdue(t.data_fim || t.prazo) }" x-text="formatDate(t.data_fim || t.prazo)" style="font-size:11px"></span>
                     </div>
-                    <div class="task-list__col task-list__col--prio" x-show="ui.listColumns.prioridade.visible"><span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span></div>
-                    <div class="task-list__col task-list__col--prio" x-show="ui.listColumns.status.visible"><span class="badge badge--sm" :class="{ 'badge--neutral': t.status === 'pendente', 'badge--info': t.status === 'em_andamento', 'badge--success': t.status === 'concluida' }" x-text="taskStatusLabel(t.status)"></span></div>
+                    <div class="task-list__col task-list__col--prio" x-show="ui.listColumns.prioridade.visible" @click.stop>
+                      <select :value="t.prioridade" @change="updateTaskField(t.id, 'prioridade', $event.target.value)"
+                        style="font-size:11px;padding:2px 4px;border:1px solid transparent;border-radius:4px;cursor:pointer;background:none;font-weight:600;appearance:none;-webkit-appearance:none;text-align:center"
+                        :style="t.prioridade==='urgente' ? 'color:#dc2626;background:#fee2e2' : t.prioridade==='alta' ? 'color:#ea580c;background:#ffedd5' : t.prioridade==='normal' ? 'color:#64748b;background:#f1f5f9' : 'color:#94a3b8;background:#f8fafc'"
+                        @focus="$el.style.borderColor='#8b6f47'" @blur="$el.style.borderColor='transparent'">
+                        <option value="baixa">Baixa</option>
+                        <option value="normal">Normal</option>
+                        <option value="alta">Alta</option>
+                        <option value="urgente">Urgente</option>
+                      </select>
+                    </div>
+                    <div class="task-list__col task-list__col--prio" x-show="ui.listColumns.status.visible" @click.stop>
+                      <select :value="t.status" @change="updateTaskStatus(t.id, $event.target.value)"
+                        style="font-size:11px;padding:2px 4px;border:1px solid transparent;border-radius:4px;cursor:pointer;background:none;font-weight:600;appearance:none;-webkit-appearance:none;text-align:center"
+                        :style="t.status==='concluida' ? 'color:#16a34a;background:#dcfce7' : t.status==='em_andamento' ? 'color:#2563eb;background:#dbeafe' : 'color:#64748b;background:#f1f5f9'"
+                        @focus="$el.style.borderColor='#8b6f47'" @blur="$el.style.borderColor='transparent'">
+                        <option value="pendente">A Fazer</option>
+                        <option value="em_andamento">Em Progresso</option>
+                        <option value="concluida">Concluído</option>
+                      </select>
+                    </div>
                     <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.tags.visible"><template x-for="tag in (t.tags||[]).slice(0,2)" :key="tag.id||tag.name||tag"><span class="task-tag" style="font-size:10px" :style="tag.color ? 'background:'+tag.color+'22;color:'+tag.color : ''" x-text="tag.name||tag"></span></template></div>
                     <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.fonte.visible"><span class="badge badge--sm badge--neutral" x-text="t.fonte || 'manual'"></span></div>
                     <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.space.visible" style="font-size:11px" x-text="getSpaceName(t.space_id) || '-'"></div>
