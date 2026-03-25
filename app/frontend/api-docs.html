@@ -1,12 +1,13 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Spalla API Reference</title>
-    <meta name="description" content="Interactive API reference for Spalla Dashboard — mentorship management, ClickUp integration, WhatsApp automation, and AI-powered search." />
-    <meta property="og:title" content="Spalla API Reference" />
-    <meta property="og:description" content="Interactive API documentation powered by Scalar." />
+    <title>Operon API Reference — Spalla</title>
+    <meta name="description" content="Documentação interativa da API Spalla — gestão de mentorados, ClickUp, WhatsApp, busca semântica e AI." />
+    <meta property="og:title" content="Operon API Reference — Spalla" />
+    <meta property="og:description" content="API Reference completa com exemplos multi-language, Try It e autenticação integrada." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
     <style>
       /* Operon Design System — warm olive / terracotta / cream */
       :root {
@@ -23,6 +24,9 @@
         --scalar-sidebar-color-2: #4a4a38;
         --scalar-sidebar-color-active: #8b6f47;
         --scalar-sidebar-background-active: #ede9de;
+        --scalar-button-1: #8b6f47;
+        --scalar-button-1-hover: #7a6040;
+        --scalar-button-1-color: #fff;
       }
       body { margin: 0; padding: 0; }
     </style>
@@ -32,26 +36,33 @@
     <script>
       document.getElementById('api-reference').dataset.configuration = JSON.stringify({
         theme: 'default',
-        layout: 'sidebar',
+        layout: 'modern',
         defaultOpenAllTags: false,
         showSidebar: true,
         hideModels: false,
         hideDownloadButton: false,
         hideDarkModeToggle: false,
+        hideClientButton: false,
         searchHotKey: 'k',
+        defaultHttpClient: {
+          targetKey: 'shell',
+          clientKey: 'curl'
+        },
+        hiddenClients: {},
         metaData: {
-          title: 'Spalla API Reference',
-          description: 'Interactive API reference for Spalla Dashboard.',
-          ogDescription: 'Mentorship management, ClickUp integration, WhatsApp automation, and AI-powered search.',
-          ogTitle: 'Spalla API Reference'
+          title: 'Operon API Reference — Spalla',
+          description: 'API Reference completa do Spalla Dashboard — plataforma de gestão de mentorados da CASE.',
+          ogDescription: 'Gestão de mentorados, ClickUp, WhatsApp, busca semântica e AI. 58 endpoints documentados.',
+          ogTitle: 'Operon API Reference — Spalla'
         },
         servers: [
-          { url: 'https://spalla.allinmarketing.com.br', description: 'Production (Railway)' },
-          { url: 'http://localhost:9999', description: 'Local development' }
+          { url: 'https://web-production-2cde5.up.railway.app', description: 'Produção (Railway)' },
+          { url: 'http://localhost:9999', description: 'Desenvolvimento local' }
         ],
         authentication: {
           preferredSecurityScheme: 'BearerAuth',
-          http: { bearer: { token: '' } }
+          http: { bearer: { token: '' } },
+          apiKey: { token: '' }
         }
       });
     </script>

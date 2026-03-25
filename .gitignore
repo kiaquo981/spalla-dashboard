@@ -17,6 +17,10 @@ build/
 *.log
 logs/
 
+# Editor widget build output (built by Vercel)
+app/frontend/operon-editor.umd.js
+app/frontend/operon-editor.css
+
 # IDE & OS (AIOS)
 .DS_Store
 Thumbs.db

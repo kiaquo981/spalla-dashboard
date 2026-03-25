@@ -213,11 +213,18 @@ function operon() {
       dossierFilter: 'all',
       // Dossiê Production System
       dsFilter: 'all',
+      dsCarteira: 'all',
       dsView: 'painel',        // painel | pipeline | lista
       dsSearchQuery: '',
       dsExpandedDocs: {},       // { producaoId: true }
       dsLoading: false,
       dsModal: false,
+      dsCreateModal: false,
+      dsCreateForm: { mentorado_id: '', responsavel: '', briefing: '', docs: ['oferta', 'funil', 'conteudo'] },
+      dsCreateUploading: false,
+      dsCreateFiles: [],
+      dsRecording: false,
+      dsMediaRecorder: null,
       dsDetailProducaoId: null, // for detail view
       dsConfirm: null,          // { title, msg, onConfirm }
       dsSortField: 'mentorado_nome',
@@ -382,6 +389,7 @@ function operon() {
       dsMenteeDetail: null,     // full detail for one mentee
       dsEventos: [],            // audit trail for detail view
       dsAjustes: [],            // ajustes for detail view
+      dsBriefingFiles: [],      // briefing files for detail view
       // Tags & Custom Fields
       taskTags: [],             // god_task_tags — all available tags
       fieldDefs: [],            // applicable god_task_field_defs for current modal
@@ -4248,6 +4256,7 @@ function operon() {
       this.ui.page = page;
       this.ui.mobileMenuOpen = false;
       if (page === 'financeiro') this.loadFinanceiro();
+      if (page === 'command_center' && !this.data.dsProducoes.length) this.loadDsData();
       if (page === 'carteira') this.initWaKeyboardShortcuts();
       localStorage.setItem('spalla_page', page);
       // Update URL without reload
@@ -8333,10 +8342,12 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       try {
         const [prodRes, docsRes] = await Promise.all([
           sb.from('vw_ds_pipeline').select('*').order('mentorado_nome'),
-          sb.from('ds_documentos').select('id, producao_id, mentorado_id, tipo, titulo, estagio_atual, responsavel_atual, estagio_desde, link_doc, ordem').order('ordem'),
+          sb.from('ds_documentos').select('id, producao_id, mentorado_id, tipo, titulo, estagio_atual, responsavel_atual, estagio_desde, link_doc, ordem, prazo_entrega, prazos_etapas').order('ordem'),
         ]);
         if (prodRes.data) this.data.dsProducoes = prodRes.data;
         if (docsRes.data) this.data.dsAllDocs = docsRes.data;
+        // Auto-sync status for all non-paused/cancelled productions
+        this._autoSyncDsStatuses();
       } catch (e) {
         console.error('[DS] loadDsData error:', e);
       } finally {
@@ -8344,20 +8355,47 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       }
     },
 
+    async _autoSyncDsStatuses() {
+      if (!sb) return;
+      const skipStatuses = ['pausado', 'cancelado'];
+      for (const prod of this.data.dsProducoes) {
+        if (skipStatuses.includes(prod.status)) continue;
+        const docs = this.data.dsAllDocs.filter(d => d.producao_id === prod.producao_id);
+        if (!docs.length) continue;
+        const stages = docs.map(d => this.dsEstagioNum(d.estagio_atual));
+        const minStage = Math.min(...stages);
+        let expected;
+        if (stages.every(s => s >= 10)) expected = 'finalizado';
+        else if (stages.every(s => s >= 9)) expected = 'aprovado';
+        else if (stages.every(s => s >= 6)) expected = 'enviado';
+        else if (minStage >= 3) expected = 'revisao';
+        else if (minStage >= 2) expected = 'producao';
+        else expected = 'nao_iniciado';
+        if (expected !== prod.status) {
+          const mostBehind = docs.reduce((a, b) => this.dsEstagioNum(a.estagio_atual) <= this.dsEstagioNum(b.estagio_atual) ? a : b);
+          await sb.from('ds_producoes').update({ status: expected, responsavel_atual: mostBehind.responsavel_atual }).eq('id', prod.producao_id);
+          prod.status = expected;
+          prod.responsavel_atual = mostBehind.responsavel_atual;
+        }
+      }
+    },
+
     async loadDsMenteeDetail(producaoId) {
       if (!sb) return;
       this.ui.dsLoading = true;
       try {
-        const [prodRes, docsRes, eventsRes, ajustesRes] = await Promise.all([
+        const [prodRes, docsRes, eventsRes, ajustesRes, filesRes] = await Promise.all([
           sb.from('ds_producoes').select('*').eq('id', producaoId).single(),
           sb.from('ds_documentos').select('*').eq('producao_id', producaoId).order('ordem'),
           sb.from('ds_eventos').select('*').eq('producao_id', producaoId).order('created_at', { ascending: false }).limit(50),
           sb.from('ds_ajustes').select('*').eq('producao_id', producaoId).order('created_at', { ascending: false }),
+          sb.from('ds_briefing_files').select('*').eq('producao_id', producaoId).order('created_at'),
         ]);
         if (prodRes.data) this.data.dsMenteeDetail = prodRes.data;
         if (docsRes.data) this.data.dsAllDocs = docsRes.data;
         if (eventsRes.data) this.data.dsEventos = eventsRes.data;
         if (ajustesRes.data) this.data.dsAjustes = ajustesRes.data;
+        this.data.dsBriefingFiles = filesRes?.data || [];
       } catch (e) {
         console.error('[DS] loadDsMenteeDetail error:', e);
       } finally {
@@ -8374,6 +8412,72 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     // --- DS KPIs ---
+    // --- DS News (Command Center card) ---
+    dsNewsEntregues() {
+      const now = new Date(); now.setHours(0,0,0,0);
+      const weekAgo = new Date(now.getTime() - 7 * 86400000);
+      return this.data.dsAllDocs.filter(d => {
+        if (d.estagio_atual !== 'finalizado') return false;
+        const dt = d.updated_at ? new Date(d.updated_at) : null;
+        return dt && dt >= weekAgo;
+      }).map(d => {
+        const prod = this.data.dsProducoes.find(p => p.producao_id === d.producao_id);
+        return { ...d, mentorado_nome: prod?.mentorado_nome || '?', responsavel: d.responsavel_atual || prod?.responsavel_atual || '-' };
+      });
+    },
+    dsNewsEmProducao() {
+      return this.data.dsAllDocs.filter(d => {
+        if (d.estagio_atual === 'finalizado' || d.estagio_atual === 'pendente') return false;
+        const prod = this.data.dsProducoes.find(p => p.producao_id === d.producao_id);
+        return prod && !['pausado', 'cancelado', 'finalizado'].includes(prod.status);
+      }).map(d => {
+        const prod = this.data.dsProducoes.find(p => p.producao_id === d.producao_id);
+        const aging = d.estagio_desde ? Math.floor((Date.now() - new Date(d.estagio_desde).getTime()) / 86400000) : 0;
+        return { ...d, mentorado_nome: prod?.mentorado_nome || '?', aging };
+      }).sort((a, b) => b.aging - a.aging);
+    },
+    dsNewsCriticos() {
+      const today = new Date(); today.setHours(0,0,0,0);
+      return this.data.dsAllDocs.filter(d => {
+        if (d.estagio_atual === 'finalizado') return false;
+        const prod = this.data.dsProducoes.find(p => p.producao_id === d.producao_id);
+        if (!prod || ['pausado', 'cancelado'].includes(prod.status)) return false;
+        if (d.prazo_entrega) { const dt = new Date(d.prazo_entrega + 'T00:00:00'); if ((dt - today) / 86400000 <= 3) return true; }
+        if (d.prazos_etapas && d.prazos_etapas[d.estagio_atual]) { const dt = new Date(d.prazos_etapas[d.estagio_atual] + 'T00:00:00'); if ((dt - today) / 86400000 <= 3) return true; }
+        if (prod.prazo_entrega) { const dt = new Date(prod.prazo_entrega + 'T00:00:00'); if ((dt - today) / 86400000 <= 3) return true; }
+        return false;
+      }).map(d => {
+        const prod = this.data.dsProducoes.find(p => p.producao_id === d.producao_id);
+        const prazo = d.prazo_entrega || d.prazos_etapas?.[d.estagio_atual] || prod?.prazo_entrega;
+        const diff = prazo ? Math.round((new Date(prazo + 'T00:00:00') - today) / 86400000) : null;
+        return { ...d, mentorado_nome: prod?.mentorado_nome || '?', prazo, diff, producao_id: d.producao_id };
+      }).sort((a, b) => (a.diff ?? 99) - (b.diff ?? 99));
+    },
+    dsNewsProximasApresentacoes() {
+      const today = new Date(); today.setHours(0,0,0,0);
+      const results = [];
+      this.data.dsProducoes.forEach(p => {
+        if (['pausado', 'cancelado', 'finalizado'].includes(p.status)) return;
+        if (p.data_call_apresentacao_oferta) {
+          const dt = new Date(p.data_call_apresentacao_oferta + 'T00:00:00');
+          if (dt >= new Date(today.getTime() - 86400000)) results.push({ mentorado_nome: p.mentorado_nome, tipo: '◆ Apres. Oferta', data: p.data_call_apresentacao_oferta, diff: Math.round((dt - today) / 86400000), producao_id: p.producao_id });
+        }
+        if (p.data_call_apresentacao_pos_funil) {
+          const dt = new Date(p.data_call_apresentacao_pos_funil + 'T00:00:00');
+          if (dt >= new Date(today.getTime() - 86400000)) results.push({ mentorado_nome: p.mentorado_nome, tipo: '▽◈ Apres. Pos+Funil', data: p.data_call_apresentacao_pos_funil, diff: Math.round((dt - today) / 86400000), producao_id: p.producao_id });
+        }
+        const docs = this.data.dsAllDocs.filter(d => d.producao_id === p.producao_id && d.prazo_entrega && d.estagio_atual !== 'finalizado');
+        docs.forEach(d => {
+          const dt = new Date(d.prazo_entrega + 'T00:00:00');
+          if (dt >= new Date(today.getTime() - 86400000)) {
+            const icon = d.tipo === 'oferta' ? '◆' : d.tipo === 'funil' ? '▽' : '◈';
+            results.push({ mentorado_nome: p.mentorado_nome, tipo: icon + ' Entrega ' + (this.dsDocTipoConfig(d.tipo)?.label || d.tipo), data: d.prazo_entrega, diff: Math.round((dt - today) / 86400000), producao_id: p.producao_id });
+          }
+        });
+      });
+      return results.sort((a, b) => a.diff - b.diff);
+    },
+
     dsPageKpis() {
       const prods = this.data.dsProducoes;
       const total = prods.length;
@@ -8391,7 +8495,10 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     get filteredDsProducoes() {
       let list = this.data.dsProducoes;
       // Status filter
-      if (this.ui.dsFilter !== 'all') {
+      if (this.ui.dsFilter === 'all') {
+        // Hide paused/cancelled by default
+        list = list.filter(p => !['pausado', 'cancelado'].includes(p.status));
+      } else {
         const statusMap = {
           nao_iniciado: ['nao_iniciado', 'call_estrategia'],
           producao: ['producao'],
@@ -8403,6 +8510,10 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         };
         const statuses = statusMap[this.ui.dsFilter] || [this.ui.dsFilter];
         list = list.filter(p => statuses.includes(p.status));
+      }
+      // Carteira filter
+      if (this.ui.dsCarteira && this.ui.dsCarteira !== 'all') {
+        list = list.filter(p => (p.carteira || '').toLowerCase() === this.ui.dsCarteira.toLowerCase());
       }
       // Search filter
       if (this.ui.dsSearchQuery) {
@@ -8547,6 +8658,40 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       }
     },
 
+    getStagePrazo(doc, stageId) {
+      if (!doc || !doc.prazos_etapas) return '';
+      return doc.prazos_etapas[stageId] || '';
+    },
+
+    async setStagePrazo(docId, producaoId, stageId, data) {
+      if (!sb) return;
+      const doc = this.data.dsAllDocs.find(d => d.id === docId);
+      if (!doc) return;
+      const prazos = { ...(doc.prazos_etapas || {}) };
+      if (data) prazos[stageId] = data;
+      else delete prazos[stageId];
+      const { error } = await sb.from('ds_documentos').update({ prazos_etapas: prazos }).eq('id', docId);
+      if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      doc.prazos_etapas = prazos;
+      const user = this.currentUserName;
+      const stageLabel = DS_ESTAGIOS.find(s => s.id === stageId)?.label || stageId;
+      await this._logDsEvento(producaoId, docId, 'nota', null, data, user, `Prazo ${stageLabel}: ${data || 'removido'}`);
+      this.toast(`Prazo ${stageLabel} atualizado`, 'success');
+    },
+
+    async setDocPrazo(docId, producaoId, data) {
+      if (!sb) return;
+      const { error } = await sb.from('ds_documentos').update({ prazo_entrega: data || null }).eq('id', docId);
+      if (error) this.toast('Erro: ' + error.message, 'error');
+      else {
+        const user = this.currentUserName;
+        await this._logDsEvento(producaoId, docId, 'nota', null, data, user, `prazo_entrega doc definido: ${data}`);
+        await this.loadDsData();
+        if (this.data.dsMenteeDetail) await this.loadDsMenteeDetail(producaoId);
+        this.toast('Prazo do dossiê atualizado', 'success');
+      }
+    },
+
     async createAjuste(producaoId, docId, descricao, responsavel, deadline) {
       if (!sb || !descricao) return;
       const mentoradoId = this.data.dsMenteeDetail?.mentorado_id;
@@ -8588,10 +8733,11 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const minStage = Math.min(...stages);
       const maxStage = Math.max(...stages);
 
+      // Ordem: 1=pendente 2=producao_ia 3=rev_mariza 4=rev_kaique 5=rev_queila 6=enviado 7=feedback 8=ajustes 9=aprovado 10=finalizado
       let newStatus;
       if (stages.every(s => s >= 10)) newStatus = 'finalizado';
-      else if (stages.every(s => s >= 7)) newStatus = 'enviado';
-      else if (stages.every(s => s >= 6)) newStatus = 'aprovado';
+      else if (stages.every(s => s >= 9)) newStatus = 'aprovado';
+      else if (stages.every(s => s >= 6)) newStatus = 'enviado';
       else if (minStage >= 3) newStatus = 'revisao';
       else if (minStage >= 2) newStatus = 'producao';
       else newStatus = 'nao_iniciado';
@@ -8661,12 +8807,162 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.data.dsMenteeDetail = null;
       this.data.dsEventos = [];
       this.data.dsAjustes = [];
+      this.data.dsBriefingFiles = [];
+    },
+
+    dsBriefingFileUrl(path) {
+      if (!sb || !path) return '#';
+      const { data } = sb.storage.from('dossie-briefings').getPublicUrl(path);
+      return data?.publicUrl || '#';
+    },
+
+    async dsDeleteProducao(producaoId) {
+      if (!sb || !producaoId) return;
+      const prod = this.data.dsProducoes.find(p => p.producao_id === producaoId);
+      const nome = prod?.mentorado_nome || 'esta produção';
+      if (!confirm(`Excluir a produção de dossiê de "${nome}"?\n\nIsso remove todos os documentos, ajustes, eventos e arquivos associados. Esta ação não pode ser desfeita.`)) return;
+      try {
+        // Delete storage files
+        const files = this.data.dsBriefingFiles || [];
+        if (files.length) {
+          const paths = files.map(f => f.storage_path);
+          const { error: storageErr } = await sb.storage.from('dossie-briefings').remove(paths);
+          if (storageErr) console.warn('[DS] storage remove error (continuing):', storageErr);
+        }
+        // Delete producao (CASCADE removes docs, ajustes, eventos, briefing_files)
+        const { error } = await sb.from('ds_producoes').delete().eq('id', producaoId);
+        if (error) throw error;
+        this.closeDsDetail();
+        await this.loadDsData();
+        this.toast(`Produção de "${nome}" excluída`, 'success');
+      } catch (e) {
+        console.error('[DS] deleteProducao error:', e);
+        this.toast('Erro ao excluir: ' + (e.message || e), 'error');
+      }
+    },
+
+    // --- DS Create Production ---
+    async openDsCreateModal() {
+      this.ui.dsCreateModal = true;
+      this.ui.dsCreateForm = { mentorado_id: '', responsavel: '', briefing: '', docs: ['oferta', 'funil', 'conteudo'] };
+      this.ui.dsCreateFiles = [];
+      // Load mentorados list if not cached
+      if (!this._dsMentoradosList) {
+        const { data } = await sb.from('mentorados').select('id, nome').eq('status', 'ativo').not('consultor_responsavel', 'is', null).order('nome');
+        this._dsMentoradosList = data || [];
+      }
+    },
+
+    get dsMentoradosList() { return this._dsMentoradosList || []; },
+
+    async dsCreateProducao() {
+      if (!sb) return;
+      const f = this.ui.dsCreateForm;
+      if (!f.mentorado_id) { this.toast('Selecione um mentorado', 'warning'); return; }
+      if (!f.docs.length) { this.toast('Selecione pelo menos um dossiê', 'warning'); return; }
+
+      this.ui.dsCreateUploading = true;
+      try {
+        // 1. Create producao
+        const { data: prod, error: prodErr } = await sb.from('ds_producoes').insert({
+          mentorado_id: parseInt(f.mentorado_id),
+          status: 'nao_iniciado',
+          responsavel_atual: f.responsavel || null,
+          briefing: f.briefing || null,
+        }).select().single();
+        if (prodErr) throw prodErr;
+
+        // 2. Create documents
+        const docs = f.docs.map((tipo, i) => ({
+          producao_id: prod.id,
+          mentorado_id: parseInt(f.mentorado_id),
+          tipo,
+          titulo: tipo === 'oferta' ? 'Dossiê de Oferta' : tipo === 'funil' ? 'Dossiê de Funil' : 'Dossiê de Posicionamento',
+          estagio_atual: 'pendente',
+          responsavel_atual: f.responsavel || null,
+          ordem: i + 1,
+        }));
+        const { error: docsErr } = await sb.from('ds_documentos').insert(docs);
+        if (docsErr) throw docsErr;
+
+        // 3. Upload files
+        for (const file of this.ui.dsCreateFiles) {
+          const path = `${prod.id}/${Date.now()}_${file.name}`;
+          const { error: uploadErr } = await sb.storage.from('dossie-briefings').upload(path, file);
+          if (!uploadErr) {
+            await sb.from('ds_briefing_files').insert({
+              producao_id: prod.id,
+              nome: file.name,
+              tipo: file.type,
+              tamanho: file.size,
+              storage_path: path,
+              uploaded_by: this.currentUserName,
+            });
+          }
+        }
+
+        // 4. Log event
+        await this._logDsEvento(prod.id, null, 'nota', null, 'producao_criada', this.currentUserName, 'Produção criada com briefing');
+
+        this.ui.dsCreateModal = false;
+        await this.loadDsData();
+        this.toast('Produção criada com sucesso!', 'success');
+      } catch (e) {
+        console.error('[DS] createProducao error:', e);
+        this.toast('Erro ao criar: ' + (e.message || e), 'error');
+      } finally {
+        this.ui.dsCreateUploading = false;
+      }
+    },
+
+    dsToggleDocType(tipo) {
+      const idx = this.ui.dsCreateForm.docs.indexOf(tipo);
+      if (idx >= 0) this.ui.dsCreateForm.docs.splice(idx, 1);
+      else this.ui.dsCreateForm.docs.push(tipo);
+    },
+
+    dsHandleFileInput(event) {
+      const files = Array.from(event.target.files || []);
+      this.ui.dsCreateFiles.push(...files);
+      event.target.value = '';
+    },
+
+    dsRemoveFile(idx) {
+      this.ui.dsCreateFiles.splice(idx, 1);
+    },
+
+    async dsStartRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const recorder = new MediaRecorder(stream);
+        const chunks = [];
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = () => {
+          const blob = new Blob(chunks, { type: 'audio/webm' });
+          const file = new File([blob], `audio_${Date.now()}.webm`, { type: 'audio/webm' });
+          this.ui.dsCreateFiles.push(file);
+          stream.getTracks().forEach(t => t.stop());
+          this.ui.dsRecording = false;
+          this.toast('Audio gravado', 'success');
+        };
+        recorder.start();
+        this.ui.dsMediaRecorder = recorder;
+        this.ui.dsRecording = true;
+      } catch (e) {
+        this.toast('Erro ao acessar microfone: ' + e.message, 'error');
+      }
+    },
+
+    dsStopRecording() {
+      if (this.ui.dsMediaRecorder && this.ui.dsMediaRecorder.state === 'recording') {
+        this.ui.dsMediaRecorder.stop();
+      }
     },
 
     dsFormatDate(d) {
       if (!d) return '-';
-      const dt = new Date(d);
-      return dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      const parts = String(d).slice(0, 10).split('-');
+      return parts[2] + '/' + parts[1];
     },
 
     dsPrazoClass(prazo) {

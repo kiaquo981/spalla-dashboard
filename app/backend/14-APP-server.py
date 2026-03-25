@@ -54,7 +54,7 @@ SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
 GOOGLE_CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID', 'primary')
 
 # ===== HETZNER S3 CONFIG =====
-S3_ACCESS_KEY = os.environ.get('S3_ACCESS_KEY', '')
+S3_ACCESS_KEY = os.environ.get('S3_ACCESS_KEY', '') or os.environ.get('S3_ACESS_KEY', '')
 S3_SECRET_KEY = os.environ.get('S3_SECRET_KEY', '')
 S3_BUCKET     = os.environ.get('S3_BUCKET', 'case-evolution-media')
 S3_ENDPOINT   = os.environ.get('S3_ENDPOINT', 'hel1.your-objectstorage.com')
@@ -89,6 +89,19 @@ if not JWT_SECRET:
 JWT_ALGORITHM = 'HS256'
 ACCESS_TOKEN_EXPIRY_MINUTES = 60
 REFRESH_TOKEN_EXPIRY_DAYS = 7
+
+# ===== API KEY CONFIG =====
+STATIC_API_KEYS = {}
+_raw_keys = os.environ.get('API_KEYS', '')
+if _raw_keys:
+    for entry in _raw_keys.split(','):
+        entry = entry.strip()
+        if ':' in entry:
+            k, label = entry.split(':', 1)
+            STATIC_API_KEYS[k.strip()] = label.strip()
+        elif entry:
+            STATIC_API_KEYS[entry] = 'default'
+
 # ===== AUTH FUNCTIONS (Supabase-backed) =====
 def hash_password(password):
     """Hash password using bcrypt (falls back to SHA-256 if bcrypt unavailable)"""
@@ -149,6 +162,45 @@ def verify_jwt_token(token):
         return None
     except jwt.InvalidTokenError:
         return None
+
+def verify_api_key(key):
+    """Verify API key — checks static keys first, then Supabase api_keys table."""
+    if not key:
+        return None
+    if key in STATIC_API_KEYS:
+        return {'label': STATIC_API_KEYS[key], 'source': 'env'}
+    try:
+        result = supabase_request('GET',
+            f'api_keys?select=id,label,role,active'
+            f'&key_hash=eq.{hashlib.sha256(key.encode()).hexdigest()}'
+            f'&active=eq.true&limit=1')
+        if isinstance(result, list) and result:
+            supabase_request('PATCH',
+                f'api_keys?id=eq.{result[0]["id"]}',
+                {'last_used_at': datetime.now(timezone.utc).isoformat()})
+            return {'label': result[0].get('label', ''), 'source': 'supabase',
+                    'role': result[0].get('role', 'integration')}
+    except Exception as e:
+        log_error('APIKeys', f'verify_api_key failed: {e}')
+    return None
+
+
+def check_auth_any(headers):
+    """Check auth via JWT Bearer OR X-API-Key header."""
+    auth_header = headers.get('Authorization', '')
+    if auth_header.startswith('Bearer '):
+        payload = verify_jwt_token(auth_header[7:])
+        if payload and payload.get('type') != 'refresh':
+            return {'method': 'jwt', 'email': payload.get('email', ''),
+                    'role': payload.get('role', 'equipe'), 'payload': payload}
+    api_key = headers.get('X-API-Key', '')
+    if api_key:
+        result = verify_api_key(api_key)
+        if result:
+            return {'method': 'api_key', 'label': result['label'],
+                    'role': result.get('role', 'integration')}
+    return None
+
 
 # Auth users stored in Supabase table 'auth_users'
 
@@ -324,7 +376,7 @@ def get_gcal_service():
         from googleapiclient.discovery import build
 
         SCOPES = ['https://www.googleapis.com/auth/calendar']
-        sa_json = os.environ.get('GOOGLE_SA_JSON', '')
+        sa_json = os.environ.get('GOOGLE_SA_JSON', '') or os.environ.get('GOOGLE_SA_CREDENTIALS_B64', '')
 
         if sa_json:
             info = json.loads(base64.b64decode(sa_json))
@@ -451,23 +503,34 @@ _sheets_last_result = None
 
 
 def get_sheets_service():
-    """Initialize Google Sheets API service using service account"""
+    """Initialize Google Sheets API service using service account (env var or file)"""
     global _sheets_service
     if _sheets_service:
         return _sheets_service
 
     try:
+        import base64
         from google.oauth2 import service_account
         from googleapiclient.discovery import build
 
-        if not os.path.exists(GOOGLE_SA_PATH):
-            log_error('Sheets', f'Service account not found at {GOOGLE_SA_PATH}')
+        SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
+
+        sa_json = os.environ.get('GOOGLE_SA_JSON', '') or os.environ.get('GOOGLE_SA_CREDENTIALS_B64', '')
+        if sa_json:
+            info = json.loads(base64.b64decode(sa_json))
+            credentials = service_account.Credentials.from_service_account_info(
+                info, scopes=SCOPES
+            )
+            print('[Sheets] using GOOGLE_SA_JSON/GOOGLE_SA_CREDENTIALS_B64')
+        elif os.path.exists(GOOGLE_SA_PATH):
+            credentials = service_account.Credentials.from_service_account_file(
+                GOOGLE_SA_PATH, scopes=SCOPES
+            )
+            print(f'[Sheets] using GOOGLE_SA_PATH: {GOOGLE_SA_PATH}')
+        else:
+            log_error('Sheets', f'No credentials found (GOOGLE_SA_JSON not set, {GOOGLE_SA_PATH} not found)')
             return None
 
-        SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
-        credentials = service_account.Credentials.from_service_account_file(
-            GOOGLE_SA_PATH, scopes=SCOPES
-        )
         _sheets_service = build('sheets', 'v4', credentials=credentials)
         return _sheets_service
     except Exception as e:
@@ -1484,17 +1547,18 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': 'CLICKUP_API_TOKEN not configured'}, 500)
             return
 
-        # Sprint list IDs — id == list_id para bater com god_lists.id no Supabase
+        # All known lists — sprint lists + main backlog
         sprint_lists = [
             {'id': '901113377455', 'list_id': '901113377455', 'nome': 'Sprint 1 (3/16 - 3/22)', 'inicio': '2026-03-16', 'fim': '2026-03-22'},
             {'id': '901113377456', 'list_id': '901113377456', 'nome': 'Sprint 2 (3/23 - 3/29)', 'inicio': '2026-03-23', 'fim': '2026-03-29'},
             {'id': '901113377457', 'list_id': '901113377457', 'nome': 'Sprint 3 (3/30 - 4/5)',  'inicio': '2026-03-30', 'fim': '2026-04-05'},
         ]
+        main_list = {'id': '901113375992', 'list_id': '901113375992', 'nome': 'Backlog Geral', 'inicio': '2026-01-01', 'fim': '2099-12-31'}
 
         today_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
         active = next(
             (s for s in sprint_lists if s['inicio'] <= today_str <= s['fim']),
-            sprint_lists[0]
+            sprint_lists[-1]  # Fallback to last sprint if none matches today
         )
 
         headers = {'Authorization': token, 'Content-Type': 'application/json'}
@@ -1517,15 +1581,30 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             return 'backlog'
 
         try:
+            # Fetch sprint tasks
             data = clickup_get(
                 f"https://api.clickup.com/api/v2/list/{active['list_id']}/task"
                 f"?include_closed=true&subtasks=true&page=0"
             )
+            all_items = data.get('tasks', [])
+
+            # Also fetch main-list (backlog) and merge — sprint stays as active reference
+            if main_list['list_id'] != active['list_id']:
+                try:
+                    backlog_data = clickup_get(
+                        f"https://api.clickup.com/api/v2/list/{main_list['list_id']}/task"
+                        f"?include_closed=true&subtasks=true&page=0"
+                    )
+                    # Add backlog tasks that aren't already in the sprint
+                    sprint_ids = {t['id'] for t in all_items}
+                    for t in backlog_data.get('tasks', []):
+                        if t['id'] not in sprint_ids:
+                            all_items.append(t)
+                except Exception:
+                    pass  # Non-fatal: backlog fetch failure doesn't block sprint view
         except Exception as e:
             self._send_json({'error': f'ClickUp API error: {e}'}, 502)
             return
-
-        all_items = data.get('tasks', [])
         # Separate parent tasks from subtasks (subtasks have a non-null 'parent' field)
         tasks     = [t for t in all_items if not t.get('parent')]
         subtasks  = [t for t in all_items if t.get('parent')]
@@ -1627,7 +1706,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': 'CLICKUP_API_TOKEN not configured'}, 500)
             return
 
-        sprint_list_ids = ['901113377455', '901113377456', '901113377457']
+        sprint_list_ids = ['901113375992', '901113377455', '901113377456', '901113377457']
         headers = {'Authorization': token, 'Content-Type': 'application/json'}
 
         def clickup_get(url):
@@ -1782,7 +1861,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({
                 'status': 'ok',
                 'zoom_configured': bool(ZOOM_ACCOUNT_ID and ZOOM_CLIENT_ID),
-                'gcal_configured': os.path.exists(GOOGLE_SA_PATH),
+                'gcal_configured': bool(os.environ.get('GOOGLE_SA_JSON') or os.environ.get('GOOGLE_SA_CREDENTIALS_B64') or os.path.exists(GOOGLE_SA_PATH)),
                 'supabase_configured': bool(SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY),
                 'sheets_configured': get_sheets_service() is not None,
                 'openai_configured': bool(OPENAI_API_KEY),
@@ -1811,6 +1890,19 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         # ===== Biblioteca =====
         elif self.path.startswith('/api/biblioteca'):
             self._handle_biblioteca_get()
+        # ===== API Keys Management =====
+        elif self.path == '/api/keys':
+            self._handle_list_api_keys()
+        # ===== Root =====
+        elif self.path == '/' or self.path == '':
+            self._send_json({
+                'service': 'Spalla Dashboard API',
+                'version': '1.0.0',
+                'status': 'operational',
+                'docs': 'https://spalla-dashboard.vercel.app/api-docs',
+                'health': '/api/health',
+                'endpoints': 58,
+            })
         else:
             super().do_GET()
 
@@ -1865,10 +1957,6 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_copilot()
         elif self.path == '/api/ds/update-stage':
             self._handle_ds_update_stage()
-        elif self.path == '/api/financial/update-status':
-            self._handle_financial_update_status()
-        elif self.path == '/api/financial/add-note':
-            self._handle_financial_add_note()
         # ===== Mentee Groups =====
         elif self.path == '/api/mentee-groups':
             self._handle_post_group()
@@ -1877,6 +1965,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_post_group_member(_m.group(1))
         elif self.path == '/api/clickup/sync-subtasks':
             self._handle_clickup_sync_subtasks()
+        # ===== API Keys Management =====
+        elif self.path == '/api/keys/generate':
+            self._handle_generate_api_key()
         else:
             self._send_json({'error': 'Not found'}, 404)
 
@@ -1901,6 +1992,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         elif re.match(r'^/api/mentee-groups/(\d+)/members/(\d+)$', self.path):
             _m = re.match(r'^/api/mentee-groups/(\d+)/members/(\d+)$', self.path)
             self._handle_delete_group_member(_m.group(1), _m.group(2))
+        # ===== API Keys Management =====
+        elif re.match(r'^/api/keys/([0-9a-f-]+)$', self.path):
+            _m = re.match(r'^/api/keys/([0-9a-f-]+)$', self.path)
+            self._handle_revoke_api_key(_m.group(1))
         else:
             self._send_json({'error': 'Not found'}, 404)
 
@@ -1911,6 +2006,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             Uses vw_wa_mentee_inbox + wa_topics to compute priority scores.
             Returns: [{ id, nome, score, level, factors }] sorted by score desc.
             """
+            auth = check_auth_any(self.headers)
+            if not auth:
+                self._send_json({'error': 'Authentication required'}, 401)
+                return
             try:
                 inbox = supabase_request('GET',
                     'vw_wa_mentee_inbox?select=*&order=horas_sem_resposta_equipe.desc.nullslast')
@@ -2038,7 +2137,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         Returns: { reply: str, context_used: bool }
         """
         try:
-            body = self._read_json_body()
+            body = json.loads(self._read_body())
             mentee_id = body.get('mentee_id')
             user_message = (body.get('message') or '').strip()
             history = body.get('history') or []
@@ -2199,6 +2298,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
           search:        ilike match on nome
           sort:          sla_desc (default) | unread_desc | last_message_desc
         """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Authentication required'}, 401)
+            return
         parsed = urllib.parse.urlparse(self.path)
         params = urllib.parse.parse_qs(parsed.query)
 
@@ -2721,6 +2824,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': str(e)}, 500)
 
     def _handle_get_mentees(self):
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Authentication required'}, 401)
+            return
         result = get_mentees_with_email()
         self._send_json(result if isinstance(result, list) else [result])
 
@@ -3476,12 +3583,13 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': 'Nome and email are required'}, 400)
                 return
 
-            # Generate temp password: first name lowercase + last 4 digits of whatsapp
+            # Generate temp password: first name lowercase + last 4 digits of whatsapp + random suffix
             first_name = nome.split()[0].lower()
             # Remove non-digit chars and get last 4 digits
             digits = ''.join(filter(str.isdigit, whatsapp))
             last4 = digits[-4:] if len(digits) >= 4 else digits
-            temp_password = f"{first_name}{last4}"
+            random_suffix = secrets.token_hex(2)  # 4 random hex chars
+            temp_password = f"{first_name}{last4}{random_suffix}"
 
             if len(temp_password) < 4:
                 self._send_json({'error': 'Could not generate valid password — check nome and whatsapp'}, 400)
@@ -3518,10 +3626,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({
                 'success': True,
                 'user_id': user_id,
-                'credentials': {
-                    'email': email,
-                    'temp_password': temp_password,
-                }
+                'email': email,
             }, 201)
         except Exception as e:
             log_error('WELCOME', f'Welcome flow registration failed: {e}')
@@ -3732,6 +3837,102 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         query = base + ('&' + '&'.join(filters) if filters else '') + '&order=mentee_nome,tipo,criado_em'
         result = supabase_request('GET', query)
         self._send_json(result if isinstance(result, list) else [])
+
+    # ===== API KEYS MANAGEMENT =====
+
+    def _handle_generate_api_key(self):
+        """POST /api/keys/generate — Generate a new API key. Requires admin JWT."""
+        try:
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Admin JWT required'}, 401)
+                return
+            payload = verify_jwt_token(auth_header[7:])
+            if not payload or payload.get('type') == 'refresh':
+                self._send_json({'error': 'Invalid token'}, 401)
+                return
+            if payload.get('role') != 'admin':
+                self._send_json({'error': 'Admin role required to generate API keys'}, 403)
+                return
+
+            body = json.loads(self._read_body())
+            label = (body.get('label') or '').strip()
+            if not label:
+                self._send_json({'error': 'label is required'}, 400)
+                return
+            role = body.get('role', 'integration')
+            if role not in ('integration', 'readonly'):
+                self._send_json({'error': 'role must be integration or readonly'}, 400)
+                return
+
+            raw_key = f'sk_spalla_{secrets.token_hex(24)}'
+            key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+            key_prefix = raw_key[:14] + '...'
+
+            result = supabase_request('POST', 'api_keys', {
+                'key_hash': key_hash, 'key_prefix': key_prefix,
+                'label': label, 'role': role, 'active': True,
+                'created_by': payload.get('email', ''),
+            })
+            if isinstance(result, dict) and result.get('error'):
+                self._send_json({'error': f'Failed to store key: {result["error"]}'}, 500)
+                return
+            key_id = result[0]['id'] if isinstance(result, list) and result else None
+            self._send_json({
+                'key': raw_key, 'key_id': key_id, 'key_prefix': key_prefix,
+                'label': label, 'role': role,
+                'warning': 'Store this key safely — it will NOT be shown again.',
+            }, 201)
+        except Exception as e:
+            log_error('APIKeys', f'generate failed: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_list_api_keys(self):
+        """GET /api/keys — List all API keys (prefix only). Requires admin JWT."""
+        try:
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Admin JWT required'}, 401)
+                return
+            payload = verify_jwt_token(auth_header[7:])
+            if not payload or payload.get('type') == 'refresh':
+                self._send_json({'error': 'Invalid token'}, 401)
+                return
+            if payload.get('role') != 'admin':
+                self._send_json({'error': 'Admin role required'}, 403)
+                return
+            result = supabase_request('GET',
+                'api_keys?select=id,key_prefix,label,role,active,created_at,last_used_at,created_by'
+                '&order=created_at.desc')
+            self._send_json(result if isinstance(result, list) else [])
+        except Exception as e:
+            log_error('APIKeys', f'list failed: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_revoke_api_key(self, key_id):
+        """DELETE /api/keys/{id} — Revoke an API key. Requires admin JWT."""
+        try:
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                self._send_json({'error': 'Admin JWT required'}, 401)
+                return
+            payload = verify_jwt_token(auth_header[7:])
+            if not payload or payload.get('type') == 'refresh':
+                self._send_json({'error': 'Invalid token'}, 401)
+                return
+            if payload.get('role') != 'admin':
+                self._send_json({'error': 'Admin role required'}, 403)
+                return
+            result = supabase_request('PATCH',
+                f'api_keys?id=eq.{key_id}&select=id,label,active',
+                {'active': False})
+            if isinstance(result, list) and result:
+                self._send_json({'ok': True, 'key_id': key_id, 'revoked': True})
+            else:
+                self._send_json({'error': 'Key not found'}, 404)
+        except Exception as e:
+            log_error('APIKeys', f'revoke failed: {e}')
+            self._send_json({'error': str(e)}, 500)
 
     def log_message(self, format, *args):
         path = str(args[0]) if args else ''
