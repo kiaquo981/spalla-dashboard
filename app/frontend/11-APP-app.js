@@ -5198,6 +5198,19 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.toast('Tarefa salva', 'success');
     },
 
+    async updateTaskField(taskId, field, value) {
+      const t = this.data.tasks.find(x => x.id === taskId);
+      if (!t) return;
+      const old = t[field];
+      t[field] = value;
+      t.updated_at = new Date().toISOString();
+      this._cacheTasksLocal();
+      if (sb) {
+        const { error } = await sb.from('god_tasks').update({ [field]: value, updated_at: t.updated_at }).eq('id', taskId);
+        if (error) { t[field] = old; this._cacheTasksLocal(); this.toast('Erro ao atualizar ' + field, 'error'); }
+      }
+    },
+
     async updateTaskStatus(taskId, newStatus) {
       const t = this.data.tasks.find(x => x.id === taskId);
       if (!t) return;
