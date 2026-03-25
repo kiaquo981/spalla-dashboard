@@ -662,6 +662,7 @@ function operon() {
       loading: false,
       activeSec: null,
       renderedHtml: '',
+      editMode: false,
     },
     _pendingBibliotecaSlug: null,
 
@@ -2045,6 +2046,30 @@ function operon() {
         console.error('[Biblioteca] doc load failed', e);
       } finally {
         this.bib.docLoading = false;
+      }
+    },
+
+    async bibSaveDoc() {
+      const doc = this.bib.activeDoc;
+      if (!doc || !doc.id) return;
+      try {
+        const { error } = await this.sb.from('sp_documentos')
+          .update({ conteudo_md: doc.conteudo_md })
+          .eq('id', doc.id);
+        if (error) throw error;
+        // Re-render preview
+        this.bib.renderedHtml = (typeof marked !== 'undefined')
+          ? marked.parse(doc.conteudo_md || '') : doc.conteudo_md;
+        this.bib.editMode = false;
+        // Unmount editor
+        const editorEl = this.$refs.bibEditor;
+        if (editorEl && window.OperonEditor?.isActive(editorEl)) {
+          window.OperonEditor.unmount(editorEl);
+        }
+        console.log('[Biblioteca] doc saved');
+      } catch (e) {
+        console.error('[Biblioteca] save failed', e);
+        alert('Erro ao salvar: ' + (e.message || e));
       }
     },
 
