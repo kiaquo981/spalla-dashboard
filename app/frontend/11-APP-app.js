@@ -189,6 +189,8 @@ function operon() {
       taskFilter: 'all', // all | pendente | em_andamento | concluida | atrasada
       taskAssignee: '', // '' = todos; '__mine__' = minhas tarefas
       taskModal: false,
+      taskRichEdit: false,
+      noteRichEdit: false,
       taskEditId: null,
       taskView: 'board', // 'list' | 'board'
       taskDetailDrawer: null, // task ID for detail drawer
