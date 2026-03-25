@@ -680,6 +680,7 @@ function operon() {
       activeSec: null,
       renderedHtml: '',
       editMode: false,
+      expandedMentees: {},
     },
     _pendingBibliotecaSlug: null,
 
@@ -2094,6 +2095,20 @@ function operon() {
       } finally {
         this.bib.docLoading = false;
       }
+    },
+
+    get bibGroupedDocs() {
+      const docs = this.bib.filtered || [];
+      const groups = {};
+      for (const doc of docs) {
+        const mentee = doc.mentee_nome || 'Geral';
+        if (!groups[mentee]) groups[mentee] = { mentee, docs: [] };
+        groups[mentee].docs.push(doc);
+      }
+      // Sort groups alphabetically, "Geral" last
+      return Object.values(groups).sort((a, b) =>
+        a.mentee === 'Geral' ? 1 : b.mentee === 'Geral' ? -1 : a.mentee.localeCompare(b.mentee)
+      );
     },
 
     async navigateToDossieDoc(mentoradoId, tipo) {
