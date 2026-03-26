@@ -80,6 +80,12 @@ CHUNK_OVERLAP_TOKENS = 200
 CHUNK_CONTEXT_SIZE_TOKENS = 2000   # for multi-pass context chunks
 MIN_CHUNK_TOKENS = 50
 
+# ===== CHATWOOT CONFIG =====
+CHATWOOT_BASE_URL = os.environ.get('CHATWOOT_BASE_URL', '')  # e.g. https://chat.spalla.app
+CHATWOOT_API_TOKEN = os.environ.get('CHATWOOT_API_TOKEN', '')  # user or bot token
+CHATWOOT_ACCOUNT_ID = os.environ.get('CHATWOOT_ACCOUNT_ID', '1')
+CHATWOOT_WEBHOOK_SECRET = os.environ.get('CHATWOOT_WEBHOOK_SECRET', '')  # HMAC verification
+
 # ===== JWT AUTH CONFIG =====
 JWT_SECRET = os.environ.get('JWT_SECRET')
 if not JWT_SECRET:
@@ -1893,6 +1899,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         # ===== API Keys Management =====
         elif self.path == '/api/keys':
             self._handle_list_api_keys()
+        # ===== Chatwoot Messages =====
+        elif re.match(r'^/api/mentees/(\d+)/messages$', self.path):
+            _m = re.match(r'^/api/mentees/(\d+)/messages$', self.path)
+            self._handle_get_chatwoot_messages(_m.group(1))
         # ===== Root =====
         elif self.path == '/' or self.path == '':
             self._send_json({
@@ -1968,6 +1978,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         # ===== API Keys Management =====
         elif self.path == '/api/keys/generate':
             self._handle_generate_api_key()
+        # ===== Chatwoot Webhook =====
+        elif self.path == '/api/webhooks/chatwoot':
+            self._handle_chatwoot_webhook()
+        # ===== Fabric Pattern Runner =====
+        elif self.path == '/api/fabric/run':
+            self._handle_fabric_run()
         else:
             self._send_json({'error': 'Not found'}, 404)
 
@@ -3930,6 +3946,197 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             log_error('APIKeys', f'revoke failed: {e}')
             self._send_json({'error': str(e)}, 500)
 
+    # ===== CHATWOOT INTEGRATION (EPIC 1) =====
+
+    def _verify_chatwoot_signature(self, raw_body):
+        """Verify Chatwoot webhook HMAC-SHA256 signature"""
+        if not CHATWOOT_WEBHOOK_SECRET:
+            return True  # skip if not configured
+        sig_header = self.headers.get('X-Chatwoot-Signature', '')
+        timestamp = self.headers.get('X-Chatwoot-Timestamp', '')
+        if not sig_header:
+            return False
+        payload = f'{timestamp}.{raw_body}'.encode()
+        expected = 'sha256=' + hmac.new(
+            CHATWOOT_WEBHOOK_SECRET.encode(), payload, hashlib.sha256
+        ).hexdigest()
+        return hmac.compare_digest(sig_header, expected)
+
+    def _handle_chatwoot_webhook(self):
+        """POST /api/webhooks/chatwoot — Receive Chatwoot webhook events"""
+        try:
+            raw = self._read_body()
+            if not self._verify_chatwoot_signature(raw):
+                self._send_json({'error': 'Invalid signature'}, 401)
+                return
+            event = json.loads(raw)
+            event_type = event.get('event', '')
+            log_info('Chatwoot', f'Webhook: {event_type}')
+
+            if event_type == 'message_created':
+                self._cw_on_message_created(event)
+            elif event_type == 'conversation_status_changed':
+                self._cw_on_conversation_status(event)
+            elif event_type == 'conversation_created':
+                self._cw_on_conversation_created(event)
+
+            self._send_json({'ok': True})
+        except Exception as e:
+            log_error('Chatwoot', f'Webhook error: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    def _cw_on_message_created(self, event):
+        """Handle new message — update mentorado last_contact"""
+        try:
+            sender = event.get('sender', {})
+            phone = sender.get('phone_number', '').strip()
+            if not phone:
+                return
+            # Normalize phone: remove +, spaces
+            phone_clean = phone.replace('+', '').replace(' ', '').replace('-', '')
+            # Find mentorado by phone (try last 11 digits for BR numbers)
+            phone_suffix = phone_clean[-11:] if len(phone_clean) > 11 else phone_clean
+            mentorados = supabase_request('GET',
+                f'mentorados?select=id,nome,telefone&telefone=ilike.*{phone_suffix}&limit=1')
+            if isinstance(mentorados, list) and mentorados:
+                m = mentorados[0]
+                supabase_request('PATCH', f"mentorados?id=eq.{m['id']}", {
+                    'last_contact': datetime.now(timezone.utc).isoformat(),
+                })
+                log_info('Chatwoot', f"Updated last_contact for {m['nome']} (msg from WA)")
+
+                # Log activity
+                msg_content = event.get('content', '')[:200]
+                msg_type = event.get('message_type', '')
+                direction = 'inbound' if msg_type == 'incoming' else 'outbound'
+                supabase_request('POST', 'chatwoot_messages', {
+                    'mentorado_id': m['id'],
+                    'direction': direction,
+                    'content_preview': msg_content,
+                    'chatwoot_conversation_id': event.get('conversation', {}).get('id'),
+                    'chatwoot_message_id': event.get('id'),
+                    'sender_name': sender.get('name', ''),
+                    'channel': event.get('conversation', {}).get('channel', 'whatsapp'),
+                })
+        except Exception as e:
+            log_error('Chatwoot', f'message_created handler: {e}', e)
+
+    def _cw_on_conversation_status(self, event):
+        """Handle conversation status change"""
+        try:
+            conv = event.get('conversation', {}) if 'conversation' in event else event
+            status = conv.get('status', '')
+            contact = conv.get('meta', {}).get('sender', {})
+            phone = contact.get('phone_number', '')
+            log_info('Chatwoot', f"Conversation status → {status} (phone: {phone})")
+        except Exception as e:
+            log_error('Chatwoot', f'status_changed handler: {e}', e)
+
+    def _cw_on_conversation_created(self, event):
+        """Handle new conversation — check if mentorado exists"""
+        try:
+            contact = event.get('meta', {}).get('sender', {})
+            phone = contact.get('phone_number', '').replace('+', '').replace(' ', '').replace('-', '')
+            if not phone:
+                return
+            phone_suffix = phone[-11:] if len(phone) > 11 else phone
+            mentorados = supabase_request('GET',
+                f'mentorados?select=id,nome&telefone=ilike.*{phone_suffix}&limit=1')
+            if isinstance(mentorados, list) and mentorados:
+                log_info('Chatwoot', f"New conversation from known mentorado: {mentorados[0]['nome']}")
+            else:
+                log_info('Chatwoot', f"New conversation from UNKNOWN phone: {phone}")
+        except Exception as e:
+            log_error('Chatwoot', f'conversation_created handler: {e}', e)
+
+    def _handle_get_chatwoot_messages(self, mentorado_id):
+        """GET /api/mentees/{id}/messages — Recent messages from Chatwoot log"""
+        try:
+            result = supabase_request('GET',
+                f'chatwoot_messages?mentorado_id=eq.{mentorado_id}'
+                f'&order=created_at.desc&limit=50'
+                f'&select=id,direction,content_preview,sender_name,channel,created_at')
+            self._send_json(result if isinstance(result, list) else [])
+        except Exception as e:
+            log_error('Chatwoot', f'get messages: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ===== CHATWOOT API CLIENT =====
+
+    def _chatwoot_api(self, method, endpoint, body=None):
+        """Call Chatwoot REST API"""
+        if not CHATWOOT_BASE_URL or not CHATWOOT_API_TOKEN:
+            return {'error': 'Chatwoot not configured'}
+        try:
+            url = f'{CHATWOOT_BASE_URL}/api/v1/accounts/{CHATWOOT_ACCOUNT_ID}/{endpoint}'
+            headers = {
+                'api_access_token': CHATWOOT_API_TOKEN,
+                'Content-Type': 'application/json',
+            }
+            data = json.dumps(body).encode() if body else None
+            req = urllib.request.Request(url, data=data, headers=headers, method=method)
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                return json.loads(resp.read())
+        except Exception as e:
+            log_error('Chatwoot', f'API {method} {endpoint}: {e}', e)
+            return {'error': str(e)}
+
+    # ===== FABRIC PATTERN RUNNER (EPIC 2) =====
+
+    def _handle_fabric_run(self):
+        """POST /api/fabric/run — Run a Fabric pattern on input text"""
+        try:
+            auth = check_auth_any(self.headers)
+            if not auth:
+                self._send_json({'error': 'Authentication required'}, 401)
+                return
+            body = json.loads(self._read_body())
+            pattern = body.get('pattern', '').strip()
+            input_text = body.get('input', '').strip()
+            model = body.get('model', 'claude-sonnet-4-20250514')
+
+            if not pattern or not input_text:
+                self._send_json({'error': 'pattern and input are required'}, 400)
+                return
+
+            # Security: pattern name must be alphanumeric + underscores/hyphens
+            if not re.match(r'^[a-zA-Z0-9_-]+$', pattern):
+                self._send_json({'error': 'Invalid pattern name'}, 400)
+                return
+
+            import subprocess
+            # Check if fabric is installed
+            fabric_path = os.environ.get('FABRIC_PATH', 'fabric')
+            try:
+                result = subprocess.run(
+                    [fabric_path, '-p', pattern, '-m', model],
+                    input=input_text, capture_output=True, text=True, timeout=120,
+                )
+                if result.returncode != 0:
+                    self._send_json({
+                        'error': f'Fabric error: {result.stderr[:500]}',
+                        'pattern': pattern,
+                    }, 500)
+                    return
+
+                output = result.stdout
+                log_info('Fabric', f'Pattern "{pattern}" completed ({len(output)} chars)')
+
+                self._send_json({
+                    'pattern': pattern,
+                    'model': model,
+                    'output': output,
+                    'chars': len(output),
+                })
+            except FileNotFoundError:
+                self._send_json({'error': 'Fabric CLI not installed. Install: brew install fabric'}, 503)
+            except subprocess.TimeoutExpired:
+                self._send_json({'error': 'Pattern execution timed out (120s)'}, 504)
+
+        except Exception as e:
+            log_error('Fabric', f'run failed: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
     def log_message(self, format, *args):
         path = str(args[0]) if args else ''
         if '/api/' in path:
@@ -3951,6 +4158,7 @@ if __name__ == '__main__':
     print(f'[Spalla] Sheets:   {"✓ service account found" if os.path.exists(GOOGLE_SA_PATH) else "✗ no service account"}')
     print(f'[Spalla] Embeddings: {EMBEDDING_PROVIDER} ({"✓ " + VOYAGE_EMBED_MODEL if VOYAGE_API_KEY else "✗ set VOYAGE_API_KEY"})')
     print(f'[Spalla] OpenAI:   {"✓ Whisper+Vision" if OPENAI_API_KEY else "✗ set OPENAI_API_KEY for audio/video/image"}')
+    print(f'[Spalla] Chatwoot: {"✓ " + CHATWOOT_BASE_URL if CHATWOOT_BASE_URL else "✗ set CHATWOOT_BASE_URL, CHATWOOT_API_TOKEN"}')
     print(f'[Spalla] Endpoints:')
     print(f'  POST /api/schedule-call    — Full scheduling (Zoom + Calendar + DB)')
     print(f'  POST /api/zoom/create-meeting')
@@ -3965,6 +4173,8 @@ if __name__ == '__main__':
     print(f'  GET  /api/storage/files     — List files by entity')
     print(f'  GET  /api/storage/status    — Storage overview & queue')
     print(f'  POST /api/storage/reprocess — Reprocess pending/failed files')
+    print(f'  POST /api/webhooks/chatwoot — Chatwoot webhook receiver')
+    print(f'  POST /api/fabric/run       — Run Fabric AI pattern')
     print(f'  GET  /api/health')
 
     # Start sheets sync background thread
