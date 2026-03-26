@@ -212,6 +212,13 @@ tags:
       conversation_status_changed), sincroniza contatos com mentorados
       no Supabase, e loga mensagens para historico por mentorado.
       Requer configuracao: CHATWOOT_BASE_URL, CHATWOOT_API_TOKEN.
+  - name: RAGAS Quality Gate
+    description: |
+      Avaliacao automatica de qualidade de dossies gerados por IA.
+      Usa RAGAS (Retrieval Augmented Generation Assessment) para medir
+      Faithfulness (fidelidade as fontes), Answer Correctness (precisao factual)
+      e Context Precision (relevancia das fontes). Score < 0.85 = revisao humana.
+      Resultados salvos automaticamente em dossie_qa_scores no Supabase.
   - name: Fabric AI
     description: |
       Runner de patterns de IA usando Fabric (danielmiessler/Fabric).
@@ -5326,6 +5333,95 @@ paths:
                   sender_name: "Lara"
                   channel: "whatsapp"
                   created_at: "2026-03-25T14:35:00Z"
+
+  # ===== RAGAS QUALITY GATE =====
+
+  /api/dossie/evaluate:
+    post:
+      tags: [RAGAS Quality Gate]
+      summary: Avaliar qualidade de dossie com RAGAS
+      description: |
+        Executa avaliacao de qualidade sobre um dossie gerado, comparando
+        com as transcricoes fonte. Retorna scores de Faithfulness (fidelidade),
+        Answer Correctness (precisao) e Context Precision (relevancia).
+
+        **Veredictos**:
+        - `approved`: todos os scores acima dos thresholds
+        - `needs_review`: algum score abaixo do threshold
+        - `failed`: faithfulness < 0.70 (dossie potencialmente alucinado)
+
+        **Thresholds padrao**: Faithfulness >= 0.85, Correctness >= 0.80, Precision >= 0.75
+
+        Se `mentorado_id` for fornecido, o score e salvo em `dossie_qa_scores`.
+      operationId: evaluateDossie
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dossie, sources]
+              properties:
+                dossie:
+                  type: string
+                  description: Texto completo do dossie gerado
+                sources:
+                  type: array
+                  items:
+                    type: string
+                  description: Lista de transcricoes fonte usadas na geracao
+                mentorado_id:
+                  type: integer
+                  description: ID do mentorado (se fornecido, salva score no banco)
+            example:
+              dossie: "### 1. Publico-Alvo\nMedicos e dentistas com consultorios faturando R$15-30k/mes..."
+              sources:
+                - "Queila: Danyella, seu publico ideal sao medicos e dentistas com consultorios..."
+              mentorado_id: 42
+      responses:
+        "200":
+          description: Avaliacao concluida
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  scores:
+                    type: object
+                    properties:
+                      faithfulness:
+                        type: number
+                        description: "0-1: cada claim do dossie tem base nas fontes?"
+                      answer_correctness:
+                        type: number
+                        description: "0-1: factualidade + similaridade semantica"
+                      context_precision:
+                        type: number
+                        description: "0-1: as fontes mais relevantes foram usadas?"
+                  verdict:
+                    type: string
+                    enum: [approved, needs_review, failed, error]
+                  thresholds:
+                    type: object
+                  details:
+                    type: object
+              example:
+                scores:
+                  faithfulness: 0.91
+                  answer_correctness: 0.87
+                  context_precision: 0.89
+                verdict: "approved"
+                thresholds:
+                  faithfulness: 0.85
+                  answer_correctness: 0.80
+                  context_precision: 0.75
+                details:
+                  dossie_chars: 15420
+                  source_count: 3
+                  source_total_chars: 48200
 
   # ===== FABRIC AI PATTERNS =====
 

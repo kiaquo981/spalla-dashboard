@@ -1,0 +1,88 @@
+# EPIC 4 — Promptfoo CI: Regression tests for AI patterns
+# Runs whenever files in ai/ are changed in a PR
+# Blocks merge if any pattern test fails
+
+name: AI Pattern Evaluation
+
+on:
+  pull_request:
+    paths:
+      - 'ai/**'
+      - 'prompts/**'
+      - 'patterns/**'
+
+jobs:
+  prompt-eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install promptfoo
+        run: npm install -g promptfoo
+
+      - name: Run pattern evaluations
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          echo "Running Promptfoo evaluations..."
+          FAILED=0
+
+          for config in ai/eval/*.yaml; do
+            echo "=== Evaluating: $config ==="
+            if promptfoo eval --config "$config" --no-cache --output "results-$(basename $config .yaml).json" 2>&1; then
+              echo "PASS: $config"
+            else
+              echo "FAIL: $config"
+              FAILED=1
+            fi
+          done
+
+          if [ "$FAILED" -eq 1 ]; then
+            echo "::error::One or more pattern evaluations failed. Check results above."
+            exit 1
+          fi
+
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: promptfoo-results
+          path: results-*.json
+          retention-days: 30
+
+      - name: Comment PR with results
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const glob = require('glob');
+            let body = '## AI Pattern Evaluation Results\n\n';
+
+            const files = fs.readdirSync('.').filter(f => f.startsWith('results-') && f.endsWith('.json'));
+            for (const file of files) {
+              const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+              const name = file.replace('results-', '').replace('.json', '');
+              const pass = data.results?.stats?.successes || 0;
+              const fail = data.results?.stats?.failures || 0;
+              const icon = fail > 0 ? '❌' : '✅';
+              body += `${icon} **${name}**: ${pass} passed, ${fail} failed\n`;
+            }
+
+            if (files.length === 0) {
+              body += '⚠️ No eval configs found in `ai/eval/`\n';
+            }
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
