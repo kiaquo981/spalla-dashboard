@@ -4126,9 +4126,22 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 return
 
             # Load pattern system prompt from file
-            patterns_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'ai', 'patterns')
-            if not os.path.isdir(patterns_dir):
-                patterns_dir = os.path.join(os.path.dirname(__file__), 'ai', 'patterns')
+            # Try multiple paths: relative to server.py, workdir, and absolute
+            _base = os.path.dirname(os.path.abspath(__file__))
+            _candidates = [
+                os.path.join(_base, '..', '..', 'ai', 'patterns'),  # dev: repo root
+                os.path.join(_base, 'ai', 'patterns'),              # Docker: /app/ai/patterns
+                os.path.join(os.getcwd(), 'ai', 'patterns'),        # cwd fallback
+                '/app/ai/patterns',                                   # Docker absolute
+            ]
+            patterns_dir = None
+            for _c in _candidates:
+                if os.path.isdir(_c):
+                    patterns_dir = _c
+                    break
+            if not patterns_dir:
+                self._send_json({'error': 'Patterns directory not found'}, 503)
+                return
             system_file = os.path.join(patterns_dir, pattern, 'system.md')
 
             if not os.path.exists(system_file):
