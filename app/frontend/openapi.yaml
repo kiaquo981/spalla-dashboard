@@ -205,6 +205,20 @@ tags:
       A key completa e exibida apenas uma vez na criacao — armazene com seguranca.
       Requer role `admin` para todas as operacoes. Keys podem ser listadas,
       geradas e revogadas (revogacao e irreversivel e imediata).
+  - name: Chatwoot
+    description: |
+      Integracao com Chatwoot para inbox unificada de WhatsApp e email.
+      Recebe webhooks do Chatwoot (message_created, conversation_created,
+      conversation_status_changed), sincroniza contatos com mentorados
+      no Supabase, e loga mensagens para historico por mentorado.
+      Requer configuracao: CHATWOOT_BASE_URL, CHATWOOT_API_TOKEN.
+  - name: Fabric AI
+    description: |
+      Runner de patterns de IA usando Fabric (danielmiessler/Fabric).
+      Permite executar 147+ patterns de processamento de texto via API,
+      incluindo 5 patterns customizados CASE: extract_oferta,
+      extract_posicionamento, extract_funil, analyze_call, lapidacao_perfil.
+      Cada pattern e um prompt reutilizavel e versionado em Markdown.
   - name: System
     description: |
       Health check, status de integracoes e informacoes gerais do servico.
@@ -5167,3 +5181,251 @@ paths:
               example:
                 error: "Key nao encontrada"
                 details: "Nenhuma API key com o ID fornecido."
+
+  # ===== CHATWOOT INTEGRATION =====
+
+  /api/webhooks/chatwoot:
+    post:
+      tags: [Chatwoot]
+      summary: Receber webhook do Chatwoot
+      description: |
+        Endpoint que recebe eventos do Chatwoot via webhook.
+        Suporta verificacao HMAC-SHA256 via header `X-Chatwoot-Signature`.
+        Eventos processados: `message_created` (atualiza last_contact do mentorado),
+        `conversation_created` (identifica mentorado por telefone),
+        `conversation_status_changed` (log de mudanca de status).
+        **Configurar no Chatwoot**: Settings > Integrations > Webhooks > Add.
+      operationId: chatwootWebhook
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event:
+                  type: string
+                  enum: [message_created, conversation_created, conversation_status_changed, conversation_updated, message_updated]
+                  description: Tipo do evento Chatwoot
+                id:
+                  type: integer
+                  description: ID da mensagem (para message_created)
+                content:
+                  type: string
+                  description: Conteudo da mensagem
+                message_type:
+                  type: string
+                  enum: [incoming, outgoing]
+                sender:
+                  type: object
+                  properties:
+                    phone_number:
+                      type: string
+                    name:
+                      type: string
+                conversation:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    channel:
+                      type: string
+                    status:
+                      type: string
+            example:
+              event: "message_created"
+              id: 12345
+              content: "Ola, gostaria de saber sobre a mentoria"
+              message_type: "incoming"
+              sender:
+                phone_number: "+5527999132594"
+                name: "Danyella Truiz"
+              conversation:
+                id: 789
+                channel: "whatsapp"
+                status: "open"
+      responses:
+        "200":
+          description: Webhook processado com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+              example:
+                ok: true
+        "401":
+          description: Assinatura HMAC invalida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Invalid signature"
+
+  /api/mentees/{mentee_id}/messages:
+    get:
+      tags: [Chatwoot]
+      summary: Historico de mensagens do mentorado
+      description: |
+        Retorna as ultimas 50 mensagens registradas pelo Chatwoot webhook
+        para o mentorado especificado. Inclui direcao (inbound/outbound),
+        preview do conteudo (primeiros 200 chars), canal e remetente.
+        Ordenado por data decrescente (mais recente primeiro).
+      operationId: getMenteeMessages
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: mentee_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID do mentorado no Supabase
+          example: 42
+      responses:
+        "200":
+          description: Lista de mensagens
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    direction:
+                      type: string
+                      enum: [inbound, outbound]
+                    content_preview:
+                      type: string
+                      description: Primeiros 200 caracteres da mensagem
+                    sender_name:
+                      type: string
+                    channel:
+                      type: string
+                      enum: [whatsapp, email, web]
+                    created_at:
+                      type: string
+                      format: date-time
+              example:
+                - id: 1
+                  direction: "inbound"
+                  content_preview: "Ola, gostaria de saber sobre a mentoria de estetica"
+                  sender_name: "Danyella Truiz"
+                  channel: "whatsapp"
+                  created_at: "2026-03-25T14:30:00Z"
+                - id: 2
+                  direction: "outbound"
+                  content_preview: "Oi Danyella! Que bom falar com voce. Vou te explicar como funciona..."
+                  sender_name: "Lara"
+                  channel: "whatsapp"
+                  created_at: "2026-03-25T14:35:00Z"
+
+  # ===== FABRIC AI PATTERNS =====
+
+  /api/fabric/run:
+    post:
+      tags: [Fabric AI]
+      summary: Executar pattern de IA
+      description: |
+        Executa um Fabric pattern sobre o texto fornecido.
+        Fabric e uma biblioteca de 147+ prompts reutilizaveis para processar
+        texto com IA. O Spalla inclui 5 patterns CASE customizados:
+
+        | Pattern | Uso |
+        |---------|-----|
+        | `case_extract_oferta` | Extrair dados de oferta de transcricao |
+        | `case_extract_posicionamento` | Extrair estrategia de posicionamento |
+        | `case_extract_funil` | Extrair funil de vendas |
+        | `case_analyze_call` | Analisar call de vendas/qualificacao |
+        | `case_lapidacao_perfil` | Review de perfil Instagram |
+
+        Tambem suporta qualquer pattern nativo do Fabric:
+        `summarize`, `extract_wisdom`, `analyze_sales_call`, `create_hormozi_offer`, etc.
+
+        **Timeout**: 120 segundos por execucao.
+        **Requer**: Fabric CLI instalado no servidor (`brew install fabric`).
+      operationId: fabricRun
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pattern, input]
+              properties:
+                pattern:
+                  type: string
+                  description: Nome do pattern (alfanumerico, hifens e underscores)
+                  example: "case_extract_oferta"
+                input:
+                  type: string
+                  description: Texto para processar (transcricao, perfil, call, etc.)
+                  example: "Queila: Danyella, seu publico ideal sao medicos e dentistas..."
+                model:
+                  type: string
+                  description: Modelo LLM a usar (padrao claude-sonnet-4)
+                  default: "claude-sonnet-4-20250514"
+                  example: "claude-sonnet-4-20250514"
+            example:
+              pattern: "case_extract_oferta"
+              input: "Queila: Danyella, seu publico ideal sao medicos e dentistas com consultorios faturando entre 15 e 30 mil por mes..."
+              model: "claude-sonnet-4-20250514"
+      responses:
+        "200":
+          description: Pattern executado com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pattern:
+                    type: string
+                  model:
+                    type: string
+                  output:
+                    type: string
+                    description: Resultado do processamento em Markdown
+                  chars:
+                    type: integer
+                    description: Total de caracteres no output
+              example:
+                pattern: "case_extract_oferta"
+                model: "claude-sonnet-4-20250514"
+                output: "### 1. Publico-Alvo\n- Medicos e dentistas com consultorios faturando R$15-30k/mes\n- Querem aprender protocolos de estetica para pacientes 40+\n\n### 2. Tese Central\n- Estetica regenerativa para 40+ com foco em durabilidade..."
+                chars: 2847
+        "400":
+          description: Pattern ou input ausente, ou nome de pattern invalido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "pattern and input are required"
+        "401":
+          description: Autenticacao necessaria
+        "503":
+          description: Fabric CLI nao instalado no servidor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Fabric CLI not installed. Install: brew install fabric"
+        "504":
+          description: Timeout na execucao do pattern (>120s)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: "Pattern execution timed out (120s)"
