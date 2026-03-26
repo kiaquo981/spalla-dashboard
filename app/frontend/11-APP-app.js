@@ -4990,7 +4990,7 @@ function operon() {
       if (sb) {
         try {
           // Load only god_tasks (board tasks) — tarefas_equipe are shown as pending WA messages
-          const { data, error } = await sb.from('vw_god_tasks_full').select('*').order('created_at', { ascending: false }).limit(200);
+          const { data, error } = await sb.from('vw_god_tasks_full').select('*').order('created_at', { ascending: false }).limit(1000);
           if (!error && data) {
             this.data.tasks = data.map(t => ({
               ...t, prazo: t.data_fim, _source: 'god_tasks',
