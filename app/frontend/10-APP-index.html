@@ -2790,7 +2790,13 @@
                   </div>
                 </div>
                 <template x-for="t in tasksTree" :key="t.id + '-' + t._depth">
-                  <div class="task-list__row" :class="{ 'task-list__row--done': t.status === 'concluida', 'task-list__row--overdue': t.status === 'pendente' && isOverdue(t.data_fim || t.prazo), 'task-list__row--mine': isMyTask(t), 'task-list__row--child': t._depth > 0 }" @click="t._isChecklist ? openTaskDetail(t._parentId) : t._isSubtask ? openTaskDetail(t._parentId) : t._isChildTask ? openTaskDetail(t.id) : openTaskDetail(t.id)">
+                  <div>
+                  <!-- Group header row -->
+                  <div x-show="t._isGroupHeader" class="task-list__group-header" :style="t._isGroupHeader ? 'border-left:3px solid ' + groupHeaderColor(t._groupBy, t._groupKey) : ''">
+                    <span class="task-list__group-label" x-text="t._groupLabel"></span>
+                    <span class="task-list__group-count" x-text="t._groupCount"></span>
+                  </div>
+                  <div x-show="!t._isGroupHeader" class="task-list__row" :class="{ 'task-list__row--done': t.status === 'concluida', 'task-list__row--overdue': t.status === 'pendente' && isOverdue(t.data_fim || t.prazo), 'task-list__row--mine': isMyTask(t), 'task-list__row--child': t._depth > 0 }" @click="t._isChecklist ? openTaskDetail(t._parentId) : t._isSubtask ? openTaskDetail(t._parentId) : t._isChildTask ? openTaskDetail(t.id) : openTaskDetail(t.id)">
                     <div class="task-list__col task-list__col--check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="t._isChecklist ? toggleCheckItem(t._parentId, t._checkIdx) : t._isSubtask ? toggleSubtask(t._parentId, t._subIdx) : updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
                     <div class="task-list__col task-list__col--title" :style="t._depth > 0 ? 'padding-left:24px' : ''">
                       <div style="display:flex;align-items:flex-start;gap:4px">
@@ -2865,6 +2871,7 @@
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                       </button>
                     </div>
+                  </div>
                   </div>
                 </template>
                 <div class="empty-state" x-show="!tasksTree.length"><p>Nenhuma tarefa encontrada.</p><button class="btn btn--brand" @click="openTaskModal()">Criar primeira tarefa</button></div>

@@ -1464,7 +1464,57 @@ function operon() {
           });
         }
       }
+
+      // Insert group headers based on groupBy
+      const groupBy = this.ui.taskGroupBy;
+      if (groupBy) {
+        const grouped = {};
+        const groupOrder = [];
+        for (const item of result) {
+          if (item._depth > 0) continue; // Group only top-level
+          let key;
+          if (groupBy === 'assignee') key = item.responsavel || 'Sem responsável';
+          else if (groupBy === 'priority') key = item.prioridade || 'normal';
+          else if (groupBy === 'list') key = this.getListName(item.list_id) || 'Sem lista';
+          else key = item.status || 'pendente';
+          if (!grouped[key]) { grouped[key] = []; groupOrder.push(key); }
+          grouped[key].push(item);
+        }
+        // Build with headers
+        const childItems = result.filter(r => r._depth > 0);
+        const finalResult = [];
+        // For status, use a fixed order
+        const keys = groupBy === 'status' ? ['pendente', 'em_andamento', 'concluida'].filter(k => grouped[k]) :
+                     groupBy === 'priority' ? ['urgente', 'alta', 'normal', 'baixa'].filter(k => grouped[k]) :
+                     groupOrder;
+        // Add any keys not in the fixed order
+        for (const k of groupOrder) { if (!keys.includes(k)) keys.push(k); }
+        for (const key of keys) {
+          const items = grouped[key] || [];
+          if (!items.length) continue;
+          const label = groupBy === 'status' ? this.statusLabel(key) :
+                        groupBy === 'priority' ? this.priorityLabel(key) : key;
+          finalResult.push({ id: 'group_' + key, _isGroupHeader: true, _groupLabel: label, _groupKey: key, _groupBy: groupBy, _groupCount: items.length, _depth: 0 });
+          for (const item of items) {
+            finalResult.push(item);
+            for (const child of childItems) {
+              if (child._parentId === item.id) finalResult.push(child);
+            }
+          }
+        }
+        return finalResult;
+      }
+
       return result;
+    },
+
+    // Group label helpers for task list headers
+    statusLabel(s) { return { pendente: 'A Fazer', em_andamento: 'Em Progresso', concluida: 'Concluído' }[s] || s; },
+    priorityLabel(p) { return { urgente: 'Urgente', alta: 'Alta', normal: 'Normal', baixa: 'Baixa' }[p] || p; },
+    groupHeaderColor(groupBy, key) {
+      if (groupBy === 'status') return { pendente: '#64748b', em_andamento: '#2563eb', concluida: '#16a34a' }[key] || '#64748b';
+      if (groupBy === 'priority') return { urgente: '#dc2626', alta: '#ea580c', normal: '#64748b', baixa: '#94a3b8' }[key] || '#64748b';
+      return '#8b6f47';
     },
 
     // Tasks: grouped by status (ClickUp style board)

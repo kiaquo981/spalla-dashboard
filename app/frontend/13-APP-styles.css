@@ -3169,6 +3169,33 @@ img { max-width: 100%; display: block; }
 .task-list__row--overdue { background: #fef2f2; }
 .task-list__row--child { background: #f9fafb; border-left: 2px solid #e2e8f0; }
 .task-list__row--child:hover { background: #f1f5f9; }
+.task-list__group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  margin-top: 4px;
+}
+.task-list__group-header:first-child { margin-top: 0; }
+.task-list__group-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #475569;
+}
+.task-list__group-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  background: #e2e8f0;
+  border-radius: 10px;
+  padding: 1px 8px;
+  min-width: 20px;
+  text-align: center;
+}
 .task-tree__toggle { width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; border: none; background: transparent; cursor: pointer; padding: 0; flex-shrink: 0; color: #94a3b8; border-radius: 3px; transition: transform 0.15s, color 0.1s; margin-top: 2px; }
 .task-tree__toggle:hover { background: #e2e8f0; color: #475569; }
 .task-tree__toggle--open { transform: rotate(90deg); color: #6366f1; }
