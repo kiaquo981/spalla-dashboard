@@ -3041,14 +3041,13 @@ function operon() {
     },
 
     ccNewMentees() {
-      // Mentorados created in the last 7 days OR in onboarding phase
+      // Only mentorados created in the last 14 days
       const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - 7);
+      cutoff.setDate(cutoff.getDate() - 14);
       return (this.data.mentees || []).filter(m => {
-        if (m.fase_jornada === 'onboarding') return true;
-        if (m.created_at && new Date(m.created_at) >= cutoff) return true;
-        return false;
-      }).slice(0, 10);
+        if (!m.created_at) return false;
+        return new Date(m.created_at) >= cutoff;
+      }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 8);
     },
 
     ccRecentActivity() {
@@ -9346,11 +9345,11 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     ],
 
     obStatusLabel(s) {
-      const m = { em_andamento: 'Em Andamento', concluido: 'Concluído', pausado: 'Pausado' };
+      const m = { a_fazer: 'A Fazer', em_andamento: 'Em Andamento', concluido: 'Concluído', pausado: 'Pausado' };
       return m[s] || s;
     },
     obStatusColor(s) {
-      const m = { em_andamento: '#3b82f6', concluido: '#10b981', pausado: '#6b7280' };
+      const m = { a_fazer: '#d97706', em_andamento: '#3b82f6', concluido: '#10b981', pausado: '#6b7280' };
       return m[s] || '#6b7280';
     },
 
@@ -9514,7 +9513,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const { error } = await sb.from('ob_trilhas').update({ status, updated_at: new Date().toISOString() }).eq('id', trilhaId);
       if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
       // Log event
-      const statusLabels = { em_andamento: 'Em Andamento', concluido: 'Concluído', pausado: 'Pausado' };
+      const statusLabels = { a_fazer: 'A Fazer', em_andamento: 'Em Andamento', concluido: 'Concluído', pausado: 'Pausado' };
       await this._logObEvento(trilhaId, null, null, 'trilha_status', oldStatus, status, 'Status: ' + (statusLabels[oldStatus] || oldStatus || '-') + ' → ' + (statusLabels[status] || status));
       await this.loadObData();
       if (this.ui.obDetailTrilhaId === trilhaId) await this.loadObDetail(trilhaId);
@@ -9630,7 +9629,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     obPipelineColumns() {
-      const statuses = ['em_andamento', 'concluido', 'pausado'];
+      const statuses = ['a_fazer', 'em_andamento', 'concluido', 'pausado'];
       const list = this.ui.obSearchQuery ? this.filteredObTrilhas : this.data.obTrilhas;
       return statuses.map(s => ({
         status: s,
