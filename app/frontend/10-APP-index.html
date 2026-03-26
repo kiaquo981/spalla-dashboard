@@ -1341,7 +1341,7 @@
                   <span class="mc-card__phase-tag" :class="phaseClass(m.fase_jornada)" x-text="phaseLabel(m.fase_jornada)"></span>
                   <span class="mc-card__marco" x-show="m.marco_atual" x-text="m.marco_atual"></span>
                   <span class="mc-card__cohort" x-text="m.cohort"></span>
-                  <span class="mc-card__fin-badge mc-card__fin-badge--danger" x-show="m.contrato_assinado === false" title="Contrato nao assinado">SEM CONTRATO</span>
+                  <span class="mc-card__fin-badge mc-card__fin-badge--danger" x-show="!m.contrato_assinado" title="Contrato nao assinado">SEM CONTRATO</span>
                   <span class="mc-card__fin-badge mc-card__fin-badge--danger" x-show="m.status_financeiro === 'atrasado'" title="Pagamento atrasado">INADIMPLENTE</span>
                   <span class="mc-card__fin-badge mc-card__fin-badge--success" x-show="m.status_financeiro === 'quitado'">QUITADO</span>
                   <span class="mc-card__wa-badge" :class="waBadgeClass(m)" x-show="m.msgs_pendentes_resposta > 0">
