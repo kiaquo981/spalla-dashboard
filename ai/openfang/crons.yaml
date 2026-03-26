@@ -1,0 +1,119 @@
+# OpenFang Cron Jobs for Spalla — EPIC 5
+# Configure in OpenFang: copy this to ~/.openfang/workspaces/spalla/crons.yaml
+#
+# Prerequisites:
+#   - OpenFang daemon running (openfang daemon start)
+#   - PostgreSQL integration pointing to Supabase
+#   - Google Calendar integration with OAuth
+#   - Gmail integration with OAuth
+
+crons:
+  # Daily: Alert on mentorados without contact for 7+ days
+  - name: "alert_inactive_mentorados"
+    schedule: "0 9 * * *"  # 9am daily
+    description: "Identifica mentorados sem contato ha 7+ dias e notifica CS"
+    action:
+      type: supabase_query
+      query: |
+        SELECT m.id, m.nome, m.cs_responsavel, m.last_contact,
+               EXTRACT(DAY FROM now() - m.last_contact) as dias_sem_contato
+        FROM mentorados m
+        WHERE m.ativo = true
+          AND m.last_contact < now() - interval '7 days'
+        ORDER BY m.last_contact ASC
+      on_results:
+        - type: chatwoot_message
+          channel: "internal"
+          template: |
+            Mentorados sem contato ha 7+ dias:
+            {{#each results}}
+            - {{nome}} ({{dias_sem_contato}} dias) — CS: {{cs_responsavel}}
+            {{/each}}
+
+  # Daily: Alert on overdue tasks
+  - name: "alert_overdue_tasks"
+    schedule: "0 9 * * 1-5"  # 9am weekdays
+    description: "Lista tasks vencidas e notifica responsaveis"
+    action:
+      type: supabase_query
+      query: |
+        SELECT t.id, t.titulo, t.responsavel, t.prazo,
+               m.nome as mentorado_nome
+        FROM god_tasks t
+        LEFT JOIN mentorados m ON t.mentorado_id = m.id
+        WHERE t.status != 'concluida'
+          AND t.prazo < now()
+        ORDER BY t.prazo ASC
+        LIMIT 20
+      on_results:
+        - type: log
+          table: "cron_logs"
+          job_name: "alert_overdue_tasks"
+
+  # Hourly: Sync Chatwoot contacts with Supabase mentorados
+  - name: "sync_chatwoot_contacts"
+    schedule: "0 * * * *"  # every hour
+    description: "Sincroniza contatos Chatwoot com mentorados Supabase"
+    action:
+      type: http_request
+      method: GET
+      url: "${CHATWOOT_BASE_URL}/api/v1/accounts/${CHATWOOT_ACCOUNT_ID}/contacts?page=1"
+      headers:
+        api_access_token: "${CHATWOOT_API_TOKEN}"
+      on_results:
+        - type: script
+          script: "sync_chatwoot_contacts.py"
+
+  # Every 15min: Sync Google Calendar events
+  - name: "sync_google_calendar"
+    schedule: "*/15 * * * *"
+    description: "Busca eventos do Google Calendar das proximas 48h"
+    action:
+      type: openfang_integration
+      integration: "google-calendar"
+      operation: "list_events"
+      params:
+        time_min: "now"
+        time_max: "+48h"
+        calendar_id: "${GOOGLE_CALENDAR_ID}"
+      on_results:
+        - type: supabase_upsert
+          table: "god_tasks"
+          match_on: "google_event_id"
+          fields:
+            titulo: "{{summary}}"
+            data_inicio: "{{start.dateTime}}"
+            data_fim: "{{end.dateTime}}"
+            tipo: "call"
+            fonte: "google_calendar"
+
+  # Weekly: RAGAS batch evaluation of all active dossiês
+  - name: "ragas_weekly_batch"
+    schedule: "0 6 * * 1"  # Monday 6am
+    description: "Re-avalia todos os dossies ativos com RAGAS"
+    action:
+      type: http_request
+      method: POST
+      url: "${SPALLA_API_URL}/api/dossie/evaluate-batch"
+      headers:
+        Authorization: "Bearer ${SPALLA_API_KEY}"
+      body:
+        scope: "all_active"
+
+  # Monthly: Financial reconciliation report
+  - name: "financial_reconciliation"
+    schedule: "0 8 1 * *"  # 1st of month, 8am
+    description: "Gera relatorio de inconsistencias financeiras"
+    action:
+      type: supabase_query
+      query: |
+        SELECT m.nome, m.status, m.contrato_assinado, m.condicao_acordada,
+               m.data_primeiro_pagamento
+        FROM mentorados m
+        WHERE m.ativo = true
+          AND (m.contrato_assinado IS NULL OR m.contrato_assinado = false)
+        ORDER BY m.nome
+      on_results:
+        - type: log
+          table: "cron_logs"
+          job_name: "financial_reconciliation"

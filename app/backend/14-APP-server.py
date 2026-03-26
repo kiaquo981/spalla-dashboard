@@ -1903,6 +1903,13 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         elif re.match(r'^/api/mentees/(\d+)/messages$', self.path):
             _m = re.match(r'^/api/mentees/(\d+)/messages$', self.path)
             self._handle_get_chatwoot_messages(_m.group(1))
+        # ===== Cron Jobs Status (OpenFang — EPIC 5) =====
+        elif self.path == '/api/crons/status':
+            self._handle_cron_status()
+        # ===== Dossiê QA Scores =====
+        elif re.match(r'^/api/mentees/(\d+)/qa-scores$', self.path):
+            _m = re.match(r'^/api/mentees/(\d+)/qa-scores$', self.path)
+            self._handle_get_qa_scores(_m.group(1))
         # ===== Root =====
         elif self.path == '/' or self.path == '':
             self._send_json({
@@ -1987,6 +1994,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         # ===== RAGAS Quality Gate =====
         elif self.path == '/api/dossie/evaluate':
             self._handle_ragas_evaluate()
+        # ===== Dossiê Generation (Goose Agent — EPIC 6) =====
+        elif self.path == '/api/dossie/generate':
+            self._handle_dossie_generate()
         else:
             self._send_json({'error': 'Not found'}, 404)
 
@@ -4204,6 +4214,94 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json(eval_result)
         except Exception as e:
             log_error('RAGAS', f'evaluate failed: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ===== OPENFANG CRON STATUS (EPIC 5) =====
+
+    def _handle_cron_status(self):
+        """GET /api/crons/status — Status of automated cron jobs"""
+        try:
+            result = supabase_request('GET',
+                'cron_logs?order=executed_at.desc&limit=20'
+                '&select=id,job_name,status,message,executed_at')
+            if isinstance(result, dict) and result.get('error'):
+                # Table may not exist yet — return empty
+                self._send_json({'jobs': [], 'configured': bool(os.environ.get('OPENFANG_ENABLED'))})
+                return
+            self._send_json({
+                'jobs': result if isinstance(result, list) else [],
+                'configured': bool(os.environ.get('OPENFANG_ENABLED')),
+            })
+        except Exception as e:
+            log_error('Crons', f'status: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ===== DOSSIE QA SCORES (EPIC 3 frontend) =====
+
+    def _handle_get_qa_scores(self, mentorado_id):
+        """GET /api/mentees/{id}/qa-scores — RAGAS quality scores for mentorado"""
+        try:
+            result = supabase_request('GET',
+                f'dossie_qa_scores?mentorado_id=eq.{mentorado_id}'
+                f'&order=created_at.desc&limit=10'
+                f'&select=id,scores,verdict,dossie_chars,source_count,created_at')
+            self._send_json(result if isinstance(result, list) else [])
+        except Exception as e:
+            log_error('RAGAS', f'get scores: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ===== DOSSIE GENERATION (GOOSE AGENT — EPIC 6) =====
+
+    def _handle_dossie_generate(self):
+        """POST /api/dossie/generate — Trigger autonomous dossiê generation pipeline"""
+        try:
+            auth = check_auth_any(self.headers)
+            if not auth:
+                self._send_json({'error': 'Authentication required'}, 401)
+                return
+            body = json.loads(self._read_body())
+            mentorado_id = body.get('mentorado_id')
+            dossie_type = body.get('type', 'oferta')  # oferta, posicionamento, funil
+
+            if not mentorado_id:
+                self._send_json({'error': 'mentorado_id is required'}, 400)
+                return
+            if dossie_type not in ('oferta', 'posicionamento', 'funil'):
+                self._send_json({'error': 'type must be oferta, posicionamento, or funil'}, 400)
+                return
+
+            # Verify mentorado exists
+            mentorado = supabase_request('GET',
+                f'mentorados?id=eq.{mentorado_id}&select=id,nome&limit=1')
+            if not isinstance(mentorado, list) or not mentorado:
+                self._send_json({'error': 'Mentorado not found'}, 404)
+                return
+            nome = mentorado[0]['nome']
+
+            # Create generation job record
+            job = supabase_request('POST', 'dossie_generation_jobs', {
+                'mentorado_id': mentorado_id,
+                'dossie_type': dossie_type,
+                'status': 'queued',
+                'requested_by': auth.get('email', auth.get('label', 'api')),
+            })
+            job_id = job[0]['id'] if isinstance(job, list) and job else None
+
+            log_info('DossieGen', f'Job {job_id} queued: {dossie_type} for {nome}')
+
+            # For now, return the job — actual generation will be handled by
+            # Goose agent or background worker polling this table
+            self._send_json({
+                'job_id': job_id,
+                'mentorado_id': mentorado_id,
+                'mentorado_nome': nome,
+                'dossie_type': dossie_type,
+                'status': 'queued',
+                'message': f'Dossie {dossie_type} queued for {nome}. '
+                           f'Poll GET /api/dossie/generate/status/{job_id} for progress.',
+            }, 201)
+        except Exception as e:
+            log_error('DossieGen', f'generate failed: {e}', e)
             self._send_json({'error': str(e)}, 500)
 
     def log_message(self, format, *args):

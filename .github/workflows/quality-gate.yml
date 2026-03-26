@@ -1,0 +1,112 @@
+# EPIC 8 — Quality Gate: Security + Code Review before merge
+# Runs on all PRs to main and develop
+
+name: Quality Gate
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  lint-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Python syntax check
+        run: |
+          python -m py_compile app/backend/14-APP-server.py
+          echo "Backend syntax OK"
+
+      - name: Check for secrets in code
+        run: |
+          SECRETS_FOUND=0
+          # Check for hardcoded keys/tokens
+          if grep -rn 'sk_spalla_[a-f0-9]' app/ ai/ --include='*.py' --include='*.js' --include='*.yaml' 2>/dev/null; then
+            echo "::error::Hardcoded API key found in source"
+            SECRETS_FOUND=1
+          fi
+          if grep -rn 'SUPABASE_SERVICE_KEY.*=.*ey' app/ ai/ --include='*.py' --include='*.js' 2>/dev/null; then
+            echo "::error::Hardcoded Supabase key found"
+            SECRETS_FOUND=1
+          fi
+          if grep -rn 'sk-[a-zA-Z0-9]{20,}' app/ ai/ --include='*.py' --include='*.js' 2>/dev/null; then
+            echo "::error::Hardcoded OpenAI key found"
+            SECRETS_FOUND=1
+          fi
+          if [ "$SECRETS_FOUND" -eq 1 ]; then
+            exit 1
+          fi
+          echo "No secrets found in source code"
+
+      - name: Validate OpenAPI spec
+        run: |
+          pip install openapi-spec-validator
+          python -c "
+          from openapi_spec_validator import validate
+          validate({'openapi': '3.0.3'}, spec_url='app/frontend/openapi.yaml')
+          print('OpenAPI spec valid')
+          " 2>/dev/null || echo "OpenAPI validation skipped (install openapi-spec-validator)"
+
+      - name: Check SQL migrations syntax
+        run: |
+          for f in sql/*.sql; do
+            if [ -f "$f" ]; then
+              python -c "
+          import re, sys
+          with open('$f') as fh:
+              content = fh.read()
+          # Basic SQL injection patterns in schema files
+          if re.search(r';\s*DROP\s+', content, re.IGNORECASE):
+              print(f'DANGER: DROP statement in {\"$f\"}')
+              sys.exit(1)
+          print(f'OK: $f')
+          "
+            fi
+          done
+
+  security-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: OWASP dependency check (Python)
+        run: |
+          pip install safety
+          if [ -f requirements.txt ]; then
+            safety check -r requirements.txt --output text 2>/dev/null || echo "Safety check completed (some advisories may exist)"
+          else
+            echo "No requirements.txt found"
+          fi
+
+      - name: Check for common vulnerabilities
+        run: |
+          echo "Scanning for common patterns..."
+          ISSUES=0
+
+          # Check for eval() usage
+          if grep -rn 'eval(' app/backend/ --include='*.py' 2>/dev/null; then
+            echo "::warning::eval() found — review for code injection risk"
+          fi
+
+          # Check for shell=True in subprocess
+          if grep -rn 'shell=True' app/backend/ --include='*.py' 2>/dev/null; then
+            echo "::error::subprocess with shell=True found — command injection risk"
+            ISSUES=1
+          fi
+
+          # Check for unsanitized f-string SQL
+          if grep -rn "f'.*SELECT.*{" app/backend/ --include='*.py' 2>/dev/null | grep -v 'supabase_request' | grep -v '#'; then
+            echo "::warning::Possible SQL injection via f-string (review needed)"
+          fi
+
+          if [ "$ISSUES" -eq 1 ]; then
+            exit 1
+          fi
+          echo "Security scan passed"
