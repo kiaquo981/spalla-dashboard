@@ -6872,7 +6872,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     async loadMenteesTriage() {
       if (this.ui.triageLoaded) return;
       try {
-        const res = await fetch('/api/mentees/triage', {
+        const res = await fetch(`${CONFIG.API_BASE}/api/mentees/triage`, {
           headers: { 'Authorization': `Bearer ${this.authToken}` },
         });
         if (!res.ok) return;
@@ -6954,7 +6954,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     async loadMenteeLabels(menteeId) {
       if (!menteeId || this.data.menteeLabels?.[menteeId]) return;
       try {
-        const res = await fetch(`/api/wa/labels/summary?mentee_id=${menteeId}&days=30`, {
+        const res = await fetch(`${CONFIG.API_BASE}/api/wa/labels/summary?mentee_id=${menteeId}&days=30`, {
           headers: { 'Authorization': `Bearer ${this.authToken}` },
         });
         if (res.ok) {
@@ -6995,7 +6995,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.ui.copilotLoading = true;
 
       try {
-        const res = await fetch('/api/copilot', {
+        const res = await fetch(`${CONFIG.API_BASE}/api/copilot`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -7707,7 +7707,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     async loadGroups() {
       try {
-        const res = await fetch('/api/mentee-groups', { headers: { 'Authorization': `Bearer ${this._getToken()}` } });
+        const res = await fetch(`${CONFIG.API_BASE}/api/mentee-groups`, { headers: { 'Authorization': `Bearer ${this._getToken()}` } });
         if (!res.ok) return;
         this.data.groups = await res.json() || [];
       } catch (e) { console.error('loadGroups error:', e); }
@@ -7717,7 +7717,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const f = this.ui.groupsForm;
       if (!f.nome.trim()) { this.toast('Nome obrigatorio', 'warning'); return; }
       try {
-        const res = await fetch('/api/mentee-groups', {
+        const res = await fetch(`${CONFIG.API_BASE}/api/mentee-groups`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${this._getToken()}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ nome: f.nome.trim(), cor: f.cor, icon: f.icon })
