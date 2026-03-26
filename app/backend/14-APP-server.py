@@ -1984,6 +1984,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         # ===== Fabric Pattern Runner =====
         elif self.path == '/api/fabric/run':
             self._handle_fabric_run()
+        # ===== RAGAS Quality Gate =====
+        elif self.path == '/api/dossie/evaluate':
+            self._handle_ragas_evaluate()
         else:
             self._send_json({'error': 'Not found'}, 404)
 
@@ -4135,6 +4138,64 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
         except Exception as e:
             log_error('Fabric', f'run failed: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ===== RAGAS QUALITY GATE (EPIC 3) =====
+
+    def _handle_ragas_evaluate(self):
+        """POST /api/dossie/evaluate — Run RAGAS quality evaluation on a dossiê"""
+        try:
+            auth = check_auth_any(self.headers)
+            if not auth:
+                self._send_json({'error': 'Authentication required'}, 401)
+                return
+            body = json.loads(self._read_body())
+            dossie_text = body.get('dossie', '').strip()
+            source_texts = body.get('sources', [])
+            mentorado_id = body.get('mentorado_id')
+
+            if not dossie_text:
+                self._send_json({'error': 'dossie text is required'}, 400)
+                return
+            if not source_texts:
+                self._send_json({'error': 'At least one source transcript is required'}, 400)
+                return
+
+            import subprocess
+            # Run the RAGAS evaluation script
+            eval_input = json.dumps({'dossie': dossie_text, 'sources': source_texts})
+            script_path = os.path.join(os.path.dirname(__file__), '..', '..', 'ai', 'ragas', 'evaluate_dossie.py')
+            if not os.path.exists(script_path):
+                script_path = os.path.join(os.path.dirname(__file__), 'ai', 'ragas', 'evaluate_dossie.py')
+
+            try:
+                result = subprocess.run(
+                    [sys.executable, script_path, '--json', eval_input],
+                    capture_output=True, text=True, timeout=180,
+                )
+                eval_result = json.loads(result.stdout) if result.stdout.strip() else {
+                    'error': result.stderr[:500], 'verdict': 'error'
+                }
+            except subprocess.TimeoutExpired:
+                eval_result = {'error': 'Evaluation timed out (180s)', 'verdict': 'error'}
+            except FileNotFoundError:
+                eval_result = {'error': 'RAGAS evaluation script not found', 'verdict': 'error'}
+
+            # Save score to Supabase if mentorado_id provided
+            if mentorado_id and 'scores' in eval_result:
+                supabase_request('POST', 'dossie_qa_scores', {
+                    'mentorado_id': mentorado_id,
+                    'scores': eval_result['scores'],
+                    'verdict': eval_result['verdict'],
+                    'dossie_chars': eval_result.get('details', {}).get('dossie_chars', 0),
+                    'source_count': eval_result.get('details', {}).get('source_count', 0),
+                })
+                log_info('RAGAS', f"Eval for mentorado {mentorado_id}: {eval_result['verdict']} "
+                         f"(faith={eval_result['scores'].get('faithfulness', '?')})")
+
+            self._send_json(eval_result)
+        except Exception as e:
+            log_error('RAGAS', f'evaluate failed: {e}', e)
             self._send_json({'error': str(e)}, 500)
 
     def log_message(self, format, *args):
