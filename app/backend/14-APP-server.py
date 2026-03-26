@@ -4144,12 +4144,28 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 return
             system_file = os.path.join(patterns_dir, pattern, 'system.md')
 
-            if not os.path.exists(system_file):
-                self._send_json({'error': f'Pattern "{pattern}" not found'}, 404)
-                return
+            # Inline fallback patterns (for when filesystem patterns not found)
+            _INLINE_PATTERNS = {
+                'case_extract_oferta': 'Voce e um especialista em analise de ofertas de mentoria. Extraia dados estruturados de oferta a partir da transcricao: Publico-Alvo, Tese Central, Pilares da Oferta, Formato e Investimento, ROI do Mentorado, Diferenciais Competitivos. JAMAIS invente dados. Se nao mencionado, escreva "Nao mencionado na transcricao". Cite trechos entre aspas. Sem emojis.',
+                'case_extract_posicionamento': 'Voce e um especialista em posicionamento digital. Extraia estrategia de posicionamento da transcricao: Bio Atual vs Sugerida, Pilares de Conteudo, Tom de Voz, Destaques do Perfil, Formato de Conteudo, Autoridade e Credenciais. NAO invente dados. Sem emojis.',
+                'case_extract_funil': 'Voce e um especialista em funis de vendas para mentorias. Extraia: Tipo de Funil Recomendado, Etapas do Funil, Scripts e Mensagens, Segmentacao, Metricas e KPIs, Objecoes e Respostas. NAO invente scripts ou numeros. Sem emojis.',
+                'case_analyze_call': 'Voce e um coach de vendas. Analise a call: Resumo da Call, Sinais de Compra, Objecoes Levantadas, Erros Identificados, Proximos Passos, Score (Conexao/Diagnostico/Urgencia/Proposta/Fechamento - SIM/NAO com evidencia). NAO use scorecard numerico. Cite trechos. Sem emojis.',
+                'case_lapidacao_perfil': 'Voce e uma mentora de posicionamento digital. Analise o perfil e de feedback pratico conversacional: Primeira Impressao, Bio, Destaques, Feed, Stories, Top 3 Acoes Prioritarias. NAO use scorecard numerico. Fale como conversa de mentoria. Sem jargao. Sem emojis.',
+                'summarize': 'Summarize the input text concisely, capturing the main points and key takeaways. Use clear, direct language.',
+                'extract_wisdom': 'Extract the key wisdom, insights, and lessons from the input. List them as bullet points with brief explanations.',
+                'extract_insights': 'Extract the most important and non-obvious insights from the input text. Focus on actionable knowledge.',
+            }
 
-            with open(system_file, 'r') as f:
-                system_prompt = f.read()
+            system_prompt = None
+            if os.path.exists(system_file):
+                with open(system_file, 'r') as f:
+                    system_prompt = f.read()
+            elif pattern in _INLINE_PATTERNS:
+                system_prompt = _INLINE_PATTERNS[pattern]
+                log_info('Fabric', f'Using inline fallback for pattern "{pattern}"')
+            else:
+                self._send_json({'error': f'Pattern "{pattern}" not found. Available: {", ".join(_INLINE_PATTERNS.keys())}'}, 404)
+                return
 
             # Call Gemini API (free, always available)
             gemini_key = GEMINI_API_KEY
