@@ -1541,15 +1541,51 @@ function operon() {
     },
 
     // Tasks: grouped by status (ClickUp style board)
+    // Board columns — respects groupBy selection
+    get boardColumns() {
+      const groupBy = this.ui.taskGroupBy;
+      if (groupBy === 'priority') return [
+        { key: 'urgente', label: 'Urgente', color: '#dc2626' },
+        { key: 'alta', label: 'Alta', color: '#ea580c' },
+        { key: 'normal', label: 'Normal', color: '#64748b' },
+        { key: 'baixa', label: 'Baixa', color: '#94a3b8' },
+      ];
+      if (groupBy === 'assignee') {
+        const names = new Set();
+        this.data.tasks.forEach(t => { if (t.responsavel) names.add(t.responsavel); });
+        const cols = [...names].sort().map(n => ({ key: n, label: n.charAt(0).toUpperCase() + n.slice(1), color: '#8b6f47' }));
+        cols.push({ key: '', label: 'Sem responsavel', color: '#94a3b8' });
+        return cols;
+      }
+      if (groupBy === 'list') {
+        const lists = new Set();
+        this.data.tasks.forEach(t => { lists.add(t.list_id || ''); });
+        return [...lists].map(id => ({ key: id, label: this.getListName(id) || id || 'Sem lista', color: '#8b6f47' }));
+      }
+      // Default: status
+      return [
+        { key: 'pendente', label: 'A Fazer', color: '#64748b' },
+        { key: 'em_andamento', label: 'Em Progresso', color: '#f59e0b' },
+        { key: 'concluida', label: 'Concluido', color: '#16a34a' },
+      ];
+    },
+
     get tasksByStatus() {
-      const statuses = ['pendente', 'em_andamento', 'concluida'];
+      const groupBy = this.ui.taskGroupBy;
+      const columns = this.boardColumns;
       const result = {};
       const q = (this.ui.search || '').toLowerCase();
-      for (const s of statuses) {
-        let list = this._filterTasks([...this.data.tasks].filter(t => t.status === s));
+      for (const col of columns) {
+        let list = [...this.data.tasks];
+        // Filter by the group key
+        if (groupBy === 'priority') list = list.filter(t => (t.prioridade || 'normal') === col.key);
+        else if (groupBy === 'assignee') list = list.filter(t => (t.responsavel || '') === col.key);
+        else if (groupBy === 'list') list = list.filter(t => (t.list_id || '') === col.key);
+        else list = list.filter(t => t.status === col.key);
+        list = this._filterTasks(list);
         if (q) list = list.filter(t => t.titulo?.toLowerCase().includes(q) || t.mentorado_nome?.toLowerCase().includes(q) || t.responsavel?.toLowerCase().includes(q));
         list.sort(this._taskSortFn.bind(this));
-        result[s] = list.slice(0, 200);
+        result[col.key] = list.slice(0, 200);
       }
       return result;
     },
