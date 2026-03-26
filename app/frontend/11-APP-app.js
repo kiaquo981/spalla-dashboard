@@ -3040,6 +3040,17 @@ function operon() {
       return Math.round(((sprint.concluidas || 0) / sprint.total) * 100);
     },
 
+    ccNewMentees() {
+      // Mentorados created in the last 7 days OR in onboarding phase
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 7);
+      return (this.data.mentees || []).filter(m => {
+        if (m.fase_jornada === 'onboarding') return true;
+        if (m.created_at && new Date(m.created_at) >= cutoff) return true;
+        return false;
+      }).slice(0, 10);
+    },
+
     ccRecentActivity() {
       const actionLabel = (status) => {
         if (!status) return 'atualizou';
