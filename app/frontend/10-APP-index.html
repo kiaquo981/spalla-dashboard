@@ -4208,24 +4208,24 @@
                   </div>
                 </template>
                 <template x-for="group in bibGroupedDocs" :key="group.mentee">
-                  <div style="margin-bottom:16px">
+                  <div style="margin-bottom:24px">
                     <!-- Mentorado name -->
                     <div @click="bib.expandedMentees = {...bib.expandedMentees, [group.mentee]: !bib.expandedMentees?.[group.mentee]}"
-                      style="padding:0 16px;margin-bottom:6px;cursor:pointer;display:flex;align-items:center;gap:6px">
-                      <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8b6f47" x-text="group.mentee"></span>
-                      <span style="flex:1;height:1px;background:#e8e4dc"></span>
-                      <span style="font-size:9px;color:#c4baa8" x-text="group.docs.length"></span>
+                      style="padding:12px 20px 8px;cursor:pointer;display:flex;align-items:baseline;gap:8px">
+                      <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#8b6f47" x-text="group.mentee"></span>
+                      <span style="flex:1;height:1px;background:#e8e4dc;margin-top:2px"></span>
+                      <span style="font-size:10px;color:#c4baa8" x-text="group.docs.length"></span>
                     </div>
                     <!-- Docs -->
-                    <div x-show="bib.expandedMentees?.[group.mentee] !== false">
+                    <div x-show="bib.expandedMentees?.[group.mentee] !== false" style="padding:0 12px">
                       <template x-for="doc in group.docs" :key="doc.id">
                         <div @click="bibOpenDoc(doc.id)"
-                          style="display:flex;align-items:center;gap:10px;padding:8px 16px 8px 20px;margin:0 8px;border-radius:6px;cursor:pointer;transition:all .12s"
+                          style="display:flex;align-items:center;gap:10px;padding:10px 14px;margin-bottom:2px;border-radius:8px;cursor:pointer;transition:all .12s"
                           :style="bib.activeDoc?.id === doc.id ? 'background:#ede9de' : ''"
                           @mouseover="if(bib.activeDoc?.id !== doc.id) $el.style.background='#f8f6f1'" @mouseout="if(bib.activeDoc?.id !== doc.id) $el.style.background='transparent'">
-                          <div style="width:4px;height:4px;border-radius:50%;flex-shrink:0"
+                          <div style="width:6px;height:6px;border-radius:50%;flex-shrink:0"
                             :style="(doc.titulo||'').includes('Oferta') ? 'background:#d97706' : (doc.titulo||'').includes('Funil') ? 'background:#2563eb' : (doc.titulo||'').includes('Posicion') ? 'background:#16a34a' : 'background:#94a3b8'"></div>
-                          <span style="font-size:13px;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
+                          <span style="font-size:13px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
                             :style="bib.activeDoc?.id === doc.id ? 'color:#1a1a14;font-weight:600' : ''"
                             x-text="(doc.titulo||'').replace('Dossiê de ','').replace('Dossiê ','')"></span>
                         </div>
