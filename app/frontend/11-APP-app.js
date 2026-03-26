@@ -1529,7 +1529,7 @@ function operon() {
       for (const s of statuses) {
         let list = this._filterTasks([...this.data.tasks].filter(t => t.status === s));
         list.sort(this._taskSortFn.bind(this));
-        result[s] = list.slice(0, 50);
+        result[s] = list.slice(0, 200);
       }
       return result;
     },
