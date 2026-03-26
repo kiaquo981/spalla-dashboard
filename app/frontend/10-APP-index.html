@@ -4208,28 +4208,26 @@
                   </div>
                 </template>
                 <template x-for="group in bibGroupedDocs" :key="group.mentee">
-                  <div>
-                    <!-- Mentorado header -->
+                  <div style="margin-bottom:16px">
+                    <!-- Mentorado name -->
                     <div @click="bib.expandedMentees = {...bib.expandedMentees, [group.mentee]: !bib.expandedMentees?.[group.mentee]}"
-                      style="display:flex;align-items:center;gap:6px;padding:10px 12px 10px 14px;cursor:pointer;border-bottom:1px solid #eee9e0;transition:background .1s"
-                      @mouseover="$el.style.background='#f5f3ec'" @mouseout="$el.style.background='transparent'">
-                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#8b6f47" stroke-width="3" style="transition:transform .15s;flex-shrink:0"
-                        :style="bib.expandedMentees?.[group.mentee] !== false ? 'transform:rotate(90deg)' : ''">
-                        <polyline points="9 18 15 12 9 6"/></svg>
-                      <span style="font-size:13px;font-weight:700;color:#1a1a14;flex:1" x-text="group.mentee"></span>
-                      <span style="font-size:9px;font-weight:500;color:#a09888;background:#f0ece4;padding:1px 6px;border-radius:8px" x-text="group.docs.length"></span>
+                      style="padding:0 16px;margin-bottom:6px;cursor:pointer;display:flex;align-items:center;gap:6px">
+                      <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8b6f47" x-text="group.mentee"></span>
+                      <span style="flex:1;height:1px;background:#e8e4dc"></span>
+                      <span style="font-size:9px;color:#c4baa8" x-text="group.docs.length"></span>
                     </div>
-                    <!-- Docs list -->
-                    <div x-show="bib.expandedMentees?.[group.mentee] !== false" x-collapse>
+                    <!-- Docs -->
+                    <div x-show="bib.expandedMentees?.[group.mentee] !== false">
                       <template x-for="doc in group.docs" :key="doc.id">
                         <div @click="bibOpenDoc(doc.id)"
-                          style="display:flex;align-items:center;gap:8px;padding:7px 12px 7px 32px;cursor:pointer;font-size:11.5px;color:#6b6355;transition:all .1s;border-left:3px solid transparent"
-                          :style="bib.activeDoc?.id === doc.id ? 'background:#ede9de;border-left-color:#8b6f47;color:#1a1a14;font-weight:600' : ''"
-                          @mouseover="if(bib.activeDoc?.id !== doc.id) $el.style.background='#faf9f5'" @mouseout="if(bib.activeDoc?.id !== doc.id) $el.style.background='transparent'">
-                          <span style="width:16px;height:16px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0"
-                            :style="(doc.titulo||'').includes('Oferta') ? 'background:#fef3c7' : (doc.titulo||'').includes('Funil') ? 'background:#dbeafe' : (doc.titulo||'').includes('Posicion') ? 'background:#dcfce7' : 'background:#f1f5f9'"
-                            x-text="(doc.titulo||'').includes('Oferta') ? '📦' : (doc.titulo||'').includes('Funil') ? '🎯' : (doc.titulo||'').includes('Posicion') ? '📱' : '📄'"></span>
-                          <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="(doc.titulo||'').replace('Dossiê de ','').replace('Dossiê ','')"></span>
+                          style="display:flex;align-items:center;gap:10px;padding:8px 16px 8px 20px;margin:0 8px;border-radius:6px;cursor:pointer;transition:all .12s"
+                          :style="bib.activeDoc?.id === doc.id ? 'background:#ede9de' : ''"
+                          @mouseover="if(bib.activeDoc?.id !== doc.id) $el.style.background='#f8f6f1'" @mouseout="if(bib.activeDoc?.id !== doc.id) $el.style.background='transparent'">
+                          <div style="width:4px;height:4px;border-radius:50%;flex-shrink:0"
+                            :style="(doc.titulo||'').includes('Oferta') ? 'background:#d97706' : (doc.titulo||'').includes('Funil') ? 'background:#2563eb' : (doc.titulo||'').includes('Posicion') ? 'background:#16a34a' : 'background:#94a3b8'"></div>
+                          <span style="font-size:13px;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
+                            :style="bib.activeDoc?.id === doc.id ? 'color:#1a1a14;font-weight:600' : ''"
+                            x-text="(doc.titulo||'').replace('Dossiê de ','').replace('Dossiê ','')"></span>
                         </div>
                       </template>
                     </div>
