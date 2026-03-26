@@ -1013,6 +1013,17 @@ function operon() {
       }
     },
 
+    async updateMenteeFinField(field, value) {
+      const menteeId = this.ui.selectedMenteeId;
+      if (!sb || !menteeId) return;
+      const { error } = await sb.from('mentorados').update({ [field]: value }).eq('id', menteeId);
+      if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      // Update local
+      if (this.data.detail?.profile) this.data.detail.profile[field] = value;
+      const m = this.data.mentees?.find(x => x.id === menteeId);
+      if (m) m[field] = value;
+    },
+
     async changeFinStatus(menteeId, newStatus, observacao) {
       try {
         const res = await fetch(`${CONFIG.API_BASE}/api/financeiro/status`, {

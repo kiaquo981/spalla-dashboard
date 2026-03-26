@@ -2303,21 +2303,79 @@
                   <span class="badge" :style="`background:${finStatusColor(data.detail?.profile?.status_financeiro)};color:#fff`"
                         x-text="finStatusLabel(data.detail?.profile?.status_financeiro)"></span>
                 </div>
-                <div class="fin-detail-status__grid">
+                <div class="fin-detail-status__grid" style="grid-template-columns:repeat(3, 1fr);gap:12px">
                   <div class="fin-detail-status__item">
                     <span class="fin-detail-status__label">Contrato</span>
                     <span class="fin-detail-status__val" :style="`color:${data.detail?.profile?.contrato_assinado ? 'var(--success)' : 'var(--danger)'}`"
-                          x-text="data.detail?.profile?.contrato_assinado ? 'Assinado' : 'Nao assinado'"></span>
+                          x-text="data.detail?.profile?.contrato_assinado ? '✓ Assinado' + (data.detail?.profile?.data_contrato_assinado ? ' em ' + formatDate(data.detail.profile.data_contrato_assinado) : '') : '✗ Não assinado'"></span>
+                  </div>
+                  <div class="fin-detail-status__item">
+                    <span class="fin-detail-status__label">Valor do Contrato</span>
+                    <span class="fin-detail-status__val" x-text="data.detail?.profile?.valor_contrato ? formatCurrency(data.detail.profile.valor_contrato) : '—'"></span>
+                  </div>
+                  <div class="fin-detail-status__item">
+                    <span class="fin-detail-status__label">Condição Acordada</span>
+                    <span class="fin-detail-status__val" x-text="data.detail?.profile?.condicao_acordada || '—'"></span>
                   </div>
                   <div class="fin-detail-status__item">
                     <span class="fin-detail-status__label">Dia de Pagamento</span>
-                    <span class="fin-detail-status__val" x-text="data.detail?.profile?.dia_pagamento ? `Dia ${data.detail.profile.dia_pagamento}` : 'Nao definido'"></span>
+                    <span class="fin-detail-status__val" x-text="data.detail?.profile?.dia_pagamento ? `Dia ${data.detail.profile.dia_pagamento}` : '—'"></span>
+                  </div>
+                  <div class="fin-detail-status__item">
+                    <span class="fin-detail-status__label">1º Pagamento</span>
+                    <span class="fin-detail-status__val" x-text="data.detail?.profile?.data_primeiro_pagamento ? formatDate(data.detail.profile.data_primeiro_pagamento) : '—'"></span>
                   </div>
                   <div class="fin-detail-status__item">
                     <span class="fin-detail-status__label">Fase</span>
                     <span class="fin-detail-status__val" x-text="data.detail?.profile?.fase_jornada || '—'"></span>
                   </div>
                 </div>
+
+                <!-- Editar dados financeiros -->
+                <details style="margin-top:12px">
+                  <summary style="font-size:11px;color:#8b6f47;cursor:pointer;font-weight:600">Editar dados financeiros</summary>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;padding:12px;background:#fafaf8;border-radius:8px;border:1px solid #f0ece4">
+                    <div>
+                      <label style="font-size:10px;font-weight:600;color:#64748b;display:block;margin-bottom:2px">Valor do Contrato (R$)</label>
+                      <input type="number" step="0.01" :value="data.detail?.profile?.valor_contrato || ''"
+                        @change="updateMenteeFinField('valor_contrato', parseFloat($event.target.value))"
+                        style="width:100%;padding:6px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px">
+                    </div>
+                    <div>
+                      <label style="font-size:10px;font-weight:600;color:#64748b;display:block;margin-bottom:2px">Condição Acordada</label>
+                      <input type="text" :value="data.detail?.profile?.condicao_acordada || ''" placeholder="Ex: 6x R$1.166"
+                        @change="updateMenteeFinField('condicao_acordada', $event.target.value)"
+                        style="width:100%;padding:6px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px">
+                    </div>
+                    <div>
+                      <label style="font-size:10px;font-weight:600;color:#64748b;display:block;margin-bottom:2px">Dia de Pagamento</label>
+                      <input type="number" min="1" max="31" :value="data.detail?.profile?.dia_pagamento || ''" placeholder="1-31"
+                        @change="updateMenteeFinField('dia_pagamento', parseInt($event.target.value))"
+                        style="width:100%;padding:6px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px">
+                    </div>
+                    <div>
+                      <label style="font-size:10px;font-weight:600;color:#64748b;display:block;margin-bottom:2px">Data 1º Pagamento</label>
+                      <input type="date" :value="data.detail?.profile?.data_primeiro_pagamento || ''"
+                        @change="updateMenteeFinField('data_primeiro_pagamento', $event.target.value)"
+                        style="width:100%;padding:6px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px">
+                    </div>
+                    <div>
+                      <label style="font-size:10px;font-weight:600;color:#64748b;display:block;margin-bottom:2px">Parcelas Total</label>
+                      <input type="number" min="1" :value="data.detail?.profile?.parcelas_total || ''" placeholder="Ex: 6"
+                        @change="updateMenteeFinField('parcelas_total', parseInt($event.target.value))"
+                        style="width:100%;padding:6px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px">
+                    </div>
+                    <div>
+                      <label style="font-size:10px;font-weight:600;color:#64748b;display:block;margin-bottom:2px">Contrato Assinado</label>
+                      <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:6px 0">
+                        <input type="checkbox" :checked="data.detail?.profile?.contrato_assinado"
+                          @change="updateMenteeFinField('contrato_assinado', $event.target.checked); if($event.target.checked) updateMenteeFinField('data_contrato_assinado', new Date().toISOString().split('T')[0])"
+                          style="width:16px;height:16px;accent-color:#8b6f47">
+                        <span x-text="data.detail?.profile?.contrato_assinado ? 'Sim' : 'Não'"></span>
+                      </label>
+                    </div>
+                  </div>
+                </details>
               </div>
 
               <!-- Quick Actions -->
