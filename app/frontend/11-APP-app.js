@@ -9510,14 +9510,22 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     async updateObTrilhaStatus(trilhaId, status) {
       if (!sb) return;
       const oldStatus = this.data.obTrilhaDetail?.status || null;
-      const { error } = await sb.from('ob_trilhas').update({ status, updated_at: new Date().toISOString() }).eq('id', trilhaId);
+      const now = new Date().toISOString();
+      const { error } = await sb.from('ob_trilhas').update({ status, updated_at: now }).eq('id', trilhaId);
       if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+
+      // When marking as concluido, auto-complete all tarefas and etapas
+      if (status === 'concluido') {
+        await sb.from('ob_tarefas').update({ status: 'concluido', data_concluida: now, updated_at: now }).eq('trilha_id', trilhaId).neq('status', 'concluido');
+        await sb.from('ob_etapas').update({ status: 'concluido', updated_at: now }).eq('trilha_id', trilhaId).neq('status', 'concluido');
+      }
+
       // Log event
       const statusLabels = { a_fazer: 'A Fazer', em_andamento: 'Em Andamento', concluido: 'Concluído', pausado: 'Pausado' };
       await this._logObEvento(trilhaId, null, null, 'trilha_status', oldStatus, status, 'Status: ' + (statusLabels[oldStatus] || oldStatus || '-') + ' → ' + (statusLabels[status] || status));
       await this.loadObData();
       if (this.ui.obDetailTrilhaId === trilhaId) await this.loadObDetail(trilhaId);
-      this.toast('Status atualizado', 'success');
+      this.toast(status === 'concluido' ? 'Trilha concluída — todas as tarefas finalizadas' : 'Status atualizado', 'success');
     },
 
     async deleteObTrilha(trilhaId) {
