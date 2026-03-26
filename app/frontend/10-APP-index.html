@@ -1512,6 +1512,11 @@
                 Timeline
                 <span class="op-tab__count" x-show="data.timeline.length" x-text="data.timeline.length"></span>
               </button>
+              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'mensagens' }" @click="ui.activeDetailTab = 'mensagens'; loadMenteeMessages(data.detail?.profile?.id)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                Mensagens
+                <span class="op-tab__count" x-show="data.menteeMessages?.length" x-text="data.menteeMessages?.length"></span>
+              </button>
             </div>
 
             <!-- ===== TAB: RESUMO ===== -->
@@ -2284,6 +2289,27 @@
                     </div>
                   </template>
                 </div>
+              </div>
+            </div>
+
+            <!-- ===== TAB: MENSAGENS (Chatwoot — EPIC 1) ===== -->
+            <div class="op-tab-content" x-show="ui.activeDetailTab === 'mensagens'" x-cloak>
+              <div x-show="!data.menteeMessages?.length" class="empty-state" style="padding:24px">
+                <p>Nenhuma mensagem registrada ainda.</p>
+                <p style="font-size:12px;color:var(--text-secondary)">Mensagens aparecem quando o Chatwoot estiver conectado.</p>
+              </div>
+              <div class="timeline-list" x-show="data.menteeMessages?.length">
+                <template x-for="msg in data.menteeMessages || []" :key="msg.id">
+                  <div class="timeline-item" style="border-left:3px solid" :style="msg.direction === 'inbound' ? 'border-color:#2563eb' : 'border-color:#16a34a'">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                      <span style="font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 6px;border-radius:3px" :style="msg.direction === 'inbound' ? 'background:#dbeafe;color:#1d4ed8' : 'background:#dcfce7;color:#166534'" x-text="msg.direction === 'inbound' ? 'Recebida' : 'Enviada'"></span>
+                      <span style="font-size:11px;font-weight:600" x-text="msg.sender_name || 'Desconhecido'"></span>
+                      <span style="font-size:10px;color:var(--text-secondary);margin-left:auto" x-text="msg.created_at ? new Date(msg.created_at).toLocaleString('pt-BR', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : ''"></span>
+                    </div>
+                    <div style="font-size:13px;color:var(--text-primary);line-height:1.4" x-text="msg.content_preview || '(sem conteudo)'"></div>
+                    <div style="font-size:10px;color:var(--text-secondary);margin-top:2px" x-text="msg.channel || 'whatsapp'"></div>
+                  </div>
+                </template>
               </div>
             </div>
 
@@ -4255,6 +4281,10 @@
             <!-- Topbar: título + filtros -->
             <div class="bib__topbar">
               <span class="bib__topbar-title">Biblioteca</span>
+              <button class="btn btn--sm btn--brand" @click="ui.fabricModal = true" style="font-size:11px;gap:4px;display:flex;align-items:center" title="Processar texto com IA (Fabric)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                Processar com IA
+              </button>
               <input class="bib__search" type="text" placeholder="Buscar documento..." x-model="bib.search" @input="bibFilter()">
               <div class="bib__filters">
                 <select class="bib__filter-select" x-model="bib.menteeFilter" @change="bibFilter()">
@@ -4466,7 +4496,19 @@
                   <button class="btn btn--sm" @click="closeDsDetail()" aria-label="Voltar para lista">← Voltar</button>
                   <h2 class="ds-detail__title" x-text="data.dsProducoes.find(p => p.producao_id === ui.dsDetailProducaoId)?.mentorado_nome || 'Detalhe'"></h2>
                   <span class="ds-status-badge" :style="'background:' + dsStatusConfig(data.dsMenteeDetail.status).color + '20; color:' + dsStatusConfig(data.dsMenteeDetail.status).color" x-text="dsStatusConfig(data.dsMenteeDetail.status).label"></span>
-                  <button class="btn btn--sm" style="margin-left:8px;color:#ef4444;border-color:#fecaca" @click="dsDeleteProducao(ui.dsDetailProducaoId)" title="Excluir produção" aria-label="Excluir produção">
+                  <!-- EPIC 6: Gerar Dossiê com IA -->
+                  <div style="margin-left:auto;display:flex;gap:4px">
+                    <select x-model="ui.dossieGenType" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:4px">
+                      <option value="oferta">Oferta</option>
+                      <option value="posicionamento">Posicion.</option>
+                      <option value="funil">Funil</option>
+                    </select>
+                    <button class="btn btn--sm btn--brand" @click="generateDossie(data.dsMenteeDetail?.mentorado_id, ui.dossieGenType || 'oferta')" style="font-size:11px;white-space:nowrap">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                      Gerar com IA
+                    </button>
+                  </div>
+                  <button class="btn btn--sm" style="color:#ef4444;border-color:#fecaca" @click="dsDeleteProducao(ui.dsDetailProducaoId)" title="Excluir producao" aria-label="Excluir producao">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                   </button>
                 </div>
@@ -6926,7 +6968,85 @@
               </button>
             </div>
           </div>
+
+          <!-- EPIC 5: Cron Jobs Status (OpenFang) -->
+          <div class="settings-section" x-data="{ crons: { jobs: [], configured: false, loading: false } }" x-init="
+            crons.loading = true;
+            fetch(CONFIG.API_BASE + '/api/crons/status', { headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('spalla_access_token') || '') } })
+              .then(r => r.json()).then(d => { crons.jobs = d.jobs || []; crons.configured = d.configured; crons.loading = false; })
+              .catch(() => { crons.loading = false; })
+          ">
+            <div class="settings-section__header">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <div>
+                <h3>Automacoes (Cron Jobs)</h3>
+                <p class="settings-section__desc">Status das tarefas automaticas — alertas, syncs e reconciliacao</p>
+              </div>
+              <span style="margin-left:auto;font-size:11px;padding:3px 8px;border-radius:4px" :style="crons.configured ? 'background:#dcfce7;color:#166534' : 'background:#fef9c3;color:#854d0e'" x-text="crons.configured ? 'Ativo' : 'Nao configurado'"></span>
+            </div>
+            <div x-show="crons.loading" style="padding:12px;color:var(--text-secondary);font-size:12px">Carregando...</div>
+            <div x-show="!crons.loading && !crons.jobs.length" style="padding:12px;color:var(--text-secondary);font-size:12px">Nenhum cron executado ainda. Configure o OpenFang para ativar automacoes.</div>
+            <div x-show="!crons.loading && crons.jobs.length" style="display:flex;flex-direction:column;gap:4px;padding:8px 0">
+              <template x-for="job in crons.jobs" :key="job.id">
+                <div style="display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:6px;background:var(--bg-subtle);font-size:12px">
+                  <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0" :style="job.status === 'success' ? 'background:#16a34a' : job.status === 'failed' ? 'background:#dc2626' : 'background:#94a3b8'"></span>
+                  <span style="font-weight:600;min-width:180px" x-text="job.job_name"></span>
+                  <span style="color:var(--text-secondary);flex:1" x-text="job.message || ''"></span>
+                  <span style="color:var(--text-secondary);font-size:10px" x-text="job.executed_at ? new Date(job.executed_at).toLocaleString('pt-BR', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : ''"></span>
+                </div>
+              </template>
+            </div>
+          </div>
         </div>
+
+        <!-- ===== FABRIC AI MODAL (EPIC 2) ===== -->
+        <template x-if="ui.fabricModal">
+          <div class="transcricao-modal" @click.self="ui.fabricModal = false" @keydown.escape.window="ui.fabricModal = false">
+            <div class="transcricao-modal__box" role="dialog" aria-label="Processar com IA" style="max-width:700px">
+              <div class="transcricao-modal__header">
+                <span class="transcricao-modal__title">Processar com IA (Fabric)</span>
+                <button class="transcricao-modal__close" @click="ui.fabricModal = false">&times;</button>
+              </div>
+              <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+                <div>
+                  <label style="font-size:12px;font-weight:600;margin-bottom:4px;display:block">Pattern</label>
+                  <select x-model="ui.fabricPattern" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+                    <optgroup label="CASE (customizados)">
+                      <option value="case_extract_oferta">Extrair Oferta</option>
+                      <option value="case_extract_posicionamento">Extrair Posicionamento</option>
+                      <option value="case_extract_funil">Extrair Funil de Vendas</option>
+                      <option value="case_analyze_call">Analisar Call de Vendas</option>
+                      <option value="case_lapidacao_perfil">Lapidacao de Perfil</option>
+                    </optgroup>
+                    <optgroup label="Fabric (nativos)">
+                      <option value="summarize">Resumir</option>
+                      <option value="extract_wisdom">Extrair Sabedoria</option>
+                      <option value="extract_insights">Extrair Insights</option>
+                      <option value="analyze_sales_call">Analisar Call (EN)</option>
+                      <option value="create_hormozi_offer">Criar Oferta Hormozi</option>
+                    </optgroup>
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size:12px;font-weight:600;margin-bottom:4px;display:block">Texto para processar</label>
+                  <textarea x-model="ui.fabricInput" rows="8" placeholder="Cole aqui a transcricao, texto do dossie, ou conteudo para processar..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
+                </div>
+                <button class="btn btn--brand" :disabled="ui.fabricLoading || !ui.fabricInput" @click="runFabricPattern()" style="align-self:flex-end">
+                  <span x-show="!ui.fabricLoading">Processar</span>
+                  <span x-show="ui.fabricLoading">Processando...</span>
+                </button>
+                <div x-show="ui.fabricResult" style="background:var(--bg-subtle);border-radius:8px;padding:12px;max-height:400px;overflow-y:auto">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                    <span style="font-size:11px;font-weight:600;color:var(--text-secondary)">Resultado</span>
+                    <button class="btn btn--sm" @click="navigator.clipboard.writeText(ui.fabricResult)" style="font-size:10px">Copiar</button>
+                  </div>
+                  <div style="font-size:13px;line-height:1.5;white-space:pre-wrap" x-text="ui.fabricResult"></div>
+                </div>
+                <div x-show="ui.fabricError" style="color:#dc2626;font-size:12px;padding:8px;background:#fef2f2;border-radius:6px" x-text="ui.fabricError"></div>
+              </div>
+            </div>
+          </div>
+        </template>
 
         <!-- ===== WELCOME FLOW ===== -->
         <div class="page-content" x-show="ui.page === 'welcome_flow'" x-transition>
