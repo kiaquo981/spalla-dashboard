@@ -35,3 +35,7 @@ Thumbs.db
 .dolt/
 *.db
 .worktrees/
+
+# Beads / Dolt files (added by bd init)
+.beads-credential-key
+.claude/skills/gstack/
