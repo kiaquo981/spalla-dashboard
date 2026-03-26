@@ -29,7 +29,7 @@ services:
   chatwoot-rails:
     <<: *chatwoot-base
     ports:
-      - '3000:3000'
+      - '3333:3000'
     command: bundle exec rails s -p 3000 -b 0.0.0.0
     environment:
       - NODE_ENV=production
@@ -40,7 +40,7 @@ services:
     command: bundle exec sidekiq -C config/sidekiq.yml
 
   chatwoot-postgres:
-    image: postgres:15
+    image: pgvector/pgvector:pg15
     restart: unless-stopped
     environment:
       POSTGRES_DB: chatwoot_production

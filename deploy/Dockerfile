@@ -9,6 +9,10 @@ RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements-rail
 # Copy server
 COPY app/backend/14-APP-server.py .
 
+# Copy AI patterns and evaluation scripts
+COPY ai/patterns/ ai/patterns/
+COPY ai/ragas/ ai/ragas/
+
 # Environment variables (overridden at runtime via .env or docker-compose)
 ENV PORT=9999
 

@@ -4125,34 +4125,56 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': 'Invalid model name'}, 400)
                 return
 
-            import subprocess
-            # Check if fabric is installed
-            fabric_path = os.environ.get('FABRIC_PATH', 'fabric')
+            # Load pattern system prompt from file
+            patterns_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'ai', 'patterns')
+            if not os.path.isdir(patterns_dir):
+                patterns_dir = os.path.join(os.path.dirname(__file__), 'ai', 'patterns')
+            system_file = os.path.join(patterns_dir, pattern, 'system.md')
+
+            if not os.path.exists(system_file):
+                self._send_json({'error': f'Pattern "{pattern}" not found'}, 404)
+                return
+
+            with open(system_file, 'r') as f:
+                system_prompt = f.read()
+
+            # Call Gemini API (free, always available)
+            gemini_key = GEMINI_API_KEY
+            if not gemini_key:
+                self._send_json({'error': 'No AI API key configured (set GEMINI_API_KEY)'}, 503)
+                return
+
             try:
-                result = subprocess.run(
-                    [fabric_path, '-p', pattern, '-m', model],
-                    input=input_text, capture_output=True, text=True, timeout=120,
-                )
-                if result.returncode != 0:
-                    self._send_json({
-                        'error': f'Fabric error: {result.stderr[:500]}',
-                        'pattern': pattern,
-                    }, 500)
+                gemini_model = 'gemini-2.5-flash'
+                api_url = f'https://generativelanguage.googleapis.com/v1beta/models/{gemini_model}:generateContent?key={gemini_key}'
+                payload = {
+                    'contents': [{'parts': [{'text': f'{system_prompt}\n\n---\n\nINPUT:\n{input_text}'}]}],
+                    'generationConfig': {'temperature': 0.3, 'maxOutputTokens': 8192},
+                }
+                req = urllib.request.Request(api_url,
+                    data=json.dumps(payload).encode(),
+                    headers={'Content-Type': 'application/json'},
+                    method='POST')
+                with urllib.request.urlopen(req, timeout=120) as resp:
+                    result = json.loads(resp.read())
+
+                output = result.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
+                if not output:
+                    self._send_json({'error': 'Empty response from AI', 'raw': str(result)[:500]}, 500)
                     return
 
-                output = result.stdout
                 log_info('Fabric', f'Pattern "{pattern}" completed ({len(output)} chars)')
-
                 self._send_json({
                     'pattern': pattern,
-                    'model': model,
+                    'model': gemini_model,
                     'output': output,
                     'chars': len(output),
                 })
-            except FileNotFoundError:
-                self._send_json({'error': 'Fabric CLI not installed. Install: brew install fabric'}, 503)
-            except subprocess.TimeoutExpired:
-                self._send_json({'error': 'Pattern execution timed out (120s)'}, 504)
+            except urllib.error.HTTPError as e:
+                error_body = e.read().decode()[:500]
+                self._send_json({'error': f'AI API error: {e.code} {error_body}'}, 502)
+            except Exception as e:
+                self._send_json({'error': f'AI call failed: {str(e)[:300]}'}, 500)
 
         except Exception as e:
             log_error('Fabric', f'run failed: {e}', e)
