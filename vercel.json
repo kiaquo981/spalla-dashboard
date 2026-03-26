@@ -1,6 +1,20 @@
 {
   "buildCommand": "echo Static SPA",
   "outputDirectory": "app/frontend",
+  "headers": [
+    {
+      "source": "/(.*).js",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
+    },
+    {
+      "source": "/(.*).css",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
+    },
+    {
+      "source": "/(.*).html",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+    }
+  ],
   "rewrites": [
     { "source": "/api-docs", "destination": "/api-docs.html" },
     { "source": "/(.*)", "destination": "/10-APP-index.html" }

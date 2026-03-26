@@ -1953,6 +1953,12 @@ function operon() {
           localStorage.setItem('spalla_page', target);
           console.log('[Spalla] Deep-link restored to:', target);
         }
+        // Deep-link task: /tasks?task=UUID
+        const taskParam = new URLSearchParams(window.location.search).get('task');
+        if (taskParam) {
+          this.ui.page = 'tasks';
+          setTimeout(() => this.openTaskDetail(taskParam), 500);
+        }
       } catch (e) {
         this.auth.error = 'Erro ao fazer login: ' + e.message;
         console.error('[Spalla] Login error:', e);
@@ -5582,6 +5588,16 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.ui.taskDetailDrawer = taskId;
       this.ui.taskActivity = [];
       this._loadTaskActivity(taskId);
+      // Update URL for shareable link (without page reload)
+      if (taskId && window.history.replaceState) {
+        window.history.replaceState(null, '', `/tasks?task=${taskId}`);
+      }
+    },
+
+    // Copy shareable task link
+    copyTaskLink(taskId) {
+      const url = `${window.location.origin}/tasks?task=${taskId}`;
+      navigator.clipboard.writeText(url).then(() => this.toast('Link copiado!', 'success'));
     },
 
     formatActivity(evt) {
@@ -5610,6 +5626,10 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     closeTaskDetail() {
       this.ui.taskDetailDrawer = null;
+      // Reset URL (remove ?task= param)
+      if (window.history.replaceState) {
+        window.history.replaceState(null, '', '/tasks');
+      }
     },
 
     get activeTaskDetail() {
