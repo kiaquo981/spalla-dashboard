@@ -31,29 +31,37 @@ THRESHOLD_PRECISION = float(os.environ.get('RAGAS_THRESHOLD_PRECISION', '0.75'))
 
 
 def evaluate(dossie_text: str, source_texts: list[str]) -> dict:
-    """Run RAGAS evaluation on a dossiê against source transcripts."""
+    """Run RAGAS evaluation on a dossiê against source transcripts.
+    Falls back to heuristic evaluation if RAGAS fails (missing API key, etc)."""
     try:
         from ragas import evaluate as ragas_evaluate
-        from ragas.metrics import faithfulness, answer_correctness, context_precision
         from ragas import EvaluationDataset, SingleTurnSample
+        try:
+            from ragas.metrics.collections import context_precision
+        except ImportError:
+            from ragas.metrics import context_precision
+        from ragas.metrics import faithfulness, answer_correctness
     except ImportError:
         return _fallback_evaluate(dossie_text, source_texts)
 
-    # Build evaluation dataset
-    # RAGAS expects: question (what was asked), answer (dossiê), contexts (transcripts)
-    sample = SingleTurnSample(
-        user_input="Gere o dossie completo para este mentorado baseado nas transcricoes de mentoria.",
-        response=dossie_text,
-        retrieved_contexts=source_texts,
-        reference="\n\n".join(source_texts),  # ground truth = all transcripts
-    )
-    dataset = EvaluationDataset(samples=[sample])
+    try:
+        sample = SingleTurnSample(
+            user_input="Gere o dossie completo para este mentorado baseado nas transcricoes de mentoria.",
+            response=dossie_text,
+            retrieved_contexts=source_texts,
+            reference="\n\n".join(source_texts),
+        )
+        dataset = EvaluationDataset(samples=[sample])
 
-    # Run evaluation
-    result = ragas_evaluate(
-        dataset=dataset,
-        metrics=[faithfulness, answer_correctness, context_precision],
-    )
+        result = ragas_evaluate(
+            dataset=dataset,
+            metrics=[faithfulness, answer_correctness, context_precision],
+        )
+    except Exception as e:
+        # Falls back if no API key, network error, etc.
+        fallback = _fallback_evaluate(dossie_text, source_texts)
+        fallback['details']['ragas_error'] = str(e)[:200]
+        return fallback
 
     scores = {
         'faithfulness': round(result['faithfulness'], 3),
