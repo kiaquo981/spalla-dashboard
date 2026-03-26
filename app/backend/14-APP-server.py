@@ -3952,9 +3952,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     # ===== CHATWOOT INTEGRATION (EPIC 1) =====
 
     def _verify_chatwoot_signature(self, raw_body):
-        """Verify Chatwoot webhook HMAC-SHA256 signature"""
+        """Verify Chatwoot webhook HMAC-SHA256 signature.
+        NOTE: In production, CHATWOOT_WEBHOOK_SECRET MUST be set.
+        Skipping verification is only acceptable in development."""
         if not CHATWOOT_WEBHOOK_SECRET:
-            return True  # skip if not configured
+            log_info('Chatwoot', 'WARNING: CHATWOOT_WEBHOOK_SECRET not set — skipping signature verification')
+            return True
         sig_header = self.headers.get('X-Chatwoot-Signature', '')
         timestamp = self.headers.get('X-Chatwoot-Timestamp', '')
         if not sig_header:
@@ -3995,10 +3998,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             phone = sender.get('phone_number', '').strip()
             if not phone:
                 return
-            # Normalize phone: remove +, spaces
-            phone_clean = phone.replace('+', '').replace(' ', '').replace('-', '')
+            # Normalize phone: remove +, spaces, keep only digits
+            phone_clean = re.sub(r'[^\d]', '', phone)
             # Find mentorado by phone (try last 11 digits for BR numbers)
             phone_suffix = phone_clean[-11:] if len(phone_clean) > 11 else phone_clean
+            if not phone_suffix or not phone_suffix.isdigit():
+                return
             mentorados = supabase_request('GET',
                 f'mentorados?select=id,nome,telefone&telefone=ilike.*{phone_suffix}&limit=1')
             if isinstance(mentorados, list) and mentorados:
@@ -4039,8 +4044,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         """Handle new conversation — check if mentorado exists"""
         try:
             contact = event.get('meta', {}).get('sender', {})
-            phone = contact.get('phone_number', '').replace('+', '').replace(' ', '').replace('-', '')
-            if not phone:
+            phone = re.sub(r'[^\d]', '', contact.get('phone_number', ''))
+            if not phone or not phone.isdigit():
                 return
             phone_suffix = phone[-11:] if len(phone) > 11 else phone
             mentorados = supabase_request('GET',
@@ -4102,9 +4107,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': 'pattern and input are required'}, 400)
                 return
 
-            # Security: pattern name must be alphanumeric + underscores/hyphens
+            # Security: pattern and model names must be alphanumeric + safe chars only
             if not re.match(r'^[a-zA-Z0-9_-]+$', pattern):
                 self._send_json({'error': 'Invalid pattern name'}, 400)
+                return
+            if not re.match(r'^[a-zA-Z0-9_.:-]+$', model):
+                self._send_json({'error': 'Invalid model name'}, 400)
                 return
 
             import subprocess
@@ -4162,7 +4170,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 return
 
             import subprocess
-            # Run the RAGAS evaluation script
+            # Run the RAGAS evaluation script — pass JSON via stdin to avoid ARG_MAX
             eval_input = json.dumps({'dossie': dossie_text, 'sources': source_texts})
             script_path = os.path.join(os.path.dirname(__file__), '..', '..', 'ai', 'ragas', 'evaluate_dossie.py')
             if not os.path.exists(script_path):
@@ -4170,8 +4178,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
             try:
                 result = subprocess.run(
-                    [sys.executable, script_path, '--json', eval_input],
-                    capture_output=True, text=True, timeout=180,
+                    [sys.executable, script_path, '--stdin'],
+                    input=eval_input, capture_output=True, text=True, timeout=180,
                 )
                 eval_result = json.loads(result.stdout) if result.stdout.strip() else {
                     'error': result.stderr[:500], 'verdict': 'error'

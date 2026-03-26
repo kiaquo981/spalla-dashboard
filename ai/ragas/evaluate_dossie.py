@@ -148,10 +148,15 @@ def main():
     parser.add_argument('--dossie', help='Path to dossiê markdown file')
     parser.add_argument('--sources', nargs='+', help='Paths to source transcript files')
     parser.add_argument('--json', help='JSON input: {"dossie": "...", "sources": ["..."]}')
+    parser.add_argument('--stdin', action='store_true', help='Read JSON input from stdin (avoids ARG_MAX)')
     parser.add_argument('--output', help='Output file path (default: stdout)')
     args = parser.parse_args()
 
-    if args.json:
+    if args.stdin:
+        data = json.loads(sys.stdin.read())
+        dossie_text = data['dossie']
+        source_texts = data['sources']
+    elif args.json:
         data = json.loads(args.json)
         dossie_text = data['dossie']
         source_texts = data['sources']
