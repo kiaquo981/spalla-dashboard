@@ -226,6 +226,18 @@ tags:
       incluindo 5 patterns customizados CASE: extract_oferta,
       extract_posicionamento, extract_funil, analyze_call, lapidacao_perfil.
       Cada pattern e um prompt reutilizavel e versionado em Markdown.
+  - name: Cron Jobs
+    description: |
+      Status e logs de tarefas agendadas automaticas (via OpenFang).
+      Inclui alertas de mentorados inativos, tasks vencidas, sync de
+      contatos Chatwoot, sync Google Calendar, e reconciliacao financeira.
+  - name: Dossie Generation
+    description: |
+      Pipeline de geracao autonoma de dossies via Goose Agent.
+      O endpoint cria um job na fila; o Goose MCP agent processa
+      autonomamente: extrai dados → aplica Fabric patterns → gera
+      secoes → avalia com RAGAS → salva no Supabase. Acompanhe
+      o progresso via polling do job status.
   - name: System
     description: |
       Health check, status de integracoes e informacoes gerais do servico.
@@ -5525,3 +5537,162 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
               example:
                 error: "Pattern execution timed out (120s)"
+
+  # ===== CRON JOBS (OPENFANG — EPIC 5) =====
+
+  /api/crons/status:
+    get:
+      tags: [Cron Jobs]
+      summary: Status dos cron jobs automaticos
+      description: |
+        Retorna os ultimos 20 logs de execucao de cron jobs.
+        Jobs configurados via OpenFang: alertas de inatividade,
+        sync Chatwoot, sync Calendar, reconciliacao financeira.
+      operationId: getCronStatus
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Status dos crons
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  configured:
+                    type: boolean
+                    description: Se OpenFang esta configurado
+                  jobs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        job_name:
+                          type: string
+                        status:
+                          type: string
+                          enum: [success, failed, skipped]
+                        message:
+                          type: string
+                        executed_at:
+                          type: string
+                          format: date-time
+              example:
+                configured: true
+                jobs:
+                  - id: 1
+                    job_name: "alert_inactive_mentorados"
+                    status: "success"
+                    message: "3 mentorados sem contato"
+                    executed_at: "2026-03-26T09:00:00Z"
+
+  # ===== QA SCORES PER MENTORADO =====
+
+  /api/mentees/{mentee_id}/qa-scores:
+    get:
+      tags: [RAGAS Quality Gate]
+      summary: Historico de scores RAGAS do mentorado
+      description: Retorna os ultimos 10 scores de avaliacao de dossies do mentorado.
+      operationId: getMenteeQaScores
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: mentee_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Lista de scores
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    scores:
+                      type: object
+                    verdict:
+                      type: string
+                    created_at:
+                      type: string
+                      format: date-time
+              example:
+                - id: 1
+                  scores: {faithfulness: 0.91, answer_correctness: 0.87, context_precision: 0.89}
+                  verdict: "approved"
+                  created_at: "2026-03-26T10:00:00Z"
+
+  # ===== DOSSIE GENERATION (GOOSE — EPIC 6) =====
+
+  /api/dossie/generate:
+    post:
+      tags: [Dossie Generation]
+      summary: Iniciar geracao autonoma de dossie
+      description: |
+        Cria um job de geracao de dossie na fila. O Goose Agent (ou worker)
+        processa o job autonomamente:
+        1. Busca dados do mentorado
+        2. Busca transcricoes fonte
+        3. Aplica Fabric patterns (case_extract_*)
+        4. Gera secoes do dossie
+        5. Avalia com RAGAS
+        6. Salva no Supabase
+
+        Acompanhe o progresso via job_id retornado.
+      operationId: generateDossie
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mentorado_id]
+              properties:
+                mentorado_id:
+                  type: integer
+                type:
+                  type: string
+                  enum: [oferta, posicionamento, funil]
+                  default: oferta
+            example:
+              mentorado_id: 42
+              type: "oferta"
+      responses:
+        "201":
+          description: Job criado na fila
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id:
+                    type: integer
+                  mentorado_id:
+                    type: integer
+                  mentorado_nome:
+                    type: string
+                  dossie_type:
+                    type: string
+                  status:
+                    type: string
+                  message:
+                    type: string
+              example:
+                job_id: 1
+                mentorado_id: 42
+                mentorado_nome: "Danyella Truiz"
+                dossie_type: "oferta"
+                status: "queued"
+                message: "Dossie oferta queued for Danyella Truiz. Poll GET /api/dossie/generate/status/1 for progress."
+        "404":
+          description: Mentorado nao encontrado
