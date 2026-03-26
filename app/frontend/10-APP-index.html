@@ -5436,6 +5436,64 @@
                 <button class="btn btn--xs btn--ghost" @click="expandAllObEtapas()">Expandir Tudo</button>
                 <button class="btn btn--xs btn--ghost" @click="collapseAllObEtapas()">Recolher Tudo</button>
               </div>
+
+              <!-- Context Hub inline (áudio, notas, arquivos da call de onboarding) -->
+              <div class="ob-context-hub" x-data="{ ctxOpen: false }" x-init="loadMenteeContext(data.obTrilhaDetail?.mentorado_id)" style="margin:12px 0;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+                <div @click="ctxOpen = !ctxOpen" style="display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;background:var(--bg-subtle);user-select:none">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b6f47" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  <span style="font-size:13px;font-weight:600;color:#475569">Contexto do Onboarding</span>
+                  <span x-show="data.menteeContext?.length" style="font-size:11px;background:#8b6f47;color:#fff;border-radius:10px;padding:1px 7px;font-weight:600" x-text="data.menteeContext.length"></span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.5" style="margin-left:auto;transition:transform .15s" :style="ctxOpen ? 'transform:rotate(180deg)' : ''"><polyline points="6 9 12 15 18 9"/></svg>
+                </div>
+
+                <div x-show="ctxOpen" x-transition style="padding:12px">
+                  <!-- Quick add -->
+                  <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+                    <button class="btn btn--xs" :class="ui.ctxTipo === 'texto' ? 'btn--brand' : 'btn--ghost'" @click="ui.ctxTipo = 'texto'" style="font-size:11px">📝 Nota</button>
+                    <button class="btn btn--xs" :class="ui.ctxTipo === 'audio' ? 'btn--brand' : 'btn--ghost'" @click="ui.ctxTipo = 'audio'" style="font-size:11px">🎙 Áudio</button>
+                    <button class="btn btn--xs" :class="ui.ctxTipo === 'arquivo' ? 'btn--brand' : 'btn--ghost'" @click="ui.ctxTipo = 'arquivo'" style="font-size:11px">📎 Arquivo</button>
+                  </div>
+
+                  <!-- Texto input -->
+                  <div x-show="ui.ctxTipo === 'texto'" style="margin-bottom:8px">
+                    <input type="text" x-model="ui.ctxTitulo" placeholder="Título (ex: Percepções da call)" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;margin-bottom:4px">
+                    <textarea x-model="ui.ctxConteudo" rows="3" placeholder="Notas, observações, percepções sobre o mentorado..." style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+                  </div>
+
+                  <!-- Áudio/Arquivo upload -->
+                  <div x-show="ui.ctxTipo !== 'texto'" style="margin-bottom:8px">
+                    <input type="text" x-model="ui.ctxTitulo" placeholder="Título (ex: Áudio call onboarding)" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;margin-bottom:4px">
+                    <label style="display:flex;align-items:center;gap:6px;padding:12px;border:2px dashed var(--border);border-radius:6px;cursor:pointer;font-size:11px;color:var(--text-secondary);justify-content:center">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                      <span x-text="ui.ctxArquivo ? ui.ctxArquivo.name : (ui.ctxTipo === 'audio' ? 'Enviar áudio' : 'Enviar arquivo')"></span>
+                      <input type="file" :accept="ui.ctxTipo === 'audio' ? 'audio/*,.mp3,.wav,.m4a,.ogg' : '*'" @change="ui.ctxArquivo = $event.target.files[0]" style="display:none">
+                    </label>
+                    <textarea x-show="ui.ctxArquivo" x-model="ui.ctxConteudo" rows="2" placeholder="Descrição ou transcrição (opcional)" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:inherit;margin-top:4px"></textarea>
+                  </div>
+
+                  <button class="btn btn--brand btn--xs" @click="ui.ctxFase = 'onboarding'; saveContext()" :disabled="ui.ctxSaving || (!ui.ctxConteudo && !ui.ctxArquivo)" style="font-size:11px">
+                    <span x-show="!ui.ctxSaving">+ Adicionar</span>
+                    <span x-show="ui.ctxSaving">Salvando...</span>
+                  </button>
+
+                  <!-- Lista de contextos -->
+                  <div x-show="data.menteeContext?.length" style="margin-top:10px;display:flex;flex-direction:column;gap:6px">
+                    <template x-for="ctx in data.menteeContext || []" :key="ctx.id">
+                      <div style="display:flex;gap:8px;align-items:flex-start;padding:8px;background:var(--bg-subtle);border-radius:6px;font-size:12px">
+                        <span x-text="ctx.tipo === 'audio' ? '🎙' : ctx.tipo === 'arquivo' ? '📎' : '📝'" style="font-size:14px"></span>
+                        <div style="flex:1;min-width:0">
+                          <div style="font-weight:600;margin-bottom:2px" x-text="ctx.titulo || ctx.tipo"></div>
+                          <div x-show="ctx.conteudo" style="color:var(--text-secondary);line-height:1.4" x-text="ctx.conteudo?.substring(0, 150) + (ctx.conteudo?.length > 150 ? '...' : '')"></div>
+                          <a x-show="ctx.arquivo_url" :href="ctx.arquivo_url" target="_blank" style="color:var(--brand-500);text-decoration:none;font-size:11px" x-text="ctx.arquivo_nome || 'Baixar'"></a>
+                          <div style="color:var(--text-secondary);font-size:10px;margin-top:2px" x-text="new Date(ctx.created_at).toLocaleDateString('pt-BR', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) + ' · ' + (ctx.criado_por || '')"></div>
+                        </div>
+                        <button @click="deleteContext(ctx.id)" style="background:none;border:none;cursor:pointer;color:#dc2626;opacity:0.4;font-size:12px" @mouseover="$el.style.opacity='1'" @mouseout="$el.style.opacity='0.4'">✕</button>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+
               <!-- Etapas accordion -->
               <div class="ob-etapas">
                 <template x-for="etapa in data.obTrilhaDetail.etapas" :key="etapa.id">
@@ -9010,7 +9068,7 @@
   <script src="12-APP-data.js?v=72"></script>
   <script src="13-APP-photos.js?v=72"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=100"></script>
+  <script src="11-APP-app.js?v=101"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">
