@@ -1562,11 +1562,11 @@ function operon() {
         this.data.tasks.forEach(t => { lists.add(t.list_id || ''); });
         return [...lists].map(id => ({ key: id, label: this.getListName(id) || id || 'Sem lista', color: '#8b6f47' }));
       }
-      // Default: status
+      // Default: status — use CSS class instead of inline color
       return [
-        { key: 'pendente', label: 'A Fazer', color: '#64748b' },
-        { key: 'em_andamento', label: 'Em Progresso', color: '#f59e0b' },
-        { key: 'concluida', label: 'Concluido', color: '#16a34a' },
+        { key: 'pendente', label: 'A Fazer', color: '', cssClass: 'task-board__column-header--pendente' },
+        { key: 'em_andamento', label: 'Em Progresso', color: '', cssClass: 'task-board__column-header--em_andamento' },
+        { key: 'concluida', label: 'Concluido', color: '', cssClass: 'task-board__column-header--concluida' },
       ];
     },
 
