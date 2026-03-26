@@ -207,6 +207,8 @@ function operon() {
       fabricModal: false, fabricPattern: 'case_extract_oferta', fabricInput: '', fabricResult: '', fabricError: '', fabricLoading: false,
       // EPIC 6: Dossiê generation
       dossieGenType: 'oferta',
+      // Context Hub
+      ctxTipo: 'texto', ctxTitulo: '', ctxConteudo: '', ctxArquivo: null, ctxFase: 'onboarding', ctxSaving: false,
       taskTagFilter: [],       // tag ids for filtering
       taskDateFilter: 'all', // all | today | next7 | next30 | overdue | no_date
       taskTagsDropdown: false, // tags dropdown open in modal
@@ -433,6 +435,7 @@ function operon() {
       waSavedSegments: [],
       timeline: [],
       menteeMessages: [],  // EPIC 1: Chatwoot messages for current mentorado
+      menteeContext: [],   // Context Hub: áudios, notas, arquivos para dossiê
       teamPerformance: [],
       // Command Center static data
       projects: [
@@ -7486,6 +7489,83 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       } catch (e) {
         if (reqId === this._timelineReqId) console.warn('[Spalla] loadTimeline exception:', e);
       }
+    },
+
+    // ===== CONTEXT HUB: áudio, texto, anexos para dossiê =====
+    async loadMenteeContext(menteeId) {
+      if (!menteeId) return;
+      this.data.menteeContext = [];
+      try {
+        const { data, error } = await sb.from('mentorado_context')
+          .select('*')
+          .eq('mentorado_id', menteeId)
+          .eq('ativo', true)
+          .order('created_at', { ascending: false });
+        if (data) this.data.menteeContext = data;
+      } catch (e) { console.warn('[Spalla] loadMenteeContext:', e); }
+    },
+
+    async saveContext() {
+      const menteeId = this.data.detail?.profile?.id;
+      if (!menteeId) return;
+      this.ui.ctxSaving = true;
+      try {
+        const record = {
+          mentorado_id: menteeId,
+          tipo: this.ui.ctxTipo || 'texto',
+          titulo: this.ui.ctxTitulo || '',
+          conteudo: this.ui.ctxConteudo || '',
+          fase: this.ui.ctxFase || 'onboarding',
+          criado_por: this.auth.currentUser?.email || '',
+        };
+
+        // Upload file if present
+        if (this.ui.ctxArquivo) {
+          const file = this.ui.ctxArquivo;
+          const path = `context/${menteeId}/${Date.now()}_${file.name}`;
+          const { data: uploadData, error: uploadError } = await sb.storage
+            .from('uploads')
+            .upload(path, file);
+          if (uploadError) throw uploadError;
+          const { data: urlData } = sb.storage.from('uploads').getPublicUrl(path);
+          record.arquivo_url = urlData.publicUrl;
+          record.arquivo_nome = file.name;
+          record.arquivo_tipo = file.type;
+          record.arquivo_tamanho = file.size;
+        }
+
+        const { error } = await sb.from('mentorado_context').insert(record);
+        if (error) throw error;
+
+        // Reset form
+        this.ui.ctxTitulo = '';
+        this.ui.ctxConteudo = '';
+        this.ui.ctxArquivo = null;
+        this.toast('Contexto adicionado', 'success');
+        await this.loadMenteeContext(menteeId);
+      } catch (e) {
+        console.error('[Spalla] saveContext:', e);
+        this.toast('Erro ao salvar: ' + e.message, 'error');
+      }
+      this.ui.ctxSaving = false;
+    },
+
+    async deleteContext(ctxId) {
+      if (!confirm('Remover este contexto?')) return;
+      try {
+        await sb.from('mentorado_context').delete().eq('id', ctxId);
+        this.data.menteeContext = this.data.menteeContext.filter(c => c.id !== ctxId);
+        this.toast('Contexto removido', 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    async archiveContextOnDossieDelivery(menteeId) {
+      // Called when last dossiê is delivered — archives all context
+      try {
+        await sb.from('mentorado_context')
+          .update({ ativo: false })
+          .eq('mentorado_id', menteeId);
+      } catch (e) { console.warn('[Spalla] archiveContext:', e); }
     },
 
     // ===== EPIC 1: Load Chatwoot messages for mentorado =====

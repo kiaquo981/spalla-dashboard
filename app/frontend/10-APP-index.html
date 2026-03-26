@@ -1506,6 +1506,11 @@
                 Arquivos
                 <span class="op-tab__count" x-show="_detailArquivos.length" x-text="_detailArquivos.length"></span>
               </button>
+              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'contexto' }" @click="ui.activeDetailTab = 'contexto'; loadMenteeContext(data.detail?.profile?.id)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                Contexto
+                <span class="op-tab__count" x-show="data.menteeContext?.length" x-text="data.menteeContext?.length"></span>
+              </button>
               <button class="op-tab" :class="{ active: ui.activeDetailTab === 'financeiro' }" @click="ui.activeDetailTab = 'financeiro'; loadFinDetailLogs()" x-show="isCfoUser">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                 Financeiro
@@ -2313,6 +2318,92 @@
                     <div style="font-size:10px;color:var(--text-secondary);margin-top:2px" x-text="msg.channel || 'whatsapp'"></div>
                   </div>
                 </template>
+              </div>
+            </div>
+
+            <!-- ===== TAB: CONTEXTO (Context Hub — áudio, texto, anexos para dossiê) ===== -->
+            <div class="op-tab-content" x-show="ui.activeDetailTab === 'contexto'" x-cloak>
+              <div style="padding:16px">
+                <!-- Adicionar novo contexto -->
+                <div style="background:var(--bg-subtle);border-radius:8px;padding:12px;margin-bottom:16px">
+                  <div style="display:flex;gap:8px;margin-bottom:8px">
+                    <select x-model="ui.ctxTipo" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px">
+                      <option value="texto">Texto / Nota</option>
+                      <option value="audio">Áudio</option>
+                      <option value="arquivo">Arquivo</option>
+                    </select>
+                    <input type="text" x-model="ui.ctxTitulo" placeholder="Título (ex: Áudio call onboarding, Briefing inicial...)" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px">
+                  </div>
+
+                  <!-- Texto -->
+                  <div x-show="ui.ctxTipo === 'texto'" style="margin-bottom:8px">
+                    <textarea x-model="ui.ctxConteudo" rows="4" placeholder="Escreva aqui as observações, notas da call, percepções sobre o mentorado..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
+                  </div>
+
+                  <!-- Áudio / Arquivo -->
+                  <div x-show="ui.ctxTipo === 'audio' || ui.ctxTipo === 'arquivo'" style="margin-bottom:8px">
+                    <label style="display:flex;align-items:center;gap:8px;padding:16px;border:2px dashed var(--border);border-radius:8px;cursor:pointer;text-align:center;justify-content:center;font-size:12px;color:var(--text-secondary)">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                      <span x-text="ui.ctxArquivo ? ui.ctxArquivo.name : (ui.ctxTipo === 'audio' ? 'Clique para enviar áudio (MP3, WAV, M4A)' : 'Clique para enviar arquivo (PDF, DOC, imagem)')"></span>
+                      <input type="file" :accept="ui.ctxTipo === 'audio' ? 'audio/*,.mp3,.wav,.m4a,.ogg' : '*'" @change="ui.ctxArquivo = $event.target.files[0]" style="display:none">
+                    </label>
+                    <textarea x-show="ui.ctxArquivo" x-model="ui.ctxConteudo" rows="2" placeholder="Descrição ou transcrição do conteúdo (opcional)" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;margin-top:8px"></textarea>
+                  </div>
+
+                  <div style="display:flex;gap:8px;justify-content:flex-end">
+                    <select x-model="ui.ctxFase" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;color:var(--text-secondary)">
+                      <option value="onboarding">Fase: Onboarding</option>
+                      <option value="dossie_oferta">Fase: Dossiê Oferta</option>
+                      <option value="dossie_posicionamento">Fase: Dossiê Posicionamento</option>
+                      <option value="dossie_funil">Fase: Dossiê Funil</option>
+                    </select>
+                    <button class="btn btn--brand btn--sm" @click="saveContext()" :disabled="ui.ctxSaving || (!ui.ctxConteudo && !ui.ctxArquivo)">
+                      <span x-show="!ui.ctxSaving">Adicionar ao contexto</span>
+                      <span x-show="ui.ctxSaving">Salvando...</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Lista de contextos existentes -->
+                <div x-show="!data.menteeContext?.length" style="text-align:center;padding:24px;color:var(--text-secondary);font-size:13px">
+                  Nenhum contexto adicionado ainda. Áudios, notas e arquivos do onboarding aparecerão aqui.
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <template x-for="ctx in data.menteeContext || []" :key="ctx.id">
+                    <div style="border:1px solid var(--border);border-radius:8px;padding:12px;display:flex;gap:10px;align-items:flex-start">
+                      <!-- Ícone por tipo -->
+                      <div style="width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px"
+                           :style="ctx.tipo === 'audio' ? 'background:#fef3c7;color:#d97706' : ctx.tipo === 'arquivo' ? 'background:#dbeafe;color:#2563eb' : 'background:#f0fdf4;color:#16a34a'">
+                        <span x-text="ctx.tipo === 'audio' ? '🎙' : ctx.tipo === 'arquivo' ? '📎' : '📝'"></span>
+                      </div>
+                      <!-- Conteúdo -->
+                      <div style="flex:1;min-width:0">
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                          <span style="font-size:13px;font-weight:600" x-text="ctx.titulo || ctx.tipo"></span>
+                          <span style="font-size:10px;padding:2px 6px;border-radius:3px;background:var(--bg-subtle);color:var(--text-secondary)" x-text="ctx.fase?.replace('_', ' ')"></span>
+                          <span style="font-size:10px;color:var(--text-secondary);margin-left:auto" x-text="new Date(ctx.created_at).toLocaleDateString('pt-BR', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})"></span>
+                        </div>
+                        <div x-show="ctx.conteudo" style="font-size:12px;color:var(--text-primary);line-height:1.5;white-space:pre-wrap" x-text="ctx.conteudo?.substring(0, 300) + (ctx.conteudo?.length > 300 ? '...' : '')"></div>
+                        <div x-show="ctx.arquivo_url" style="margin-top:4px">
+                          <a :href="ctx.arquivo_url" target="_blank" style="font-size:11px;color:var(--brand-500);text-decoration:none;display:flex;align-items:center;gap:4px">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            <span x-text="ctx.arquivo_nome || 'Baixar arquivo'"></span>
+                            <span x-show="ctx.arquivo_tamanho" style="color:var(--text-secondary)" x-text="'(' + Math.round(ctx.arquivo_tamanho/1024) + ' KB)'"></span>
+                          </a>
+                        </div>
+                        <div style="font-size:10px;color:var(--text-secondary);margin-top:4px" x-text="'por ' + (ctx.criado_por || 'sistema')"></div>
+                      </div>
+                      <!-- Deletar -->
+                      <button @click="deleteContext(ctx.id)" style="background:none;border:none;cursor:pointer;color:#dc2626;opacity:0.5;font-size:14px" @mouseover="$el.style.opacity='1'" @mouseout="$el.style.opacity='0.5'" title="Remover contexto">✕</button>
+                    </div>
+                  </template>
+                </div>
+
+                <!-- Nota sobre limpeza -->
+                <div x-show="data.menteeContext?.length" style="margin-top:12px;padding:8px 12px;background:#fef9c3;border-radius:6px;font-size:11px;color:#854d0e">
+                  Este contexto permanece ativo até a entrega do último dossiê do mentorado.
+                </div>
               </div>
             </div>
 
@@ -8919,7 +9010,7 @@
   <script src="12-APP-data.js?v=72"></script>
   <script src="13-APP-photos.js?v=72"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=99"></script>
+  <script src="11-APP-app.js?v=100"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">
