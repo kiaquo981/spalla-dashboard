@@ -203,6 +203,10 @@ function operon() {
       spaceExpanded: null,   // which space has sub-lists visible
       docsTab: 'arquivos',   // 'arquivos' | 'biblioteca' | 'google_docs'
       taskGroupBy: 'status', // 'status' | 'assignee' | 'priority' | 'list'
+      // EPIC 2: Fabric AI
+      fabricModal: false, fabricPattern: 'case_extract_oferta', fabricInput: '', fabricResult: '', fabricError: '', fabricLoading: false,
+      // EPIC 6: Dossiê generation
+      dossieGenType: 'oferta',
       taskTagFilter: [],       // tag ids for filtering
       taskDateFilter: 'all', // all | today | next7 | next30 | overdue | no_date
       taskTagsDropdown: false, // tags dropdown open in modal
@@ -428,6 +432,7 @@ function operon() {
       waTriageCount: 0,
       waSavedSegments: [],
       timeline: [],
+      menteeMessages: [],  // EPIC 1: Chatwoot messages for current mentorado
       teamPerformance: [],
       // Command Center static data
       projects: [
@@ -7424,6 +7429,71 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         this.data.timeline = data || [];
       } catch (e) {
         if (reqId === this._timelineReqId) console.warn('[Spalla] loadTimeline exception:', e);
+      }
+    },
+
+    // ===== EPIC 1: Load Chatwoot messages for mentorado =====
+    async loadMenteeMessages(menteeId) {
+      if (!menteeId) return;
+      this.data.menteeMessages = [];
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/mentees/${menteeId}/messages`, {
+          headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('spalla_access_token') || '') },
+        });
+        if (resp.ok) this.data.menteeMessages = await resp.json();
+      } catch (e) { console.warn('[Spalla] loadMenteeMessages:', e); }
+    },
+
+    // ===== EPIC 2: Run Fabric pattern =====
+    async runFabricPattern() {
+      if (!this.ui.fabricInput || !this.ui.fabricPattern) return;
+      this.ui.fabricLoading = true;
+      this.ui.fabricResult = '';
+      this.ui.fabricError = '';
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/fabric/run`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + (localStorage.getItem('spalla_access_token') || ''),
+          },
+          body: JSON.stringify({
+            pattern: this.ui.fabricPattern,
+            input: this.ui.fabricInput,
+          }),
+        });
+        const data = await resp.json();
+        if (resp.ok && data.output) {
+          this.ui.fabricResult = data.output;
+        } else {
+          this.ui.fabricError = data.error || 'Erro ao processar';
+        }
+      } catch (e) {
+        this.ui.fabricError = 'Erro de conexao: ' + e.message;
+      }
+      this.ui.fabricLoading = false;
+    },
+
+    // ===== EPIC 6: Generate dossiê via Goose =====
+    async generateDossie(menteeId, tipo = 'oferta') {
+      if (!menteeId) return;
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/dossie/generate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + (localStorage.getItem('spalla_access_token') || ''),
+          },
+          body: JSON.stringify({ mentorado_id: menteeId, type: tipo }),
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          alert(`Dossie ${tipo} enfileirado para ${data.mentorado_nome}. Job #${data.job_id}`);
+        } else {
+          alert('Erro: ' + (data.error || 'Falha ao gerar'));
+        }
+      } catch (e) {
+        alert('Erro de conexao: ' + e.message);
       }
     },
 
