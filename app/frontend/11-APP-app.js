@@ -6762,10 +6762,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         list.sort((a, b) => this._waPriorityScore(b) - this._waPriorityScore(a));
       } else {
         list.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
-        // I-1: lazy-load labels for each visible mentee in carteira view
-        list.forEach(m => {
-          if (!this.data.menteeLabels?.[m.id]) this.loadMenteeLabels(m.id);
-        });
+        // I-1: labels loaded on-demand when card is visible, not in bulk
+        // (removed bulk forEach that caused ERR_INSUFFICIENT_RESOURCES)
       }
       return list;
     },
