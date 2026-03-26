@@ -2698,8 +2698,8 @@
               <div class="task-board" x-show="ui.taskView === 'board'">
                 <template x-for="col in boardColumns" :key="col.key">
                   <div class="task-board__column">
-                    <div class="task-board__column-header" :style="'background:' + col.color + '18; border-top:3px solid ' + col.color">
-                      <span class="task-status-dot" :style="'background:' + col.color"></span>
+                    <div class="task-board__column-header" :class="col.cssClass || ''" :style="col.color ? 'background:' + col.color + '18; border-top:3px solid ' + col.color : ''">
+                      <span class="task-status-dot" :class="col.cssClass ? 'task-status-dot--' + col.key : ''" :style="col.color ? 'background:' + col.color : ''"></span>
                       <span x-text="col.label"></span>
                       <span class="task-board__column-count" x-text="tasksByStatus[col.key]?.length || 0"></span>
                     </div>
@@ -8919,7 +8919,7 @@
   <script src="12-APP-data.js?v=72"></script>
   <script src="13-APP-photos.js?v=72"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=98"></script>
+  <script src="11-APP-app.js?v=99"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">
