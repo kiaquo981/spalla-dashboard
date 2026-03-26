@@ -1120,10 +1120,16 @@ function operon() {
     _filterTasks(tasks) {
       let list = tasks;
       if (this.ui.taskAssignee) {
-        const assignee = this.ui.taskAssignee === '__mine__'
-          ? (this.auth.currentUser?.full_name || '').toLowerCase()
-          : this.ui.taskAssignee.toLowerCase();
-        if (assignee) list = list.filter(t => t.responsavel?.toLowerCase().includes(assignee));
+        if (this.ui.taskAssignee === '__mine__') {
+          const me = (this.auth.currentUser?.full_name || '').toLowerCase();
+          if (me) list = list.filter(t => t.responsavel?.toLowerCase().includes(me));
+        } else if (this.ui.taskAssignee === '__mentorado__') {
+          // Filter tasks that belong to a mentorado (have mentorado_nome set)
+          list = list.filter(t => t.mentorado_nome && t.mentorado_nome.trim());
+        } else {
+          const assignee = this.ui.taskAssignee.toLowerCase();
+          list = list.filter(t => t.responsavel?.toLowerCase().includes(assignee) || t.mentorado_nome?.toLowerCase().includes(assignee));
+        }
       }
       if (this.ui.taskSpaceFilter !== 'all') {
         list = list.filter(t => t.space_id === this.ui.taskSpaceFilter);
@@ -1400,7 +1406,7 @@ function operon() {
       list = this._filterTasks(list);
       if (this.ui.search && this.ui.page === 'tasks') {
         const q = this.ui.search.toLowerCase();
-        list = list.filter(t => t.titulo?.toLowerCase().includes(q) || t.mentorado_nome?.toLowerCase().includes(q));
+        list = list.filter(t => t.titulo?.toLowerCase().includes(q) || t.mentorado_nome?.toLowerCase().includes(q) || t.responsavel?.toLowerCase().includes(q));
       }
       list.sort(this._taskSortFn.bind(this));
       return list.slice(0, 500);
