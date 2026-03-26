@@ -7697,7 +7697,7 @@
                 <template x-for="m in waGroupBoard().aguardando" :key="m.id">
                   <div class="board-card" style="background:#fff;border:1px solid var(--neutral-200,#e2e8f0);border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:default">
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-                      <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.src='/assets/avatar-placeholder.png'">
+                      <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.onerror=null;$el.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2228%22 height=%2228%22 viewBox=%220 0 28 28%22><circle cx=%2214%22 cy=%2214%22 r=%2214%22 fill=%22%23e2e8f0%22/><circle cx=%2214%22 cy=%2211%22 r=%225%22 fill=%22%2394a3b8%22/><path d=%22M4 24c0-5.5 4.5-8 10-8s10 2.5 10 8%22 fill=%22%2394a3b8%22/></svg>'">
                       <span style="font-size:13px;font-weight:500;color:var(--text-primary)" x-text="m.nome"></span>
                     </div>
                     <template x-for="t in menteeActiveTopics(m.id).slice(0,2)" :key="t.id">
@@ -7725,7 +7725,7 @@
                 <template x-for="m in waGroupBoard().em_andamento" :key="m.id">
                   <div class="board-card" style="background:#fff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:default">
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-                      <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.src='/assets/avatar-placeholder.png'">
+                      <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.onerror=null;$el.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2228%22 height=%2228%22 viewBox=%220 0 28 28%22><circle cx=%2214%22 cy=%2214%22 r=%2214%22 fill=%22%23e2e8f0%22/><circle cx=%2214%22 cy=%2211%22 r=%225%22 fill=%22%2394a3b8%22/><path d=%22M4 24c0-5.5 4.5-8 10-8s10 2.5 10 8%22 fill=%22%2394a3b8%22/></svg>'">
                       <span style="font-size:13px;font-weight:500;color:var(--text-primary)" x-text="m.nome"></span>
                     </div>
                     <template x-for="t in menteeActiveTopics(m.id).slice(0,2)" :key="t.id">
@@ -7751,7 +7751,7 @@
                 <template x-for="m in waGroupBoard().bloqueado" :key="m.id">
                   <div class="board-card" style="background:#fff;border:1px solid #fed7aa;border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:default">
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-                      <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.src='/assets/avatar-placeholder.png'">
+                      <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.onerror=null;$el.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2228%22 height=%2228%22 viewBox=%220 0 28 28%22><circle cx=%2214%22 cy=%2214%22 r=%2214%22 fill=%22%23e2e8f0%22/><circle cx=%2214%22 cy=%2211%22 r=%225%22 fill=%22%2394a3b8%22/><path d=%22M4 24c0-5.5 4.5-8 10-8s10 2.5 10 8%22 fill=%22%2394a3b8%22/></svg>'">
                       <span style="font-size:13px;font-weight:500;color:var(--text-primary)" x-text="m.nome"></span>
                     </div>
                     <template x-for="t in menteeActiveTopics(m.id).slice(0,2)" :key="t.id">
@@ -7777,7 +7777,7 @@
                 <template x-for="m in waGroupBoard().resolvido" :key="m.id">
                   <div class="board-card" style="background:#fff;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:default">
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-                      <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.src='/assets/avatar-placeholder.png'">
+                      <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.onerror=null;$el.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2228%22 height=%2228%22 viewBox=%220 0 28 28%22><circle cx=%2214%22 cy=%2214%22 r=%2214%22 fill=%22%23e2e8f0%22/><circle cx=%2214%22 cy=%2211%22 r=%225%22 fill=%22%2394a3b8%22/><path d=%22M4 24c0-5.5 4.5-8 10-8s10 2.5 10 8%22 fill=%22%2394a3b8%22/></svg>'">
                       <span style="font-size:13px;font-weight:500;color:var(--text-primary)" x-text="m.nome"></span>
                     </div>
                     <template x-for="t in menteeActiveTopics(m.id).slice(0,2)" :key="t.id">
