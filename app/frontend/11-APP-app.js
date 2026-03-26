@@ -1498,7 +1498,8 @@ function operon() {
           const items = grouped[key] || [];
           if (!items.length) continue;
           const label = groupBy === 'status' ? this.statusLabel(key) :
-                        groupBy === 'priority' ? this.priorityLabel(key) : key;
+                        groupBy === 'priority' ? this.priorityLabel(key) :
+                        key ? key.charAt(0).toUpperCase() + key.slice(1) : 'Sem responsavel';
           finalResult.push({ id: 'group_' + key, _isGroupHeader: true, _groupLabel: label, _groupKey: key, _groupBy: groupBy, _groupCount: items.length, _depth: 0 });
           for (const item of items) {
             finalResult.push(item);
@@ -5393,6 +5394,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     async updateTaskField(taskId, field, value) {
       const t = this.data.tasks.find(x => x.id === taskId);
       if (!t) return;
+      // Normalize responsavel to lowercase (prevent duplicates like "Kaique" vs "kaique")
+      if (field === 'responsavel' && value) value = value.toLowerCase().trim();
       const old = t[field];
       t[field] = value;
       t.updated_at = new Date().toISOString();
