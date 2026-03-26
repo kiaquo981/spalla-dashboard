@@ -1527,8 +1527,10 @@ function operon() {
     get tasksByStatus() {
       const statuses = ['pendente', 'em_andamento', 'concluida'];
       const result = {};
+      const q = (this.ui.search || '').toLowerCase();
       for (const s of statuses) {
         let list = this._filterTasks([...this.data.tasks].filter(t => t.status === s));
+        if (q) list = list.filter(t => t.titulo?.toLowerCase().includes(q) || t.mentorado_nome?.toLowerCase().includes(q) || t.responsavel?.toLowerCase().includes(q));
         list.sort(this._taskSortFn.bind(this));
         result[s] = list.slice(0, 200);
       }
