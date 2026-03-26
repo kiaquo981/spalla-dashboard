@@ -1403,7 +1403,7 @@ function operon() {
         list = list.filter(t => t.titulo?.toLowerCase().includes(q) || t.mentorado_nome?.toLowerCase().includes(q));
       }
       list.sort(this._taskSortFn.bind(this));
-      return list.slice(0, 100);
+      return list.slice(0, 500);
     },
 
     // Tasks: tree view — flat array with _depth metadata for list view
