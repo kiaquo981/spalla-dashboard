@@ -154,7 +154,7 @@
   --whatsapp:      #25d366;
 
   /* ── Typography ── */
-  --font:         'Open Sauce Sans', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font:         'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-display: 'Optima', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
 
   /* Type Scale — Minor Third (1.2) */

@@ -1117,18 +1117,29 @@ function operon() {
       return (prio[a.prioridade] ?? 2) - (prio[b.prioridade] ?? 2);
     },
 
+    // Distinct mentorado names from tasks (for filter dropdown)
+    taskMentoradoOptions() {
+      const names = new Set();
+      for (const t of this.data.tasks) {
+        if (t.mentorado_nome && t.mentorado_nome.trim()) names.add(t.mentorado_nome.trim());
+      }
+      return [...names].sort();
+    },
+
     _filterTasks(tasks) {
       let list = tasks;
       if (this.ui.taskAssignee) {
         if (this.ui.taskAssignee === '__mine__') {
           const me = (this.auth.currentUser?.full_name || '').toLowerCase();
           if (me) list = list.filter(t => t.responsavel?.toLowerCase().includes(me));
-        } else if (this.ui.taskAssignee === '__mentorado__') {
-          // Filter tasks that belong to a mentorado (have mentorado_nome set)
-          list = list.filter(t => t.mentorado_nome && t.mentorado_nome.trim());
+        } else if (this.ui.taskAssignee.startsWith('mentee:')) {
+          // Filter by specific mentorado name
+          const menteeName = this.ui.taskAssignee.slice(7); // remove "mentee:" prefix
+          list = list.filter(t => t.mentorado_nome === menteeName);
         } else {
+          // Filter by team member (responsavel)
           const assignee = this.ui.taskAssignee.toLowerCase();
-          list = list.filter(t => t.responsavel?.toLowerCase().includes(assignee) || t.mentorado_nome?.toLowerCase().includes(assignee));
+          list = list.filter(t => t.responsavel?.toLowerCase().includes(assignee));
         }
       }
       if (this.ui.taskSpaceFilter !== 'all') {
