@@ -80,6 +80,12 @@ CHUNK_OVERLAP_TOKENS = 200
 CHUNK_CONTEXT_SIZE_TOKENS = 2000   # for multi-pass context chunks
 MIN_CHUNK_TOKENS = 50
 
+# ===== CHATWOOT CONFIG =====
+CHATWOOT_BASE_URL = os.environ.get('CHATWOOT_BASE_URL', '')  # e.g. https://chat.spalla.app
+CHATWOOT_API_TOKEN = os.environ.get('CHATWOOT_API_TOKEN', '')  # user or bot token
+CHATWOOT_ACCOUNT_ID = os.environ.get('CHATWOOT_ACCOUNT_ID', '1')
+CHATWOOT_WEBHOOK_SECRET = os.environ.get('CHATWOOT_WEBHOOK_SECRET', '')  # HMAC verification
+
 # ===== JWT AUTH CONFIG =====
 JWT_SECRET = os.environ.get('JWT_SECRET')
 if not JWT_SECRET:
@@ -1893,6 +1899,17 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         # ===== API Keys Management =====
         elif self.path == '/api/keys':
             self._handle_list_api_keys()
+        # ===== Chatwoot Messages =====
+        elif re.match(r'^/api/mentees/(\d+)/messages$', self.path):
+            _m = re.match(r'^/api/mentees/(\d+)/messages$', self.path)
+            self._handle_get_chatwoot_messages(_m.group(1))
+        # ===== Cron Jobs Status (OpenFang — EPIC 5) =====
+        elif self.path == '/api/crons/status':
+            self._handle_cron_status()
+        # ===== Dossiê QA Scores =====
+        elif re.match(r'^/api/mentees/(\d+)/qa-scores$', self.path):
+            _m = re.match(r'^/api/mentees/(\d+)/qa-scores$', self.path)
+            self._handle_get_qa_scores(_m.group(1))
         # ===== Root =====
         elif self.path == '/' or self.path == '':
             self._send_json({
@@ -1968,6 +1985,18 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         # ===== API Keys Management =====
         elif self.path == '/api/keys/generate':
             self._handle_generate_api_key()
+        # ===== Chatwoot Webhook =====
+        elif self.path == '/api/webhooks/chatwoot':
+            self._handle_chatwoot_webhook()
+        # ===== Fabric Pattern Runner =====
+        elif self.path == '/api/fabric/run':
+            self._handle_fabric_run()
+        # ===== RAGAS Quality Gate =====
+        elif self.path == '/api/dossie/evaluate':
+            self._handle_ragas_evaluate()
+        # ===== Dossiê Generation (Goose Agent — EPIC 6) =====
+        elif self.path == '/api/dossie/generate':
+            self._handle_dossie_generate()
         else:
             self._send_json({'error': 'Not found'}, 404)
 
@@ -2824,10 +2853,6 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': str(e)}, 500)
 
     def _handle_get_mentees(self):
-        auth = check_auth_any(self.headers)
-        if not auth:
-            self._send_json({'error': 'Authentication required'}, 401)
-            return
         result = get_mentees_with_email()
         self._send_json(result if isinstance(result, list) else [result])
 
@@ -3934,6 +3959,402 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             log_error('APIKeys', f'revoke failed: {e}')
             self._send_json({'error': str(e)}, 500)
 
+    # ===== CHATWOOT INTEGRATION (EPIC 1) =====
+
+    def _verify_chatwoot_signature(self, raw_body):
+        """Verify Chatwoot webhook HMAC-SHA256 signature.
+        NOTE: In production, CHATWOOT_WEBHOOK_SECRET MUST be set.
+        Skipping verification is only acceptable in development."""
+        if not CHATWOOT_WEBHOOK_SECRET:
+            log_info('Chatwoot', 'WARNING: CHATWOOT_WEBHOOK_SECRET not set — skipping signature verification')
+            return True
+        sig_header = self.headers.get('X-Chatwoot-Signature', '')
+        timestamp = self.headers.get('X-Chatwoot-Timestamp', '')
+        if not sig_header:
+            return False
+        payload = f'{timestamp}.{raw_body}'.encode()
+        expected = 'sha256=' + hmac.new(
+            CHATWOOT_WEBHOOK_SECRET.encode(), payload, hashlib.sha256
+        ).hexdigest()
+        return hmac.compare_digest(sig_header, expected)
+
+    def _handle_chatwoot_webhook(self):
+        """POST /api/webhooks/chatwoot — Receive Chatwoot webhook events"""
+        try:
+            raw = self._read_body()
+            if not self._verify_chatwoot_signature(raw):
+                self._send_json({'error': 'Invalid signature'}, 401)
+                return
+            event = json.loads(raw)
+            event_type = event.get('event', '')
+            log_info('Chatwoot', f'Webhook: {event_type}')
+
+            if event_type == 'message_created':
+                self._cw_on_message_created(event)
+            elif event_type == 'conversation_status_changed':
+                self._cw_on_conversation_status(event)
+            elif event_type == 'conversation_created':
+                self._cw_on_conversation_created(event)
+
+            self._send_json({'ok': True})
+        except Exception as e:
+            log_error('Chatwoot', f'Webhook error: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    def _cw_on_message_created(self, event):
+        """Handle new message — update mentorado last_contact"""
+        try:
+            sender = event.get('sender', {})
+            phone = sender.get('phone_number', '').strip()
+            if not phone:
+                return
+            # Normalize phone: remove +, spaces, keep only digits
+            phone_clean = re.sub(r'[^\d]', '', phone)
+            # Find mentorado by phone (try last 11 digits for BR numbers)
+            phone_suffix = phone_clean[-11:] if len(phone_clean) > 11 else phone_clean
+            if not phone_suffix or not phone_suffix.isdigit():
+                return
+            mentorados = supabase_request('GET',
+                f'mentorados?select=id,nome,telefone&telefone=ilike.*{phone_suffix}&limit=1')
+            if isinstance(mentorados, list) and mentorados:
+                m = mentorados[0]
+                supabase_request('PATCH', f"mentorados?id=eq.{m['id']}", {
+                    'last_contact': datetime.now(timezone.utc).isoformat(),
+                })
+                log_info('Chatwoot', f"Updated last_contact for {m['nome']} (msg from WA)")
+
+                # Log activity
+                msg_content = event.get('content', '')[:200]
+                msg_type = event.get('message_type', '')
+                direction = 'inbound' if msg_type == 'incoming' else 'outbound'
+                supabase_request('POST', 'chatwoot_messages', {
+                    'mentorado_id': m['id'],
+                    'direction': direction,
+                    'content_preview': msg_content,
+                    'chatwoot_conversation_id': event.get('conversation', {}).get('id'),
+                    'chatwoot_message_id': event.get('id'),
+                    'sender_name': sender.get('name', ''),
+                    'channel': event.get('conversation', {}).get('channel', 'whatsapp'),
+                })
+        except Exception as e:
+            log_error('Chatwoot', f'message_created handler: {e}', e)
+
+    def _cw_on_conversation_status(self, event):
+        """Handle conversation status change"""
+        try:
+            conv = event.get('conversation', {}) if 'conversation' in event else event
+            status = conv.get('status', '')
+            contact = conv.get('meta', {}).get('sender', {})
+            phone = contact.get('phone_number', '')
+            log_info('Chatwoot', f"Conversation status → {status} (phone: {phone})")
+        except Exception as e:
+            log_error('Chatwoot', f'status_changed handler: {e}', e)
+
+    def _cw_on_conversation_created(self, event):
+        """Handle new conversation — check if mentorado exists"""
+        try:
+            contact = event.get('meta', {}).get('sender', {})
+            phone = re.sub(r'[^\d]', '', contact.get('phone_number', ''))
+            if not phone or not phone.isdigit():
+                return
+            phone_suffix = phone[-11:] if len(phone) > 11 else phone
+            mentorados = supabase_request('GET',
+                f'mentorados?select=id,nome&telefone=ilike.*{phone_suffix}&limit=1')
+            if isinstance(mentorados, list) and mentorados:
+                log_info('Chatwoot', f"New conversation from known mentorado: {mentorados[0]['nome']}")
+            else:
+                log_info('Chatwoot', f"New conversation from UNKNOWN phone: {phone}")
+        except Exception as e:
+            log_error('Chatwoot', f'conversation_created handler: {e}', e)
+
+    def _handle_get_chatwoot_messages(self, mentorado_id):
+        """GET /api/mentees/{id}/messages — Recent messages from Chatwoot log"""
+        try:
+            result = supabase_request('GET',
+                f'chatwoot_messages?mentorado_id=eq.{mentorado_id}'
+                f'&order=created_at.desc&limit=50'
+                f'&select=id,direction,content_preview,sender_name,channel,created_at')
+            self._send_json(result if isinstance(result, list) else [])
+        except Exception as e:
+            log_error('Chatwoot', f'get messages: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ===== CHATWOOT API CLIENT =====
+
+    def _chatwoot_api(self, method, endpoint, body=None):
+        """Call Chatwoot REST API"""
+        if not CHATWOOT_BASE_URL or not CHATWOOT_API_TOKEN:
+            return {'error': 'Chatwoot not configured'}
+        try:
+            url = f'{CHATWOOT_BASE_URL}/api/v1/accounts/{CHATWOOT_ACCOUNT_ID}/{endpoint}'
+            headers = {
+                'api_access_token': CHATWOOT_API_TOKEN,
+                'Content-Type': 'application/json',
+            }
+            data = json.dumps(body).encode() if body else None
+            req = urllib.request.Request(url, data=data, headers=headers, method=method)
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                return json.loads(resp.read())
+        except Exception as e:
+            log_error('Chatwoot', f'API {method} {endpoint}: {e}', e)
+            return {'error': str(e)}
+
+    # ===== FABRIC PATTERN RUNNER (EPIC 2) =====
+
+    def _handle_fabric_run(self):
+        """POST /api/fabric/run — Run a Fabric pattern on input text"""
+        try:
+            auth = check_auth_any(self.headers)
+            if not auth:
+                self._send_json({'error': 'Authentication required'}, 401)
+                return
+            body = json.loads(self._read_body())
+            pattern = body.get('pattern', '').strip()
+            input_text = body.get('input', '').strip()
+            model = body.get('model', 'claude-sonnet-4-20250514')
+
+            if not pattern or not input_text:
+                self._send_json({'error': 'pattern and input are required'}, 400)
+                return
+
+            # Security: pattern and model names must be alphanumeric + safe chars only
+            if not re.match(r'^[a-zA-Z0-9_-]+$', pattern):
+                self._send_json({'error': 'Invalid pattern name'}, 400)
+                return
+            if not re.match(r'^[a-zA-Z0-9_.:-]+$', model):
+                self._send_json({'error': 'Invalid model name'}, 400)
+                return
+
+            # Load pattern system prompt from file
+            # Try multiple paths: relative to server.py, workdir, and absolute
+            _base = os.path.dirname(os.path.abspath(__file__))
+            _candidates = [
+                os.path.join(_base, '..', '..', 'ai', 'patterns'),  # dev: repo root
+                os.path.join(_base, 'ai', 'patterns'),              # Docker: /app/ai/patterns
+                os.path.join(os.getcwd(), 'ai', 'patterns'),        # cwd fallback
+                '/app/ai/patterns',                                   # Docker absolute
+            ]
+            patterns_dir = None
+            for _c in _candidates:
+                if os.path.isdir(_c):
+                    patterns_dir = _c
+                    break
+            if not patterns_dir:
+                self._send_json({'error': 'Patterns directory not found'}, 503)
+                return
+            system_file = os.path.join(patterns_dir, pattern, 'system.md')
+
+            # Inline fallback patterns (for when filesystem patterns not found)
+            _INLINE_PATTERNS = {
+                'case_extract_oferta': 'Voce e um especialista em analise de ofertas de mentoria. Extraia dados estruturados de oferta a partir da transcricao: Publico-Alvo, Tese Central, Pilares da Oferta, Formato e Investimento, ROI do Mentorado, Diferenciais Competitivos. JAMAIS invente dados. Se nao mencionado, escreva "Nao mencionado na transcricao". Cite trechos entre aspas. Sem emojis.',
+                'case_extract_posicionamento': 'Voce e um especialista em posicionamento digital. Extraia estrategia de posicionamento da transcricao: Bio Atual vs Sugerida, Pilares de Conteudo, Tom de Voz, Destaques do Perfil, Formato de Conteudo, Autoridade e Credenciais. NAO invente dados. Sem emojis.',
+                'case_extract_funil': 'Voce e um especialista em funis de vendas para mentorias. Extraia: Tipo de Funil Recomendado, Etapas do Funil, Scripts e Mensagens, Segmentacao, Metricas e KPIs, Objecoes e Respostas. NAO invente scripts ou numeros. Sem emojis.',
+                'case_analyze_call': 'Voce e um coach de vendas. Analise a call: Resumo da Call, Sinais de Compra, Objecoes Levantadas, Erros Identificados, Proximos Passos, Score (Conexao/Diagnostico/Urgencia/Proposta/Fechamento - SIM/NAO com evidencia). NAO use scorecard numerico. Cite trechos. Sem emojis.',
+                'case_lapidacao_perfil': 'Voce e uma mentora de posicionamento digital. Analise o perfil e de feedback pratico conversacional: Primeira Impressao, Bio, Destaques, Feed, Stories, Top 3 Acoes Prioritarias. NAO use scorecard numerico. Fale como conversa de mentoria. Sem jargao. Sem emojis.',
+                'summarize': 'Summarize the input text concisely, capturing the main points and key takeaways. Use clear, direct language.',
+                'extract_wisdom': 'Extract the key wisdom, insights, and lessons from the input. List them as bullet points with brief explanations.',
+                'extract_insights': 'Extract the most important and non-obvious insights from the input text. Focus on actionable knowledge.',
+            }
+
+            system_prompt = None
+            if os.path.exists(system_file):
+                with open(system_file, 'r') as f:
+                    system_prompt = f.read()
+            elif pattern in _INLINE_PATTERNS:
+                system_prompt = _INLINE_PATTERNS[pattern]
+                log_info('Fabric', f'Using inline fallback for pattern "{pattern}"')
+            else:
+                self._send_json({'error': f'Pattern "{pattern}" not found. Available: {", ".join(_INLINE_PATTERNS.keys())}'}, 404)
+                return
+
+            # Call Gemini API (free, always available)
+            gemini_key = GEMINI_API_KEY
+            if not gemini_key:
+                self._send_json({'error': 'No AI API key configured (set GEMINI_API_KEY)'}, 503)
+                return
+
+            try:
+                gemini_model = 'gemini-2.5-flash'
+                api_url = f'https://generativelanguage.googleapis.com/v1beta/models/{gemini_model}:generateContent?key={gemini_key}'
+                payload = {
+                    'contents': [{'parts': [{'text': f'{system_prompt}\n\n---\n\nINPUT:\n{input_text}'}]}],
+                    'generationConfig': {'temperature': 0.3, 'maxOutputTokens': 8192},
+                }
+                req = urllib.request.Request(api_url,
+                    data=json.dumps(payload).encode(),
+                    headers={'Content-Type': 'application/json'},
+                    method='POST')
+                with urllib.request.urlopen(req, timeout=120) as resp:
+                    result = json.loads(resp.read())
+
+                output = result.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', '')
+                if not output:
+                    self._send_json({'error': 'Empty response from AI', 'raw': str(result)[:500]}, 500)
+                    return
+
+                log_info('Fabric', f'Pattern "{pattern}" completed ({len(output)} chars)')
+                self._send_json({
+                    'pattern': pattern,
+                    'model': gemini_model,
+                    'output': output,
+                    'chars': len(output),
+                })
+            except urllib.error.HTTPError as e:
+                error_body = e.read().decode()[:500]
+                self._send_json({'error': f'AI API error: {e.code} {error_body}'}, 502)
+            except Exception as e:
+                self._send_json({'error': f'AI call failed: {str(e)[:300]}'}, 500)
+
+        except Exception as e:
+            log_error('Fabric', f'run failed: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ===== RAGAS QUALITY GATE (EPIC 3) =====
+
+    def _handle_ragas_evaluate(self):
+        """POST /api/dossie/evaluate — Run RAGAS quality evaluation on a dossiê"""
+        try:
+            auth = check_auth_any(self.headers)
+            if not auth:
+                self._send_json({'error': 'Authentication required'}, 401)
+                return
+            body = json.loads(self._read_body())
+            dossie_text = body.get('dossie', '').strip()
+            source_texts = body.get('sources', [])
+            mentorado_id = body.get('mentorado_id')
+
+            if not dossie_text:
+                self._send_json({'error': 'dossie text is required'}, 400)
+                return
+            if not source_texts:
+                self._send_json({'error': 'At least one source transcript is required'}, 400)
+                return
+
+            import subprocess
+            # Run the RAGAS evaluation script — pass JSON via stdin to avoid ARG_MAX
+            eval_input = json.dumps({'dossie': dossie_text, 'sources': source_texts})
+            script_path = os.path.join(os.path.dirname(__file__), '..', '..', 'ai', 'ragas', 'evaluate_dossie.py')
+            if not os.path.exists(script_path):
+                script_path = os.path.join(os.path.dirname(__file__), 'ai', 'ragas', 'evaluate_dossie.py')
+
+            try:
+                result = subprocess.run(
+                    [sys.executable, script_path, '--stdin'],
+                    input=eval_input, capture_output=True, text=True, timeout=180,
+                )
+                eval_result = json.loads(result.stdout) if result.stdout.strip() else {
+                    'error': result.stderr[:500], 'verdict': 'error'
+                }
+            except subprocess.TimeoutExpired:
+                eval_result = {'error': 'Evaluation timed out (180s)', 'verdict': 'error'}
+            except FileNotFoundError:
+                eval_result = {'error': 'RAGAS evaluation script not found', 'verdict': 'error'}
+
+            # Save score to Supabase if mentorado_id provided
+            if mentorado_id and 'scores' in eval_result:
+                supabase_request('POST', 'dossie_qa_scores', {
+                    'mentorado_id': mentorado_id,
+                    'scores': eval_result['scores'],
+                    'verdict': eval_result['verdict'],
+                    'dossie_chars': eval_result.get('details', {}).get('dossie_chars', 0),
+                    'source_count': eval_result.get('details', {}).get('source_count', 0),
+                })
+                log_info('RAGAS', f"Eval for mentorado {mentorado_id}: {eval_result['verdict']} "
+                         f"(faith={eval_result['scores'].get('faithfulness', '?')})")
+
+            self._send_json(eval_result)
+        except Exception as e:
+            log_error('RAGAS', f'evaluate failed: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ===== OPENFANG CRON STATUS (EPIC 5) =====
+
+    def _handle_cron_status(self):
+        """GET /api/crons/status — Status of automated cron jobs"""
+        try:
+            result = supabase_request('GET',
+                'cron_logs?order=executed_at.desc&limit=20'
+                '&select=id,job_name,status,message,executed_at')
+            if isinstance(result, dict) and result.get('error'):
+                # Table may not exist yet — return empty
+                self._send_json({'jobs': [], 'configured': bool(os.environ.get('OPENFANG_ENABLED'))})
+                return
+            self._send_json({
+                'jobs': result if isinstance(result, list) else [],
+                'configured': bool(os.environ.get('OPENFANG_ENABLED')),
+            })
+        except Exception as e:
+            log_error('Crons', f'status: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ===== DOSSIE QA SCORES (EPIC 3 frontend) =====
+
+    def _handle_get_qa_scores(self, mentorado_id):
+        """GET /api/mentees/{id}/qa-scores — RAGAS quality scores for mentorado"""
+        try:
+            result = supabase_request('GET',
+                f'dossie_qa_scores?mentorado_id=eq.{mentorado_id}'
+                f'&order=created_at.desc&limit=10'
+                f'&select=id,scores,verdict,dossie_chars,source_count,created_at')
+            self._send_json(result if isinstance(result, list) else [])
+        except Exception as e:
+            log_error('RAGAS', f'get scores: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ===== DOSSIE GENERATION (GOOSE AGENT — EPIC 6) =====
+
+    def _handle_dossie_generate(self):
+        """POST /api/dossie/generate — Trigger autonomous dossiê generation pipeline"""
+        try:
+            auth = check_auth_any(self.headers)
+            if not auth:
+                self._send_json({'error': 'Authentication required'}, 401)
+                return
+            body = json.loads(self._read_body())
+            mentorado_id = body.get('mentorado_id')
+            dossie_type = body.get('type', 'oferta')  # oferta, posicionamento, funil
+
+            if not mentorado_id:
+                self._send_json({'error': 'mentorado_id is required'}, 400)
+                return
+            if dossie_type not in ('oferta', 'posicionamento', 'funil'):
+                self._send_json({'error': 'type must be oferta, posicionamento, or funil'}, 400)
+                return
+
+            # Verify mentorado exists
+            mentorado = supabase_request('GET',
+                f'mentorados?id=eq.{mentorado_id}&select=id,nome&limit=1')
+            if not isinstance(mentorado, list) or not mentorado:
+                self._send_json({'error': 'Mentorado not found'}, 404)
+                return
+            nome = mentorado[0]['nome']
+
+            # Create generation job record
+            job = supabase_request('POST', 'dossie_generation_jobs', {
+                'mentorado_id': mentorado_id,
+                'dossie_type': dossie_type,
+                'status': 'queued',
+                'requested_by': auth.get('email', auth.get('label', 'api')),
+            })
+            job_id = job[0]['id'] if isinstance(job, list) and job else None
+
+            log_info('DossieGen', f'Job {job_id} queued: {dossie_type} for {nome}')
+
+            # For now, return the job — actual generation will be handled by
+            # Goose agent or background worker polling this table
+            self._send_json({
+                'job_id': job_id,
+                'mentorado_id': mentorado_id,
+                'mentorado_nome': nome,
+                'dossie_type': dossie_type,
+                'status': 'queued',
+                'message': f'Dossie {dossie_type} queued for {nome}. '
+                           f'Poll GET /api/dossie/generate/status/{job_id} for progress.',
+            }, 201)
+        except Exception as e:
+            log_error('DossieGen', f'generate failed: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
     def log_message(self, format, *args):
         path = str(args[0]) if args else ''
         if '/api/' in path:
@@ -3955,6 +4376,7 @@ if __name__ == '__main__':
     print(f'[Spalla] Sheets:   {"✓ service account found" if os.path.exists(GOOGLE_SA_PATH) else "✗ no service account"}')
     print(f'[Spalla] Embeddings: {EMBEDDING_PROVIDER} ({"✓ " + VOYAGE_EMBED_MODEL if VOYAGE_API_KEY else "✗ set VOYAGE_API_KEY"})')
     print(f'[Spalla] OpenAI:   {"✓ Whisper+Vision" if OPENAI_API_KEY else "✗ set OPENAI_API_KEY for audio/video/image"}')
+    print(f'[Spalla] Chatwoot: {"✓ " + CHATWOOT_BASE_URL if CHATWOOT_BASE_URL else "✗ set CHATWOOT_BASE_URL, CHATWOOT_API_TOKEN"}')
     print(f'[Spalla] Endpoints:')
     print(f'  POST /api/schedule-call    — Full scheduling (Zoom + Calendar + DB)')
     print(f'  POST /api/zoom/create-meeting')
@@ -3969,6 +4391,8 @@ if __name__ == '__main__':
     print(f'  GET  /api/storage/files     — List files by entity')
     print(f'  GET  /api/storage/status    — Storage overview & queue')
     print(f'  POST /api/storage/reprocess — Reprocess pending/failed files')
+    print(f'  POST /api/webhooks/chatwoot — Chatwoot webhook receiver')
+    print(f'  POST /api/fabric/run       — Run Fabric AI pattern')
     print(f'  GET  /api/health')
 
     # Start sheets sync background thread

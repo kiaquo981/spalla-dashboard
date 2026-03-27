@@ -203,12 +203,35 @@ function operon() {
       spaceExpanded: null,   // which space has sub-lists visible
       docsTab: 'arquivos',   // 'arquivos' | 'biblioteca' | 'google_docs'
       taskGroupBy: 'status', // 'status' | 'assignee' | 'priority' | 'list'
+      // EPIC 2: Fabric AI
+      fabricModal: false, fabricPattern: 'case_extract_oferta', fabricInput: '', fabricResult: '', fabricError: '', fabricLoading: false,
+      // EPIC 6: Dossiê generation
+      dossieGenType: 'oferta',
+      // Context Hub
+      ctxTipo: 'texto', ctxTitulo: '', ctxConteudo: '', ctxArquivo: null, ctxFase: 'onboarding', ctxSaving: false,
       taskTagFilter: [],       // tag ids for filtering
       taskDateFilter: 'all', // all | today | next7 | next30 | overdue | no_date
       taskTagsDropdown: false, // tags dropdown open in modal
       taskTagsFilterOpen: false, // tags filter dropdown in toolbar
       syncingSubtasks: false,    // ClickUp subtask sync in progress
       taskExpandedIds: {},       // { [taskId]: true } for tree expand/collapse
+      taskActivity: [],          // activity events for current task detail
+      reactionPicker: null,      // comment id with open emoji picker
+      listColumnsOpen: false,    // column config dropdown
+      listColumns: {
+        responsavel:  { label: 'Responsável',   visible: true },
+        acompanhante: { label: 'Acompanhante',  visible: true },
+        mentorado:    { label: 'Mentorado',      visible: true },
+        datas:        { label: 'Datas',          visible: true },
+        prioridade:   { label: 'Prioridade',     visible: true },
+        status:       { label: 'Status',         visible: false },
+        tags:         { label: 'Tags',           visible: false },
+        fonte:        { label: 'Fonte',          visible: false },
+        space:        { label: 'Space / Lista',  visible: false },
+        comentarios:  { label: 'Comentários',    visible: false },
+        criado_em:    { label: 'Criado em',      visible: false },
+        atualizado:   { label: 'Atualizado',     visible: false },
+      },
       // Dossiers (legacy)
       dossierFilter: 'all',
       // Dossiê Production System
@@ -411,6 +434,8 @@ function operon() {
       waTriageCount: 0,
       waSavedSegments: [],
       timeline: [],
+      menteeMessages: [],  // EPIC 1: Chatwoot messages for current mentorado
+      menteeContext: [],   // Context Hub: áudios, notas, arquivos para dossiê
       teamPerformance: [],
       // Command Center static data
       projects: [
@@ -662,6 +687,8 @@ function operon() {
       loading: false,
       activeSec: null,
       renderedHtml: '',
+      editMode: false,
+      expandedMentees: {},
     },
     _pendingBibliotecaSlug: null,
 
@@ -994,6 +1021,17 @@ function operon() {
       }
     },
 
+    async updateMenteeFinField(field, value) {
+      const menteeId = this.ui.selectedMenteeId;
+      if (!sb || !menteeId) return;
+      const { error } = await sb.from('mentorados').update({ [field]: value }).eq('id', menteeId);
+      if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      // Update local
+      if (this.data.detail?.profile) this.data.detail.profile[field] = value;
+      const m = this.data.mentees?.find(x => x.id === menteeId);
+      if (m) m[field] = value;
+    },
+
     async changeFinStatus(menteeId, newStatus, observacao) {
       try {
         const res = await fetch(`${CONFIG.API_BASE}/api/financeiro/status`, {
@@ -1082,13 +1120,30 @@ function operon() {
       return (prio[a.prioridade] ?? 2) - (prio[b.prioridade] ?? 2);
     },
 
+    // Distinct mentorado names from tasks (for filter dropdown)
+    taskMentoradoOptions() {
+      const names = new Set();
+      for (const t of this.data.tasks) {
+        if (t.mentorado_nome && t.mentorado_nome.trim()) names.add(t.mentorado_nome.trim());
+      }
+      return [...names].sort();
+    },
+
     _filterTasks(tasks) {
       let list = tasks;
       if (this.ui.taskAssignee) {
-        const assignee = this.ui.taskAssignee === '__mine__'
-          ? (this.auth.currentUser?.full_name || '').toLowerCase()
-          : this.ui.taskAssignee.toLowerCase();
-        if (assignee) list = list.filter(t => t.responsavel?.toLowerCase().includes(assignee));
+        if (this.ui.taskAssignee === '__mine__') {
+          const me = (this.auth.currentUser?.full_name || '').toLowerCase();
+          if (me) list = list.filter(t => t.responsavel?.toLowerCase().includes(me));
+        } else if (this.ui.taskAssignee.startsWith('mentee:')) {
+          // Filter by specific mentorado name
+          const menteeName = this.ui.taskAssignee.slice(7); // remove "mentee:" prefix
+          list = list.filter(t => t.mentorado_nome === menteeName);
+        } else {
+          // Filter by team member (responsavel)
+          const assignee = this.ui.taskAssignee.toLowerCase();
+          list = list.filter(t => t.responsavel?.toLowerCase().includes(assignee));
+        }
       }
       if (this.ui.taskSpaceFilter !== 'all') {
         list = list.filter(t => t.space_id === this.ui.taskSpaceFilter);
@@ -1365,20 +1420,45 @@ function operon() {
       list = this._filterTasks(list);
       if (this.ui.search && this.ui.page === 'tasks') {
         const q = this.ui.search.toLowerCase();
-        list = list.filter(t => t.titulo?.toLowerCase().includes(q) || t.mentorado_nome?.toLowerCase().includes(q));
+        list = list.filter(t => t.titulo?.toLowerCase().includes(q) || t.mentorado_nome?.toLowerCase().includes(q) || t.responsavel?.toLowerCase().includes(q));
       }
       list.sort(this._taskSortFn.bind(this));
-      return list.slice(0, 100);
+      return list.slice(0, 500);
     },
 
     // Tasks: tree view — flat array with _depth metadata for list view
     get tasksTree() {
       const filtered = this.filteredTasks;
+      const allTasks = this.data.tasks;
       const result = [];
+
+      // Index child tasks by parent_task_id
+      const childTasksByParent = {};
+      for (const t of allTasks) {
+        if (t.parent_task_id) {
+          if (!childTasksByParent[t.parent_task_id]) childTasksByParent[t.parent_task_id] = [];
+          childTasksByParent[t.parent_task_id].push(t);
+        }
+      }
+
       for (const task of filtered) {
-        const childCount = (task.subtasks || []).length;
-        result.push({ ...task, _depth: 0, _childCount: childCount });
-        if (this.ui.taskExpandedIds[task.id] && childCount > 0) {
+        // Skip tasks that are children (they show under their parent)
+        if (task.parent_task_id) continue;
+
+        const subtaskCount = (task.subtasks || []).length;
+        const childTasks = childTasksByParent[task.id] || [];
+        const checklistCount = (task.checklist || []).length;
+        const totalChildren = subtaskCount + childTasks.length + checklistCount;
+
+        result.push({ ...task, _depth: 0, _childCount: totalChildren });
+
+        if (this.ui.taskExpandedIds[task.id] && totalChildren > 0) {
+          // 1) Child tasks (real god_tasks with parent_task_id)
+          for (const child of childTasks) {
+            const grandchildren = (child.subtasks || []).length + (childTasksByParent[child.id] || []).length;
+            result.push({ ...child, _depth: 1, _childCount: grandchildren, _isChildTask: true, _parentId: task.id });
+          }
+          // 2) Inline subtasks
           (task.subtasks || []).forEach((sub, idx) => {
             result.push({
               id: sub.id || ('sub_' + task.id + '_' + idx),
@@ -1386,35 +1466,129 @@ function operon() {
               status: sub.status || (sub.done ? 'concluida' : 'pendente'),
               prioridade: sub.prioridade || 'normal',
               responsavel: sub.responsavel || '',
-              acompanhante: null,
-              mentorado_nome: null,
+              acompanhante: null, mentorado_nome: null,
               data_inicio: sub.data_inicio || null,
-              data_fim: sub.data_fim || null,
-              prazo: sub.data_fim || null,
-              tags: [],
-              is_blocked: false,
-              auto_gerada: false,
-              recorrencia: 'nenhuma',
-              _depth: 1,
-              _childCount: 0,
-              _isSubtask: true,
-              _parentId: task.id,
-              _subIdx: idx,
+              data_fim: sub.data_fim || null, prazo: sub.data_fim || null,
+              tags: [], is_blocked: false, auto_gerada: false, recorrencia: 'nenhuma',
+              _depth: 1, _childCount: 0, _isSubtask: true, _parentId: task.id, _subIdx: idx,
+            });
+          });
+          // 3) Checklist items
+          (task.checklist || []).forEach((ci, idx) => {
+            result.push({
+              id: 'check_' + task.id + '_' + idx,
+              titulo: '☐ ' + (ci.text || ''),
+              status: ci.done ? 'concluida' : 'pendente',
+              prioridade: 'normal',
+              responsavel: ci.assignee || '',
+              acompanhante: null, mentorado_nome: null,
+              data_inicio: null, data_fim: ci.due_date || null, prazo: ci.due_date || null,
+              tags: [], is_blocked: false, auto_gerada: false, recorrencia: 'nenhuma',
+              _depth: 1, _childCount: 0, _isChecklist: true, _parentId: task.id, _checkIdx: idx,
             });
           });
         }
       }
+
+      // Insert group headers based on groupBy
+      const groupBy = this.ui.taskGroupBy;
+      if (groupBy) {
+        const grouped = {};
+        const groupOrder = [];
+        for (const item of result) {
+          if (item._depth > 0) continue; // Group only top-level
+          let key;
+          if (groupBy === 'assignee') key = item.responsavel || 'Sem responsável';
+          else if (groupBy === 'priority') key = item.prioridade || 'normal';
+          else if (groupBy === 'list') key = this.getListName(item.list_id) || 'Sem lista';
+          else key = item.status || 'pendente';
+          if (!grouped[key]) { grouped[key] = []; groupOrder.push(key); }
+          grouped[key].push(item);
+        }
+        // Build with headers
+        const childItems = result.filter(r => r._depth > 0);
+        const finalResult = [];
+        // For status, use a fixed order
+        const keys = groupBy === 'status' ? ['pendente', 'em_andamento', 'concluida'].filter(k => grouped[k]) :
+                     groupBy === 'priority' ? ['urgente', 'alta', 'normal', 'baixa'].filter(k => grouped[k]) :
+                     groupOrder;
+        // Add any keys not in the fixed order
+        for (const k of groupOrder) { if (!keys.includes(k)) keys.push(k); }
+        for (const key of keys) {
+          const items = grouped[key] || [];
+          if (!items.length) continue;
+          const label = groupBy === 'status' ? this.statusLabel(key) :
+                        groupBy === 'priority' ? this.priorityLabel(key) :
+                        key ? key.charAt(0).toUpperCase() + key.slice(1) : 'Sem responsavel';
+          finalResult.push({ id: 'group_' + key, _isGroupHeader: true, _groupLabel: label, _groupKey: key, _groupBy: groupBy, _groupCount: items.length, _depth: 0 });
+          for (const item of items) {
+            finalResult.push(item);
+            for (const child of childItems) {
+              if (child._parentId === item.id) finalResult.push(child);
+            }
+          }
+        }
+        return finalResult;
+      }
+
       return result;
     },
 
+    // Group label helpers for task list headers
+    statusLabel(s) { return { pendente: 'A Fazer', em_andamento: 'Em Progresso', concluida: 'Concluído' }[s] || s; },
+    priorityLabel(p) { return { urgente: 'Urgente', alta: 'Alta', normal: 'Normal', baixa: 'Baixa' }[p] || p; },
+    groupHeaderColor(groupBy, key) {
+      if (groupBy === 'status') return { pendente: '#64748b', em_andamento: '#2563eb', concluida: '#16a34a' }[key] || '#64748b';
+      if (groupBy === 'priority') return { urgente: '#dc2626', alta: '#ea580c', normal: '#64748b', baixa: '#94a3b8' }[key] || '#64748b';
+      return '#8b6f47';
+    },
+
     // Tasks: grouped by status (ClickUp style board)
+    // Board columns — respects groupBy selection
+    get boardColumns() {
+      const groupBy = this.ui.taskGroupBy;
+      if (groupBy === 'priority') return [
+        { key: 'urgente', label: 'Urgente', color: '#dc2626' },
+        { key: 'alta', label: 'Alta', color: '#ea580c' },
+        { key: 'normal', label: 'Normal', color: '#64748b' },
+        { key: 'baixa', label: 'Baixa', color: '#94a3b8' },
+      ];
+      if (groupBy === 'assignee') {
+        const names = new Set();
+        this.data.tasks.forEach(t => { if (t.responsavel) names.add(t.responsavel); });
+        const cols = [...names].sort().map(n => ({ key: n, label: n.charAt(0).toUpperCase() + n.slice(1), color: '#8b6f47' }));
+        cols.push({ key: '', label: 'Sem responsavel', color: '#94a3b8' });
+        return cols;
+      }
+      if (groupBy === 'list') {
+        const lists = new Set();
+        this.data.tasks.forEach(t => { lists.add(t.list_id || ''); });
+        return [...lists].map(id => ({ key: id, label: this.getListName(id) || id || 'Sem lista', color: '#8b6f47' }));
+      }
+      // Default: status — use CSS class instead of inline color
+      return [
+        { key: 'pendente', label: 'A Fazer', color: '', cssClass: 'task-board__column-header--pendente' },
+        { key: 'em_andamento', label: 'Em Progresso', color: '', cssClass: 'task-board__column-header--em_andamento' },
+        { key: 'concluida', label: 'Concluido', color: '', cssClass: 'task-board__column-header--concluida' },
+      ];
+    },
+
     get tasksByStatus() {
-      const statuses = ['pendente', 'em_andamento', 'concluida'];
+      const groupBy = this.ui.taskGroupBy;
+      const columns = this.boardColumns;
       const result = {};
-      for (const s of statuses) {
-        let list = this._filterTasks([...this.data.tasks].filter(t => t.status === s));
+      const q = (this.ui.search || '').toLowerCase();
+      for (const col of columns) {
+        let list = [...this.data.tasks];
+        // Filter by the group key
+        if (groupBy === 'priority') list = list.filter(t => (t.prioridade || 'normal') === col.key);
+        else if (groupBy === 'assignee') list = list.filter(t => (t.responsavel || '') === col.key);
+        else if (groupBy === 'list') list = list.filter(t => (t.list_id || '') === col.key);
+        else list = list.filter(t => t.status === col.key);
+        list = this._filterTasks(list);
+        if (q) list = list.filter(t => t.titulo?.toLowerCase().includes(q) || t.mentorado_nome?.toLowerCase().includes(q) || t.responsavel?.toLowerCase().includes(q));
         list.sort(this._taskSortFn.bind(this));
-        result[s] = list.slice(0, 50);
+        result[col.key] = list.slice(0, 200);
       }
       return result;
     },
@@ -1779,6 +1953,12 @@ function operon() {
           localStorage.setItem('spalla_page', target);
           console.log('[Spalla] Deep-link restored to:', target);
         }
+        // Deep-link task: /tasks?task=UUID
+        const taskParam = new URLSearchParams(window.location.search).get('task');
+        if (taskParam) {
+          this.ui.page = 'tasks';
+          setTimeout(() => this.openTaskDetail(taskParam), 500);
+        }
       } catch (e) {
         this.auth.error = 'Erro ao fazer login: ' + e.message;
         console.error('[Spalla] Login error:', e);
@@ -2045,6 +2225,97 @@ function operon() {
         console.error('[Biblioteca] doc load failed', e);
       } finally {
         this.bib.docLoading = false;
+      }
+    },
+
+    get bibGroupedDocs() {
+      const docs = this.bib.filtered || [];
+      const groups = {};
+      for (const doc of docs) {
+        const mentee = doc.mentee_nome || 'Geral';
+        if (!groups[mentee]) groups[mentee] = { mentee, docs: [] };
+        groups[mentee].docs.push(doc);
+      }
+      // Sort groups alphabetically, "Geral" last
+      return Object.values(groups).sort((a, b) =>
+        a.mentee === 'Geral' ? 1 : b.mentee === 'Geral' ? -1 : a.mentee.localeCompare(b.mentee)
+      );
+    },
+
+    async navigateToDossieDoc(mentoradoId, tipo) {
+      // Navigate from Dossiês → Documentos/Biblioteca, opening the matching doc by type
+      // tipo from ds_documentos: oferta, funil, conteudo
+      // Map to sp_documentos titulo keywords
+      const tipoKeywords = {
+        oferta: 'oferta',
+        funil: 'funil',
+        conteudo: 'posicionamento',
+      };
+      const keyword = tipoKeywords[tipo] || tipo;
+
+      // 1. Switch to Documentos page, Biblioteca tab
+      this.navigate('documentos');
+      this.ui.docsTab = 'biblioteca';
+
+      // 2. Load biblioteca if needed
+      if (!this.bib.docs.length) {
+        await this.loadBiblioteca();
+      }
+
+      // 3. Find matching doc by mentorado_id + tipo
+      const mid = typeof mentoradoId === 'string' ? parseInt(mentoradoId) : mentoradoId;
+
+      // First try exact match by mentorado + tipo keyword in titulo or slug
+      let doc = this.bib.docs.find(d =>
+        (d.mentee_id === mid || d.mentee_id === String(mid)) &&
+        ((d.titulo || '').toLowerCase().includes(keyword) || (d.deep_link_slug || '').includes(keyword))
+      );
+
+      // Fallback: any doc of this mentorado
+      if (!doc) {
+        doc = this.bib.docs.find(d => d.mentee_id === mid || d.mentee_id === String(mid));
+      }
+
+      if (doc) {
+        this.$nextTick(() => this.bibOpenDoc(doc.id));
+      } else {
+        // Last resort: fetch from API
+        try {
+          const resp = await fetch(`${CONFIG.API_BASE}/api/biblioteca?mentee_id=${mentoradoId}`);
+          if (resp.ok) {
+            const docs = await resp.json();
+            const match = docs.find(d => (d.titulo || '').toLowerCase().includes(keyword)) || docs[0];
+            if (match) {
+              this.$nextTick(() => this.bibOpenDoc(match.id));
+              return;
+            }
+          }
+        } catch (e) { console.warn('[Dossie→Bib] fetch error:', e); }
+        this.toast('Documento não encontrado na Biblioteca', 'info');
+      }
+    },
+
+    async bibSaveDoc() {
+      const doc = this.bib.activeDoc;
+      if (!doc || !doc.id) return;
+      try {
+        const { error } = await this.sb.from('sp_documentos')
+          .update({ conteudo_md: doc.conteudo_md })
+          .eq('id', doc.id);
+        if (error) throw error;
+        // Re-render preview
+        this.bib.renderedHtml = (typeof marked !== 'undefined')
+          ? marked.parse(doc.conteudo_md || '') : doc.conteudo_md;
+        this.bib.editMode = false;
+        // Unmount editor
+        const editorEl = this.$refs.bibEditor;
+        if (editorEl && window.OperonEditor?.isActive(editorEl)) {
+          window.OperonEditor.unmount(editorEl);
+        }
+        console.log('[Biblioteca] doc saved');
+      } catch (e) {
+        console.error('[Biblioteca] save failed', e);
+        alert('Erro ao salvar: ' + (e.message || e));
       }
     },
 
@@ -2900,6 +3171,16 @@ function operon() {
       return Math.round(((sprint.concluidas || 0) / sprint.total) * 100);
     },
 
+    ccNewMentees() {
+      // Only mentorados created in the last 14 days
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 14);
+      return (this.data.mentees || []).filter(m => {
+        if (!m.created_at) return false;
+        return new Date(m.created_at) >= cutoff;
+      }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 8);
+    },
+
     ccRecentActivity() {
       const actionLabel = (status) => {
         if (!status) return 'atualizou';
@@ -3238,6 +3519,7 @@ function operon() {
       'planos-acao': 'planos_acao',
       'onboarding': 'onboarding',
       'docs': 'docs',
+      'documentos': 'documentos',
       'arquivos': 'arquivos',
       'settings': 'settings',
       'jornada': 'kanban',
@@ -4773,7 +5055,7 @@ function operon() {
       if (sb) {
         try {
           // Load only god_tasks (board tasks) — tarefas_equipe are shown as pending WA messages
-          const { data, error } = await sb.from('vw_god_tasks_full').select('*').order('created_at', { ascending: false }).limit(200);
+          const { data, error } = await sb.from('vw_god_tasks_full').select('*').order('created_at', { ascending: false }).limit(1000);
           if (!error && data) {
             this.data.tasks = data.map(t => ({
               ...t, prazo: t.data_fim, _source: 'god_tasks',
@@ -5173,6 +5455,21 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.toast('Tarefa salva', 'success');
     },
 
+    async updateTaskField(taskId, field, value) {
+      const t = this.data.tasks.find(x => x.id === taskId);
+      if (!t) return;
+      // Normalize responsavel to lowercase (prevent duplicates like "Kaique" vs "kaique")
+      if (field === 'responsavel' && value) value = value.toLowerCase().trim();
+      const old = t[field];
+      t[field] = value;
+      t.updated_at = new Date().toISOString();
+      this._cacheTasksLocal();
+      if (sb) {
+        const { error } = await sb.from('god_tasks').update({ [field]: value, updated_at: t.updated_at }).eq('id', taskId);
+        if (error) { t[field] = old; this._cacheTasksLocal(); this.toast('Erro ao atualizar ' + field, 'error'); }
+      }
+    },
+
     async updateTaskStatus(taskId, newStatus) {
       const t = this.data.tasks.find(x => x.id === taskId);
       if (!t) return;
@@ -5289,10 +5586,50 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     // Task detail drawer
     openTaskDetail(taskId) {
       this.ui.taskDetailDrawer = taskId;
+      this.ui.taskActivity = [];
+      this._loadTaskActivity(taskId);
+      // Update URL for shareable link (without page reload)
+      if (taskId && window.history.replaceState) {
+        window.history.replaceState(null, '', `/tasks?task=${taskId}`);
+      }
+    },
+
+    // Copy shareable task link
+    copyTaskLink(taskId) {
+      const url = `${window.location.origin}/tasks?task=${taskId}`;
+      navigator.clipboard.writeText(url).then(() => this.toast('Link copiado!', 'success'));
+    },
+
+    formatActivity(evt) {
+      if (evt.action === 'created') return `criou esta tarefa`;
+      if (evt.action === 'field_change') {
+        const labels = { status: 'status', responsavel: 'responsável', prioridade: 'prioridade' };
+        const fieldLabel = labels[evt.field] || evt.field;
+        if (evt.old_value && evt.new_value) return `alterou ${fieldLabel} de "${evt.old_value}" para "${evt.new_value}"`;
+        if (evt.new_value) return `definiu ${fieldLabel} como "${evt.new_value}"`;
+        return `alterou ${fieldLabel}`;
+      }
+      return evt.action;
+    },
+
+    async _loadTaskActivity(taskId) {
+      if (!sb || !taskId) return;
+      try {
+        const { data, error } = await sb.from('god_task_activity')
+          .select('*')
+          .eq('task_id', taskId)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        if (!error && data) this.ui.taskActivity = data;
+      } catch (e) { console.warn('[Activity] load error:', e); }
     },
 
     closeTaskDetail() {
       this.ui.taskDetailDrawer = null;
+      // Reset URL (remove ?task= param)
+      if (window.history.replaceState) {
+        window.history.replaceState(null, '', '/tasks');
+      }
     },
 
     get activeTaskDetail() {
@@ -5313,6 +5650,27 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         this.taskForm.newComment = '';
         this._cacheTasksLocal();
         this._sbAddComment(taskId, authorName, commentText);
+      }
+    },
+
+    toggleReaction(taskId, commentId, emoji) {
+      const t = this.data.tasks.find(x => x.id === taskId);
+      if (!t || !t.comments) return;
+      const cm = t.comments.find(c => c.id === commentId);
+      if (!cm) return;
+      if (!cm.reactions) cm.reactions = {};
+      if (cm.reactions[emoji]) {
+        cm.reactions[emoji]--;
+        if (cm.reactions[emoji] <= 0) delete cm.reactions[emoji];
+      } else {
+        cm.reactions[emoji] = (cm.reactions[emoji] || 0) + 1;
+      }
+      this._cacheTasksLocal();
+      // Persist reactions to Supabase
+      if (sb) {
+        sb.from('god_task_comments').update({ reactions: cm.reactions }).eq('id', commentId).then(({ error }) => {
+          if (error) console.warn('[Reactions] save error:', error);
+        });
       }
     },
 
@@ -5382,12 +5740,15 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     // Renderiza texto de comentário com @menções estilizadas
     renderCommentText(text) {
       if (!text) return '';
-      const escaped = text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/\n/g, '<br>');
-      return escaped.replace(/@(\w+)/g, '<span class="comment-mention">@$1</span>');
+      // Render markdown if marked is available, otherwise fallback
+      let html = '';
+      if (typeof marked !== 'undefined') {
+        try { html = marked.parse(text); } catch (e) { html = text.replace(/\n/g, '<br>'); }
+      } else {
+        html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+      }
+      // Highlight @mentions in rendered output
+      return html.replace(/@(\w+)/g, '<span class="comment-mention">@$1</span>');
     },
 
     // Tags
@@ -6482,10 +6843,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         list.sort((a, b) => this._waPriorityScore(b) - this._waPriorityScore(a));
       } else {
         list.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
-        // I-1: lazy-load labels for each visible mentee in carteira view
-        list.forEach(m => {
-          if (!this.data.menteeLabels?.[m.id]) this.loadMenteeLabels(m.id);
-        });
+        // I-1: labels loaded on-demand when card is visible, not in bulk
+        // (removed bulk forEach that caused ERR_INSUFFICIENT_RESOURCES)
       }
       return list;
     },
@@ -6592,7 +6951,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     async loadMenteesTriage() {
       if (this.ui.triageLoaded) return;
       try {
-        const res = await fetch('/api/mentees/triage', {
+        const res = await fetch(`${CONFIG.API_BASE}/api/mentees/triage`, {
           headers: { 'Authorization': `Bearer ${this.authToken}` },
         });
         if (!res.ok) return;
@@ -6674,7 +7033,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     async loadMenteeLabels(menteeId) {
       if (!menteeId || this.data.menteeLabels?.[menteeId]) return;
       try {
-        const res = await fetch(`/api/wa/labels/summary?mentee_id=${menteeId}&days=30`, {
+        const res = await fetch(`${CONFIG.API_BASE}/api/wa/labels/summary?mentee_id=${menteeId}&days=30`, {
           headers: { 'Authorization': `Bearer ${this.authToken}` },
         });
         if (res.ok) {
@@ -6715,7 +7074,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.ui.copilotLoading = true;
 
       try {
-        const res = await fetch('/api/copilot', {
+        const res = await fetch(`${CONFIG.API_BASE}/api/copilot`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -7152,6 +7511,148 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       }
     },
 
+    // ===== CONTEXT HUB: áudio, texto, anexos para dossiê =====
+    async loadMenteeContext(menteeId) {
+      if (!menteeId) return;
+      this.data.menteeContext = [];
+      try {
+        const { data, error } = await sb.from('mentorado_context')
+          .select('*')
+          .eq('mentorado_id', menteeId)
+          .eq('ativo', true)
+          .order('created_at', { ascending: false });
+        if (data) this.data.menteeContext = data;
+      } catch (e) { console.warn('[Spalla] loadMenteeContext:', e); }
+    },
+
+    async saveContext() {
+      const menteeId = this.data.detail?.profile?.id;
+      if (!menteeId) return;
+      this.ui.ctxSaving = true;
+      try {
+        const record = {
+          mentorado_id: menteeId,
+          tipo: this.ui.ctxTipo || 'texto',
+          titulo: this.ui.ctxTitulo || '',
+          conteudo: this.ui.ctxConteudo || '',
+          fase: this.ui.ctxFase || 'onboarding',
+          criado_por: this.auth.currentUser?.email || '',
+        };
+
+        // Upload file if present
+        if (this.ui.ctxArquivo) {
+          const file = this.ui.ctxArquivo;
+          const path = `context/${menteeId}/${Date.now()}_${file.name}`;
+          const { data: uploadData, error: uploadError } = await sb.storage
+            .from('uploads')
+            .upload(path, file);
+          if (uploadError) throw uploadError;
+          const { data: urlData } = sb.storage.from('uploads').getPublicUrl(path);
+          record.arquivo_url = urlData.publicUrl;
+          record.arquivo_nome = file.name;
+          record.arquivo_tipo = file.type;
+          record.arquivo_tamanho = file.size;
+        }
+
+        const { error } = await sb.from('mentorado_context').insert(record);
+        if (error) throw error;
+
+        // Reset form
+        this.ui.ctxTitulo = '';
+        this.ui.ctxConteudo = '';
+        this.ui.ctxArquivo = null;
+        this.toast('Contexto adicionado', 'success');
+        await this.loadMenteeContext(menteeId);
+      } catch (e) {
+        console.error('[Spalla] saveContext:', e);
+        this.toast('Erro ao salvar: ' + e.message, 'error');
+      }
+      this.ui.ctxSaving = false;
+    },
+
+    async deleteContext(ctxId) {
+      if (!confirm('Remover este contexto?')) return;
+      try {
+        await sb.from('mentorado_context').delete().eq('id', ctxId);
+        this.data.menteeContext = this.data.menteeContext.filter(c => c.id !== ctxId);
+        this.toast('Contexto removido', 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    async archiveContextOnDossieDelivery(menteeId) {
+      // Called when last dossiê is delivered — archives all context
+      try {
+        await sb.from('mentorado_context')
+          .update({ ativo: false })
+          .eq('mentorado_id', menteeId);
+      } catch (e) { console.warn('[Spalla] archiveContext:', e); }
+    },
+
+    // ===== EPIC 1: Load Chatwoot messages for mentorado =====
+    async loadMenteeMessages(menteeId) {
+      if (!menteeId) return;
+      this.data.menteeMessages = [];
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/mentees/${menteeId}/messages`, {
+          headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('spalla_access_token') || '') },
+        });
+        if (resp.ok) this.data.menteeMessages = await resp.json();
+      } catch (e) { console.warn('[Spalla] loadMenteeMessages:', e); }
+    },
+
+    // ===== EPIC 2: Run Fabric pattern =====
+    async runFabricPattern() {
+      if (!this.ui.fabricInput || !this.ui.fabricPattern) return;
+      this.ui.fabricLoading = true;
+      this.ui.fabricResult = '';
+      this.ui.fabricError = '';
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/fabric/run`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + (localStorage.getItem('spalla_access_token') || ''),
+          },
+          body: JSON.stringify({
+            pattern: this.ui.fabricPattern,
+            input: this.ui.fabricInput,
+          }),
+        });
+        const data = await resp.json();
+        if (resp.ok && data.output) {
+          this.ui.fabricResult = data.output;
+        } else {
+          this.ui.fabricError = data.error || 'Erro ao processar';
+        }
+      } catch (e) {
+        this.ui.fabricError = 'Erro de conexao: ' + e.message;
+      }
+      this.ui.fabricLoading = false;
+    },
+
+    // ===== EPIC 6: Generate dossiê via Goose =====
+    async generateDossie(menteeId, tipo = 'oferta') {
+      if (!menteeId) return;
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/dossie/generate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + (localStorage.getItem('spalla_access_token') || ''),
+          },
+          body: JSON.stringify({ mentorado_id: menteeId, type: tipo }),
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          alert(`Dossie ${tipo} enfileirado para ${data.mentorado_nome}. Job #${data.job_id}`);
+        } else {
+          alert('Erro: ' + (data.error || 'Falha ao gerar'));
+        }
+      } catch (e) {
+        alert('Erro de conexao: ' + e.message);
+      }
+    },
+
     async patchMentee(menteeId, updates) {
       try {
         const resp = await fetch(`${CONFIG.API_BASE}/api/mentees/${menteeId}`, {
@@ -7362,7 +7863,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     async loadGroups() {
       try {
-        const res = await fetch('/api/mentee-groups', { headers: { 'Authorization': `Bearer ${this._getToken()}` } });
+        const res = await fetch(`${CONFIG.API_BASE}/api/mentee-groups`, { headers: { 'Authorization': `Bearer ${this._getToken()}` } });
         if (!res.ok) return;
         this.data.groups = await res.json() || [];
       } catch (e) { console.error('loadGroups error:', e); }
@@ -7372,7 +7873,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const f = this.ui.groupsForm;
       if (!f.nome.trim()) { this.toast('Nome obrigatorio', 'warning'); return; }
       try {
-        const res = await fetch('/api/mentee-groups', {
+        const res = await fetch(`${CONFIG.API_BASE}/api/mentee-groups`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${this._getToken()}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ nome: f.nome.trim(), cor: f.cor, icon: f.icon })
@@ -9131,11 +9632,11 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     ],
 
     obStatusLabel(s) {
-      const m = { em_andamento: 'Em Andamento', concluido: 'Concluído', pausado: 'Pausado' };
+      const m = { a_fazer: 'A Fazer', em_andamento: 'Em Andamento', concluido: 'Concluído', pausado: 'Pausado' };
       return m[s] || s;
     },
     obStatusColor(s) {
-      const m = { em_andamento: '#3b82f6', concluido: '#10b981', pausado: '#6b7280' };
+      const m = { a_fazer: '#d97706', em_andamento: '#3b82f6', concluido: '#10b981', pausado: '#6b7280' };
       return m[s] || '#6b7280';
     },
 
@@ -9296,14 +9797,22 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     async updateObTrilhaStatus(trilhaId, status) {
       if (!sb) return;
       const oldStatus = this.data.obTrilhaDetail?.status || null;
-      const { error } = await sb.from('ob_trilhas').update({ status, updated_at: new Date().toISOString() }).eq('id', trilhaId);
+      const now = new Date().toISOString();
+      const { error } = await sb.from('ob_trilhas').update({ status, updated_at: now }).eq('id', trilhaId);
       if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+
+      // When marking as concluido, auto-complete all tarefas and etapas
+      if (status === 'concluido') {
+        await sb.from('ob_tarefas').update({ status: 'concluido', data_concluida: now, updated_at: now }).eq('trilha_id', trilhaId).neq('status', 'concluido');
+        await sb.from('ob_etapas').update({ status: 'concluido', updated_at: now }).eq('trilha_id', trilhaId).neq('status', 'concluido');
+      }
+
       // Log event
-      const statusLabels = { em_andamento: 'Em Andamento', concluido: 'Concluído', pausado: 'Pausado' };
+      const statusLabels = { a_fazer: 'A Fazer', em_andamento: 'Em Andamento', concluido: 'Concluído', pausado: 'Pausado' };
       await this._logObEvento(trilhaId, null, null, 'trilha_status', oldStatus, status, 'Status: ' + (statusLabels[oldStatus] || oldStatus || '-') + ' → ' + (statusLabels[status] || status));
       await this.loadObData();
       if (this.ui.obDetailTrilhaId === trilhaId) await this.loadObDetail(trilhaId);
-      this.toast('Status atualizado', 'success');
+      this.toast(status === 'concluido' ? 'Trilha concluída — todas as tarefas finalizadas' : 'Status atualizado', 'success');
     },
 
     async deleteObTrilha(trilhaId) {
@@ -9415,7 +9924,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     obPipelineColumns() {
-      const statuses = ['em_andamento', 'concluido', 'pausado'];
+      const statuses = ['a_fazer', 'em_andamento', 'concluido', 'pausado'];
       const list = this.ui.obSearchQuery ? this.filteredObTrilhas : this.data.obTrilhas;
       return statuses.map(s => ({
         status: s,

@@ -1,0 +1,70 @@
+# Promptfoo eval config — CASE Extract Oferta pattern
+# Run: promptfoo eval --config ai/eval/dossie-oferta.yaml
+
+description: "Regression tests for case_extract_oferta pattern"
+tags:
+  domain: dossie
+  pattern: case_extract_oferta
+
+providers:
+  - id: anthropic:messages:claude-sonnet-4-20250514
+    label: "Claude Sonnet 4"
+    config:
+      temperature: 0.3
+      max_tokens: 4000
+
+prompts:
+  - file://../../ai/patterns/case_extract_oferta/system.md
+
+tests:
+  # Test 1: Normal transcript with all sections
+  - description: "Transcricao completa com todos os dados"
+    vars:
+      input: |
+        Queila: Danyella, seu publico ideal sao medicos e dentistas com consultorios ja faturando entre 15 e 30 mil por mes, que querem aprender protocolos de estetica para pacientes acima de 40 anos.
+        Danyella: Sim, minha tese e estetica regenerativa para 40+, com foco em durabilidade.
+        Queila: Perfeito. Seus tres pilares seriam: diagnostico individual de 30 a 40 minutos, protocolos autorais replicaveis, e implementacao supervisionada com 12 lives quinzenais.
+        Danyella: O investimento seria 7 mil online e 15 mil presencial, formato hibrido de 6 meses.
+        Queila: O ROI esperado e que o mentorado ganhe entre 25 e 50 mil a mais por ano com retencao de pacientes.
+    assert:
+      - type: contains
+        value: "40+"
+      - type: contains
+        value: "15"
+      - type: contains
+        value: "diagnostico"
+      - type: not-contains
+        value: "Hormozi"
+      - type: llm-rubric
+        value: "O output deve conter TODAS as 6 secoes obrigatorias: Publico-Alvo, Tese Central, Pilares, Formato e Investimento, ROI, Diferenciais"
+      - type: llm-rubric
+        value: "Todas as informacoes devem ser rastreveis ao texto de entrada. Nenhum dado inventado."
+
+  # Test 2: Sparse transcript — many sections should say "Nao mencionado"
+  - description: "Transcricao curta, muitas secoes sem dados"
+    vars:
+      input: |
+        Queila: Voce trabalha com estetica facial, certo?
+        Mentorada: Sim, ha 5 anos.
+        Queila: Qual seu publico? Quem vem na sua clinica?
+        Mentorada: Mulheres acima de 35 que querem prevenir envelhecimento.
+    assert:
+      - type: contains
+        value: "Nao mencionado"
+      - type: not-contains
+        value: "R$"
+        metric: "no_invented_prices"
+      - type: llm-rubric
+        value: "Secoes sem dados na transcricao devem indicar 'Nao mencionado na transcricao', nao devem ser inventadas"
+
+  # Test 3: Adversarial — empty input
+  - description: "Input vazio deve retornar gracefully"
+    vars:
+      input: ""
+    assert:
+      - type: llm-rubric
+        value: "Com input vazio, o sistema deve indicar que nao ha dados para extrair, sem inventar conteudo"
+
+evaluateOptions:
+  maxConcurrency: 2
+  cache: true

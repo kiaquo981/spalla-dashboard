@@ -2,6 +2,9 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Operon — Dashboard de Mentorados</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%236366f1'/%3E%3Ctext x='50' y='50' text-anchor='middle' dominant-baseline='central' font-size='56' fill='white' font-family='system-ui,sans-serif' font-weight='700'%3EO%3C/text%3E%3C/svg%3E">
@@ -13,7 +16,7 @@
   <link rel="stylesheet" href="13-APP-styles.css?v=79">
   <style>
     [x-cloak] { display: none !important; }
-    #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1c1910,#35301d,#1c1910);font-family:'Open Sauce Sans',system-ui,sans-serif;color:var(--brand-500,#8a7d52);font-size:24px;font-weight:700;letter-spacing:0.05em; }
+    #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1c1910,#35301d,#1c1910);font-family:'Inter',system-ui,sans-serif;color:var(--brand-500,#8a7d52);font-size:24px;font-weight:700;letter-spacing:0.05em; }
     #loading-fallback span { animation:pulse 1.5s infinite; }
     @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.5} }
     @keyframes spin { from{transform:rotate(0deg)}to{transform:rotate(360deg)} }
@@ -757,6 +760,28 @@
               </div>
             </div>
 
+            <!-- MENTORADOS NOVOS -->
+            <div class="bento-card" x-show="ccNewMentees().length">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Novos esta semana</span>
+                <button class="btn btn--ghost btn--xs" @click="navigate('onboarding')" style="font-size:11px">Onboarding →</button>
+              </div>
+              <div class="bento-card__body" style="overflow-y:auto">
+                <div style="display:flex;flex-direction:column;gap:4px">
+                  <template x-for="m in ccNewMentees()" :key="m.id">
+                    <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px" @mouseover="$el.style.background='#f8f6f1'" @mouseout="$el.style.background='transparent'">
+                      <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0"
+                        :style="'background:' + avatarGradient(m.nome)" x-text="avatarInitials(m.nome)"></div>
+                      <div style="flex:1;min-width:0">
+                        <div style="font-size:12px;font-weight:600;color:#1a1a14" x-text="m.nome"></div>
+                      </div>
+                      <span style="font-size:9px;color:#94a3b8" x-text="m.created_at ? new Date(m.created_at).toLocaleDateString('pt-BR', {day:'numeric', month:'short'}) : ''"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+
             <!-- 3. RECENT ACTIVITY (2×2 hero) -->
             <div class="bento-card bento-card--hero">
               <div class="bento-card__header">
@@ -1319,7 +1344,7 @@
                   <span class="mc-card__phase-tag" :class="phaseClass(m.fase_jornada)" x-text="phaseLabel(m.fase_jornada)"></span>
                   <span class="mc-card__marco" x-show="m.marco_atual" x-text="m.marco_atual"></span>
                   <span class="mc-card__cohort" x-text="m.cohort"></span>
-                  <span class="mc-card__fin-badge mc-card__fin-badge--danger" x-show="m.contrato_assinado === false" title="Contrato nao assinado">SEM CONTRATO</span>
+                  <span class="mc-card__fin-badge mc-card__fin-badge--danger" x-show="!m.contrato_assinado" title="Contrato nao assinado">SEM CONTRATO</span>
                   <span class="mc-card__fin-badge mc-card__fin-badge--danger" x-show="m.status_financeiro === 'atrasado'" title="Pagamento atrasado">INADIMPLENTE</span>
                   <span class="mc-card__fin-badge mc-card__fin-badge--success" x-show="m.status_financeiro === 'quitado'">QUITADO</span>
                   <span class="mc-card__wa-badge" :class="waBadgeClass(m)" x-show="m.msgs_pendentes_resposta > 0">
@@ -1481,6 +1506,11 @@
                 Arquivos
                 <span class="op-tab__count" x-show="_detailArquivos.length" x-text="_detailArquivos.length"></span>
               </button>
+              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'contexto' }" @click="ui.activeDetailTab = 'contexto'; loadMenteeContext(data.detail?.profile?.id)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                Contexto
+                <span class="op-tab__count" x-show="data.menteeContext?.length" x-text="data.menteeContext?.length"></span>
+              </button>
               <button class="op-tab" :class="{ active: ui.activeDetailTab === 'financeiro' }" @click="ui.activeDetailTab = 'financeiro'; loadFinDetailLogs()" x-show="isCfoUser">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                 Financeiro
@@ -1489,6 +1519,11 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                 Timeline
                 <span class="op-tab__count" x-show="data.timeline.length" x-text="data.timeline.length"></span>
+              </button>
+              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'mensagens' }" @click="ui.activeDetailTab = 'mensagens'; loadMenteeMessages(data.detail?.profile?.id)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                Mensagens
+                <span class="op-tab__count" x-show="data.menteeMessages?.length" x-text="data.menteeMessages?.length"></span>
               </button>
             </div>
 
@@ -2265,6 +2300,113 @@
               </div>
             </div>
 
+            <!-- ===== TAB: MENSAGENS (Chatwoot — EPIC 1) ===== -->
+            <div class="op-tab-content" x-show="ui.activeDetailTab === 'mensagens'" x-cloak>
+              <div x-show="!data.menteeMessages?.length" class="empty-state" style="padding:24px">
+                <p>Nenhuma mensagem registrada ainda.</p>
+                <p style="font-size:12px;color:var(--text-secondary)">Mensagens aparecem quando o Chatwoot estiver conectado.</p>
+              </div>
+              <div class="timeline-list" x-show="data.menteeMessages?.length">
+                <template x-for="msg in data.menteeMessages || []" :key="msg.id">
+                  <div class="timeline-item" style="border-left:3px solid" :style="msg.direction === 'inbound' ? 'border-color:#2563eb' : 'border-color:#16a34a'">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                      <span style="font-size:10px;font-weight:700;text-transform:uppercase;padding:2px 6px;border-radius:3px" :style="msg.direction === 'inbound' ? 'background:#dbeafe;color:#1d4ed8' : 'background:#dcfce7;color:#166534'" x-text="msg.direction === 'inbound' ? 'Recebida' : 'Enviada'"></span>
+                      <span style="font-size:11px;font-weight:600" x-text="msg.sender_name || 'Desconhecido'"></span>
+                      <span style="font-size:10px;color:var(--text-secondary);margin-left:auto" x-text="msg.created_at ? new Date(msg.created_at).toLocaleString('pt-BR', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : ''"></span>
+                    </div>
+                    <div style="font-size:13px;color:var(--text-primary);line-height:1.4" x-text="msg.content_preview || '(sem conteudo)'"></div>
+                    <div style="font-size:10px;color:var(--text-secondary);margin-top:2px" x-text="msg.channel || 'whatsapp'"></div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- ===== TAB: CONTEXTO (Context Hub — áudio, texto, anexos para dossiê) ===== -->
+            <div class="op-tab-content" x-show="ui.activeDetailTab === 'contexto'" x-cloak>
+              <div style="padding:16px">
+                <!-- Adicionar novo contexto -->
+                <div style="background:var(--bg-subtle);border-radius:8px;padding:12px;margin-bottom:16px">
+                  <div style="display:flex;gap:8px;margin-bottom:8px">
+                    <select x-model="ui.ctxTipo" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px">
+                      <option value="texto">Texto / Nota</option>
+                      <option value="audio">Áudio</option>
+                      <option value="arquivo">Arquivo</option>
+                    </select>
+                    <input type="text" x-model="ui.ctxTitulo" placeholder="Título (ex: Áudio call onboarding, Briefing inicial...)" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px">
+                  </div>
+
+                  <!-- Texto -->
+                  <div x-show="ui.ctxTipo === 'texto'" style="margin-bottom:8px">
+                    <textarea x-model="ui.ctxConteudo" rows="4" placeholder="Escreva aqui as observações, notas da call, percepções sobre o mentorado..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
+                  </div>
+
+                  <!-- Áudio / Arquivo -->
+                  <div x-show="ui.ctxTipo === 'audio' || ui.ctxTipo === 'arquivo'" style="margin-bottom:8px">
+                    <label style="display:flex;align-items:center;gap:8px;padding:16px;border:2px dashed var(--border);border-radius:8px;cursor:pointer;text-align:center;justify-content:center;font-size:12px;color:var(--text-secondary)">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                      <span x-text="ui.ctxArquivo ? ui.ctxArquivo.name : (ui.ctxTipo === 'audio' ? 'Clique para enviar áudio (MP3, WAV, M4A)' : 'Clique para enviar arquivo (PDF, DOC, imagem)')"></span>
+                      <input type="file" :accept="ui.ctxTipo === 'audio' ? 'audio/*,.mp3,.wav,.m4a,.ogg' : '*'" @change="ui.ctxArquivo = $event.target.files[0]" style="display:none">
+                    </label>
+                    <textarea x-show="ui.ctxArquivo" x-model="ui.ctxConteudo" rows="2" placeholder="Descrição ou transcrição do conteúdo (opcional)" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;margin-top:8px"></textarea>
+                  </div>
+
+                  <div style="display:flex;gap:8px;justify-content:flex-end">
+                    <select x-model="ui.ctxFase" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;color:var(--text-secondary)">
+                      <option value="onboarding">Fase: Onboarding</option>
+                      <option value="dossie_oferta">Fase: Dossiê Oferta</option>
+                      <option value="dossie_posicionamento">Fase: Dossiê Posicionamento</option>
+                      <option value="dossie_funil">Fase: Dossiê Funil</option>
+                    </select>
+                    <button class="btn btn--brand btn--sm" @click="saveContext()" :disabled="ui.ctxSaving || (!ui.ctxConteudo && !ui.ctxArquivo)">
+                      <span x-show="!ui.ctxSaving">Adicionar ao contexto</span>
+                      <span x-show="ui.ctxSaving">Salvando...</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Lista de contextos existentes -->
+                <div x-show="!data.menteeContext?.length" style="text-align:center;padding:24px;color:var(--text-secondary);font-size:13px">
+                  Nenhum contexto adicionado ainda. Áudios, notas e arquivos do onboarding aparecerão aqui.
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <template x-for="ctx in data.menteeContext || []" :key="ctx.id">
+                    <div style="border:1px solid var(--border);border-radius:8px;padding:12px;display:flex;gap:10px;align-items:flex-start">
+                      <!-- Ícone por tipo -->
+                      <div style="width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px"
+                           :style="ctx.tipo === 'audio' ? 'background:#fef3c7;color:#d97706' : ctx.tipo === 'arquivo' ? 'background:#dbeafe;color:#2563eb' : 'background:#f0fdf4;color:#16a34a'">
+                        <span x-text="ctx.tipo === 'audio' ? '🎙' : ctx.tipo === 'arquivo' ? '📎' : '📝'"></span>
+                      </div>
+                      <!-- Conteúdo -->
+                      <div style="flex:1;min-width:0">
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                          <span style="font-size:13px;font-weight:600" x-text="ctx.titulo || ctx.tipo"></span>
+                          <span style="font-size:10px;padding:2px 6px;border-radius:3px;background:var(--bg-subtle);color:var(--text-secondary)" x-text="ctx.fase?.replace('_', ' ')"></span>
+                          <span style="font-size:10px;color:var(--text-secondary);margin-left:auto" x-text="new Date(ctx.created_at).toLocaleDateString('pt-BR', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})"></span>
+                        </div>
+                        <div x-show="ctx.conteudo" style="font-size:12px;color:var(--text-primary);line-height:1.5;white-space:pre-wrap" x-text="ctx.conteudo?.substring(0, 300) + (ctx.conteudo?.length > 300 ? '...' : '')"></div>
+                        <div x-show="ctx.arquivo_url" style="margin-top:4px">
+                          <a :href="ctx.arquivo_url" target="_blank" style="font-size:11px;color:var(--brand-500);text-decoration:none;display:flex;align-items:center;gap:4px">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            <span x-text="ctx.arquivo_nome || 'Baixar arquivo'"></span>
+                            <span x-show="ctx.arquivo_tamanho" style="color:var(--text-secondary)" x-text="'(' + Math.round(ctx.arquivo_tamanho/1024) + ' KB)'"></span>
+                          </a>
+                        </div>
+                        <div style="font-size:10px;color:var(--text-secondary);margin-top:4px" x-text="'por ' + (ctx.criado_por || 'sistema')"></div>
+                      </div>
+                      <!-- Deletar -->
+                      <button @click="deleteContext(ctx.id)" style="background:none;border:none;cursor:pointer;color:#dc2626;opacity:0.5;font-size:14px" @mouseover="$el.style.opacity='1'" @mouseout="$el.style.opacity='0.5'" title="Remover contexto">✕</button>
+                    </div>
+                  </template>
+                </div>
+
+                <!-- Nota sobre limpeza -->
+                <div x-show="data.menteeContext?.length" style="margin-top:12px;padding:8px 12px;background:#fef9c3;border-radius:6px;font-size:11px;color:#854d0e">
+                  Este contexto permanece ativo até a entrega do último dossiê do mentorado.
+                </div>
+              </div>
+            </div>
+
             <!-- ===== TAB: FINANCEIRO (CFO Detail) ===== -->
             <div class="op-tab-content" x-show="ui.activeDetailTab === 'financeiro'" x-cloak>
 
@@ -2281,21 +2423,79 @@
                   <span class="badge" :style="`background:${finStatusColor(data.detail?.profile?.status_financeiro)};color:#fff`"
                         x-text="finStatusLabel(data.detail?.profile?.status_financeiro)"></span>
                 </div>
-                <div class="fin-detail-status__grid">
+                <div class="fin-detail-status__grid" style="grid-template-columns:repeat(3, 1fr);gap:12px">
                   <div class="fin-detail-status__item">
                     <span class="fin-detail-status__label">Contrato</span>
                     <span class="fin-detail-status__val" :style="`color:${data.detail?.profile?.contrato_assinado ? 'var(--success)' : 'var(--danger)'}`"
-                          x-text="data.detail?.profile?.contrato_assinado ? 'Assinado' : 'Nao assinado'"></span>
+                          x-text="data.detail?.profile?.contrato_assinado ? '✓ Assinado' + (data.detail?.profile?.data_contrato_assinado ? ' em ' + formatDate(data.detail.profile.data_contrato_assinado) : '') : '✗ Não assinado'"></span>
+                  </div>
+                  <div class="fin-detail-status__item">
+                    <span class="fin-detail-status__label">Valor do Contrato</span>
+                    <span class="fin-detail-status__val" x-text="data.detail?.profile?.valor_contrato ? formatCurrency(data.detail.profile.valor_contrato) : '—'"></span>
+                  </div>
+                  <div class="fin-detail-status__item">
+                    <span class="fin-detail-status__label">Condição Acordada</span>
+                    <span class="fin-detail-status__val" x-text="data.detail?.profile?.condicao_acordada || '—'"></span>
                   </div>
                   <div class="fin-detail-status__item">
                     <span class="fin-detail-status__label">Dia de Pagamento</span>
-                    <span class="fin-detail-status__val" x-text="data.detail?.profile?.dia_pagamento ? `Dia ${data.detail.profile.dia_pagamento}` : 'Nao definido'"></span>
+                    <span class="fin-detail-status__val" x-text="data.detail?.profile?.dia_pagamento ? `Dia ${data.detail.profile.dia_pagamento}` : '—'"></span>
+                  </div>
+                  <div class="fin-detail-status__item">
+                    <span class="fin-detail-status__label">1º Pagamento</span>
+                    <span class="fin-detail-status__val" x-text="data.detail?.profile?.data_primeiro_pagamento ? formatDate(data.detail.profile.data_primeiro_pagamento) : '—'"></span>
                   </div>
                   <div class="fin-detail-status__item">
                     <span class="fin-detail-status__label">Fase</span>
                     <span class="fin-detail-status__val" x-text="data.detail?.profile?.fase_jornada || '—'"></span>
                   </div>
                 </div>
+
+                <!-- Editar dados financeiros -->
+                <details style="margin-top:12px">
+                  <summary style="font-size:11px;color:#8b6f47;cursor:pointer;font-weight:600">Editar dados financeiros</summary>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;padding:12px;background:#fafaf8;border-radius:8px;border:1px solid #f0ece4">
+                    <div>
+                      <label style="font-size:10px;font-weight:600;color:#64748b;display:block;margin-bottom:2px">Valor do Contrato (R$)</label>
+                      <input type="number" step="0.01" :value="data.detail?.profile?.valor_contrato || ''"
+                        @change="updateMenteeFinField('valor_contrato', parseFloat($event.target.value))"
+                        style="width:100%;padding:6px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px">
+                    </div>
+                    <div>
+                      <label style="font-size:10px;font-weight:600;color:#64748b;display:block;margin-bottom:2px">Condição Acordada</label>
+                      <input type="text" :value="data.detail?.profile?.condicao_acordada || ''" placeholder="Ex: 6x R$1.166"
+                        @change="updateMenteeFinField('condicao_acordada', $event.target.value)"
+                        style="width:100%;padding:6px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px">
+                    </div>
+                    <div>
+                      <label style="font-size:10px;font-weight:600;color:#64748b;display:block;margin-bottom:2px">Dia de Pagamento</label>
+                      <input type="number" min="1" max="31" :value="data.detail?.profile?.dia_pagamento || ''" placeholder="1-31"
+                        @change="updateMenteeFinField('dia_pagamento', parseInt($event.target.value))"
+                        style="width:100%;padding:6px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px">
+                    </div>
+                    <div>
+                      <label style="font-size:10px;font-weight:600;color:#64748b;display:block;margin-bottom:2px">Data 1º Pagamento</label>
+                      <input type="date" :value="data.detail?.profile?.data_primeiro_pagamento || ''"
+                        @change="updateMenteeFinField('data_primeiro_pagamento', $event.target.value)"
+                        style="width:100%;padding:6px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px">
+                    </div>
+                    <div>
+                      <label style="font-size:10px;font-weight:600;color:#64748b;display:block;margin-bottom:2px">Parcelas Total</label>
+                      <input type="number" min="1" :value="data.detail?.profile?.parcelas_total || ''" placeholder="Ex: 6"
+                        @change="updateMenteeFinField('parcelas_total', parseInt($event.target.value))"
+                        style="width:100%;padding:6px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px">
+                    </div>
+                    <div>
+                      <label style="font-size:10px;font-weight:600;color:#64748b;display:block;margin-bottom:2px">Contrato Assinado</label>
+                      <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:6px 0">
+                        <input type="checkbox" :checked="data.detail?.profile?.contrato_assinado"
+                          @change="updateMenteeFinField('contrato_assinado', $event.target.checked); if($event.target.checked) updateMenteeFinField('data_contrato_assinado', new Date().toISOString().split('T')[0])"
+                          style="width:16px;height:16px;accent-color:#8b6f47">
+                        <span x-text="data.detail?.profile?.contrato_assinado ? 'Sim' : 'Não'"></span>
+                      </label>
+                    </div>
+                  </div>
+                </details>
               </div>
 
               <!-- Quick Actions -->
@@ -2532,8 +2732,12 @@
                 <select class="op-toolbar__select" x-model="ui.taskAssignee" style="min-width:160px">
                   <option value="">Todos</option>
                   <option value="__mine__">Minhas Tarefas</option>
-                  <template x-for="tm in TEAM_MEMBERS.filter(t => t.name !== auth.currentUser?.full_name)" :key="tm.id"><option :value="tm.name" x-text="tm.name"></option></template>
-                  <option value="Mentorado">Mentorado</option>
+                  <optgroup label="Equipe">
+                    <template x-for="tm in TEAM_MEMBERS.filter(t => t.name !== auth.currentUser?.full_name)" :key="tm.id"><option :value="tm.name" x-text="tm.name"></option></template>
+                  </optgroup>
+                  <optgroup label="Mentorado">
+                    <template x-for="m in taskMentoradoOptions()" :key="m"><option :value="'mentee:' + m" x-text="m"></option></template>
+                  </optgroup>
                 </select>
                 <select class="op-toolbar__select" x-model="ui.taskDateFilter" style="min-width:155px" :class="{ 'op-toolbar__select--active': ui.taskDateFilter !== 'all' }">
                   <option value="all">Todos os períodos</option>
@@ -2568,7 +2772,13 @@
                     <button x-show="ui.taskTagFilter.length" @click="ui.taskTagFilter=[];ui.taskTagsFilterOpen=false" style="width:100%;padding:6px;font-size:12px;color:#ef4444;background:none;border:none;border-top:1px solid #f1f5f9;cursor:pointer;text-align:left">Limpar filtro de tags</button>
                   </div>
                 </div>
-                <button class="btn btn--sm btn--outline" @click="syncClickUpSubtasks()" :disabled="ui.syncingSubtasks" style="margin-left:auto;display:flex;align-items:center;gap:6px" title="Sincronizar subtasks do ClickUp">
+                <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+                  <div style="position:relative">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" style="position:absolute;left:8px;top:50%;transform:translateY(-50%)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input type="text" x-model="ui.search" placeholder="Buscar tarefa..." style="padding:6px 8px 6px 28px;border:1px solid var(--border);border-radius:6px;font-size:12px;width:200px;background:var(--bg-subtle)">
+                  </div>
+                </div>
+                <button class="btn btn--sm btn--outline" @click="syncClickUpSubtasks()" :disabled="ui.syncingSubtasks" style="display:flex;align-items:center;gap:6px" title="Sincronizar subtasks do ClickUp">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :style="ui.syncingSubtasks ? 'animation:spin 1s linear infinite' : ''"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                   <span x-text="ui.syncingSubtasks ? 'Sincronizando…' : 'Sync ClickUp'"></span>
                 </button>
@@ -2577,15 +2787,15 @@
 
               <!-- BOARD VIEW -->
               <div class="task-board" x-show="ui.taskView === 'board'">
-                <template x-for="status in ['pendente', 'em_andamento', 'concluida']" :key="status">
+                <template x-for="col in boardColumns" :key="col.key">
                   <div class="task-board__column">
-                    <div class="task-board__column-header" :class="'task-board__column-header--' + status">
-                      <span class="task-status-dot" :class="'task-status-dot--' + status"></span>
-                      <span x-text="taskStatusLabel(status)"></span>
-                      <span class="task-board__column-count" x-text="tasksByStatus[status]?.length || 0"></span>
+                    <div class="task-board__column-header" :class="col.cssClass || ''" :style="col.color ? 'background:' + col.color + '18; border-top:3px solid ' + col.color : ''">
+                      <span class="task-status-dot" :class="col.cssClass ? 'task-status-dot--' + col.key : ''" :style="col.color ? 'background:' + col.color : ''"></span>
+                      <span x-text="col.label"></span>
+                      <span class="task-board__column-count" x-text="tasksByStatus[col.key]?.length || 0"></span>
                     </div>
-                    <div class="task-board__column-body" @dragover.prevent="onDragOver($event, status)" @dragleave="onDragLeave($event, status)" @drop="onDrop($event, status)" :class="{'task-board__column-body--dragover': dragOverColumn === status}">
-                      <template x-for="t in tasksByStatus[status]" :key="t.id">
+                    <div class="task-board__column-body" @dragover.prevent="onDragOver($event, col.key)" @dragleave="onDragLeave($event, col.key)" @drop="onDrop($event, col.key)" :class="{'task-board__column-body--dragover': dragOverColumn === col.key}">
+                      <template x-for="t in tasksByStatus[col.key]" :key="t.id">
                         <div class="task-board__card" draggable="true" @dragstart="onDragStart($event, t.id)" @dragend="onDragEnd($event)" @click="openTaskDetail(t.id)" :class="{ 'task-board__card--overdue': status === 'pendente' && isOverdue(t.data_fim || t.prazo), 'task-board__card--mine': isMyTask(t) }">
                           <div class="task-board__card-header">
                             <span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span>
@@ -2661,8 +2871,8 @@
                           </div>
                         </div>
                       </template>
-                      <div class="task-board__empty" x-show="!tasksByStatus[status]?.length">Nenhuma tarefa</div>
-                      <button class="task-board__add" @click="openTaskModal()" x-show="status === 'pendente'">+ Adicionar tarefa</button>
+                      <div class="task-board__empty" x-show="!tasksByStatus[col.key]?.length">Nenhuma tarefa</div>
+                      <button class="task-board__add" @click="openTaskModal()" x-show="col.key === 'pendente' || col.key === boardColumns[0]?.key">+ Adicionar tarefa</button>
                     </div>
                   </div>
                 </template>
@@ -2677,16 +2887,47 @@
                 <div class="task-list__header">
                   <div class="task-list__col task-list__col--check"></div>
                   <div class="task-list__col task-list__col--title">Tarefa</div>
-                  <div class="task-list__col task-list__col--assignee">Responsavel</div>
-                  <div class="task-list__col task-list__col--tracker">Acompanhante</div>
-                  <div class="task-list__col task-list__col--mentee">Mentorado</div>
-                  <div class="task-list__col task-list__col--dates">Datas</div>
-                  <div class="task-list__col task-list__col--prio">Prio</div>
-                  <div class="task-list__col task-list__col--actions"></div>
+                  <div class="task-list__col task-list__col--assignee" x-show="ui.listColumns.responsavel.visible">Responsável</div>
+                  <div class="task-list__col task-list__col--tracker" x-show="ui.listColumns.acompanhante.visible">Acompanhante</div>
+                  <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.mentorado.visible">Mentorado</div>
+                  <div class="task-list__col task-list__col--dates" x-show="ui.listColumns.datas.visible">Datas</div>
+                  <div class="task-list__col task-list__col--prio" x-show="ui.listColumns.prioridade.visible">Prio</div>
+                  <div class="task-list__col task-list__col--prio" x-show="ui.listColumns.status.visible">Status</div>
+                  <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.tags.visible">Tags</div>
+                  <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.fonte.visible">Fonte</div>
+                  <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.space.visible">Space</div>
+                  <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.comentarios.visible">💬</div>
+                  <div class="task-list__col task-list__col--dates" x-show="ui.listColumns.criado_em.visible">Criado</div>
+                  <div class="task-list__col task-list__col--dates" x-show="ui.listColumns.atualizado.visible">Atualizado</div>
+                  <div class="task-list__col task-list__col--actions" style="position:relative">
+                    <button @click.stop="ui.listColumnsOpen = !ui.listColumnsOpen" title="Configurar colunas"
+                      style="background:none;border:none;cursor:pointer;padding:2px;color:#94a3b8;border-radius:4px"
+                      @mouseover="$el.style.color='#475569'" @mouseout="$el.style.color='#94a3b8'">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    </button>
+                    <!-- Column config dropdown -->
+                    <div x-show="ui.listColumnsOpen" @click.outside="ui.listColumnsOpen = false"
+                      style="position:absolute;right:0;top:100%;z-index:200;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px;min-width:200px;box-shadow:0 8px 24px rgba(0,0,0,.12)">
+                      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding:0 4px">Colunas</div>
+                      <template x-for="(col, key) in ui.listColumns" :key="key">
+                        <label style="display:flex;align-items:center;gap:8px;padding:5px 4px;cursor:pointer;font-size:13px;color:#334155;border-radius:5px"
+                          @mouseover="$el.style.background='#f8fafc'" @mouseout="$el.style.background='transparent'">
+                          <input type="checkbox" x-model="ui.listColumns[key].visible" style="width:14px;height:14px;cursor:pointer;accent-color:#8b6f47">
+                          <span x-text="col.label"></span>
+                        </label>
+                      </template>
+                    </div>
+                  </div>
                 </div>
                 <template x-for="t in tasksTree" :key="t.id + '-' + t._depth">
-                  <div class="task-list__row" :class="{ 'task-list__row--done': t.status === 'concluida', 'task-list__row--overdue': t.status === 'pendente' && isOverdue(t.data_fim || t.prazo), 'task-list__row--mine': isMyTask(t), 'task-list__row--child': t._depth > 0 }" @click="t._isSubtask ? openTaskDetail(t._parentId) : openTaskDetail(t.id)">
-                    <div class="task-list__col task-list__col--check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="t._isSubtask ? toggleSubtask(t._parentId, t._subIdx) : updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
+                  <div>
+                  <!-- Group header row -->
+                  <div x-show="t._isGroupHeader" class="task-list__group-header" :style="t._isGroupHeader ? 'border-left:3px solid ' + groupHeaderColor(t._groupBy, t._groupKey) : ''">
+                    <span class="task-list__group-label" x-text="t._groupLabel"></span>
+                    <span class="task-list__group-count" x-text="t._groupCount"></span>
+                  </div>
+                  <div x-show="!t._isGroupHeader" class="task-list__row" :class="{ 'task-list__row--done': t.status === 'concluida', 'task-list__row--overdue': t.status === 'pendente' && isOverdue(t.data_fim || t.prazo), 'task-list__row--mine': isMyTask(t), 'task-list__row--child': t._depth > 0 }" @click="t._isChecklist ? openTaskDetail(t._parentId) : t._isSubtask ? openTaskDetail(t._parentId) : t._isChildTask ? openTaskDetail(t.id) : openTaskDetail(t.id)">
+                    <div class="task-list__col task-list__col--check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="t._isChecklist ? toggleCheckItem(t._parentId, t._checkIdx) : t._isSubtask ? toggleSubtask(t._parentId, t._subIdx) : updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
                     <div class="task-list__col task-list__col--title" :style="t._depth > 0 ? 'padding-left:24px' : ''">
                       <div style="display:flex;align-items:flex-start;gap:4px">
                         <button x-show="t._depth === 0 && t._childCount > 0" @click.stop="toggleTaskExpand(t.id)" class="task-tree__toggle" :class="{ 'task-tree__toggle--open': ui.taskExpandedIds[t.id] }" :title="ui.taskExpandedIds[t.id] ? 'Recolher subtarefas' : 'Expandir subtarefas (' + t._childCount + ')'">
@@ -2700,25 +2941,58 @@
                         </div>
                       </div>
                     </div>
-                    <div class="task-list__col task-list__col--assignee">
-                      <span x-show="t.responsavel" class="task-list__assignee-pill">
-                        <span class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel)" x-text="avatarInitials(t.responsavel)" style="width:20px;height:20px;font-size:8px"></span>
-                        <span x-text="t.responsavel"></span>
-                      </span>
+                    <div class="task-list__col task-list__col--assignee" x-show="ui.listColumns.responsavel.visible" @click.stop>
+                      <div style="display:flex;align-items:center;gap:4px">
+                        <span class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel || '?')" x-text="avatarInitials(t.responsavel || '?')" style="width:20px;height:20px;font-size:8px;flex-shrink:0"></span>
+                        <select :value="t.responsavel || ''" @change="updateTaskField(t.id, 'responsavel', $event.target.value)"
+                          style="font-size:11px;padding:1px 2px;border:1px solid transparent;border-radius:4px;cursor:pointer;background:none;max-width:100px;appearance:none;-webkit-appearance:none"
+                          @focus="$el.style.borderColor='#8b6f47'" @blur="$el.style.borderColor='transparent'">
+                          <option value="">—</option>
+                          <template x-for="m in data.members || []" :key="m.id || m.name">
+                            <option :value="m.nome_curto || m.name" x-text="m.nome_curto || m.name"></option>
+                          </template>
+                        </select>
+                      </div>
                     </div>
-                    <div class="task-list__col task-list__col--tracker">
+                    <div class="task-list__col task-list__col--tracker" x-show="ui.listColumns.acompanhante.visible">
                       <span x-show="t.acompanhante" class="task-list__tracker-pill">
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                         <span x-text="t.acompanhante"></span>
                       </span>
                     </div>
-                    <div class="task-list__col task-list__col--mentee" x-text="t.mentorado_nome || '-'"></div>
-                    <div class="task-list__col task-list__col--dates">
+                    <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.mentorado.visible" x-text="t.mentorado_nome || '-'"></div>
+                    <div class="task-list__col task-list__col--dates" x-show="ui.listColumns.datas.visible">
                       <span x-show="t.data_inicio" x-text="formatDate(t.data_inicio)" style="font-size:11px"></span>
                       <span x-show="t.data_inicio && (t.data_fim || t.prazo)" style="font-size:10px;color:#94a3b8"> → </span>
                       <span x-show="t.data_fim || t.prazo" :class="{ 'text-red': isOverdue(t.data_fim || t.prazo) }" x-text="formatDate(t.data_fim || t.prazo)" style="font-size:11px"></span>
                     </div>
-                    <div class="task-list__col task-list__col--prio"><span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span></div>
+                    <div class="task-list__col task-list__col--prio" x-show="ui.listColumns.prioridade.visible" @click.stop>
+                      <select :value="t.prioridade" @change="updateTaskField(t.id, 'prioridade', $event.target.value)"
+                        style="font-size:11px;padding:2px 4px;border:1px solid transparent;border-radius:4px;cursor:pointer;background:none;font-weight:600;appearance:none;-webkit-appearance:none;text-align:center"
+                        :style="t.prioridade==='urgente' ? 'color:#dc2626;background:#fee2e2' : t.prioridade==='alta' ? 'color:#ea580c;background:#ffedd5' : t.prioridade==='normal' ? 'color:#64748b;background:#f1f5f9' : 'color:#94a3b8;background:#f8fafc'"
+                        @focus="$el.style.borderColor='#8b6f47'" @blur="$el.style.borderColor='transparent'">
+                        <option value="baixa">Baixa</option>
+                        <option value="normal">Normal</option>
+                        <option value="alta">Alta</option>
+                        <option value="urgente">Urgente</option>
+                      </select>
+                    </div>
+                    <div class="task-list__col task-list__col--prio" x-show="ui.listColumns.status.visible" @click.stop>
+                      <select :value="t.status" @change="updateTaskStatus(t.id, $event.target.value)"
+                        style="font-size:11px;padding:2px 4px;border:1px solid transparent;border-radius:4px;cursor:pointer;background:none;font-weight:600;appearance:none;-webkit-appearance:none;text-align:center"
+                        :style="t.status==='concluida' ? 'color:#16a34a;background:#dcfce7' : t.status==='em_andamento' ? 'color:#2563eb;background:#dbeafe' : 'color:#64748b;background:#f1f5f9'"
+                        @focus="$el.style.borderColor='#8b6f47'" @blur="$el.style.borderColor='transparent'">
+                        <option value="pendente">A Fazer</option>
+                        <option value="em_andamento">Em Progresso</option>
+                        <option value="concluida">Concluído</option>
+                      </select>
+                    </div>
+                    <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.tags.visible"><template x-for="tag in (t.tags||[]).slice(0,2)" :key="tag.id||tag.name||tag"><span class="task-tag" style="font-size:10px" :style="tag.color ? 'background:'+tag.color+'22;color:'+tag.color : ''" x-text="tag.name||tag"></span></template></div>
+                    <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.fonte.visible"><span class="badge badge--sm badge--neutral" x-text="t.fonte || 'manual'"></span></div>
+                    <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.space.visible" style="font-size:11px" x-text="getSpaceName(t.space_id) || '-'"></div>
+                    <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.comentarios.visible" style="font-size:11px;color:#64748b" x-text="(t.comments?.length || 0)"></div>
+                    <div class="task-list__col task-list__col--dates" x-show="ui.listColumns.criado_em.visible"><span style="font-size:11px" x-text="t.created_at ? formatDate(t.created_at) : '-'"></span></div>
+                    <div class="task-list__col task-list__col--dates" x-show="ui.listColumns.atualizado.visible"><span style="font-size:11px" x-text="t.updated_at ? formatDate(t.updated_at) : '-'"></span></div>
                     <div class="task-list__col task-list__col--actions" @click.stop x-show="!t._isSubtask">
                       <button class="task-card__btn" @click="openTaskModal(t)" title="Editar">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -2727,6 +3001,7 @@
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                       </button>
                     </div>
+                  </div>
                   </div>
                 </template>
                 <div class="empty-state" x-show="!tasksTree.length"><p>Nenhuma tarefa encontrada.</p><button class="btn btn--brand" @click="openTaskModal()">Criar primeira tarefa</button></div>
@@ -2775,226 +3050,568 @@
             </div>
           </div>
 
-          <!-- Task Detail Drawer -->
-          <div class="op-drawer-overlay" x-show="ui.taskDetailDrawer" x-transition.opacity @click.self="closeTaskDetail()">
-            <div class="op-drawer" x-show="ui.taskDetailDrawer" x-transition:enter="slide-in" @click.stop>
+          <!-- Task Detail Drawer (ClickUp-style 2-panel) -->
+          <div class="op-drawer-overlay" x-show="ui.taskDetailDrawer" x-transition.opacity @click.self="closeTaskDetail()"
+               style="display:flex;align-items:center;justify-content:center">
+            <div x-show="ui.taskDetailDrawer" x-transition:enter="slide-in" @click.stop
+                 style="position:fixed;inset:0;z-index:calc(var(--z-overlay, 50) + 1);display:flex;align-items:center;justify-content:center;pointer-events:none">
               <template x-if="activeTaskDetail">
-                <div style="display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden">
-                  <div class="op-drawer__header">
-                    <div class="op-drawer__header-left">
-                      <span class="badge" :class="'badge--' + prioClass(activeTaskDetail.prioridade)" x-text="prioLabel(activeTaskDetail.prioridade)"></span>
-                      <span class="badge" :class="{ 'badge--neutral': activeTaskDetail.status === 'pendente', 'badge--info': activeTaskDetail.status === 'em_andamento', 'badge--success': activeTaskDetail.status === 'concluida' }" x-text="taskStatusLabel(activeTaskDetail.status)"></span>
+                <div style="width:95vw;max-width:1400px;height:90vh;background:var(--bg-primary, #fff);border-radius:16px;box-shadow:0 25px 60px rgba(0,0,0,.25);display:flex;flex-direction:column;overflow:hidden;pointer-events:auto">
+                  <!-- ===== TOP BAR ===== -->
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--neutral-100, #f1f5f9);background:var(--bg-primary, #fff);flex-shrink:0">
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1;min-width:0">
+                      <!-- Status dropdown -->
+                      <div style="position:relative" x-data="{ open: false }">
+                        <button @click="open = !open" style="display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;border:1px solid var(--neutral-200, #e2e8f0);background:var(--bg-primary, #fff);cursor:pointer;font-size:12px;font-weight:600;transition:border-color .15s"
+                                :style="activeTaskDetail.status === 'concluida' ? 'color:#166534;border-color:#86efac;background:#f0fdf4' : activeTaskDetail.status === 'em_andamento' ? 'color:#1e40af;border-color:#93c5fd;background:#eff6ff' : 'color:#64748b;border-color:#e2e8f0;background:#f8fafc'">
+                          <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0"
+                                :style="activeTaskDetail.status === 'concluida' ? 'background:#22c55e' : activeTaskDetail.status === 'em_andamento' ? 'background:#3b82f6' : 'background:#94a3b8'"></span>
+                          <span x-text="taskStatusLabel(activeTaskDetail.status)"></span>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        <div x-show="open" @click.away="open = false" style="position:absolute;top:calc(100% + 4px);left:0;background:#fff;border:1px solid var(--neutral-200, #e2e8f0);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:300;min-width:160px;padding:4px;overflow:hidden">
+                          <template x-for="s in [{v:'pendente',l:'A Fazer',c:'#94a3b8'},{v:'em_andamento',l:'Em Progresso',c:'#3b82f6'},{v:'concluida',l:'Concluido',c:'#22c55e'}]" :key="s.v">
+                            <button @click="moveTask(activeTaskDetail.id, s.v); open = false"
+                                    style="display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;border:none;background:none;cursor:pointer;border-radius:6px;font-size:12px;color:#1e293b;text-align:left;transition:background .1s"
+                                    @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'"
+                                    :style="activeTaskDetail.status === s.v ? 'background:#f1f5f9;font-weight:600' : ''">
+                              <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0" :style="'background:' + s.c"></span>
+                              <span x-text="s.l"></span>
+                            </button>
+                          </template>
+                        </div>
+                      </div>
+                      <!-- Priority dropdown -->
+                      <div style="position:relative" x-data="{ open: false }">
+                        <button @click="open = !open" class="badge" :class="'badge--' + prioClass(activeTaskDetail.prioridade)"
+                                style="cursor:pointer;display:flex;align-items:center;gap:4px;border:none">
+                          <span x-text="prioLabel(activeTaskDetail.prioridade)"></span>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        <div x-show="open" @click.away="open = false" style="position:absolute;top:calc(100% + 4px);left:0;background:#fff;border:1px solid var(--neutral-200, #e2e8f0);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:300;min-width:140px;padding:4px">
+                          <template x-for="p in [{v:'urgente',l:'Urgente'},{v:'alta',l:'Alta'},{v:'normal',l:'Normal'},{v:'baixa',l:'Baixa'}]" :key="p.v">
+                            <button @click="activeTaskDetail.prioridade = p.v; activeTaskDetail.updated_at = new Date().toISOString(); _cacheTasksLocal(); if(typeof sb !== 'undefined' && sb) sb.from('god_tasks').update({prioridade: p.v}).eq('id', activeTaskDetail.id); open = false"
+                                    style="display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;border:none;background:none;cursor:pointer;border-radius:6px;font-size:12px;color:#1e293b;text-align:left;transition:background .1s"
+                                    @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'"
+                                    :style="activeTaskDetail.prioridade === p.v ? 'font-weight:600;background:#f1f5f9' : ''">
+                              <span class="badge badge--sm" :class="'badge--' + prioClass(p.v)" x-text="p.l" style="pointer-events:none"></span>
+                            </button>
+                          </template>
+                        </div>
+                      </div>
+                      <!-- Separator -->
+                      <span style="width:1px;height:20px;background:var(--neutral-200, #e2e8f0)"></span>
+                      <!-- Responsavel dropdown -->
+                      <div style="position:relative" x-data="{ open: false }">
+                        <button @click="open = !open" style="display:flex;align-items:center;gap:6px;padding:3px 8px;border-radius:6px;border:1px solid transparent;background:none;cursor:pointer;font-size:12px;color:#475569;transition:border-color .15s"
+                                @mouseover="$el.style.borderColor='var(--neutral-200, #e2e8f0)'" @mouseout="$el.style.borderColor='transparent'">
+                          <span class="avatar avatar--sm" :style="'background:' + avatarGradient(activeTaskDetail.responsavel)" x-text="avatarInitials(activeTaskDetail.responsavel || '?')" style="width:22px;height:22px;font-size:9px"></span>
+                          <span x-text="activeTaskDetail.responsavel || 'Sem responsavel'" style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        <div x-show="open" @click.away="open = false" style="position:absolute;top:calc(100% + 4px);left:0;background:#fff;border:1px solid var(--neutral-200, #e2e8f0);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:300;min-width:180px;padding:4px;max-height:240px;overflow-y:auto">
+                          <template x-for="m in (data.members || []).concat([{nome_curto:'Nenhum',id:'_none'}])" :key="m.id">
+                            <button @click="let name = m.id === '_none' ? null : (m.nome_curto || m.nome_completo || m.name); activeTaskDetail.responsavel = name; activeTaskDetail.updated_at = new Date().toISOString(); _cacheTasksLocal(); if(typeof sb !== 'undefined' && sb) sb.from('god_tasks').update({responsavel: name}).eq('id', activeTaskDetail.id); open = false"
+                                    style="display:flex;align-items:center;gap:8px;width:100%;padding:6px 10px;border:none;background:none;cursor:pointer;border-radius:6px;font-size:12px;color:#1e293b;text-align:left;transition:background .1s"
+                                    @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'">
+                              <span class="avatar avatar--sm" :style="'background:' + avatarGradient(m.nome_curto || m.name)" x-text="avatarInitials(m.nome_curto || m.name || '?')" style="width:20px;height:20px;font-size:8px"></span>
+                              <span x-text="m.nome_curto || m.nome_completo || m.name || 'Nenhum'"></span>
+                            </button>
+                          </template>
+                        </div>
+                      </div>
+                      <!-- Separator -->
+                      <span style="width:1px;height:20px;background:var(--neutral-200, #e2e8f0)"></span>
+                      <!-- Dates inline -->
+                      <div style="display:flex;align-items:center;gap:4px;font-size:12px;color:#64748b">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        <input type="date" :value="activeTaskDetail.data_inicio || ''"
+                               @change="activeTaskDetail.data_inicio = $event.target.value; activeTaskDetail.updated_at = new Date().toISOString(); _cacheTasksLocal(); if(typeof sb !== 'undefined' && sb) sb.from('god_tasks').update({data_inicio: $event.target.value || null}).eq('id', activeTaskDetail.id)"
+                               style="border:none;background:none;font-size:12px;color:#475569;cursor:pointer;padding:2px 4px;border-radius:4px;width:110px"
+                               title="Data inicio">
+                        <span style="color:#94a3b8">-</span>
+                        <input type="date" :value="activeTaskDetail.data_fim || activeTaskDetail.prazo || ''"
+                               @change="activeTaskDetail.data_fim = $event.target.value; activeTaskDetail.prazo = $event.target.value; activeTaskDetail.updated_at = new Date().toISOString(); _cacheTasksLocal(); if(typeof sb !== 'undefined' && sb) sb.from('god_tasks').update({data_fim: $event.target.value || null, prazo: $event.target.value || null}).eq('id', activeTaskDetail.id)"
+                               style="border:none;background:none;font-size:12px;cursor:pointer;padding:2px 4px;border-radius:4px;width:110px"
+                               :style="isOverdue(activeTaskDetail.data_fim || activeTaskDetail.prazo) ? 'color:#ef4444;font-weight:600' : 'color:#475569'"
+                               title="Data fim">
+                      </div>
+                      <!-- Tags inline -->
+                      <template x-for="tag in (activeTaskDetail.tags || []).slice(0,3)" :key="tag.id||tag.name||tag">
+                        <span class="task-tag" :style="tag.color ? 'background:'+tag.color+'22;color:'+tag.color+';border-color:'+tag.color+'55' : ''" x-text="tag.name||tag" style="font-size:10px;padding:1px 6px"></span>
+                      </template>
+                      <span x-show="(activeTaskDetail.tags || []).length > 3" style="font-size:11px;color:#94a3b8" x-text="'+' + ((activeTaskDetail.tags || []).length - 3)"></span>
                     </div>
-                    <div class="op-drawer__header-actions">
-                      <button class="task-card__btn" @click="openTaskModal(activeTaskDetail)" title="Editar">
+                    <!-- Header right actions -->
+                    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+                      <button @click="copyTaskLink(activeTaskDetail.id)" title="Copiar link da tarefa" style="padding:6px;border-radius:6px;border:none;background:none;cursor:pointer;color:#8b6f47;transition:background .1s"
+                              @mouseover="$el.style.background='#fef9c3'" @mouseout="$el.style.background='none'">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                      </button>
+                      <button class="task-card__btn" @click="openTaskModal(activeTaskDetail)" title="Editar no modal" style="padding:6px;border-radius:6px">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                       </button>
-                      <button class="op-drawer__close" @click="closeTaskDetail()">&times;</button>
+                      <button style="padding:6px;border-radius:6px;border:none;background:none;cursor:pointer;color:#ef4444;font-size:12px;transition:background .1s"
+                              @click="if(confirm('Excluir esta tarefa?')){ deleteTask(activeTaskDetail.id); closeTaskDetail() }" title="Excluir tarefa"
+                              @mouseover="$el.style.background='#fef2f2'" @mouseout="$el.style.background='none'">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14H7L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                      </button>
+                      <button @click="closeTaskDetail()" style="padding:6px 10px;border-radius:6px;border:none;background:none;cursor:pointer;color:#64748b;font-size:20px;line-height:1;transition:background .1s"
+                              @mouseover="$el.style.background='var(--neutral-100, #f1f5f9)'" @mouseout="$el.style.background='none'">&times;</button>
                     </div>
                   </div>
-                  <div class="op-drawer__body">
-                  <h2 class="op-drawer__title"><span x-text="activeTaskDetail.titulo"></span><span class="task-auto-badge" x-show="activeTaskDetail.auto_gerada">Auto</span></h2>
-                  <!-- Parent task breadcrumb -->
-                  <div x-show="activeTaskDetail.parent_task_id" class="task-drawer__parent">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-                    <span style="color:#6366f1;cursor:pointer" @click="openTaskDetail(activeTaskDetail.parent_task_id)" x-text="getParentTask(activeTaskDetail.id)?.titulo || 'Tarefa mae'"></span>
-                  </div>
-                  <!-- Meta grid -->
-                  <div class="task-drawer__meta">
-                    <div class="task-drawer__meta-item">
-                      <label>Responsavel</label>
-                      <div class="task-drawer__meta-val">
-                        <span class="avatar avatar--sm" :style="'background:' + avatarGradient(activeTaskDetail.responsavel)" x-text="avatarInitials(activeTaskDetail.responsavel || '?')" style="width:22px;height:22px;font-size:9px"></span>
-                        <span x-text="activeTaskDetail.responsavel || 'Nao atribuido'"></span>
+
+                  <!-- ===== 2-PANEL BODY ===== -->
+                  <div style="display:flex;flex:1;min-height:0;overflow:hidden">
+
+                    <!-- ===== LEFT PANEL (main content ~65%) ===== -->
+                    <div style="flex:1;min-width:0;overflow-y:auto;padding:24px 28px;border-right:1px solid var(--neutral-100, #f1f5f9)">
+
+                      <!-- Parent task breadcrumb -->
+                      <div x-show="activeTaskDetail.parent_task_id" class="task-drawer__parent" style="margin-bottom:12px">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                        <span style="color:#6366f1;cursor:pointer;font-size:12px" @click="openTaskDetail(activeTaskDetail.parent_task_id)" x-text="getParentTask(activeTaskDetail.id)?.titulo || 'Tarefa mae'"></span>
                       </div>
-                    </div>
-                    <div class="task-drawer__meta-item">
-                      <label>Mentorado</label>
-                      <span x-text="activeTaskDetail.mentorado_nome || '-'"></span>
-                    </div>
-                    <div class="task-drawer__meta-item">
-                      <label>Data Inicio</label>
-                      <span x-text="activeTaskDetail.data_inicio ? formatDate(activeTaskDetail.data_inicio) : '-'"></span>
-                    </div>
-                    <div class="task-drawer__meta-item">
-                      <label>Data Fim</label>
-                      <span :class="{ 'text-red': isOverdue(activeTaskDetail.data_fim || activeTaskDetail.prazo) }" x-text="(activeTaskDetail.data_fim || activeTaskDetail.prazo) ? formatDate(activeTaskDetail.data_fim || activeTaskDetail.prazo) : '-'"></span>
-                    </div>
-                    <div class="task-drawer__meta-item">
-                      <label>Space / Lista</label>
-                      <span x-text="(getSpaceName(activeTaskDetail.space_id) || '-') + ' / ' + (getListName(activeTaskDetail.list_id) || '-')"></span>
-                    </div>
-                    <div class="task-drawer__meta-item">
-                      <label>Fonte</label>
-                      <span class="badge badge--sm badge--neutral" x-text="activeTaskDetail.fonte || 'manual'"></span>
-                    </div>
-                  </div>
-                  <!-- Description -->
-                  <div class="task-drawer__section" x-show="activeTaskDetail.descricao">
-                    <h4>Descricao</h4>
-                    <p x-text="activeTaskDetail.descricao" style="white-space:pre-wrap;font-size:13px;color:#475569"></p>
-                  </div>
-                  <!-- Tags -->
-                  <div class="task-drawer__section" x-show="activeTaskDetail.tags?.length">
-                    <h4>Tags</h4>
-                    <div class="task-drawer__tags">
-                      <template x-for="tag in activeTaskDetail.tags || []" :key="tag.id||tag.name||tag">
-                        <span class="task-tag" :style="tag.color ? 'background:'+tag.color+'22;color:'+tag.color+';border-color:'+tag.color+'55' : ''" x-text="tag.name||tag"></span>
-                      </template>
-                    </div>
-                  </div>
-                  <!-- Subtasks -->
-                  <div class="task-drawer__section">
-                    <h4 style="display:flex;align-items:center;gap:6px">
-                      Subtarefas
-                      <span x-show="activeTaskDetail.subtasks?.length" style="color:#94a3b8;font-weight:400" x-text="activeTaskDetail.subtasks.filter(s=>s.done).length + '/' + activeTaskDetail.subtasks.length"></span>
-                      <!-- progress bar -->
-                      <div x-show="subtaskProgress(activeTaskDetail).total > 0" class="task-card__progress-bar" style="display:inline-flex;width:60px;vertical-align:middle"><div class="task-card__progress-fill" :style="'width:' + subtaskProgress(activeTaskDetail).pct + '%'"></div></div>
-                    </h4>
-                    <div class="task-drawer__subtasks">
-                      <template x-for="(st, si) in activeTaskDetail.subtasks || []" :key="si">
-                        <div style="margin-bottom:6px;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;background:#fafafa">
-                          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-                            <input type="checkbox" :checked="st.done" @change="toggleSubtask(activeTaskDetail.id, si)" style="width:14px;height:14px;flex-shrink:0;cursor:pointer">
-                            <span :class="{ 'line-through': st.done }" style="flex:1;font-size:13px" x-text="st.text"></span>
-                            <span style="font-size:10px;padding:1px 5px;border-radius:4px"
-                              :style="st.status==='concluida' ? 'background:#dcfce7;color:#166534' : st.status==='bloqueada' ? 'background:#fee2e2;color:#991b1b' : st.status==='em_andamento' ? 'background:#dbeafe;color:#1e40af' : 'background:#f1f5f9;color:#64748b'"
-                              x-text="st.status || 'pendente'"></span>
-                          </div>
-                          <div x-show="st.responsavel || st.data_inicio || st.data_fim || st.prioridade !== 'normal'" style="display:flex;gap:6px;flex-wrap:wrap;font-size:11px;color:#64748b">
-                            <span x-show="st.responsavel" x-text="'👤 ' + st.responsavel"></span>
-                            <span x-show="st.data_inicio" x-text="'▶ ' + st.data_inicio"></span>
-                            <span x-show="st.data_fim" x-text="'⏱ ' + st.data_fim"></span>
-                            <span x-show="st.prioridade && st.prioridade !== 'normal'" style="padding:1px 5px;border-radius:4px;background:#fef3c7;color:#92400e" x-text="st.prioridade"></span>
-                          </div>
-                        </div>
-                      </template>
-                    </div>
-                    <!-- Inline add -->
-                    <div style="display:flex;gap:6px;margin-top:6px">
-                      <input type="text" x-model="ui.drawerNewSubtask"
-                        @keydown.enter.prevent="drawerAddSubtask(activeTaskDetail.id)"
-                        placeholder="+ Adicionar subtarefa..."
-                        style="flex:1;padding:5px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;outline:none;background:#fafafa">
-                      <button @click="drawerAddSubtask(activeTaskDetail.id)"
-                        x-show="ui.drawerNewSubtask.trim()"
-                        style="padding:5px 10px;font-size:12px;background:#2d4a3e;color:#fff;border:none;border-radius:6px;cursor:pointer">+</button>
-                    </div>
-                  </div>
-                  <!-- Checklist -->
-                  <div class="task-drawer__section" x-show="activeTaskDetail.checklist?.length">
-                    <h4>Checklist <span style="color:#94a3b8;font-weight:400" x-text="activeTaskDetail.checklist.filter(c=>c.done).length + '/' + activeTaskDetail.checklist.length"></span></h4>
-                    <div class="task-drawer__subtasks">
-                      <template x-for="(ci, idx) in activeTaskDetail.checklist || []" :key="idx">
-                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;padding:4px 6px;border-radius:5px" :style="ci.done ? 'opacity:.6' : ''">
-                          <input type="checkbox" :checked="ci.done" @change="toggleCheckItem(activeTaskDetail.id, idx)" style="width:14px;height:14px;flex-shrink:0;cursor:pointer">
-                          <span :class="{ 'line-through': ci.done }" style="flex:1;font-size:13px" x-text="ci.text"></span>
-                          <span x-show="ci.assignee" style="font-size:11px;color:#64748b" x-text="ci.assignee"></span>
-                          <span x-show="ci.due_date" style="font-size:11px;color:#94a3b8" x-text="ci.due_date"></span>
-                        </div>
-                      </template>
-                    </div>
-                  </div>
-                  <!-- Dependencies -->
-                  <div class="task-drawer__section" x-show="activeTaskDetail.dependencies?.length || activeTaskDetail.dependents?.length">
-                    <h4>Dependências</h4>
-                    <div x-show="activeTaskDetail.dependencies?.length">
-                      <div style="font-size:11px;font-weight:600;color:#d97706;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Bloqueada por</div>
-                      <template x-for="dep in activeTaskDetail.dependencies || []" :key="dep.dep_id">
-                        <div style="display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:5px;background:#fffbeb;border:1px solid #fde68a;margin-bottom:3px;font-size:12px">
-                          <span>⛔</span>
-                          <span style="flex:1" x-text="dep.blocker_titulo"></span>
-                          <span style="padding:1px 5px;border-radius:4px;font-size:10px" :style="dep.blocker_status === 'concluida' ? 'background:#dcfce7;color:#166534' : 'background:#fee2e2;color:#991b1b'" x-text="dep.blocker_status"></span>
-                        </div>
-                      </template>
-                    </div>
-                    <div x-show="activeTaskDetail.dependents?.length" style="margin-top:6px">
-                      <div style="font-size:11px;font-weight:600;color:#6366f1;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Desbloquia</div>
-                      <template x-for="dep in activeTaskDetail.dependents || []" :key="dep.dep_id">
-                        <div style="display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:5px;background:#eef2ff;border:1px solid #c7d2fe;margin-bottom:3px;font-size:12px">
-                          <span>🔗</span>
-                          <span style="flex:1" x-text="dep.dependent_titulo"></span>
-                          <span style="padding:1px 5px;border-radius:4px;font-size:10px;background:#e0e7ff;color:#3730a3" x-text="dep.dependent_status"></span>
-                        </div>
-                      </template>
-                    </div>
-                  </div>
-                  <!-- Child tasks -->
-                  <div class="task-drawer__section" x-show="getChildTasks(activeTaskDetail.id).length">
-                    <h4>Subtarefas (filhas)</h4>
-                    <template x-for="child in getChildTasks(activeTaskDetail.id)" :key="child.id">
-                      <div class="task-drawer__child" @click="openTaskDetail(child.id)">
-                        <input type="checkbox" :checked="child.status === 'concluida'" @click.stop @change="updateTaskStatus(child.id, $event.target.checked ? 'concluida' : 'pendente')">
-                        <span x-text="child.titulo" style="flex:1"></span>
-                        <span class="badge badge--sm" :class="'badge--' + prioClass(child.prioridade)" x-text="prioLabel(child.prioridade)"></span>
+
+                      <!-- Title (large, editable) -->
+                      <div style="margin-bottom:16px;display:flex;align-items:flex-start;gap:8px">
+                        <h2 contenteditable="true"
+                            @blur="let v = $el.innerText.trim(); if(v && v !== activeTaskDetail.titulo){ activeTaskDetail.titulo = v; activeTaskDetail.updated_at = new Date().toISOString(); _cacheTasksLocal(); if(typeof sb !== 'undefined' && sb) sb.from('god_tasks').update({titulo: v}).eq('id', activeTaskDetail.id) }"
+                            @keydown.enter.prevent="$el.blur()"
+                            x-text="activeTaskDetail.titulo"
+                            style="font-family:system-ui, -apple-system, 'Segoe UI', sans-serif;font-size:22px;font-weight:700;color:#1e293b;margin:0;line-height:1.3;outline:none;border-radius:6px;padding:4px 8px;margin-left:-8px;flex:1;min-width:0;border:2px solid transparent;transition:border-color .15s,background .15s;cursor:text"
+                            @focus="$el.style.borderColor='var(--brand-300, #a3bfb0)'; $el.style.background='#fafaf8'"
+                            @blur.once=""
+                            @focusout="$el.style.borderColor='transparent'; $el.style.background='transparent'"></h2>
+                        <span class="task-auto-badge" x-show="activeTaskDetail.auto_gerada" style="margin-top:8px;flex-shrink:0">Auto</span>
                       </div>
-                    </template>
-                  </div>
-                  <!-- Handoffs -->
-                  <div class="task-drawer__section" x-show="activeTaskDetail.handoffs?.length">
-                    <h4>Passagens de Bastao</h4>
-                    <template x-for="(h, hi) in activeTaskDetail.handoffs || []" :key="hi">
-                      <div class="task-drawer__handoff">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/></svg>
-                        <div>
-                          <strong x-text="h.from + ' → ' + h.to"></strong>
-                          <div x-show="h.note" style="font-size:12px;color:#64748b" x-text="h.note"></div>
-                          <div style="font-size:11px;color:#94a3b8" x-text="formatDateFull(h.date)"></div>
+
+                      <!-- Meta row: Space / Lista / Mentorado / Fonte -->
+                      <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px;font-size:12px;color:#64748b">
+                        <div style="display:flex;align-items:center;gap:4px">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                          <span x-text="(getSpaceName(activeTaskDetail.space_id) || '-') + ' / ' + (getListName(activeTaskDetail.list_id) || '-')"></span>
+                        </div>
+                        <div x-show="activeTaskDetail.mentorado_nome" style="display:flex;align-items:center;gap:4px">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                          <span x-text="activeTaskDetail.mentorado_nome"></span>
+                        </div>
+                        <span class="badge badge--sm badge--neutral" x-text="activeTaskDetail.fonte || 'manual'"></span>
+                      </div>
+
+                      <!-- Description (BlockNote mount point) -->
+                      <div class="task-drawer__section" style="margin-bottom:24px">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                          <h4 style="font-size:13px;font-weight:700;color:#475569;margin:0">Descrição</h4>
+                        </div>
+                        <div x-ref="drawerDescEditor"
+                             x-effect="
+                               if(ui.taskDetailDrawer && activeTaskDetail && $refs.drawerDescEditor && window.OperonEditor) {
+                                 $nextTick(() => {
+                                   if(!window.OperonEditor.isActive($refs.drawerDescEditor)) {
+                                     window.OperonEditor.mount($refs.drawerDescEditor, {
+                                       markdown: activeTaskDetail.descricao || '',
+                                       onChange: (md) => { activeTaskDetail.descricao = md; },
+                                       placeholder: 'Adicione uma descrição... Digite / para formatar'
+                                     });
+                                   }
+                                 });
+                               } else if(!ui.taskDetailDrawer && $refs.drawerDescEditor && window.OperonEditor && window.OperonEditor.isActive($refs.drawerDescEditor)) {
+                                 activeTaskDetail && (activeTaskDetail.descricao = window.OperonEditor.getMarkdown($refs.drawerDescEditor));
+                                 window.OperonEditor.unmount($refs.drawerDescEditor);
+                               }
+                             "
+                             style="min-height:80px;border:1px solid var(--neutral-100, #f1f5f9);border-radius:8px;padding:12px;background:#fafaf8;font-size:13px;color:#475569;line-height:1.6">
+                          <p x-show="!window.OperonEditor" x-text="activeTaskDetail.descricao || 'Sem descrição'" style="white-space:pre-wrap;margin:0;color:#94a3b8"></p>
+                        </div>
+                        <!-- Save description button -->
+                        <button @click="activeTaskDetail.updated_at = new Date().toISOString(); _cacheTasksLocal(); if(typeof sb !== 'undefined' && sb) sb.from('god_tasks').update({descricao: activeTaskDetail.descricao}).eq('id', activeTaskDetail.id); toast('Descrição salva', 'success')"
+                                style="margin-top:8px;padding:4px 12px;font-size:11px;background:var(--brand-500, #2d4a3e);color:#fff;border:none;border-radius:6px;cursor:pointer;opacity:.7;transition:opacity .15s"
+                                @mouseover="$el.style.opacity='1'" @mouseout="$el.style.opacity='.7'">Salvar descrição</button>
+                      </div>
+
+                      <!-- Tags section -->
+                      <div class="task-drawer__section" x-show="activeTaskDetail.tags?.length" style="margin-bottom:20px">
+                        <h4 style="font-size:13px;font-weight:700;color:#475569;margin:0 0 8px">Tags</h4>
+                        <div class="task-drawer__tags">
+                          <template x-for="tag in activeTaskDetail.tags || []" :key="tag.id||tag.name||tag">
+                            <span class="task-tag" :style="tag.color ? 'background:'+tag.color+'22;color:'+tag.color+';border-color:'+tag.color+'55' : ''" x-text="tag.name||tag"></span>
+                          </template>
                         </div>
                       </div>
-                    </template>
-                  </div>
-                  <!-- Comments -->
-                  <div class="task-drawer__section">
-                    <h4>Comentarios <span style="color:#94a3b8;font-weight:400" x-text="(activeTaskDetail.comments?.length || 0)"></span></h4>
-                    <div class="task-drawer__comments">
-                      <template x-for="(cm, cmi) in activeTaskDetail.comments || []" :key="cm.id || cmi">
-                        <div class="task-drawer__comment">
-                          <div class="task-drawer__comment-header">
-                            <span class="avatar avatar--sm avatar--brand" x-text="avatarInitials(cm.author)" style="width:22px;height:22px;font-size:9px"></span>
-                            <strong x-text="cm.author"></strong>
-                            <span style="font-size:11px;color:#94a3b8" x-text="formatDateFull(cm.timestamp)"></span>
-                            <button class="task-card__btn task-card__btn--danger" @click="deleteComment(activeTaskDetail.id, cm.id)" title="Remover" style="margin-left:auto">
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                            </button>
-                          </div>
-                          <div class="task-drawer__comment-text" x-html="renderCommentText(cm.text)"></div>
+
+                      <!-- Custom Fields (Campos) -->
+                      <div class="task-drawer__section" style="margin-bottom:20px"
+                           x-init="$watch('ui.taskDetailDrawer', v => { if(v && activeTaskDetail) loadFieldDefs(activeTaskDetail.space_id, activeTaskDetail.list_id, activeTaskDetail.id) })"
+                           x-show="data.fieldDefs?.length">
+                        <h4 style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#475569;margin:0 0 10px">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                          Campos
+                        </h4>
+                        <div style="display:grid;grid-template-columns:140px 1fr;gap:6px 12px;font-size:13px">
+                          <template x-for="field in data.fieldDefs" :key="field.field_id">
+                            <template x-if="true">
+                              <div style="display:contents">
+                                <div style="color:#64748b;font-weight:500;padding:6px 0" x-text="field.name"></div>
+                                <div style="padding:6px 0">
+                                  <!-- URL field -->
+                                  <template x-if="field.field_type === 'url'">
+                                    <div style="display:flex;align-items:center;gap:6px">
+                                      <input type="url" :value="field.value?.v || ''"
+                                        @change="taskForm.fieldValues = {...(taskForm.fieldValues||{}), [field.field_id]: $event.target.value}; saveFieldValues(activeTaskDetail.id)"
+                                        placeholder="https://..."
+                                        style="flex:1;padding:4px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;outline:none;background:#fafaf8">
+                                      <a x-show="field.value?.v" :href="field.value?.v" target="_blank" rel="noopener"
+                                        style="color:#6366f1;font-size:11px;white-space:nowrap">Abrir ↗</a>
+                                    </div>
+                                  </template>
+                                  <!-- Checkbox field -->
+                                  <template x-if="field.field_type === 'checkbox'">
+                                    <input type="checkbox" :checked="field.value?.v === true"
+                                      @change="taskForm.fieldValues = {...(taskForm.fieldValues||{}), [field.field_id]: $event.target.checked}; saveFieldValues(activeTaskDetail.id)"
+                                      style="width:16px;height:16px;cursor:pointer">
+                                  </template>
+                                  <!-- Text field -->
+                                  <template x-if="field.field_type === 'text'">
+                                    <input type="text" :value="field.value?.v || ''"
+                                      @change="taskForm.fieldValues = {...(taskForm.fieldValues||{}), [field.field_id]: $event.target.value}; saveFieldValues(activeTaskDetail.id)"
+                                      style="width:100%;padding:4px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;outline:none;background:#fafaf8">
+                                  </template>
+                                  <!-- Number field -->
+                                  <template x-if="field.field_type === 'number'">
+                                    <input type="number" :value="field.value?.v || ''"
+                                      @change="taskForm.fieldValues = {...(taskForm.fieldValues||{}), [field.field_id]: parseFloat($event.target.value)}; saveFieldValues(activeTaskDetail.id)"
+                                      style="width:80px;padding:4px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;outline:none;background:#fafaf8">
+                                  </template>
+                                  <!-- Date field -->
+                                  <template x-if="field.field_type === 'date'">
+                                    <input type="date" :value="field.value?.v || ''"
+                                      @change="taskForm.fieldValues = {...(taskForm.fieldValues||{}), [field.field_id]: $event.target.value}; saveFieldValues(activeTaskDetail.id)"
+                                      style="padding:4px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;outline:none;background:#fafaf8">
+                                  </template>
+                                  <!-- Select field -->
+                                  <template x-if="field.field_type === 'select'">
+                                    <select @change="taskForm.fieldValues = {...(taskForm.fieldValues||{}), [field.field_id]: $event.target.value}; saveFieldValues(activeTaskDetail.id)"
+                                      style="padding:4px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;outline:none;background:#fafaf8">
+                                      <option value="">—</option>
+                                      <template x-for="opt in (field.options || [])" :key="opt.value || opt">
+                                        <option :value="opt.value || opt" :selected="(field.value?.v) === (opt.value || opt)" x-text="opt.label || opt.value || opt"></option>
+                                      </template>
+                                    </select>
+                                  </template>
+                                  <!-- Rating field -->
+                                  <template x-if="field.field_type === 'rating'">
+                                    <div style="display:flex;gap:2px">
+                                      <template x-for="n in [1,2,3,4,5]" :key="n">
+                                        <button @click="taskForm.fieldValues = {...(taskForm.fieldValues||{}), [field.field_id]: n}; saveFieldValues(activeTaskDetail.id)"
+                                          :style="n <= (field.value?.v || 0) ? 'color:#f59e0b' : 'color:#d1d5db'"
+                                          style="background:none;border:none;cursor:pointer;font-size:16px;padding:0">★</button>
+                                      </template>
+                                    </div>
+                                  </template>
+                                </div>
+                              </div>
+                            </template>
+                          </template>
                         </div>
-                      </template>
-                    </div>
-                    <div class="task-drawer__add-comment" style="position:relative">
-                      <!-- Mention dropdown -->
-                      <div x-show="ui.mentionDropdown && mentionMembers().length"
-                           style="position:absolute;bottom:calc(100% + 4px);left:0;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:4px;min-width:160px;z-index:200;max-height:180px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.3)">
-                        <template x-for="m in mentionMembers()" :key="m.id">
-                          <button @click.prevent="insertMention(m.nome_curto || m.name)"
-                                  style="display:flex;align-items:center;gap:8px;padding:6px 10px;width:100%;background:none;border:none;cursor:pointer;border-radius:6px;color:#e2e8f0;font-size:13px;text-align:left"
-                                  @mouseover="$el.style.background='#334155'" @mouseout="$el.style.background='none'">
-                            <span class="avatar avatar--sm" :style="'background:'+(m.cor||'#6366f1')+';width:20px;height:20px;font-size:9px;color:#fff;display:flex;align-items:center;justify-content:center;border-radius:50%;flex-shrink:0'" x-text="(m.nome_curto||m.name||'').charAt(0)"></span>
-                            <span x-text="m.nome_curto || m.name"></span>
-                          </button>
+                      </div>
+
+                      <!-- Subtasks -->
+                      <div class="task-drawer__section" style="margin-bottom:24px">
+                        <h4 style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#475569;margin:0 0 10px">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                          Subtarefas
+                          <span x-show="activeTaskDetail.subtasks?.length" style="color:#94a3b8;font-weight:400;font-size:12px" x-text="activeTaskDetail.subtasks.filter(s=>s.done).length + '/' + activeTaskDetail.subtasks.length"></span>
+                          <div x-show="subtaskProgress(activeTaskDetail).total > 0" class="task-card__progress-bar" style="display:inline-flex;width:80px;vertical-align:middle"><div class="task-card__progress-fill" :style="'width:' + subtaskProgress(activeTaskDetail).pct + '%'"></div></div>
+                        </h4>
+                        <div class="task-drawer__subtasks">
+                          <template x-for="(st, si) in activeTaskDetail.subtasks || []" :key="si">
+                            <div style="margin-bottom:4px;padding:8px 10px;border:1px solid var(--neutral-100, #f1f5f9);border-radius:8px;background:#fafaf8;transition:border-color .15s"
+                                 @mouseover="$el.style.borderColor='var(--neutral-300, #cbd5e1)'" @mouseout="$el.style.borderColor='var(--neutral-100, #f1f5f9)'">
+                              <div style="display:flex;align-items:center;gap:8px">
+                                <input type="checkbox" :checked="st.done" @change="toggleSubtask(activeTaskDetail.id, si)" style="width:15px;height:15px;flex-shrink:0;cursor:pointer;accent-color:#2d4a3e;border-radius:4px">
+                                <span :class="{ 'line-through': st.done }" :style="st.done ? 'color:#94a3b8' : 'color:#1e293b'" style="flex:1;font-size:13px" x-text="st.text"></span>
+                                <span style="font-size:10px;padding:2px 6px;border-radius:4px;font-weight:500"
+                                  :style="st.status==='concluida' ? 'background:#dcfce7;color:#166534' : st.status==='bloqueada' ? 'background:#fee2e2;color:#991b1b' : st.status==='em_andamento' ? 'background:#dbeafe;color:#1e40af' : 'background:#f1f5f9;color:#64748b'"
+                                  x-text="st.status || 'pendente'"></span>
+                              </div>
+                              <div x-show="st.responsavel || st.data_inicio || st.data_fim || (st.prioridade && st.prioridade !== 'normal')" style="display:flex;gap:8px;flex-wrap:wrap;font-size:11px;color:#94a3b8;margin-top:4px;padding-left:23px">
+                                <span x-show="st.responsavel" style="display:flex;align-items:center;gap:3px">
+                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                  <span x-text="st.responsavel"></span>
+                                </span>
+                                <span x-show="st.data_inicio" x-text="st.data_inicio"></span>
+                                <span x-show="st.data_fim" x-text="st.data_fim"></span>
+                                <span x-show="st.prioridade && st.prioridade !== 'normal'" style="padding:1px 5px;border-radius:4px;background:#fef3c7;color:#92400e" x-text="st.prioridade"></span>
+                              </div>
+                            </div>
+                          </template>
+                        </div>
+                        <!-- Inline add subtask -->
+                        <div style="display:flex;gap:6px;margin-top:8px">
+                          <input type="text" x-model="ui.drawerNewSubtask"
+                            @keydown.enter.prevent="drawerAddSubtask(activeTaskDetail.id)"
+                            placeholder="+ Adicionar subtarefa..."
+                            style="flex:1;padding:7px 10px;font-size:12px;border:1px solid var(--neutral-100, #f1f5f9);border-radius:8px;outline:none;background:#fafaf8;transition:border-color .15s"
+                            @focus="$el.style.borderColor='var(--brand-300, #a3bfb0)'" @blur="$el.style.borderColor='var(--neutral-100, #f1f5f9)'">
+                          <button @click="drawerAddSubtask(activeTaskDetail.id)"
+                            x-show="ui.drawerNewSubtask.trim()"
+                            style="padding:6px 14px;font-size:12px;background:var(--brand-500, #2d4a3e);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600">+</button>
+                        </div>
+                      </div>
+
+                      <!-- Checklist -->
+                      <div class="task-drawer__section" x-show="activeTaskDetail.checklist?.length" style="margin-bottom:24px">
+                        <h4 style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#475569;margin:0 0 10px">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                          Checklist
+                          <span style="color:#94a3b8;font-weight:400;font-size:12px" x-text="activeTaskDetail.checklist.filter(c=>c.done).length + '/' + activeTaskDetail.checklist.length"></span>
+                        </h4>
+                        <div class="task-drawer__subtasks">
+                          <template x-for="(ci, idx) in activeTaskDetail.checklist || []" :key="idx">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;padding:6px 8px;border-radius:6px;transition:background .1s" :style="ci.done ? 'opacity:.55' : ''" @mouseover="$el.style.background='#f8fafc'" @mouseout="$el.style.background='none'">
+                              <input type="checkbox" :checked="ci.done" @change="toggleCheckItem(activeTaskDetail.id, idx)" style="width:15px;height:15px;flex-shrink:0;cursor:pointer;accent-color:#2d4a3e">
+                              <span :class="{ 'line-through': ci.done }" style="flex:1;font-size:13px" x-text="ci.text"></span>
+                              <span x-show="ci.assignee" style="font-size:11px;color:#94a3b8" x-text="ci.assignee"></span>
+                              <span x-show="ci.due_date" style="font-size:11px;color:#94a3b8" x-text="ci.due_date"></span>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+
+                      <!-- Dependencies -->
+                      <div class="task-drawer__section" x-show="activeTaskDetail.dependencies?.length || activeTaskDetail.dependents?.length" style="margin-bottom:24px">
+                        <h4 style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#475569;margin:0 0 10px">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                          Dependencias
+                        </h4>
+                        <div x-show="activeTaskDetail.dependencies?.length" style="margin-bottom:8px">
+                          <div style="font-size:10px;font-weight:700;color:#d97706;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Bloqueada por</div>
+                          <template x-for="dep in activeTaskDetail.dependencies || []" :key="dep.dep_id">
+                            <div style="display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:6px;background:#fffbeb;border:1px solid #fde68a;margin-bottom:3px;font-size:12px">
+                              <span style="flex-shrink:0">&#9940;</span>
+                              <span style="flex:1" x-text="dep.blocker_titulo"></span>
+                              <span style="padding:2px 6px;border-radius:4px;font-size:10px;font-weight:500" :style="dep.blocker_status === 'concluida' ? 'background:#dcfce7;color:#166534' : 'background:#fee2e2;color:#991b1b'" x-text="dep.blocker_status"></span>
+                            </div>
+                          </template>
+                        </div>
+                        <div x-show="activeTaskDetail.dependents?.length">
+                          <div style="font-size:10px;font-weight:700;color:#6366f1;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Desbloqueia</div>
+                          <template x-for="dep in activeTaskDetail.dependents || []" :key="dep.dep_id">
+                            <div style="display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:6px;background:#eef2ff;border:1px solid #c7d2fe;margin-bottom:3px;font-size:12px">
+                              <span style="flex-shrink:0">&#128279;</span>
+                              <span style="flex:1" x-text="dep.dependent_titulo"></span>
+                              <span style="padding:2px 6px;border-radius:4px;font-size:10px;font-weight:500;background:#e0e7ff;color:#3730a3" x-text="dep.dependent_status"></span>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+
+                      <!-- Child tasks -->
+                      <div class="task-drawer__section" x-show="getChildTasks(activeTaskDetail.id).length" style="margin-bottom:24px">
+                        <h4 style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#475569;margin:0 0 10px">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
+                          Subtarefas (filhas)
+                        </h4>
+                        <template x-for="child in getChildTasks(activeTaskDetail.id)" :key="child.id">
+                          <div class="task-drawer__child" @click="openTaskDetail(child.id)">
+                            <input type="checkbox" :checked="child.status === 'concluida'" @click.stop @change="updateTaskStatus(child.id, $event.target.checked ? 'concluida' : 'pendente')">
+                            <span x-text="child.titulo" style="flex:1"></span>
+                            <span class="badge badge--sm" :class="'badge--' + prioClass(child.prioridade)" x-text="prioLabel(child.prioridade)"></span>
+                          </div>
                         </template>
                       </div>
-                      <textarea x-model="taskForm.newComment"
-                                placeholder="Adicionar comentário... (@ para mencionar)"
-                                class="modal__textarea"
-                                style="min-height:60px"
-                                x-ref="commentTextarea"
-                                @keyup="onCommentKeyup($event)"
-                                @keydown="onCommentKeydown($event)"></textarea>
-                      <button class="btn btn--sm btn--brand" @click="addComment(activeTaskDetail.id)" :disabled="!taskForm.newComment?.trim()">Comentar</button>
-                    </div>
-                  </div>
-                  <!-- Quick actions -->
-                  <div class="task-drawer__actions">
-                    <select class="modal__select" style="flex:1" :value="activeTaskDetail.status" @change="moveTask(activeTaskDetail.id, $event.target.value)">
-                      <option value="pendente">A Fazer</option>
-                      <option value="em_andamento">Em Progresso</option>
-                      <option value="concluida">Concluido</option>
-                    </select>
-                    <button class="btn btn--sm" style="color:#ef4444" @click="deleteTask(activeTaskDetail.id); closeTaskDetail()">Excluir</button>
-                  </div>
-                  </div><!-- /op-drawer__body -->
+
+                      <!-- Handoffs -->
+                      <div class="task-drawer__section" x-show="activeTaskDetail.handoffs?.length" style="margin-bottom:24px">
+                        <h4 style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#475569;margin:0 0 10px">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/></svg>
+                          Passagens de Bastao
+                        </h4>
+                        <template x-for="(h, hi) in activeTaskDetail.handoffs || []" :key="hi">
+                          <div class="task-drawer__handoff">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/></svg>
+                            <div>
+                              <strong x-text="h.from + ' &rarr; ' + h.to"></strong>
+                              <div x-show="h.note" style="font-size:12px;color:#64748b" x-text="h.note"></div>
+                              <div style="font-size:11px;color:#94a3b8" x-text="formatDateFull(h.date)"></div>
+                            </div>
+                          </div>
+                        </template>
+                      </div>
+
+                      <!-- Bottom action links -->
+                      <div style="display:flex;flex-wrap:wrap;gap:10px;padding-top:16px;border-top:1px solid var(--neutral-100, #f1f5f9)">
+                        <button @click="$refs.drawerSubtaskInput && $refs.drawerSubtaskInput.focus()"
+                                style="display:flex;align-items:center;gap:5px;padding:6px 12px;font-size:12px;color:#475569;background:none;border:1px solid var(--neutral-200, #e2e8f0);border-radius:6px;cursor:pointer;transition:background .1s"
+                                @mouseover="$el.style.background='#f8fafc'" @mouseout="$el.style.background='none'">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                          Adicionar subtarefa
+                        </button>
+                        <button @click="openTaskModal(activeTaskDetail)"
+                                style="display:flex;align-items:center;gap:5px;padding:6px 12px;font-size:12px;color:#475569;background:none;border:1px solid var(--neutral-200, #e2e8f0);border-radius:6px;cursor:pointer;transition:background .1s"
+                                @mouseover="$el.style.background='#f8fafc'" @mouseout="$el.style.background='none'">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                          Anexar arquivo
+                        </button>
+                      </div>
+
+                    </div><!-- /LEFT PANEL -->
+
+                    <!-- ===== RIGHT PANEL (activity/comments ~35%) ===== -->
+                    <div style="width:380px;min-width:320px;max-width:400px;display:flex;flex-direction:column;background:#fafaf8;overflow:hidden;flex-shrink:0">
+
+                      <!-- Activity header -->
+                      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--neutral-100, #f1f5f9);flex-shrink:0">
+                        <h4 style="margin:0;font-size:14px;font-weight:700;color:#1e293b;display:flex;align-items:center;gap:6px">
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                          Atividade
+                          <span style="font-weight:400;color:#94a3b8;font-size:12px" x-text="(activeTaskDetail.comments?.length || 0)"></span>
+                        </h4>
+                      </div>
+
+                      <!-- Activity timeline / Comments list -->
+                      <div style="flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:12px">
+
+                        <!-- Activity timeline from database -->
+                        <template x-for="evt in ui.taskActivity" :key="evt.id">
+                          <div style="display:flex;align-items:flex-start;gap:10px;font-size:12px;color:#94a3b8">
+                            <div style="width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:5px"
+                              :style="evt.action === 'created' ? 'background:#22c55e' : evt.field === 'status' ? 'background:#3b82f6' : evt.field === 'responsavel' ? 'background:#f59e0b' : 'background:#cbd5e1'"></div>
+                            <div style="flex:1">
+                              <span style="color:#64748b;font-weight:500" x-text="evt.actor"></span>
+                              <span x-text="' ' + formatActivity(evt)"></span>
+                              <div style="font-size:11px;margin-top:2px" x-text="formatDateFull(evt.created_at)"></div>
+                            </div>
+                          </div>
+                        </template>
+
+                        <!-- Fallback if no activity yet -->
+                        <div x-show="!ui.taskActivity?.length" style="display:flex;align-items:flex-start;gap:10px;font-size:12px;color:#94a3b8">
+                          <div style="width:6px;height:6px;border-radius:50%;background:#cbd5e1;flex-shrink:0;margin-top:5px"></div>
+                          <div>
+                            <span style="color:#64748b;font-weight:500" x-text="activeTaskDetail.created_by || activeTaskDetail.responsavel || 'Sistema'"></span>
+                            <span> criou esta tarefa</span>
+                            <div style="font-size:11px;margin-top:2px" x-text="formatDateFull(activeTaskDetail.created_at)"></div>
+                          </div>
+                        </div>
+
+                        <!-- Handoff events -->
+                        <template x-for="(h, hi) in activeTaskDetail.handoffs || []" :key="'h'+hi">
+                          <div style="display:flex;align-items:flex-start;gap:10px;font-size:12px;color:#94a3b8">
+                            <div style="width:6px;height:6px;border-radius:50%;background:#f59e0b;flex-shrink:0;margin-top:5px"></div>
+                            <div>
+                              <span style="color:#64748b;font-weight:500" x-text="h.from"></span>
+                              <span> passou para </span>
+                              <span style="color:#64748b;font-weight:500" x-text="h.to"></span>
+                              <div x-show="h.note" style="font-size:11px;color:#64748b;margin-top:2px" x-text="h.note"></div>
+                              <div style="font-size:11px;margin-top:2px" x-text="formatDateFull(h.date)"></div>
+                            </div>
+                          </div>
+                        </template>
+
+                        <!-- Comments -->
+                        <template x-for="(cm, cmi) in activeTaskDetail.comments || []" :key="cm.id || cmi">
+                          <div style="background:#fff;border:1px solid var(--neutral-100, #f1f5f9);border-radius:10px;padding:12px 14px;transition:box-shadow .15s"
+                               @mouseover="$el.style.boxShadow='0 2px 8px rgba(0,0,0,.06)'" @mouseout="$el.style.boxShadow='none'">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                              <span class="avatar avatar--sm" :style="'background:' + avatarGradient(cm.author)" x-text="avatarInitials(cm.author)" style="width:24px;height:24px;font-size:9px;flex-shrink:0"></span>
+                              <div style="flex:1;min-width:0">
+                                <strong style="font-size:12px;color:#1e293b" x-text="cm.author"></strong>
+                                <span style="font-size:11px;color:#94a3b8;margin-left:6px" x-text="formatDateFull(cm.timestamp)"></span>
+                              </div>
+                              <button class="task-card__btn task-card__btn--danger" @click="deleteComment(activeTaskDetail.id, cm.id)" title="Remover" style="opacity:.3;transition:opacity .15s;flex-shrink:0"
+                                      @mouseover="$el.style.opacity='1'" @mouseout="$el.style.opacity='.3'">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                              </button>
+                            </div>
+                            <div class="task-drawer__comment-text" x-html="renderCommentText(cm.text)" style="font-size:13px;color:#475569;line-height:1.55"></div>
+                            <!-- Reactions + Reply -->
+                            <div style="display:flex;align-items:center;gap:4px;margin-top:8px;padding-top:6px;border-top:1px solid #f8fafc">
+                              <!-- Existing reactions -->
+                              <template x-for="(count, emoji) in (cm.reactions || {})" :key="emoji">
+                                <button @click.stop="toggleReaction(activeTaskDetail.id, cm.id, emoji)"
+                                  style="display:flex;align-items:center;gap:3px;padding:2px 6px;border-radius:12px;font-size:12px;cursor:pointer;transition:all .15s;border:1px solid #e2e8f0;background:#fafaf8"
+                                  @mouseover="$el.style.borderColor='#8b6f47'" @mouseout="$el.style.borderColor='#e2e8f0'">
+                                  <span x-text="emoji"></span>
+                                  <span style="font-size:10px;color:#64748b" x-text="count"></span>
+                                </button>
+                              </template>
+                              <!-- Add reaction button -->
+                              <div style="position:relative">
+                                <button @click.stop="ui.reactionPicker = ui.reactionPicker === cm.id ? null : cm.id"
+                                  style="padding:2px 6px;border-radius:12px;font-size:12px;cursor:pointer;border:1px solid transparent;background:none;color:#94a3b8;transition:all .15s"
+                                  @mouseover="$el.style.color='#475569';$el.style.borderColor='#e2e8f0'" @mouseout="$el.style.color='#94a3b8';$el.style.borderColor='transparent'">😀</button>
+                                <!-- Emoji picker popover -->
+                                <div x-show="ui.reactionPicker === cm.id" @click.outside="ui.reactionPicker = null"
+                                  style="position:absolute;bottom:100%;left:0;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:6px;display:flex;gap:2px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:300">
+                                  <template x-for="e in ['👍','👎','❤️','🔥','👀','🎉','💡','⚠️']" :key="e">
+                                    <button @click.stop="toggleReaction(activeTaskDetail.id, cm.id, e); ui.reactionPicker = null"
+                                      style="padding:4px;font-size:18px;cursor:pointer;border:none;background:none;border-radius:4px;transition:background .1s"
+                                      @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'" x-text="e"></button>
+                                  </template>
+                                </div>
+                              </div>
+                              <div style="flex:1"></div>
+                              <!-- Reply button -->
+                              <button @click.stop="taskForm.newComment = '> ' + (cm.text||'').split('\n')[0].slice(0,60) + '\n\n'"
+                                style="font-size:11px;color:#94a3b8;background:none;border:none;cursor:pointer;padding:2px 6px;transition:color .15s"
+                                @mouseover="$el.style.color='#475569'" @mouseout="$el.style.color='#94a3b8'">Responder</button>
+                            </div>
+                          </div>
+                        </template>
+
+                        <!-- Empty state -->
+                        <div x-show="!(activeTaskDetail.comments?.length)" style="text-align:center;padding:24px 0;color:#94a3b8;font-size:13px">
+                          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" style="margin:0 auto 8px"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                          <div>Nenhum comentário ainda</div>
+                        </div>
+                      </div>
+
+                      <!-- Comment input area -->
+                      <div style="padding:12px 18px;border-top:1px solid var(--neutral-100, #f1f5f9);flex-shrink:0;background:#fff;position:relative">
+                        <!-- Mention dropdown -->
+                        <div x-show="ui.mentionDropdown && mentionMembers().length"
+                             style="position:absolute;bottom:calc(100% + 4px);left:12px;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:4px;min-width:160px;z-index:300;max-height:180px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.3)">
+                          <template x-for="m in mentionMembers()" :key="m.id">
+                            <button @click.prevent="insertMention(m.nome_curto || m.name)"
+                                    style="display:flex;align-items:center;gap:8px;padding:6px 10px;width:100%;background:none;border:none;cursor:pointer;border-radius:6px;color:#e2e8f0;font-size:13px;text-align:left"
+                                    @mouseover="$el.style.background='#334155'" @mouseout="$el.style.background='none'">
+                              <span class="avatar avatar--sm" :style="'background:'+(m.cor||'#6366f1')+';width:20px;height:20px;font-size:9px;color:#fff;display:flex;align-items:center;justify-content:center;border-radius:50%;flex-shrink:0'" x-text="(m.nome_curto||m.name||'').charAt(0)"></span>
+                              <span x-text="m.nome_curto || m.name"></span>
+                            </button>
+                          </template>
+                        </div>
+                        <div x-ref="commentEditor"
+                             x-effect="
+                               if(ui.taskDetailDrawer && $refs.commentEditor && window.OperonEditor) {
+                                 $nextTick(() => {
+                                   if(!window.OperonEditor.isActive($refs.commentEditor)) {
+                                     window.OperonEditor.mount($refs.commentEditor, {
+                                       markdown: '',
+                                       onChange: md => taskForm.newComment = md,
+                                       placeholder: 'Escreva um comentario... Digite / para formatar'
+                                     });
+                                   }
+                                 });
+                               } else if($refs.commentEditor && window.OperonEditor && window.OperonEditor.isActive($refs.commentEditor)) {
+                                 taskForm.newComment = window.OperonEditor.getMarkdown($refs.commentEditor);
+                                 window.OperonEditor.unmount($refs.commentEditor);
+                               }
+                             "
+                             style="min-height:60px;max-height:140px;overflow-y:auto;border:1px solid var(--neutral-200, #e2e8f0);border-radius:8px;background:#fafaf8"></div>
+                        <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:6px">
+                          <button class="btn btn--sm btn--brand" @click="addComment(activeTaskDetail.id); if(window.OperonEditor) { window.OperonEditor.unmount($refs.commentEditor); window.OperonEditor.mount($refs.commentEditor, { markdown: '', onChange: md => taskForm.newComment = md, placeholder: 'Escreva um comentario...' }) }" :disabled="!taskForm.newComment?.trim()"
+                                  style="display:flex;align-items:center;gap:5px;padding:6px 14px;font-size:12px;border-radius:8px">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                            Comentar
+                          </button>
+                        </div>
+                      </div>
+
+                    </div><!-- /RIGHT PANEL -->
+
+                  </div><!-- /2-PANEL BODY -->
                 </div>
               </template>
             </div>
@@ -3772,6 +4389,10 @@
             <!-- Topbar: título + filtros -->
             <div class="bib__topbar">
               <span class="bib__topbar-title">Biblioteca</span>
+              <button class="btn btn--sm btn--brand" @click="ui.fabricModal = true" style="font-size:11px;gap:4px;display:flex;align-items:center" title="Processar texto com IA (Fabric)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                Processar com IA
+              </button>
               <input class="bib__search" type="text" placeholder="Buscar documento..." x-model="bib.search" @input="bibFilter()">
               <div class="bib__filters">
                 <select class="bib__filter-select" x-model="bib.menteeFilter" @change="bibFilter()">
@@ -3811,21 +4432,29 @@
                     <div style="font-size:11px;margin-top:4px;color:#c9c3ba">Ajuste os filtros ou aguarde o seed</div>
                   </div>
                 </template>
-                <template x-for="(doc, i) in bib.filtered" :key="doc.id">
-                  <div>
-                    <!-- Separador por mentorado -->
-                    <template x-if="i === 0 || bib.filtered[i-1].mentee_nome !== doc.mentee_nome">
-                      <div class="bib-list-sep" x-text="doc.mentee_nome || 'Geral'"></div>
-                    </template>
-                    <div class="bib-card" :class="bib.activeDoc?.id === doc.id ? 'bib-card--active' : ''" @click="bibOpenDoc(doc.id)">
-                      <span class="bib-card__tipo" :class="'bib-card__tipo--' + doc.tipo" x-text="{ dossie: 'Dossiê', roteiro: 'Roteiro', material: 'Material' }[doc.tipo] || doc.tipo"></span>
-                      <div class="bib-card__titulo" x-text="doc.titulo"></div>
-                      <div class="bib-card__sub" x-text="doc.subtitulo || ''" x-show="doc.subtitulo" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;"></div>
-                      <div class="bib-card__meta">
-                        <span x-text="doc.total_secoes + ' seções'"></span>
-                        <span x-text="Math.round((doc.tamanho_chars || 0) / 1000) + 'k chars'"></span>
-                        <span x-text="doc.versao"></span>
-                      </div>
+                <template x-for="group in bibGroupedDocs" :key="group.mentee">
+                  <div style="margin-bottom:24px">
+                    <!-- Mentorado name -->
+                    <div @click="bib.expandedMentees = {...bib.expandedMentees, [group.mentee]: !bib.expandedMentees?.[group.mentee]}"
+                      style="padding:14px 20px 10px;cursor:pointer;display:flex;align-items:center;gap:10px">
+                      <span style="font-size:14px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#1a1a14" x-text="group.mentee"></span>
+                      <span style="flex:1;height:1px;background:#e8e4dc"></span>
+                      <span style="font-size:10px;color:#c4baa8;font-weight:500" x-text="group.docs.length"></span>
+                    </div>
+                    <!-- Docs -->
+                    <div x-show="bib.expandedMentees?.[group.mentee] !== false" style="padding:0 12px 0 20px">
+                      <template x-for="doc in group.docs" :key="doc.id">
+                        <div @click="bibOpenDoc(doc.id)"
+                          style="display:flex;align-items:center;gap:10px;padding:8px 14px 8px 18px;margin-bottom:2px;border-radius:8px;cursor:pointer;transition:all .12s"
+                          :style="bib.activeDoc?.id === doc.id ? 'background:#ede9de' : ''"
+                          @mouseover="if(bib.activeDoc?.id !== doc.id) $el.style.background='#f8f6f1'" @mouseout="if(bib.activeDoc?.id !== doc.id) $el.style.background='transparent'">
+                          <div style="width:6px;height:6px;border-radius:50%;flex-shrink:0"
+                            :style="(doc.titulo||'').includes('Oferta') ? 'background:#d97706' : (doc.titulo||'').includes('Funil') ? 'background:#2563eb' : (doc.titulo||'').includes('Posicion') ? 'background:#16a34a' : 'background:#94a3b8'"></div>
+                          <span style="font-size:12.5px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
+                            :style="bib.activeDoc?.id === doc.id ? 'color:#1a1a14;font-weight:600' : ''"
+                            x-text="(doc.titulo||'').replace('Dossiê de ','').replace('Dossiê ','')"></span>
+                        </div>
+                      </template>
                     </div>
                   </div>
                 </template>
@@ -3873,6 +4502,30 @@
                         <template x-if="bib.activeDoc.deep_link_slug">
                           <button class="btn btn--sm" style="padding:2px 8px;font-size:11px;" @click="bibCopyDeepLink(bib.activeDoc.deep_link_slug)" title="Copiar deep link">🔗 Deep link</button>
                         </template>
+                        <template x-if="bib.activeDoc.google_doc_url">
+                          <a :href="bib.activeDoc.google_doc_url" target="_blank" rel="noopener"
+                            class="btn btn--sm" style="padding:2px 10px;font-size:11px;background:#4285f4;color:#fff;text-decoration:none;border-radius:6px;display:inline-flex;align-items:center;gap:4px">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            Google Docs ↗
+                          </a>
+                        </template>
+                        <button class="btn btn--sm" style="padding:2px 10px;font-size:11px;"
+                          @click="bib.editMode = !bib.editMode;
+                            if(bib.editMode) {
+                              $nextTick(() => window.OperonEditor && window.OperonEditor.mount($refs.bibEditor, {
+                                markdown: bib.activeDoc.conteudo_md || '',
+                                onChange: md => bib.activeDoc.conteudo_md = md,
+                                placeholder: 'Digite / para comandos...'
+                              }));
+                            } else if(window.OperonEditor && window.OperonEditor.isActive($refs.bibEditor)) {
+                              bib.activeDoc.conteudo_md = window.OperonEditor.getMarkdown($refs.bibEditor);
+                              window.OperonEditor.unmount($refs.bibEditor);
+                              bib.renderedHtml = (typeof marked !== 'undefined') ? marked.parse(bib.activeDoc.conteudo_md || '') : bib.activeDoc.conteudo_md;
+                            }"
+                          x-text="bib.editMode ? '👁 Visualizar' : '✏️ Editar'"></button>
+                        <button class="btn btn--sm" style="padding:2px 10px;font-size:11px;background:var(--op-accent);color:#fff;"
+                          x-show="bib.editMode"
+                          @click="bibSaveDoc()">💾 Salvar</button>
                       </div>
                     </div>
 
@@ -3888,10 +4541,12 @@
                         </template>
                       </div>
 
-                      <!-- Artigo renderizado -->
-                      <div class="bib__article" id="bib-article" @scroll="bibUpdateActiveSec()">
+                      <!-- Artigo renderizado / Editor -->
+                      <div class="bib__article" id="bib-article" @scroll="bibUpdateActiveSec()" x-show="!bib.editMode">
                         <div x-html="bib.renderedHtml"></div>
                       </div>
+                      <div x-ref="bibEditor" x-show="bib.editMode"
+                           style="flex:1;overflow-y:auto;border-left:1px solid var(--op-border);background:var(--op-bg-1)"></div>
                     </div>
                   </div>
                 </template>
@@ -3949,7 +4604,19 @@
                   <button class="btn btn--sm" @click="closeDsDetail()" aria-label="Voltar para lista">← Voltar</button>
                   <h2 class="ds-detail__title" x-text="data.dsProducoes.find(p => p.producao_id === ui.dsDetailProducaoId)?.mentorado_nome || 'Detalhe'"></h2>
                   <span class="ds-status-badge" :style="'background:' + dsStatusConfig(data.dsMenteeDetail.status).color + '20; color:' + dsStatusConfig(data.dsMenteeDetail.status).color" x-text="dsStatusConfig(data.dsMenteeDetail.status).label"></span>
-                  <button class="btn btn--sm" style="margin-left:8px;color:#ef4444;border-color:#fecaca" @click="dsDeleteProducao(ui.dsDetailProducaoId)" title="Excluir produção" aria-label="Excluir produção">
+                  <!-- EPIC 6: Gerar Dossiê com IA -->
+                  <div style="margin-left:auto;display:flex;gap:4px">
+                    <select x-model="ui.dossieGenType" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:4px">
+                      <option value="oferta">Oferta</option>
+                      <option value="posicionamento">Posicion.</option>
+                      <option value="funil">Funil</option>
+                    </select>
+                    <button class="btn btn--sm btn--brand" @click="generateDossie(data.dsMenteeDetail?.mentorado_id, ui.dossieGenType || 'oferta')" style="font-size:11px;white-space:nowrap">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                      Gerar com IA
+                    </button>
+                  </div>
+                  <button class="btn btn--sm" style="color:#ef4444;border-color:#fecaca" @click="dsDeleteProducao(ui.dsDetailProducaoId)" title="Excluir producao" aria-label="Excluir producao">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                   </button>
                 </div>
@@ -4049,7 +4716,18 @@
 
                         <!-- Actions -->
                         <div class="ds-doc-actions">
-                          <button class="btn btn--sm btn--success" @click="advanceDocStage(doc.id)" :disabled="!dsCanAdvance(doc)" x-show="doc.estagio_atual !== 'finalizado'" aria-label="Avancar estagio">Avancar</button>
+                          <button class="btn btn--sm" style="background:#2d4a3e;color:#fff;display:flex;align-items:center;gap:4px"
+                            @click="navigateToDossieDoc(doc.mentorado_id, doc.tipo)"
+                            aria-label="Ver dossiê na Biblioteca">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            Ver Dossiê
+                          </button>
+                          <a x-show="doc.link_doc" :href="doc.link_doc" target="_blank" rel="noopener"
+                            class="btn btn--sm" style="background:#4285f4;color:#fff;text-decoration:none;display:flex;align-items:center;gap:4px;font-size:11px">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                            Google Docs ↗
+                          </a>
+                          <button class="btn btn--sm btn--success" @click="advanceDocStage(doc.id)" :disabled="!dsCanAdvance(doc)" x-show="doc.estagio_atual !== 'finalizado'" aria-label="Avancar estagio">Avançar</button>
                           <button class="btn btn--sm" @click="dsPromptRegress(doc.id)" x-show="dsEstagioNum(doc.estagio_atual) > 1" aria-label="Voltar estagio">Voltar</button>
                         </div>
 
@@ -4762,6 +5440,64 @@
                 <button class="btn btn--xs btn--ghost" @click="expandAllObEtapas()">Expandir Tudo</button>
                 <button class="btn btn--xs btn--ghost" @click="collapseAllObEtapas()">Recolher Tudo</button>
               </div>
+
+              <!-- Context Hub inline (áudio, notas, arquivos da call de onboarding) -->
+              <div class="ob-context-hub" x-data="{ ctxOpen: false }" x-init="loadMenteeContext(data.obTrilhaDetail?.mentorado_id)" style="margin:12px 0;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+                <div @click="ctxOpen = !ctxOpen" style="display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;background:var(--bg-subtle);user-select:none">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b6f47" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  <span style="font-size:13px;font-weight:600;color:#475569">Contexto do Onboarding</span>
+                  <span x-show="data.menteeContext?.length" style="font-size:11px;background:#8b6f47;color:#fff;border-radius:10px;padding:1px 7px;font-weight:600" x-text="data.menteeContext.length"></span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.5" style="margin-left:auto;transition:transform .15s" :style="ctxOpen ? 'transform:rotate(180deg)' : ''"><polyline points="6 9 12 15 18 9"/></svg>
+                </div>
+
+                <div x-show="ctxOpen" x-transition style="padding:12px">
+                  <!-- Quick add -->
+                  <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+                    <button class="btn btn--xs" :class="ui.ctxTipo === 'texto' ? 'btn--brand' : 'btn--ghost'" @click="ui.ctxTipo = 'texto'" style="font-size:11px">📝 Nota</button>
+                    <button class="btn btn--xs" :class="ui.ctxTipo === 'audio' ? 'btn--brand' : 'btn--ghost'" @click="ui.ctxTipo = 'audio'" style="font-size:11px">🎙 Áudio</button>
+                    <button class="btn btn--xs" :class="ui.ctxTipo === 'arquivo' ? 'btn--brand' : 'btn--ghost'" @click="ui.ctxTipo = 'arquivo'" style="font-size:11px">📎 Arquivo</button>
+                  </div>
+
+                  <!-- Texto input -->
+                  <div x-show="ui.ctxTipo === 'texto'" style="margin-bottom:8px">
+                    <input type="text" x-model="ui.ctxTitulo" placeholder="Título (ex: Percepções da call)" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;margin-bottom:4px">
+                    <textarea x-model="ui.ctxConteudo" rows="3" placeholder="Notas, observações, percepções sobre o mentorado..." style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical"></textarea>
+                  </div>
+
+                  <!-- Áudio/Arquivo upload -->
+                  <div x-show="ui.ctxTipo !== 'texto'" style="margin-bottom:8px">
+                    <input type="text" x-model="ui.ctxTitulo" placeholder="Título (ex: Áudio call onboarding)" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;margin-bottom:4px">
+                    <label style="display:flex;align-items:center;gap:6px;padding:12px;border:2px dashed var(--border);border-radius:6px;cursor:pointer;font-size:11px;color:var(--text-secondary);justify-content:center">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                      <span x-text="ui.ctxArquivo ? ui.ctxArquivo.name : (ui.ctxTipo === 'audio' ? 'Enviar áudio' : 'Enviar arquivo')"></span>
+                      <input type="file" :accept="ui.ctxTipo === 'audio' ? 'audio/*,.mp3,.wav,.m4a,.ogg' : '*'" @change="ui.ctxArquivo = $event.target.files[0]" style="display:none">
+                    </label>
+                    <textarea x-show="ui.ctxArquivo" x-model="ui.ctxConteudo" rows="2" placeholder="Descrição ou transcrição (opcional)" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-family:inherit;margin-top:4px"></textarea>
+                  </div>
+
+                  <button class="btn btn--brand btn--xs" @click="ui.ctxFase = 'onboarding'; saveContext()" :disabled="ui.ctxSaving || (!ui.ctxConteudo && !ui.ctxArquivo)" style="font-size:11px">
+                    <span x-show="!ui.ctxSaving">+ Adicionar</span>
+                    <span x-show="ui.ctxSaving">Salvando...</span>
+                  </button>
+
+                  <!-- Lista de contextos -->
+                  <div x-show="data.menteeContext?.length" style="margin-top:10px;display:flex;flex-direction:column;gap:6px">
+                    <template x-for="ctx in data.menteeContext || []" :key="ctx.id">
+                      <div style="display:flex;gap:8px;align-items:flex-start;padding:8px;background:var(--bg-subtle);border-radius:6px;font-size:12px">
+                        <span x-text="ctx.tipo === 'audio' ? '🎙' : ctx.tipo === 'arquivo' ? '📎' : '📝'" style="font-size:14px"></span>
+                        <div style="flex:1;min-width:0">
+                          <div style="font-weight:600;margin-bottom:2px" x-text="ctx.titulo || ctx.tipo"></div>
+                          <div x-show="ctx.conteudo" style="color:var(--text-secondary);line-height:1.4" x-text="ctx.conteudo?.substring(0, 150) + (ctx.conteudo?.length > 150 ? '...' : '')"></div>
+                          <a x-show="ctx.arquivo_url" :href="ctx.arquivo_url" target="_blank" style="color:var(--brand-500);text-decoration:none;font-size:11px" x-text="ctx.arquivo_nome || 'Baixar'"></a>
+                          <div style="color:var(--text-secondary);font-size:10px;margin-top:2px" x-text="new Date(ctx.created_at).toLocaleDateString('pt-BR', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) + ' · ' + (ctx.criado_por || '')"></div>
+                        </div>
+                        <button @click="deleteContext(ctx.id)" style="background:none;border:none;cursor:pointer;color:#dc2626;opacity:0.4;font-size:12px" @mouseover="$el.style.opacity='1'" @mouseout="$el.style.opacity='0.4'">✕</button>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+
               <!-- Etapas accordion -->
               <div class="ob-etapas">
                 <template x-for="etapa in data.obTrilhaDetail.etapas" :key="etapa.id">
@@ -6398,7 +7134,85 @@
               </button>
             </div>
           </div>
+
+          <!-- EPIC 5: Cron Jobs Status (OpenFang) -->
+          <div class="settings-section" x-data="{ crons: { jobs: [], configured: false, loading: false } }" x-init="
+            crons.loading = true;
+            fetch(CONFIG.API_BASE + '/api/crons/status', { headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('spalla_access_token') || '') } })
+              .then(r => r.json()).then(d => { crons.jobs = d.jobs || []; crons.configured = d.configured; crons.loading = false; })
+              .catch(() => { crons.loading = false; })
+          ">
+            <div class="settings-section__header">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <div>
+                <h3>Automacoes (Cron Jobs)</h3>
+                <p class="settings-section__desc">Status das tarefas automaticas — alertas, syncs e reconciliacao</p>
+              </div>
+              <span style="margin-left:auto;font-size:11px;padding:3px 8px;border-radius:4px" :style="crons.configured ? 'background:#dcfce7;color:#166534' : 'background:#fef9c3;color:#854d0e'" x-text="crons.configured ? 'Ativo' : 'Nao configurado'"></span>
+            </div>
+            <div x-show="crons.loading" style="padding:12px;color:var(--text-secondary);font-size:12px">Carregando...</div>
+            <div x-show="!crons.loading && !crons.jobs.length" style="padding:12px;color:var(--text-secondary);font-size:12px">Nenhum cron executado ainda. Configure o OpenFang para ativar automacoes.</div>
+            <div x-show="!crons.loading && crons.jobs.length" style="display:flex;flex-direction:column;gap:4px;padding:8px 0">
+              <template x-for="job in crons.jobs" :key="job.id">
+                <div style="display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:6px;background:var(--bg-subtle);font-size:12px">
+                  <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0" :style="job.status === 'success' ? 'background:#16a34a' : job.status === 'failed' ? 'background:#dc2626' : 'background:#94a3b8'"></span>
+                  <span style="font-weight:600;min-width:180px" x-text="job.job_name"></span>
+                  <span style="color:var(--text-secondary);flex:1" x-text="job.message || ''"></span>
+                  <span style="color:var(--text-secondary);font-size:10px" x-text="job.executed_at ? new Date(job.executed_at).toLocaleString('pt-BR', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : ''"></span>
+                </div>
+              </template>
+            </div>
+          </div>
         </div>
+
+        <!-- ===== FABRIC AI MODAL (EPIC 2) ===== -->
+        <template x-if="ui.fabricModal">
+          <div class="transcricao-modal" @click.self="ui.fabricModal = false" @keydown.escape.window="ui.fabricModal = false">
+            <div class="transcricao-modal__box" role="dialog" aria-label="Processar com IA" style="max-width:700px">
+              <div class="transcricao-modal__header">
+                <span class="transcricao-modal__title">Processar com IA (Fabric)</span>
+                <button class="transcricao-modal__close" @click="ui.fabricModal = false">&times;</button>
+              </div>
+              <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+                <div>
+                  <label style="font-size:12px;font-weight:600;margin-bottom:4px;display:block">Pattern</label>
+                  <select x-model="ui.fabricPattern" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+                    <optgroup label="CASE (customizados)">
+                      <option value="case_extract_oferta">Extrair Oferta</option>
+                      <option value="case_extract_posicionamento">Extrair Posicionamento</option>
+                      <option value="case_extract_funil">Extrair Funil de Vendas</option>
+                      <option value="case_analyze_call">Analisar Call de Vendas</option>
+                      <option value="case_lapidacao_perfil">Lapidacao de Perfil</option>
+                    </optgroup>
+                    <optgroup label="Fabric (nativos)">
+                      <option value="summarize">Resumir</option>
+                      <option value="extract_wisdom">Extrair Sabedoria</option>
+                      <option value="extract_insights">Extrair Insights</option>
+                      <option value="analyze_sales_call">Analisar Call (EN)</option>
+                      <option value="create_hormozi_offer">Criar Oferta Hormozi</option>
+                    </optgroup>
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size:12px;font-weight:600;margin-bottom:4px;display:block">Texto para processar</label>
+                  <textarea x-model="ui.fabricInput" rows="8" placeholder="Cole aqui a transcricao, texto do dossie, ou conteudo para processar..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
+                </div>
+                <button class="btn btn--brand" :disabled="ui.fabricLoading || !ui.fabricInput" @click="runFabricPattern()" style="align-self:flex-end">
+                  <span x-show="!ui.fabricLoading">Processar</span>
+                  <span x-show="ui.fabricLoading">Processando...</span>
+                </button>
+                <div x-show="ui.fabricResult" style="background:var(--bg-subtle);border-radius:8px;padding:12px;max-height:400px;overflow-y:auto">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                    <span style="font-size:11px;font-weight:600;color:var(--text-secondary)">Resultado</span>
+                    <button class="btn btn--sm" @click="navigator.clipboard.writeText(ui.fabricResult)" style="font-size:10px">Copiar</button>
+                  </div>
+                  <div style="font-size:13px;line-height:1.5;white-space:pre-wrap" x-text="ui.fabricResult"></div>
+                </div>
+                <div x-show="ui.fabricError" style="color:#dc2626;font-size:12px;padding:8px;background:#fef2f2;border-radius:6px" x-text="ui.fabricError"></div>
+              </div>
+            </div>
+          </div>
+        </template>
 
         <!-- ===== WELCOME FLOW ===== -->
         <div class="page-content" x-show="ui.page === 'welcome_flow'" x-transition>
@@ -7049,7 +7863,7 @@
                 <template x-for="m in waGroupBoard().aguardando" :key="m.id">
                   <div class="board-card" style="background:#fff;border:1px solid var(--neutral-200,#e2e8f0);border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:default">
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-                      <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.src='/assets/avatar-placeholder.png'">
+                      <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.onerror=null;$el.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2228%22 height=%2228%22 viewBox=%220 0 28 28%22><circle cx=%2214%22 cy=%2214%22 r=%2214%22 fill=%22%23e2e8f0%22/><circle cx=%2214%22 cy=%2211%22 r=%225%22 fill=%22%2394a3b8%22/><path d=%22M4 24c0-5.5 4.5-8 10-8s10 2.5 10 8%22 fill=%22%2394a3b8%22/></svg>'">
                       <span style="font-size:13px;font-weight:500;color:var(--text-primary)" x-text="m.nome"></span>
                     </div>
                     <template x-for="t in menteeActiveTopics(m.id).slice(0,2)" :key="t.id">
@@ -7077,7 +7891,7 @@
                 <template x-for="m in waGroupBoard().em_andamento" :key="m.id">
                   <div class="board-card" style="background:#fff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:default">
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-                      <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.src='/assets/avatar-placeholder.png'">
+                      <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.onerror=null;$el.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2228%22 height=%2228%22 viewBox=%220 0 28 28%22><circle cx=%2214%22 cy=%2214%22 r=%2214%22 fill=%22%23e2e8f0%22/><circle cx=%2214%22 cy=%2211%22 r=%225%22 fill=%22%2394a3b8%22/><path d=%22M4 24c0-5.5 4.5-8 10-8s10 2.5 10 8%22 fill=%22%2394a3b8%22/></svg>'">
                       <span style="font-size:13px;font-weight:500;color:var(--text-primary)" x-text="m.nome"></span>
                     </div>
                     <template x-for="t in menteeActiveTopics(m.id).slice(0,2)" :key="t.id">
@@ -7103,7 +7917,7 @@
                 <template x-for="m in waGroupBoard().bloqueado" :key="m.id">
                   <div class="board-card" style="background:#fff;border:1px solid #fed7aa;border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:default">
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-                      <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.src='/assets/avatar-placeholder.png'">
+                      <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.onerror=null;$el.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2228%22 height=%2228%22 viewBox=%220 0 28 28%22><circle cx=%2214%22 cy=%2214%22 r=%2214%22 fill=%22%23e2e8f0%22/><circle cx=%2214%22 cy=%2211%22 r=%225%22 fill=%22%2394a3b8%22/><path d=%22M4 24c0-5.5 4.5-8 10-8s10 2.5 10 8%22 fill=%22%2394a3b8%22/></svg>'">
                       <span style="font-size:13px;font-weight:500;color:var(--text-primary)" x-text="m.nome"></span>
                     </div>
                     <template x-for="t in menteeActiveTopics(m.id).slice(0,2)" :key="t.id">
@@ -7129,7 +7943,7 @@
                 <template x-for="m in waGroupBoard().resolvido" :key="m.id">
                   <div class="board-card" style="background:#fff;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:default">
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-                      <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.src='/assets/avatar-placeholder.png'">
+                      <img :src="m.foto_url || '/assets/avatar-placeholder.png'" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0" @error="$el.onerror=null;$el.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2228%22 height=%2228%22 viewBox=%220 0 28 28%22><circle cx=%2214%22 cy=%2214%22 r=%2214%22 fill=%22%23e2e8f0%22/><circle cx=%2214%22 cy=%2211%22 r=%225%22 fill=%22%2394a3b8%22/><path d=%22M4 24c0-5.5 4.5-8 10-8s10 2.5 10 8%22 fill=%22%2394a3b8%22/></svg>'">
                       <span style="font-size:13px;font-weight:500;color:var(--text-primary)" x-text="m.nome"></span>
                     </div>
                     <template x-for="t in menteeActiveTopics(m.id).slice(0,2)" :key="t.id">
@@ -7391,29 +8205,24 @@
 
               <!-- === NOTA LIVRE === -->
               <div x-show="ui.notesDrawer.tipo === 'livre'">
-                <template x-if="!window.OperonEditor || !window.OperonEditor.mount">
-                  <textarea class="op-input" x-model="ui.notesForm.conteudo" placeholder="Escreva uma observacao livre..." rows="4" style="width:100%;resize:vertical;font-size:.85rem"></textarea>
-                </template>
-                <template x-if="window.OperonEditor && window.OperonEditor.mount">
-                  <div x-ref="noteEditor"
-                       x-effect="
-                         if(ui.notesDrawer.tipo === 'livre' && $refs.noteEditor) {
-                           $nextTick(() => {
-                             if(!window.OperonEditor.isActive($refs.noteEditor)) {
-                               window.OperonEditor.mount($refs.noteEditor, {
-                                 markdown: ui.notesForm.conteudo || '',
-                                 onChange: md => ui.notesForm.conteudo = md,
-                                 placeholder: 'Digite / para comandos...'
-                               });
-                             }
-                           });
-                         } else if($refs.noteEditor && window.OperonEditor.isActive($refs.noteEditor)) {
-                           ui.notesForm.conteudo = window.OperonEditor.getMarkdown($refs.noteEditor);
-                           window.OperonEditor.unmount($refs.noteEditor);
-                         }
-                       "
-                       style="min-height:120px;border:1px solid var(--op-border);border-radius:8px;overflow:hidden;background:var(--op-bg-1)"></div>
-                </template>
+                <div x-ref="noteEditor"
+                     x-effect="
+                       if(ui.notesDrawer.tipo === 'livre' && $refs.noteEditor && window.OperonEditor) {
+                         $nextTick(() => {
+                           if(!window.OperonEditor.isActive($refs.noteEditor)) {
+                             window.OperonEditor.mount($refs.noteEditor, {
+                               markdown: ui.notesForm.conteudo || '',
+                               onChange: md => ui.notesForm.conteudo = md,
+                               placeholder: 'Digite / para comandos...'
+                             });
+                           }
+                         });
+                       } else if($refs.noteEditor && window.OperonEditor && window.OperonEditor.isActive($refs.noteEditor)) {
+                         ui.notesForm.conteudo = window.OperonEditor.getMarkdown($refs.noteEditor);
+                         window.OperonEditor.unmount($refs.noteEditor);
+                       }
+                     "
+                     style="min-height:120px;border:1px solid var(--op-border);border-radius:8px;overflow:hidden;background:var(--op-bg-1)"></div>
               </div>
 
               <!-- === CHECKPOINT MENSAL === -->
@@ -7822,24 +8631,19 @@
             <input type="text" x-model="taskForm.titulo" placeholder="O que precisa ser feito?" class="modal__input">
 
             <label>Descricao</label>
-            <template x-if="!window.OperonEditor || !window.OperonEditor.mount">
-              <textarea x-model="taskForm.descricao" placeholder="Detalhes, orientacoes..." class="modal__textarea"></textarea>
-            </template>
-            <template x-if="window.OperonEditor && window.OperonEditor.mount">
-              <div x-ref="taskDescEditor"
-                   x-init="$watch('ui.taskModal', v => {
-                     if(v) $nextTick(() => window.OperonEditor.mount($refs.taskDescEditor, {
-                       markdown: taskForm.descricao || '',
-                       onChange: md => taskForm.descricao = md,
-                       placeholder: 'Digite / para comandos...'
-                     }));
-                     else if(window.OperonEditor.isActive($refs.taskDescEditor)) {
-                       taskForm.descricao = window.OperonEditor.getMarkdown($refs.taskDescEditor);
-                       window.OperonEditor.unmount($refs.taskDescEditor);
-                     }
-                   })"
-                   style="min-height:150px;border:1px solid var(--op-border);border-radius:8px;overflow:hidden;background:var(--op-bg-1)"></div>
-            </template>
+            <div x-ref="taskDescEditor"
+                 x-init="$watch('ui.taskModal', v => {
+                   if(v && window.OperonEditor) $nextTick(() => window.OperonEditor.mount($refs.taskDescEditor, {
+                     markdown: taskForm.descricao || '',
+                     onChange: md => taskForm.descricao = md,
+                     placeholder: 'Digite / para comandos...'
+                   }));
+                   else if(window.OperonEditor && window.OperonEditor.isActive($refs.taskDescEditor)) {
+                     taskForm.descricao = window.OperonEditor.getMarkdown($refs.taskDescEditor);
+                     window.OperonEditor.unmount($refs.taskDescEditor);
+                   }
+                 })"
+                 style="min-height:150px;border:1px solid var(--op-border);border-radius:8px;overflow:hidden;background:var(--op-bg-1)"></div>
 
             <!-- Mentorado + Responsavel -->
             <div class="modal__row">
@@ -8268,7 +9072,7 @@
   <script src="12-APP-data.js?v=72"></script>
   <script src="13-APP-photos.js?v=72"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=89"></script>
+  <script src="11-APP-app.js?v=102"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">
@@ -8293,3 +9097,4 @@
 
 </body>
 </html>
+<!-- build trigger 1774400474 -->
