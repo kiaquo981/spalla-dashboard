@@ -13,41 +13,46 @@ priority: urgente
 
 ## Stories
 
-### STORY 1: Real-time Messages (substituir polling por Supabase Realtime)
-- [ ] Remover startWhatsAppPolling/stopWhatsAppPolling (polling 5s)
-- [ ] Implementar Supabase Realtime subscription em wa_messages
-- [ ] Subscribe filtrado por group_jid do chat selecionado
-- [ ] On INSERT: append mensagem ao array
-- [ ] On UPDATE: atualizar status da mensagem
-- [ ] Cleanup subscription ao trocar de chat ou sair da view
+### STORY 1: Real-time Messages (substituir polling por Supabase Realtime) ✅
+- [x] Deprecar startWhatsAppPolling (mantido como fallback)
+- [x] Implementar Supabase Realtime subscription em wa_messages
+- [x] Subscribe filtrado por group_jid do chat selecionado
+- [x] On INSERT: append mensagem ao array (com dedup)
+- [x] On UPDATE: atualizar status da mensagem
+- [x] Cleanup subscription ao trocar de chat ou sair da view
+- [x] Fallback pra Evolution API quando wa_messages vazio
 - **Arquivos:** 11-APP-app.js
 
-### STORY 2: Message Status Tracking (enviado/entregue/lido)
-- [ ] Migration: ADD COLUMN status TEXT em wa_messages
-- [ ] Migration: ADD COLUMN status_updated_at TIMESTAMPTZ
-- [ ] Backend: POST /api/webhooks/evolution (webhook receiver)
-- [ ] Verificar apikey header no webhook
-- [ ] Parse messages.update events → UPDATE wa_messages.status
-- [ ] Configurar Evolution API pra enviar webhook de status
-- [ ] Frontend: indicadores visuais (✓ cinza, ✓✓ cinza, ✓✓ azul, ✗ vermelho)
-- **Arquivos:** 14-APP-server.py, 11-APP-app.js, 10-APP-index.html, migration SQL
+### STORY 2: Message Status Tracking (enviado/entregue/lido) ✅
+- [x] Migration: ADD COLUMN status TEXT em wa_messages (64-SQL-wa-message-status.sql)
+- [x] Migration: ADD COLUMN status_updated_at TIMESTAMPTZ
+- [x] Migration: Enable Realtime publication + RLS policies
+- [x] Backend: POST /api/webhooks/evolution (webhook receiver)
+- [x] Verificar apikey header no webhook (EVOLUTION_WEBHOOK_SECRET)
+- [x] Parse messages.update events → UPDATE wa_messages.status
+- [ ] Configurar Evolution API pra enviar webhook de status (ops task)
+- [x] Frontend: indicadores visuais (✓ cinza, ✓✓ cinza, ✓✓ azul, ✗ vermelho)
+- **Arquivos:** 14-APP-server.py, 11-APP-app.js, 10-APP-index.html, 13-APP-styles.css, migration SQL
 
-### STORY 3: Reply-to (responder mensagem específica)
-- [ ] Backend: POST /api/wa/reply com quoted_message_id
-- [ ] Chamar Evolution API com parametro quoted
-- [ ] INSERT em wa_messages com reply_to_id
-- [ ] Frontend: botao "responder" em cada mensagem
-- [ ] Preview da mensagem citada acima do input
-- [ ] Enviar com reply_to_id no payload
-- **Arquivos:** 14-APP-server.py, 11-APP-app.js, 10-APP-index.html
+### STORY 3: Reply-to (responder mensagem específica) ✅
+- [x] Backend: POST /api/wa/reply com quoted_message_id
+- [x] Chamar Evolution API com parametro quoted
+- [x] INSERT em wa_messages com reply_to_id
+- [x] Frontend: botao "responder" em cada mensagem
+- [x] Preview da mensagem citada acima do input
+- [x] Enviar com reply_to_id no payload
+- [x] Scroll-to ao clicar em reply preview
+- **Arquivos:** 14-APP-server.py, 11-APP-app.js, 10-APP-index.html, 13-APP-styles.css
 
-### STORY 4: Send with Audit Trail (endpoints autenticados)
-- [ ] Backend: POST /api/wa/send-text (JWT required)
-- [ ] Backend: POST /api/wa/send-media (JWT required, multipart)
-- [ ] INSERT em wa_messages com is_from_team=true, status=pending
-- [ ] Log de auditoria: quem enviou, quando, pra quem
-- [ ] Rate limiting: 30 msgs/min por usuario
-- **Arquivos:** 14-APP-server.py
+### STORY 4: Send with Audit Trail (endpoints autenticados) ✅
+- [x] Backend: POST /api/wa/send-text (JWT required)
+- [x] Backend: POST /api/wa/send-media (JWT required)
+- [x] INSERT em wa_messages com is_from_team=true, status=pending
+- [x] Log de auditoria: quem enviou, quando, pra quem
+- [x] Rate limiting: 30 msgs/min por usuario (WA_RATE_LIMIT_PER_MINUTE)
+- [x] Frontend: wired to new endpoints (sendWhatsAppMessage + waSendMedia)
+- [x] Optimistic insert com fallback on error
+- **Arquivos:** 14-APP-server.py, 11-APP-app.js
 
 ### STORY 5: Inline Media Rendering (imagens, audio, video, docs)
 - [ ] Imagens: thumbnail com lightbox no click

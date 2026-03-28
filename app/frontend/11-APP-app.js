@@ -258,6 +258,7 @@ function operon() {
       // WhatsApp
       whatsappSelectedChat: null,
       whatsappMessage: '',
+      waReplyTo: null,
       whatsappLoading: false,
       // WhatsApp Per-User Session
       waSessionLoading: false,
@@ -2169,7 +2170,87 @@ function operon() {
       }
     },
 
+    // ===== Supabase Realtime subscription for wa_messages =====
+    _subscribeWaRealtime(groupJid) {
+      this._unsubscribeWaRealtime(); // cleanup previous
+      if (!this.supabase || !groupJid) return;
+      this._waRealtimeChannel = this.supabase
+        .channel(`wa-chat-${groupJid.replace(/[^a-zA-Z0-9]/g, '_')}`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'wa_messages',
+          filter: `group_jid=eq.${groupJid}`,
+        }, (payload) => {
+          const newMsg = this._waDbToEvolutionFormat(payload.new);
+          // Avoid duplicates (optimistic insert from send)
+          if (!this.data.whatsappMessages.find(m => m.key?.id === newMsg.key?.id)) {
+            this.data.whatsappMessages.push(newMsg);
+            this.$nextTick(() => {
+              const el = document.getElementById('wa-messages-end');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            });
+          }
+        })
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'wa_messages',
+          filter: `group_jid=eq.${groupJid}`,
+        }, (payload) => {
+          // Update status of existing message
+          const updated = payload.new;
+          const idx = this.data.whatsappMessages.findIndex(m => m.key?.id === updated.message_id);
+          if (idx >= 0) {
+            this.data.whatsappMessages[idx]._status = updated.status;
+            this.data.whatsappMessages[idx]._statusUpdatedAt = updated.status_updated_at;
+          }
+        })
+        .subscribe();
+    },
+
+    _unsubscribeWaRealtime() {
+      if (this._waRealtimeChannel) {
+        this.supabase.removeChannel(this._waRealtimeChannel);
+        this._waRealtimeChannel = null;
+      }
+    },
+
+    // Convert wa_messages DB row to Evolution API format (compatible with existing HTML template)
+    _waDbToEvolutionFormat(row) {
+      const isFromMe = row.is_from_team === true;
+      const msgObj = {};
+      if (row.content_type === 'text' || !row.content_type) {
+        msgObj.conversation = row.content_text || '';
+      } else if (row.content_type === 'image') {
+        msgObj.imageMessage = { caption: row.content_text || '', url: row.media_url };
+      } else if (row.content_type === 'audio') {
+        msgObj.audioMessage = { url: row.media_url, mimetype: row.media_mime || 'audio/ogg' };
+      } else if (row.content_type === 'video') {
+        msgObj.videoMessage = { caption: row.content_text || '', url: row.media_url };
+      } else if (row.content_type === 'document') {
+        msgObj.documentMessage = { fileName: row.content_text || 'Documento', url: row.media_url, mimetype: row.media_mime };
+      } else {
+        msgObj.conversation = row.content_text || `[${row.content_type}]`;
+      }
+      return {
+        key: { id: row.message_id, fromMe: isFromMe, remoteJid: row.group_jid },
+        message: msgObj,
+        messageTimestamp: row.timestamp ? Math.floor(new Date(row.timestamp).getTime() / 1000) : Math.floor(Date.now() / 1000),
+        pushName: row.sender_name || (isFromMe ? 'Equipe CASE' : 'Desconhecido'),
+        _dbId: row.id,
+        _status: row.status || 'sent',
+        _statusUpdatedAt: row.status_updated_at,
+        _replyToId: row.reply_to_id,
+        _contentType: row.content_type,
+        _mediaUrl: row.media_url,
+      };
+    },
+
+    // Legacy polling — kept as fallback but deprecated
     startWhatsAppPolling() {
+      // DEPRECATED: Replaced by Supabase Realtime (_subscribeWaRealtime)
+      // Only used as fallback when wa_messages table is empty for this chat
       if (this._whatsappPollInterval) clearInterval(this._whatsappPollInterval);
       const { instance } = this._waActiveInstance();
       if (!this.ui.whatsappSelectedChat || !instance) return;
@@ -2183,14 +2264,12 @@ function operon() {
           if (res.status === 405 || res.status === 404) {
             console.warn('[Spalla] WhatsApp API not available (', res.status, '— stopping polling)');
             this.stopWhatsAppPolling();
-            this.toast('WhatsApp API indisponível', 'warning');
             return;
           }
           if (res.ok) {
             const data = await res.json();
             const msgs = data.messages?.records || data.messages || data || [];
             const newMsgs = (Array.isArray(msgs) ? msgs : []).reverse();
-            // Compare last message ID to detect changes (length alone is unreliable)
             const lastLocal = this.data.whatsappMessages[this.data.whatsappMessages.length - 1];
             const lastRemote = newMsgs[newMsgs.length - 1];
             const localId = lastLocal?.key?.id || '';
@@ -2215,6 +2294,7 @@ function operon() {
         clearInterval(this._whatsappPollInterval);
         this._whatsappPollInterval = null;
       }
+      this._unsubscribeWaRealtime();
     },
 
     // ===================== BIBLIOTECA =====================
@@ -6546,34 +6626,59 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (!instance) return;
       this.ui.whatsappSelectedChat = chat;
       this.ui.whatsappLoading = true;
-      this.stopWhatsAppPolling(); // Stop previous polling
+      this.stopWhatsAppPolling(); // cleanup previous subscriptions + polling
+
+      const groupJid = chat.remoteJid || chat.id;
+
+      // Strategy: try Supabase wa_messages first, fallback to Evolution API
+      let usedRealtime = false;
       try {
-        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${instance}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ where: { key: { remoteJid: chat.remoteJid || chat.id } }, limit: 50 }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          // Evolution API v2 can return { messages: { records: [...] } } or just an array
-          const msgs = data.messages?.records || data.messages || data || [];
-          this.data.whatsappMessages = (Array.isArray(msgs) ? msgs : []).reverse();
-          // Eagerly load media URLs for all messages
-          this.eagerlyLoadWaMediaUrls(this.data.whatsappMessages);
+        const { data: dbMsgs, error } = await sb.from('wa_messages')
+          .select('id,message_id,group_jid,sender_name,is_from_team,content_type,content_text,media_url,media_mime,reply_to_id,status,status_updated_at,timestamp')
+          .eq('group_jid', groupJid)
+          .order('timestamp', { ascending: true })
+          .limit(100);
+
+        if (!error && dbMsgs && dbMsgs.length > 0) {
+          // Use Supabase data — convert to Evolution format for HTML compatibility
+          this.data.whatsappMessages = dbMsgs.map(row => this._waDbToEvolutionFormat(row));
+          // Subscribe to Realtime for live updates
+          this._subscribeWaRealtime(groupJid);
+          usedRealtime = true;
+          console.log(`[Spalla] WA chat loaded from Supabase: ${dbMsgs.length} msgs (Realtime active)`);
         } else {
-          throw new Error(`HTTP ${res.status}`);
+          throw new Error('No messages in Supabase — fallback to Evolution API');
         }
-      } catch (e) {
-        console.error('[Spalla] WA messages fetch error:', e);
-        this.data.whatsappMessages = DEMO_WA_MESSAGES;
+      } catch (sbErr) {
+        // Fallback: load from Evolution API directly (legacy path)
+        console.warn('[Spalla] Supabase WA fallback:', sbErr.message);
+        try {
+          const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${instance}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ where: { key: { remoteJid: groupJid } }, limit: 50 }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const msgs = data.messages?.records || data.messages || data || [];
+            this.data.whatsappMessages = (Array.isArray(msgs) ? msgs : []).reverse();
+            this.eagerlyLoadWaMediaUrls(this.data.whatsappMessages);
+          } else {
+            throw new Error(`HTTP ${res.status}`);
+          }
+        } catch (evoErr) {
+          console.error('[Spalla] WA messages fetch error:', evoErr);
+          this.data.whatsappMessages = DEMO_WA_MESSAGES;
+        }
+        // Legacy polling as fallback when not using Realtime
+        this.startWhatsAppPolling();
       }
+
       this.ui.whatsappLoading = false;
       this.$nextTick(() => {
         const el = document.getElementById('wa-messages-end');
         if (el) el.scrollIntoView({ behavior: 'smooth' });
       });
-      // Start polling for new messages
-      this.startWhatsAppPolling();
     },
 
     // Story 3.1: Dynamic send routing — uses user's instance if connected, fallback to producao002
@@ -6595,34 +6700,68 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const { instance, isPersonal } = this._waActiveInstance();
       if (!instance) { this.toast('WhatsApp nao configurado', 'info'); return; }
       const msg = this.ui.whatsappMessage.trim();
+      const replyTo = this.ui.waReplyTo;
+      const replyToId = replyTo?.key?.id || null;
       this.ui.whatsappMessage = '';
+      this.clearWaReply();
       if (!isPersonal) {
         this.toast('Enviando pelo numero central (conecte seu WhatsApp em Configuracoes)', 'warning');
       }
+
+      const number = this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id;
+      const groupJid = number;
+
+      // Optimistic insert (will be deduplicated by Realtime if using Supabase)
+      const optimisticMsg = {
+        key: { id: 'pending-' + Date.now(), fromMe: true, remoteJid: groupJid },
+        message: { conversation: msg },
+        messageTimestamp: Math.floor(Date.now() / 1000),
+        pushName: isPersonal ? (this.auth.currentUser?.full_name || 'Voce') : 'Equipe CASE',
+        _status: 'pending',
+        _replyToId: replyToId,
+      };
+      this.data.whatsappMessages.push(optimisticMsg);
+      this.$nextTick(() => {
+        const el = document.getElementById('wa-messages-end');
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      });
+
       try {
-        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/message/sendText/${instance}`, {
+        // Use new authenticated endpoint (with reply support)
+        const endpoint = replyToId ? '/api/wa/reply' : '/api/wa/send-text';
+        const payload = { number, text: msg, instance, group_jid: groupJid };
+        if (replyToId) payload.quoted_message_id = replyToId;
+
+        const res = await fetch(`${CONFIG.API_BASE}${endpoint}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ number: this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id, text: msg }),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.auth.accessToken}`,
+          },
+          body: JSON.stringify(payload),
         });
+
         if (res.ok) {
-          this.data.whatsappMessages.push({
-            key: { fromMe: true },
-            message: { conversation: msg },
-            messageTimestamp: Math.floor(Date.now() / 1000),
-            pushName: isPersonal ? (this.auth.currentUser?.full_name || 'Voce') : 'Equipe CASE',
-          });
-          this.$nextTick(() => {
-            const el = document.getElementById('wa-messages-end');
-            if (el) el.scrollIntoView({ behavior: 'smooth' });
-          });
+          const result = await res.json();
+          // Update optimistic message with real ID
+          const optIdx = this.data.whatsappMessages.indexOf(optimisticMsg);
+          if (optIdx >= 0 && result.message_id) {
+            this.data.whatsappMessages[optIdx].key.id = result.message_id;
+            this.data.whatsappMessages[optIdx]._status = 'sent';
+          }
         } else {
-          throw new Error(`HTTP ${res.status}`);
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `HTTP ${res.status}`);
         }
       } catch (e) {
         console.error('[Spalla] WA send error:', e);
         this.toast('Erro ao enviar: ' + e.message, 'error');
-        this.ui.whatsappMessage = msg; // restore on error
+        // Mark optimistic message as failed
+        const optIdx = this.data.whatsappMessages.indexOf(optimisticMsg);
+        if (optIdx >= 0) {
+          this.data.whatsappMessages[optIdx]._status = 'failed';
+        }
+        this.ui.whatsappMessage = msg; // restore text on error
       }
     },
 
@@ -6641,29 +6780,46 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (file.type.startsWith('image/')) mediatype = 'image';
       else if (file.type.startsWith('video/')) mediatype = 'video';
       else if (file.type.startsWith('audio/')) mediatype = 'audio';
-      // Convert to base64
+      // Convert to base64 data URL
       const base64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onload = () => resolve(reader.result);
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
+
+      const number = this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id;
+      const groupJid = number;
+
       this.ui.waSendingMedia = true;
       try {
-        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/message/sendMedia/${instance}`, {
+        // Use new authenticated endpoint
+        const res = await fetch(`${CONFIG.API_BASE}/api/wa/send-media`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.auth.accessToken}`,
+          },
           body: JSON.stringify({
-            number: this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id,
-            mediatype,
-            media: base64,
-            fileName: file.name,
+            number,
+            instance,
+            group_jid: groupJid,
+            media_url: base64,
+            media_type: mediatype,
+            media_name: file.name,
+            media_mime: file.type,
             caption: '',
           }),
         });
         if (res.ok) {
+          const result = await res.json();
           // Optimistic message in thread
-          const msgObj = { key: { fromMe: true }, messageTimestamp: Math.floor(Date.now() / 1000), pushName: 'Voce' };
+          const msgObj = {
+            key: { id: result.message_id || ('pending-' + Date.now()), fromMe: true, remoteJid: groupJid },
+            messageTimestamp: Math.floor(Date.now() / 1000),
+            pushName: this.auth.currentUser?.full_name || 'Voce',
+            _status: 'sent',
+          };
           if (mediatype === 'image') msgObj.message = { imageMessage: { caption: file.name } };
           else if (mediatype === 'audio') msgObj.message = { audioMessage: {} };
           else if (mediatype === 'video') msgObj.message = { videoMessage: { caption: file.name } };
@@ -6675,7 +6831,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
             if (el) el.scrollIntoView({ behavior: 'smooth' });
           });
         } else {
-          throw new Error(`HTTP ${res.status}`);
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `HTTP ${res.status}`);
         }
       } catch (e) {
         console.error('[Spalla] WA media send error:', e);
@@ -6819,6 +6976,38 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     getWaChatName(chat) {
       return chat?.name || chat?.subject || chat?.pushName || chat?.id?.split('@')[0] || 'Chat';
+    },
+
+    // ===== Reply-to helpers =====
+    setWaReply(msg) {
+      this.ui.waReplyTo = msg;
+      // Focus the input
+      this.$nextTick(() => {
+        const input = document.querySelector('.wa-chat__input input[type="text"]');
+        if (input) input.focus();
+      });
+    },
+
+    clearWaReply() {
+      this.ui.waReplyTo = null;
+    },
+
+    getReplyPreviewText(messageId) {
+      if (!messageId) return '';
+      const msg = this.data.whatsappMessages.find(m => m.key?.id === messageId);
+      if (!msg) return '[mensagem]';
+      const text = this.getWaMessageText(msg);
+      return text.length > 60 ? text.substring(0, 60) + '...' : text;
+    },
+
+    scrollToWaMessage(messageId) {
+      if (!messageId) return;
+      const el = document.getElementById('wa-msg-' + messageId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.style.background = 'rgba(107, 154, 70, 0.15)';
+        setTimeout(() => { el.style.background = ''; }, 2000);
+      }
     },
 
     // ===================== WA TOPICS BOARD =====================
