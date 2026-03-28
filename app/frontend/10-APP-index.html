@@ -3995,7 +3995,10 @@
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
                 </button>
                 <div class="avatar avatar--sm avatar--success" x-text="avatarInitials(getWaChatName(ui.whatsappSelectedChat))"></div>
-                <h3 x-text="getWaChatName(ui.whatsappSelectedChat)"></h3>
+                <h3 x-text="getWaChatName(ui.whatsappSelectedChat)" style="flex:1"></h3>
+                <button class="wa-chat__search-btn" @click="ui.waSearchOpen = !ui.waSearchOpen; $nextTick(() => $refs.waSearchInput?.focus())" title="Buscar mensagens">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </button>
               </div>
               <div class="wa-chat__messages" x-show="ui.whatsappSelectedChat">
                 <template x-for="(msg, mi) in data.whatsappMessages" :key="msg.key?.id || mi">
@@ -4021,10 +4024,12 @@
                     <template x-if="getWaMessageType(msg) === 'image'">
                       <div class="wa-bubble__media">
                         <template x-if="waMediaUrls[msg.key?.id]">
-                          <img :src="waMediaUrls[msg.key?.id]" style="max-width:280px; border-radius:8px; cursor:pointer; object-fit:cover;" :alt="msg.message?.imageMessage?.caption || 'Imagem'">
+                          <img :src="waMediaUrls[msg.key?.id]" @click="ui.waLightboxUrl = waMediaUrls[msg.key?.id]" style="max-width:280px; border-radius:8px; cursor:pointer; object-fit:cover;" :alt="msg.message?.imageMessage?.caption || 'Imagem'" loading="lazy">
                         </template>
                         <template x-if="!waMediaUrls[msg.key?.id]">
-                          <div class="wa-media-loading" @click="loadWaMedia(msg)" style="width:280px;height:200px;background:#f0f0f0;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#666;">Carregando imagem...</div>
+                          <div class="wa-media-loading" @click="loadWaMedia(msg)" style="width:280px;height:200px;background:#f0f0f0;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#666;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+                          </div>
                         </template>
                         <div x-show="msg.message?.imageMessage?.caption" class="wa-bubble__text" x-text="msg.message?.imageMessage?.caption"></div>
                       </div>
@@ -4032,11 +4037,22 @@
                     <template x-if="getWaMessageType(msg) === 'video'">
                       <div class="wa-bubble__media">
                         <template x-if="waMediaUrls[msg.key?.id]">
-                          <video controls :src="waMediaUrls[msg.key?.id]" style="max-width:280px; border-radius:8px;"></video>
+                          <video controls preload="metadata" :src="waMediaUrls[msg.key?.id]" style="max-width:280px; border-radius:8px;"></video>
                         </template>
                         <template x-if="!waMediaUrls[msg.key?.id]">
-                          <div class="wa-media-loading" @click="loadWaMedia(msg)" style="width:280px;height:200px;background:#f0f0f0;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#666;">Carregando video...</div>
+                          <div class="wa-media-loading" @click="loadWaMedia(msg)" style="width:280px;height:200px;background:#f0f0f0;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#666;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="1.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                          </div>
                         </template>
+                        <div x-show="msg.message?.videoMessage?.caption" class="wa-bubble__text" x-text="msg.message?.videoMessage?.caption"></div>
+                      </div>
+                    </template>
+                    <template x-if="getWaMessageType(msg) === 'document'">
+                      <div class="wa-bubble__media wa-bubble__doc">
+                        <a :href="waMediaUrls[msg.key?.id] || '#'" target="_blank" class="wa-doc-link" @click.prevent="waMediaUrls[msg.key?.id] ? window.open(waMediaUrls[msg.key?.id], '_blank') : loadWaMedia(msg)">
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                          <span x-text="msg.message?.documentMessage?.fileName || msg.message?.documentMessage?.title || 'Documento'"></span>
+                        </a>
                       </div>
                     </template>
                     <!-- Reply-to preview -->
@@ -4083,7 +4099,16 @@
                 </div>
                 <button class="wa-reply-bar__close" @click="clearWaReply()">&times;</button>
               </div>
-              <div class="wa-chat__input" x-show="ui.whatsappSelectedChat">
+              <!-- Typing indicator -->
+              <div class="wa-typing" x-show="ui.waTypingIndicator" x-transition>
+                <div class="wa-typing__dots"><span></span><span></span><span></span></div>
+                <span>digitando...</span>
+              </div>
+
+              <!-- Input area with mic, attach, paste support -->
+              <div class="wa-chat__input" x-show="ui.whatsappSelectedChat"
+                   @drop.prevent="waHandleDrop($event)" @dragover.prevent @paste="waHandlePaste($event)">
+                <!-- Attach file -->
                 <label class="wa-attach-btn" title="Enviar arquivo" :class="{ 'wa-attach-btn--loading': ui.waSendingMedia }">
                   <template x-if="!ui.waSendingMedia">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
@@ -4093,7 +4118,18 @@
                   </template>
                   <input type="file" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip" style="display:none" @change="waHandleFileAttach($event)" :disabled="ui.waSendingMedia">
                 </label>
-                <input type="text" x-model="ui.whatsappMessage" placeholder="Digite sua mensagem..." @keydown.enter="sendWhatsAppMessage()">
+                <!-- Text input -->
+                <input type="text" x-model="ui.whatsappMessage" placeholder="Digite sua mensagem..." @keydown.enter="sendWhatsAppMessage()" @input="waHandleTyping()">
+                <!-- Mic button (audio recording) -->
+                <button class="wa-mic-btn" :class="{ 'wa-mic-btn--recording': ui.waRecording }" @click="ui.waRecording ? waStopRecording() : waStartRecording()" :title="ui.waRecording ? 'Parar gravacao' : 'Gravar audio'">
+                  <template x-if="!ui.waRecording">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                  </template>
+                  <template x-if="ui.waRecording">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                  </template>
+                </button>
+                <!-- Send button -->
                 <button class="btn btn--success" @click="sendWhatsAppMessage()">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                 </button>
@@ -4102,6 +4138,33 @@
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
                 <p>Selecione uma conversa para ver as mensagens</p>
               </div>
+            </div>
+          </div>
+
+          <!-- Image Lightbox -->
+          <div class="wa-lightbox" x-show="ui.waLightboxUrl" x-transition.opacity @click.self="ui.waLightboxUrl = null" style="display:none" :style="ui.waLightboxUrl ? 'display:flex' : 'display:none'">
+            <button class="wa-lightbox__close" @click="ui.waLightboxUrl = null">&times;</button>
+            <img :src="ui.waLightboxUrl" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain;">
+          </div>
+
+          <!-- Search overlay -->
+          <div class="wa-search-overlay" x-show="ui.waSearchOpen" x-transition>
+            <div class="wa-search-bar">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" x-model="ui.waSearchQuery" placeholder="Buscar mensagens..." @input.debounce.400ms="waSearchMessages()" @keydown.escape="ui.waSearchOpen = false" x-ref="waSearchInput">
+              <button @click="ui.waSearchOpen = false; ui.waSearchQuery = ''; ui.waSearchResults = []">&times;</button>
+            </div>
+            <div class="wa-search-results" x-show="ui.waSearchResults.length > 0">
+              <template x-for="r in ui.waSearchResults" :key="r.id">
+                <div class="wa-search-result" @click="scrollToWaMessage(r.message_id); ui.waSearchOpen = false">
+                  <strong x-text="r.sender_name || 'Desconhecido'"></strong>
+                  <span x-text="r.content_text?.substring(0, 100)"></span>
+                  <small x-text="new Date(r.timestamp).toLocaleString('pt-BR')"></small>
+                </div>
+              </template>
+            </div>
+            <div class="wa-search-empty" x-show="ui.waSearchQuery.length > 2 && ui.waSearchResults.length === 0">
+              Nenhuma mensagem encontrada
             </div>
           </div>
         </div>

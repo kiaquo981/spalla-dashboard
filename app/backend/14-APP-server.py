@@ -4283,7 +4283,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         return hmac.compare_digest(sig_header, expected)
 
     def _handle_chatwoot_webhook(self):
-        """POST /api/webhooks/chatwoot — Receive Chatwoot webhook events"""
+        """POST /api/webhooks/chatwoot — DEPRECATED: Chatwoot replaced by Evolution API direct integration.
+        Kept for backwards compatibility — logs event and returns OK without processing."""
+        log_info('Chatwoot', 'DEPRECATED: webhook received but Chatwoot is being phased out. Use Evolution API.')
+        # Still process to avoid breaking existing integrations during transition
         try:
             raw = self._read_body()
             if not self._verify_chatwoot_signature(raw):

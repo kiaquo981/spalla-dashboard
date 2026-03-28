@@ -1267,6 +1267,43 @@ img { max-width: 100%; display: block; }
 .wa-reply-bar__text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wa-reply-bar__close { background: none; border: none; cursor: pointer; color: var(--neutral-400); font-size: 18px; line-height: 1; padding: 2px; }
 
+/* Lightbox */
+.wa-lightbox { position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; }
+.wa-lightbox__close { position: absolute; top: 16px; right: 16px; background: none; border: none; color: #fff; font-size: 32px; cursor: pointer; z-index: 1; }
+
+/* Mic button */
+.wa-mic-btn { background: none; border: none; cursor: pointer; padding: 6px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
+.wa-mic-btn:hover { background: var(--neutral-100); }
+.wa-mic-btn--recording { background: #fee2e2; animation: wa-mic-pulse 1s ease-in-out infinite; }
+@keyframes wa-mic-pulse { 0%, 100% { background: #fee2e2; } 50% { background: #fecaca; } }
+
+/* Document link */
+.wa-doc-link { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--neutral-50); border-radius: var(--r-sm); color: var(--brand-600, #4a5e3a); text-decoration: none; font-size: 13px; cursor: pointer; }
+.wa-doc-link:hover { background: var(--neutral-100); }
+
+/* Typing indicator */
+.wa-typing { display: flex; align-items: center; gap: 8px; padding: 4px 16px; font-size: 12px; color: var(--neutral-400); }
+.wa-typing__dots { display: flex; gap: 3px; }
+.wa-typing__dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--neutral-400); animation: wa-typing-dot 1.4s ease-in-out infinite; }
+.wa-typing__dots span:nth-child(2) { animation-delay: 0.2s; }
+.wa-typing__dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes wa-typing-dot { 0%, 60%, 100% { opacity: 0.3; transform: scale(0.8); } 30% { opacity: 1; transform: scale(1); } }
+
+/* Search */
+.wa-chat__search-btn { background: none; border: none; cursor: pointer; padding: 4px; border-radius: 4px; color: var(--neutral-500); }
+.wa-chat__search-btn:hover { background: var(--neutral-100); }
+.wa-search-overlay { position: absolute; top: 0; left: 0; right: 0; z-index: 10; background: #fff; border-bottom: 1px solid var(--neutral-200); box-shadow: var(--shadow-md); }
+.wa-search-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
+.wa-search-bar input { flex: 1; border: none; outline: none; font-size: 14px; background: transparent; }
+.wa-search-bar button { background: none; border: none; cursor: pointer; color: var(--neutral-400); font-size: 18px; }
+.wa-search-results { max-height: 300px; overflow-y: auto; border-top: 1px solid var(--neutral-100); }
+.wa-search-result { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--neutral-50); display: flex; flex-direction: column; gap: 2px; }
+.wa-search-result:hover { background: var(--neutral-50); }
+.wa-search-result strong { font-size: 12px; color: var(--brand-600, #4a5e3a); }
+.wa-search-result span { font-size: 13px; color: var(--neutral-700); }
+.wa-search-result small { font-size: 11px; color: var(--neutral-400); }
+.wa-search-empty { padding: 16px; text-align: center; font-size: 13px; color: var(--neutral-400); }
+
 /* ===== REMINDERS ===== */
 .reminder-list { display: flex; flex-direction: column; gap: var(--sp-2); }
 .reminder-card { display: flex; align-items: flex-start; gap: var(--sp-3); background: #fff; border-radius: var(--r-md); padding: var(--sp-3) var(--sp-4); box-shadow: var(--shadow-sm); border-left: 3px solid var(--info); }

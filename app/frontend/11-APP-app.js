@@ -259,6 +259,13 @@ function operon() {
       whatsappSelectedChat: null,
       whatsappMessage: '',
       waReplyTo: null,
+      waLightboxUrl: null,
+      waRecording: false,
+      waRecorder: null,
+      waSearchQuery: '',
+      waSearchResults: [],
+      waSearchOpen: false,
+      waTypingIndicator: false,
       whatsappLoading: false,
       // WhatsApp Per-User Session
       waSessionLoading: false,
@@ -2295,6 +2302,7 @@ function operon() {
         this._whatsappPollInterval = null;
       }
       this._unsubscribeWaRealtime();
+      this.cleanupWaReadReceipts();
     },
 
     // ===================== BIBLIOTECA =====================
@@ -6678,6 +6686,10 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.$nextTick(() => {
         const el = document.getElementById('wa-messages-end');
         if (el) el.scrollIntoView({ behavior: 'smooth' });
+        // Setup read receipts observer for visible messages
+        this.setupWaReadReceipts();
+        // Eagerly load media URLs for Supabase messages
+        this.eagerlyLoadWaMediaUrls(this.data.whatsappMessages);
       });
     },
 
@@ -6886,10 +6898,13 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (m.audioMessage) return 'audio';
       if (m.imageMessage) return 'image';
       if (m.videoMessage) return 'video';
-      // Document messages with video MIME types
-      if (m.documentMessage?.mimetype?.includes('video')) return 'video';
-      if (m.documentMessage?.mimetype?.includes('audio')) return 'audio';
-      if (m.documentMessage?.mimetype?.includes('image')) return 'image';
+      if (m.documentMessage) {
+        // Document messages with media MIME types render as that media
+        if (m.documentMessage.mimetype?.includes('video')) return 'video';
+        if (m.documentMessage.mimetype?.includes('audio')) return 'audio';
+        if (m.documentMessage.mimetype?.includes('image')) return 'image';
+        return 'document';
+      }
       return 'text';
     },
 
@@ -6909,6 +6924,17 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         // Check if Evolution API provided mediaUrl
         if (msg.message?.mediaUrl) {
           this.waMediaUrls[msgId] = msg.message.mediaUrl;
+          updated = true;
+        }
+        // Check if message came from Supabase with _mediaUrl (S3 key or full URL)
+        else if (msg._mediaUrl) {
+          const url = msg._mediaUrl;
+          if (url.startsWith('http')) {
+            this.waMediaUrls[msgId] = url;
+          } else {
+            // S3 key — use stream proxy
+            this.waMediaUrls[msgId] = `${CONFIG.API_BASE}/api/media/stream?key=${encodeURIComponent(url)}`;
+          }
           updated = true;
         }
       }
@@ -7008,6 +7034,144 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         el.style.background = 'rgba(107, 154, 70, 0.15)';
         setTimeout(() => { el.style.background = ''; }, 2000);
       }
+    },
+
+    // ===== Audio Recording (Story 6) =====
+    async waStartRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+        const chunks = [];
+        recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+        recorder.onstop = async () => {
+          stream.getTracks().forEach(t => t.stop());
+          const blob = new Blob(chunks, { type: 'audio/ogg' });
+          if (blob.size < 1000) { this.toast('Audio muito curto', 'warning'); return; }
+          const file = new File([blob], `audio_${Date.now()}.ogg`, { type: 'audio/ogg' });
+          this.waSendMedia(file);
+        };
+        recorder.start();
+        this.ui.waRecording = true;
+        this.ui.waRecorder = recorder;
+        this.toast('Gravando audio...', 'info');
+      } catch (e) {
+        console.error('[Spalla] Mic access denied:', e);
+        this.toast('Acesso ao microfone negado', 'error');
+      }
+    },
+
+    waStopRecording() {
+      if (this.ui.waRecorder && this.ui.waRecorder.state === 'recording') {
+        this.ui.waRecorder.stop();
+      }
+      this.ui.waRecording = false;
+      this.ui.waRecorder = null;
+    },
+
+    // ===== Paste + Drag & Drop (Story 7) =====
+    waHandlePaste(e) {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (file) {
+            this.toast('Imagem colada — enviando...', 'info');
+            this.waSendMedia(file);
+          }
+          return;
+        }
+      }
+    },
+
+    waHandleDrop(e) {
+      const files = e.dataTransfer?.files;
+      if (!files || files.length === 0) return;
+      const file = files[0];
+      if (file.size > 16 * 1024 * 1024) {
+        this.toast('Arquivo muito grande (maximo 16MB)', 'error');
+        return;
+      }
+      this.toast(`Arquivo "${file.name}" — enviando...`, 'info');
+      this.waSendMedia(file);
+    },
+
+    // ===== Typing Indicator (Story 9) =====
+    _waTypingTimeout: null,
+    waHandleTyping() {
+      if (this._waTypingTimeout) return; // Already sent recently
+      const { instance } = this._waActiveInstance();
+      const chat = this.ui.whatsappSelectedChat;
+      if (!instance || !chat) return;
+      // Send composing presence via Evolution API
+      fetch(`${CONFIG.API_BASE}/api/evolution/chat/presence/${instance}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: chat.remoteJid || chat.id, presence: 'composing' }),
+      }).catch(() => {}); // fire and forget
+      this._waTypingTimeout = setTimeout(() => { this._waTypingTimeout = null; }, 3000); // debounce 3s
+    },
+
+    // ===== Message Search (Story 11) =====
+    async waSearchMessages() {
+      const q = this.ui.waSearchQuery?.trim();
+      if (!q || q.length < 3) { this.ui.waSearchResults = []; return; }
+      const chat = this.ui.whatsappSelectedChat;
+      if (!chat) return;
+      const groupJid = chat.remoteJid || chat.id;
+      try {
+        const { data, error } = await sb.from('wa_messages')
+          .select('id,message_id,sender_name,content_text,timestamp')
+          .eq('group_jid', groupJid)
+          .ilike('content_text', `%${q}%`)
+          .order('timestamp', { ascending: false })
+          .limit(20);
+        if (error) throw error;
+        this.ui.waSearchResults = data || [];
+      } catch (e) {
+        console.error('[Spalla] WA search error:', e);
+        this.ui.waSearchResults = [];
+      }
+    },
+
+    // ===== Read Receipts (Story 10) =====
+    _waReadObserver: null,
+    _waReadSent: new Set(),
+    setupWaReadReceipts() {
+      if (this._waReadObserver) this._waReadObserver.disconnect();
+      const container = document.querySelector('.wa-chat__messages');
+      if (!container) return;
+      this._waReadObserver = new IntersectionObserver((entries) => {
+        const { instance } = this._waActiveInstance();
+        if (!instance) return;
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const msgId = entry.target.id?.replace('wa-msg-', '');
+          if (!msgId || msgId.startsWith('pending-') || this._waReadSent.has(msgId)) continue;
+          // Find the message — only mark incoming (not fromMe) as read
+          const msg = this.data.whatsappMessages.find(m => m.key?.id === msgId);
+          if (!msg || msg.key?.fromMe) continue;
+          this._waReadSent.add(msgId);
+          // Send read receipt via Evolution API
+          const chat = this.ui.whatsappSelectedChat;
+          fetch(`${CONFIG.API_BASE}/api/evolution/chat/markMessageAsRead/${instance}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ readMessages: [{ id: msgId, remoteJid: chat?.remoteJid || chat?.id }] }),
+          }).catch(() => {});
+        }
+      }, { root: container, threshold: 0.5 });
+      // Observe all message bubbles
+      container.querySelectorAll('.wa-bubble').forEach(el => this._waReadObserver.observe(el));
+    },
+
+    cleanupWaReadReceipts() {
+      if (this._waReadObserver) {
+        this._waReadObserver.disconnect();
+        this._waReadObserver = null;
+      }
+      this._waReadSent.clear();
     },
 
     // ===================== WA TOPICS BOARD =====================

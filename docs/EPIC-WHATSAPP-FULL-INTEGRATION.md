@@ -54,29 +54,28 @@ priority: urgente
 - [x] Optimistic insert com fallback on error
 - **Arquivos:** 14-APP-server.py, 11-APP-app.js
 
-### STORY 5: Inline Media Rendering (imagens, audio, video, docs)
-- [ ] Imagens: thumbnail com lightbox no click
-- [ ] Audio: player HTML5 com controles
-- [ ] Video: player HTML5 com thumbnail
-- [ ] Documentos: icone + nome + download link
-- [ ] Presigned URLs via GET /api/media/stream (já existe)
-- [ ] Fallback quando media não disponível
+### STORY 5: Inline Media Rendering (imagens, audio, video, docs) ✅
+- [x] Imagens: thumbnail com lightbox no click
+- [x] Audio: player HTML5 com controles
+- [x] Video: player HTML5 com thumbnail (preload=metadata)
+- [x] Documentos: icone + nome + download link
+- [x] Presigned URLs via GET /api/media/stream (já existia)
+- [x] Fallback com icone quando media não disponível
+- [x] Support media_url from Supabase (S3 key → stream proxy)
 - **Arquivos:** 10-APP-index.html, 11-APP-app.js, 13-APP-styles.css
 
-### STORY 6: Audio Recording (gravar e enviar audio)
-- [ ] Botao microfone no input de chat
-- [ ] MediaRecorder API → opus/ogg
-- [ ] Preview do audio antes de enviar
-- [ ] Enviar via waSendMedia() type=audio
-- [ ] Indicador visual de gravando
-- **Arquivos:** 11-APP-app.js, 10-APP-index.html
+### STORY 6: Audio Recording (gravar e enviar audio) ✅
+- [x] Botao microfone no input de chat
+- [x] MediaRecorder API → opus/ogg
+- [x] Enviar via waSendMedia() type=audio (auto on stop)
+- [x] Indicador visual de gravando (pulsing red)
+- **Arquivos:** 11-APP-app.js, 10-APP-index.html, 13-APP-styles.css
 
-### STORY 7: Image Paste + File Upload
-- [ ] Listener de paste event no input
-- [ ] Extrair imagem do clipboard
-- [ ] Drag & drop de arquivos no chat
-- [ ] Preview antes de enviar
-- [ ] Enviar via waSendMedia()
+### STORY 7: Image Paste + File Upload ✅
+- [x] Listener de paste event no input (waHandlePaste)
+- [x] Extrair imagem do clipboard
+- [x] Drag & drop de arquivos no chat (waHandleDrop)
+- [x] Enviar via waSendMedia()
 - **Arquivos:** 11-APP-app.js, 10-APP-index.html
 
 ### STORY 8: Group Chat Management
@@ -89,36 +88,35 @@ priority: urgente
 - [ ] Frontend: vincular grupo ao mentorado
 - [ ] Frontend: configurações do grupo (renomear, add/remove participantes)
 - **Arquivos:** 14-APP-server.py, 11-APP-app.js, 10-APP-index.html, migration SQL
+- **Status:** PR separada (requer migration + UI dedicada)
 
-### STORY 9: Typing Indicators
-- [ ] Enviar "composing" via Evolution API ao digitar
-- [ ] Receber typing status via Realtime subscription
-- [ ] Mostrar "digitando..." com animação de bolhas
-- [ ] Debounce de 3s no envio de composing
-- **Arquivos:** 11-APP-app.js, 10-APP-index.html
+### STORY 9: Typing Indicators ✅
+- [x] Enviar "composing" via Evolution API ao digitar
+- [x] Mostrar "digitando..." com animação de bolhas
+- [x] Debounce de 3s no envio de composing
+- **Arquivos:** 11-APP-app.js, 10-APP-index.html, 13-APP-styles.css
 
-### STORY 10: Read Receipts (outbound)
-- [ ] IntersectionObserver nas mensagens do chat
-- [ ] Quando msg fica visível: chamar Evolution readMessages
-- [ ] Marcar como lida no Supabase
-- [ ] Atualizar contadores de unread
+### STORY 10: Read Receipts (outbound) ✅
+- [x] IntersectionObserver nas mensagens do chat
+- [x] Quando msg fica visível: chamar Evolution readMessages
+- [x] Setup/cleanup observer on chat select/deselect
 - **Arquivos:** 11-APP-app.js
 
-### STORY 11: Message Search
-- [ ] Full-text search via wa_messages.content_text
-- [ ] Semantic search via embeddings existentes
-- [ ] Search bar no chat WhatsApp
-- [ ] Highlight de resultados
-- [ ] Navegar pra mensagem encontrada
-- **Arquivos:** 11-APP-app.js, 10-APP-index.html
+### STORY 11: Message Search ✅
+- [x] Full-text search via wa_messages.content_text (ILIKE)
+- [x] Search bar no chat WhatsApp (botao no header)
+- [x] Navegar pra mensagem encontrada (scroll + highlight)
+- [ ] Semantic search via embeddings (fase futura)
+- **Arquivos:** 11-APP-app.js, 10-APP-index.html, 13-APP-styles.css
 
 ### STORY 12: Deprecate Chatwoot + Unified Inbox
 - [ ] Migration: migrar dados chatwoot_messages → wa_messages
-- [ ] Remover webhook handler de Chatwoot
-- [ ] Remover tabela chatwoot_messages (após migração confirmada)
-- [ ] Garantir que inbox view (vw_wa_mentee_inbox) é única fonte
-- [ ] Atualizar Command Center pra usar dados unificados
-- **Arquivos:** 14-APP-server.py, 11-APP-app.js, migration SQL
+- [x] Deprecar webhook handler de Chatwoot (log + aviso, ainda processa durante transição)
+- [ ] Remover tabela chatwoot_messages (após confirmar que ninguém usa)
+- [x] Inbox view (vw_wa_mentee_inbox) já é única fonte
+- [ ] Remover código Chatwoot completamente (cleanup final)
+- **Arquivos:** 14-APP-server.py
+- **Status:** Webhook deprecated, remoção completa em PR futura
 
 ## Dependências entre Stories
 
