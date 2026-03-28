@@ -2988,6 +2988,21 @@ img { max-width: 100%; display: block; }
 .task-meta-grid > div:nth-last-child(2) { border-bottom-left-radius: var(--r-lg); }
 .task-meta-grid > div:last-child { border-bottom-right-radius: var(--r-lg); }
 
+/* Task detail select dropdowns — clean native selects */
+.task-meta-select {
+  border: none; background: none; font-family: var(--font); font-size: var(--text-sm);
+  color: var(--neutral-700); cursor: pointer; padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--r-full); outline: none; font-weight: var(--fw-semibold);
+  appearance: auto; transition: background .15s;
+}
+.task-meta-select:hover { background: var(--neutral-100); }
+.task-meta-select:focus { background: var(--cream-100); }
+.task-meta-select--status { color: #fff; }
+.task-meta-select--pendente { background: var(--neutral-400); }
+.task-meta-select--em_andamento { background: var(--info); }
+.task-meta-select--concluida { background: var(--success); }
+.task-meta-select--prio { font-weight: var(--fw-medium); }
+
 /* Task detail date inputs — override native browser styling */
 .task-meta-date {
   border: none; background: none; font-family: var(--font); font-size: var(--text-sm);

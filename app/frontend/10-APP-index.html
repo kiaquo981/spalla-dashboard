@@ -3124,37 +3124,27 @@
                         <div style="padding:var(--sp-3) var(--sp-4);background:var(--cream-50);color:var(--neutral-500);font-weight:var(--fw-medium);border-bottom:1px solid var(--neutral-200);display:flex;align-items:center;gap:var(--sp-2)">
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg> Status
                         </div>
-                        <div style="padding:var(--sp-2) var(--sp-4);border-bottom:1px solid var(--neutral-200);display:flex;align-items:center;position:relative" x-data="{ open: false }">
-                          <button @click="open = !open" style="display:flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;border:none;cursor:pointer;font-size:12px;font-weight:600;transition:opacity .15s"
-                                  :style="activeTaskDetail.status === 'concluida' ? 'color:#fff;background:#22c55e' : activeTaskDetail.status === 'em_andamento' ? 'color:#fff;background:#3b82f6' : 'color:#fff;background:#94a3b8'">
-                            <span x-text="taskStatusLabel(activeTaskDetail.status)"></span>
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-                          </button>
-                          <div x-show="open" @click.away="open = false" style="position:absolute;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:300;min-width:160px;padding:4px">
-                            <template x-for="s in [{v:'pendente',l:'A Fazer',c:'#94a3b8'},{v:'em_andamento',l:'Em Progresso',c:'#3b82f6'},{v:'concluida',l:'Concluido',c:'#22c55e'}]" :key="s.v">
-                              <button @click="moveTask(activeTaskDetail.id, s.v); open = false" style="display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;border:none;background:none;cursor:pointer;border-radius:6px;font-size:12px;color:#1e293b;text-align:left;transition:background .1s" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'" :style="activeTaskDetail.status === s.v ? 'background:#f1f5f9;font-weight:600' : ''">
-                                <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0" :style="'background:' + s.c"></span>
-                                <span x-text="s.l"></span>
-                              </button>
-                            </template>
-                          </div>
+                        <div style="padding:var(--sp-2) var(--sp-4);border-bottom:1px solid var(--neutral-200);display:flex;align-items:center">
+                          <select class="task-meta-select task-meta-select--status"
+                                  :class="'task-meta-select--' + activeTaskDetail.status"
+                                  @change="moveTask(activeTaskDetail.id, $event.target.value)">
+                            <option value="pendente" :selected="activeTaskDetail.status === 'pendente'">A Fazer</option>
+                            <option value="em_andamento" :selected="activeTaskDetail.status === 'em_andamento'">Em Progresso</option>
+                            <option value="concluida" :selected="activeTaskDetail.status === 'concluida'">Concluido</option>
+                          </select>
                         </div>
                         <div style="padding:var(--sp-3) var(--sp-4);background:var(--cream-50);color:var(--neutral-500);font-weight:var(--fw-medium);border-bottom:1px solid var(--neutral-200);display:flex;align-items:center;gap:var(--sp-2)">
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Responsável
                         </div>
-                        <div style="padding:var(--sp-2) var(--sp-4);border-bottom:1px solid var(--neutral-200);display:flex;align-items:center;position:relative" x-data="{ open: false }">
-                          <button @click="open = !open" style="display:flex;align-items:center;gap:6px;padding:3px 8px;border-radius:6px;border:1px solid transparent;background:none;cursor:pointer;font-size:13px;color:#1e293b;transition:border-color .15s" @mouseover="$el.style.borderColor='#e2e8f0'" @mouseout="$el.style.borderColor='transparent'">
-                            <span class="avatar avatar--sm" :style="'background:' + avatarGradient(activeTaskDetail.responsavel)" x-text="avatarInitials(activeTaskDetail.responsavel || '?')" style="width:24px;height:24px;font-size:9px"></span>
-                            <span x-text="activeTaskDetail.responsavel || 'Sem responsavel'"></span>
-                          </button>
-                          <div x-show="open" @click.away="open = false" style="position:absolute;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:300;min-width:180px;padding:4px;max-height:240px;overflow-y:auto">
-                            <template x-for="m in (data.members || []).concat([{nome_curto:'Nenhum',id:'_none'}])" :key="m.id">
-                              <button @click="let name = m.id === '_none' ? null : (m.nome_curto || m.nome_completo || m.name); activeTaskDetail.responsavel = name; activeTaskDetail.updated_at = new Date().toISOString(); _cacheTasksLocal(); if(typeof sb !== 'undefined' && sb) sb.from('god_tasks').update({responsavel: name}).eq('id', activeTaskDetail.id); open = false" style="display:flex;align-items:center;gap:8px;width:100%;padding:6px 10px;border:none;background:none;cursor:pointer;border-radius:6px;font-size:12px;color:#1e293b;text-align:left;transition:background .1s" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'">
-                                <span class="avatar avatar--sm" :style="'background:' + avatarGradient(m.nome_curto || m.name)" x-text="avatarInitials(m.nome_curto || m.name || '?')" style="width:20px;height:20px;font-size:8px"></span>
-                                <span x-text="m.nome_curto || m.nome_completo || m.name || 'Nenhum'"></span>
-                              </button>
+                        <div style="padding:var(--sp-2) var(--sp-4);border-bottom:1px solid var(--neutral-200);display:flex;align-items:center;gap:var(--sp-2)">
+                          <span class="avatar avatar--sm" :style="'background:' + avatarGradient(activeTaskDetail.responsavel)" x-text="avatarInitials(activeTaskDetail.responsavel || '?')" style="width:24px;height:24px;font-size:9px"></span>
+                          <select class="task-meta-select"
+                                  @change="let name = $event.target.value || null; activeTaskDetail.responsavel = name; activeTaskDetail.updated_at = new Date().toISOString(); _cacheTasksLocal(); if(typeof sb !== 'undefined' && sb) sb.from('god_tasks').update({responsavel: name}).eq('id', activeTaskDetail.id)">
+                            <option value="" :selected="!activeTaskDetail.responsavel">Sem responsável</option>
+                            <template x-for="m in (data.members || [])" :key="m.id">
+                              <option :value="m.nome_curto || m.nome_completo || m.name" :selected="activeTaskDetail.responsavel === (m.nome_curto || m.nome_completo || m.name)" x-text="m.nome_curto || m.nome_completo || m.name"></option>
                             </template>
-                          </div>
+                          </select>
                         </div>
                         <!-- Row 2: Datas | Prioridade -->
                         <div style="padding:var(--sp-3) var(--sp-4);background:var(--cream-50);color:var(--neutral-500);font-weight:var(--fw-medium);border-bottom:1px solid var(--neutral-200);display:flex;align-items:center;gap:var(--sp-2)">
@@ -3168,18 +3158,14 @@
                         <div style="padding:var(--sp-3) var(--sp-4);background:var(--cream-50);color:var(--neutral-500);font-weight:var(--fw-medium);border-bottom:1px solid var(--neutral-200);display:flex;align-items:center;gap:var(--sp-2)">
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Prioridade
                         </div>
-                        <div style="padding:var(--sp-2) var(--sp-4);border-bottom:1px solid var(--neutral-200);display:flex;align-items:center;position:relative" x-data="{ open: false }">
-                          <button @click="open = !open" class="badge" :class="'badge--' + prioClass(activeTaskDetail.prioridade)" style="cursor:pointer;display:flex;align-items:center;gap:4px;border:none;font-size:12px">
-                            <span x-text="prioLabel(activeTaskDetail.prioridade)"></span>
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-                          </button>
-                          <div x-show="open" @click.away="open = false" style="position:absolute;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:300;min-width:140px;padding:4px">
-                            <template x-for="p in [{v:'urgente',l:'Urgente'},{v:'alta',l:'Alta'},{v:'normal',l:'Normal'},{v:'baixa',l:'Baixa'}]" :key="p.v">
-                              <button @click="activeTaskDetail.prioridade = p.v; activeTaskDetail.updated_at = new Date().toISOString(); _cacheTasksLocal(); if(typeof sb !== 'undefined' && sb) sb.from('god_tasks').update({prioridade: p.v}).eq('id', activeTaskDetail.id); open = false" style="display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;border:none;background:none;cursor:pointer;border-radius:6px;font-size:12px;color:#1e293b;text-align:left;transition:background .1s" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'" :style="activeTaskDetail.prioridade === p.v ? 'font-weight:600;background:#f1f5f9' : ''">
-                                <span class="badge badge--sm" :class="'badge--' + prioClass(p.v)" x-text="p.l" style="pointer-events:none"></span>
-                              </button>
-                            </template>
-                          </div>
+                        <div style="padding:var(--sp-2) var(--sp-4);border-bottom:1px solid var(--neutral-200);display:flex;align-items:center">
+                          <select class="task-meta-select task-meta-select--prio"
+                                  @change="activeTaskDetail.prioridade = $event.target.value; activeTaskDetail.updated_at = new Date().toISOString(); _cacheTasksLocal(); if(typeof sb !== 'undefined' && sb) sb.from('god_tasks').update({prioridade: $event.target.value}).eq('id', activeTaskDetail.id)">
+                            <option value="urgente" :selected="activeTaskDetail.prioridade === 'urgente'">Urgente</option>
+                            <option value="alta" :selected="activeTaskDetail.prioridade === 'alta'">Alta</option>
+                            <option value="normal" :selected="activeTaskDetail.prioridade === 'normal'">Normal</option>
+                            <option value="baixa" :selected="activeTaskDetail.prioridade === 'baixa'">Baixa</option>
+                          </select>
                         </div>
                         <!-- Row 3: Etiquetas -->
                         <div style="padding:10px 14px;background:#fafaf8;color:#64748b;font-weight:500;display:flex;align-items:center;gap:6px">
