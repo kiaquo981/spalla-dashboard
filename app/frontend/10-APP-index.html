@@ -711,9 +711,9 @@
                 <div>
                   <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#c0392b;margin-bottom:6px">Prazos Criticos</div>
                   <div x-show="!dsNewsCriticos().length" style="font-size:11px;color:var(--text-secondary);padding:4px 0">Nenhum prazo critico ✅</div>
-                  <div style="display:flex;flex-direction:column;gap:3px">
+                  <div style="display:flex;flex-direction:column;gap:3px;padding-left:1px">
                     <template x-for="(d, i) in dsNewsCriticos().slice(0,5)" :key="'crit'+i">
-                      <div style="padding:5px 8px;border-radius:6px;cursor:pointer;border-left:3px solid;font-size:11px" :style="'border-color:' + (d.diff < 0 ? '#c0392b' : '#d68910') + ';background:' + (d.diff < 0 ? '#fdf0ef' : '#fef9e7')" @click="openDsDetail(d.producao_id)">
+                      <div style="padding:5px 8px;border-radius:6px;cursor:pointer;border-left:4px solid;font-size:11px" :style="'border-color:' + (d.diff < 0 ? '#c0392b' : '#d68910') + ';background:' + (d.diff < 0 ? '#fdf0ef' : '#fef9e7')" @click="openDsDetail(d.producao_id)">
                         <div style="display:flex;justify-content:space-between;align-items:center">
                           <strong x-text="d.mentorado_nome"></strong>
                           <span class="ds-deadline-badge ds-deadline-badge--sm" :class="d.diff < 0 ? 'ds-deadline--overdue' : 'ds-deadline--soon'" x-text="d.diff < 0 ? Math.abs(d.diff) + 'd atrasado' : d.diff === 0 ? 'HOJE' : d.diff + 'd'"></span>
