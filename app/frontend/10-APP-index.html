@@ -2767,7 +2767,7 @@
                 </select>
                 <select class="op-toolbar__select" x-model="ui.taskGroupBy" style="width:auto;min-width:120px">
                   <option value="status">Agrupar: Status</option>
-                  <option value="assignee">Agrupar: Responsavel</option>
+                  <option value="assignee">Agrupar: Responsável</option>
                   <option value="priority">Agrupar: Prioridade</option>
                   <option value="list">Agrupar: Lista</option>
                 </select>
@@ -3120,17 +3120,17 @@
 
                       <!-- ===== METADATA GRID (ClickUp style — label : value rows) ===== -->
                       <div style="display:grid;grid-template-columns:140px 1fr 140px 1fr;gap:0;margin-bottom:28px;border:1px solid var(--neutral-100,#f1f5f9);border-radius:10px;overflow:hidden;font-size:13px">
-                        <!-- Row 1: Status | Responsavel -->
+                        <!-- Row 1: Status | Responsável -->
                         <div style="padding:10px 14px;background:#fafaf8;color:#64748b;font-weight:500;border-bottom:1px solid var(--neutral-100,#f1f5f9);display:flex;align-items:center;gap:6px">
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg> Status
                         </div>
-                        <div style="padding:8px 14px;border-bottom:1px solid var(--neutral-100,#f1f5f9);display:flex;align-items:center" x-data="{ open: false }">
+                        <div style="padding:8px 14px;border-bottom:1px solid var(--neutral-100,#f1f5f9);display:flex;align-items:center;position:relative" x-data="{ open: false }">
                           <button @click="open = !open" style="display:flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;border:none;cursor:pointer;font-size:12px;font-weight:600;transition:opacity .15s"
                                   :style="activeTaskDetail.status === 'concluida' ? 'color:#fff;background:#22c55e' : activeTaskDetail.status === 'em_andamento' ? 'color:#fff;background:#3b82f6' : 'color:#fff;background:#94a3b8'">
                             <span x-text="taskStatusLabel(activeTaskDetail.status)"></span>
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
                           </button>
-                          <div x-show="open" @click.away="open = false" style="position:absolute;margin-top:80px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:300;min-width:160px;padding:4px">
+                          <div x-show="open" @click.away="open = false" style="position:absolute;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:300;min-width:160px;padding:4px">
                             <template x-for="s in [{v:'pendente',l:'A Fazer',c:'#94a3b8'},{v:'em_andamento',l:'Em Progresso',c:'#3b82f6'},{v:'concluida',l:'Concluido',c:'#22c55e'}]" :key="s.v">
                               <button @click="moveTask(activeTaskDetail.id, s.v); open = false" style="display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;border:none;background:none;cursor:pointer;border-radius:6px;font-size:12px;color:#1e293b;text-align:left;transition:background .1s" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'" :style="activeTaskDetail.status === s.v ? 'background:#f1f5f9;font-weight:600' : ''">
                                 <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0" :style="'background:' + s.c"></span>
@@ -3140,14 +3140,14 @@
                           </div>
                         </div>
                         <div style="padding:10px 14px;background:#fafaf8;color:#64748b;font-weight:500;border-bottom:1px solid var(--neutral-100,#f1f5f9);display:flex;align-items:center;gap:6px">
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Responsavel
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Responsável
                         </div>
-                        <div style="padding:8px 14px;border-bottom:1px solid var(--neutral-100,#f1f5f9);display:flex;align-items:center" x-data="{ open: false }">
+                        <div style="padding:8px 14px;border-bottom:1px solid var(--neutral-100,#f1f5f9);display:flex;align-items:center;position:relative" x-data="{ open: false }">
                           <button @click="open = !open" style="display:flex;align-items:center;gap:6px;padding:3px 8px;border-radius:6px;border:1px solid transparent;background:none;cursor:pointer;font-size:13px;color:#1e293b;transition:border-color .15s" @mouseover="$el.style.borderColor='#e2e8f0'" @mouseout="$el.style.borderColor='transparent'">
                             <span class="avatar avatar--sm" :style="'background:' + avatarGradient(activeTaskDetail.responsavel)" x-text="avatarInitials(activeTaskDetail.responsavel || '?')" style="width:24px;height:24px;font-size:9px"></span>
                             <span x-text="activeTaskDetail.responsavel || 'Sem responsavel'"></span>
                           </button>
-                          <div x-show="open" @click.away="open = false" style="position:absolute;margin-top:80px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:300;min-width:180px;padding:4px;max-height:240px;overflow-y:auto">
+                          <div x-show="open" @click.away="open = false" style="position:absolute;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:300;min-width:180px;padding:4px;max-height:240px;overflow-y:auto">
                             <template x-for="m in (data.members || []).concat([{nome_curto:'Nenhum',id:'_none'}])" :key="m.id">
                               <button @click="let name = m.id === '_none' ? null : (m.nome_curto || m.nome_completo || m.name); activeTaskDetail.responsavel = name; activeTaskDetail.updated_at = new Date().toISOString(); _cacheTasksLocal(); if(typeof sb !== 'undefined' && sb) sb.from('god_tasks').update({responsavel: name}).eq('id', activeTaskDetail.id); open = false" style="display:flex;align-items:center;gap:8px;width:100%;padding:6px 10px;border:none;background:none;cursor:pointer;border-radius:6px;font-size:12px;color:#1e293b;text-align:left;transition:background .1s" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'">
                                 <span class="avatar avatar--sm" :style="'background:' + avatarGradient(m.nome_curto || m.name)" x-text="avatarInitials(m.nome_curto || m.name || '?')" style="width:20px;height:20px;font-size:8px"></span>
@@ -3168,12 +3168,12 @@
                         <div style="padding:10px 14px;background:#fafaf8;color:#64748b;font-weight:500;border-bottom:1px solid var(--neutral-100,#f1f5f9);display:flex;align-items:center;gap:6px">
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Prioridade
                         </div>
-                        <div style="padding:8px 14px;border-bottom:1px solid var(--neutral-100,#f1f5f9);display:flex;align-items:center" x-data="{ open: false }">
+                        <div style="padding:8px 14px;border-bottom:1px solid var(--neutral-100,#f1f5f9);display:flex;align-items:center;position:relative" x-data="{ open: false }">
                           <button @click="open = !open" class="badge" :class="'badge--' + prioClass(activeTaskDetail.prioridade)" style="cursor:pointer;display:flex;align-items:center;gap:4px;border:none;font-size:12px">
                             <span x-text="prioLabel(activeTaskDetail.prioridade)"></span>
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
                           </button>
-                          <div x-show="open" @click.away="open = false" style="position:absolute;margin-top:80px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:300;min-width:140px;padding:4px">
+                          <div x-show="open" @click.away="open = false" style="position:absolute;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:300;min-width:140px;padding:4px">
                             <template x-for="p in [{v:'urgente',l:'Urgente'},{v:'alta',l:'Alta'},{v:'normal',l:'Normal'},{v:'baixa',l:'Baixa'}]" :key="p.v">
                               <button @click="activeTaskDetail.prioridade = p.v; activeTaskDetail.updated_at = new Date().toISOString(); _cacheTasksLocal(); if(typeof sb !== 'undefined' && sb) sb.from('god_tasks').update({prioridade: p.v}).eq('id', activeTaskDetail.id); open = false" style="display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;border:none;background:none;cursor:pointer;border-radius:6px;font-size:12px;color:#1e293b;text-align:left;transition:background .1s" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'" :style="activeTaskDetail.prioridade === p.v ? 'font-weight:600;background:#f1f5f9' : ''">
                                 <span class="badge badge--sm" :class="'badge--' + prioClass(p.v)" x-text="p.l" style="pointer-events:none"></span>
@@ -4695,7 +4695,7 @@
                           <template x-if="doc.link_doc">
                             <a :href="doc.link_doc" target="_blank" class="btn btn--sm btn--brand" rel="noopener">Abrir Doc</a>
                           </template>
-                          <span>Responsavel: <strong x-text="doc.responsavel_atual || '-'"></strong></span>
+                          <span>Responsável: <strong x-text="doc.responsavel_atual || '-'"></strong></span>
                           <span class="ds-aging" :class="dsAgingClass(Math.floor((Date.now() - new Date(doc.estagio_desde).getTime()) / 86400000))" x-text="Math.floor((Date.now() - new Date(doc.estagio_desde).getTime()) / 86400000) + 'd no estagio'"></span>
                         </div>
 
@@ -4784,7 +4784,7 @@
                         </template>
                       </select>
                       <select class="ds-input" x-model="dsAjusteForm.responsavel" style="min-width:140px;">
-                        <option value="">Responsavel?</option>
+                        <option value="">Responsável?</option>
                         <option value="Queila">Queila</option>
                         <option value="Mariza">Mariza</option>
                         <option value="Kaique">Kaique</option>
@@ -8648,7 +8648,7 @@
                  })"
                  style="min-height:150px;border:1px solid var(--op-border);border-radius:8px;overflow:hidden;background:var(--op-bg-1)"></div>
 
-            <!-- Mentorado + Responsavel -->
+            <!-- Mentorado + Responsável -->
             <div class="modal__row">
               <div><label>Mentorado</label>
                 <select x-model="taskForm.mentorado_nome" class="modal__select">
@@ -8658,7 +8658,7 @@
                   </template>
                 </select>
               </div>
-              <div><label>Responsavel</label>
+              <div><label>Responsável</label>
                 <select x-model="taskForm.responsavel" class="modal__input">
                   <option value="">-- Selecione --</option>
                   <option value="Mentorado">Mentorado</option>
