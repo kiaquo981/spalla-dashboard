@@ -1799,9 +1799,15 @@
                       <div class="detail-task-card__check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
                       <div class="detail-task-card__body">
                         <div class="detail-task-card__title"><span x-text="t.titulo"></span><span class="task-auto-badge" x-show="t.auto_gerada">Auto</span></div>
+                        <div class="detail-task-card__desc" x-show="t.descricao" x-text="(t.descricao || '').substring(0, 120) + ((t.descricao || '').length > 120 ? '...' : '')"></div>
                         <div class="detail-task-card__meta">
                           <span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span>
-                          <span x-show="t.data_fim || t.prazo" class="detail-task-card__due" :class="{ 'detail-task-card__due--overdue': isOverdue(t.data_fim || t.prazo) }" x-text="formatDate(t.data_fim || t.prazo)"></span>
+                          <span class="badge badge--sm badge--neutral" x-text="t.status === 'concluida' ? 'Concluída' : t.status === 'em_andamento' ? 'Em andamento' : 'Pendente'"></span>
+                          <span x-show="t.data_fim || t.prazo" class="detail-task-card__due" :class="{ 'detail-task-card__due--overdue': isOverdue(t.data_fim || t.prazo) }">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                            <span x-text="formatDate(t.data_fim || t.prazo)"></span>
+                          </span>
+                          <span x-show="t.created_at" class="detail-task-card__created">Criada <span x-text="formatDate(t.created_at)"></span></span>
                           <span x-show="t.tags?.length" class="detail-task-card__tags"><template x-for="tag in t.tags || []"><span class="badge badge--sm badge--neutral" x-text="tag" style="margin-right:2px"></span></template></span>
                         </div>
                         <div class="detail-task-card__subtasks" x-show="subtaskProgress(t).total > 0 || t.is_blocked" style="display:flex;align-items:center;gap:6px">
@@ -1838,10 +1844,16 @@
                       <div class="detail-task-card__check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
                       <div class="detail-task-card__body">
                         <div class="detail-task-card__title"><span x-text="t.titulo"></span><span class="task-auto-badge" x-show="t.auto_gerada">Auto</span></div>
+                        <div class="detail-task-card__desc" x-show="t.descricao" x-text="(t.descricao || '').substring(0, 120) + ((t.descricao || '').length > 120 ? '...' : '')"></div>
                         <div class="detail-task-card__meta">
                           <span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span>
                           <span class="badge badge--sm badge--neutral" x-text="t.responsavel"></span>
-                          <span x-show="t.data_fim || t.prazo" class="detail-task-card__due" :class="{ 'detail-task-card__due--overdue': isOverdue(t.data_fim || t.prazo) }" x-text="formatDate(t.data_fim || t.prazo)"></span>
+                          <span class="badge badge--sm badge--neutral" x-text="t.status === 'concluida' ? 'Concluída' : t.status === 'em_andamento' ? 'Em andamento' : 'Pendente'"></span>
+                          <span x-show="t.data_fim || t.prazo" class="detail-task-card__due" :class="{ 'detail-task-card__due--overdue': isOverdue(t.data_fim || t.prazo) }">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                            <span x-text="formatDate(t.data_fim || t.prazo)"></span>
+                          </span>
+                          <span x-show="t.created_at" class="detail-task-card__created">Criada <span x-text="formatDate(t.created_at)"></span></span>
                         </div>
                         <div x-show="t.handoffs?.length" class="detail-task-card__handoff">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/></svg>
@@ -1883,9 +1895,15 @@
                       <div class="detail-task-card__check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
                       <div class="detail-task-card__body">
                         <div class="detail-task-card__title"><span x-text="t.titulo"></span><span class="task-auto-badge" x-show="t.auto_gerada">Auto</span></div>
+                        <div class="detail-task-card__desc" x-show="t.descricao" x-text="(t.descricao || '').substring(0, 120) + ((t.descricao || '').length > 120 ? '...' : '')"></div>
                         <div class="detail-task-card__meta">
                           <span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span>
-                          <span x-show="t.data_fim || t.prazo" class="detail-task-card__due" :class="{ 'detail-task-card__due--overdue': isOverdue(t.data_fim || t.prazo) }" x-text="formatDate(t.data_fim || t.prazo)"></span>
+                          <span class="badge badge--sm badge--neutral" x-text="t.status === 'concluida' ? 'Concluída' : t.status === 'em_andamento' ? 'Em andamento' : 'Pendente'"></span>
+                          <span x-show="t.data_fim || t.prazo" class="detail-task-card__due" :class="{ 'detail-task-card__due--overdue': isOverdue(t.data_fim || t.prazo) }">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                            <span x-text="formatDate(t.data_fim || t.prazo)"></span>
+                          </span>
+                          <span x-show="t.created_at" class="detail-task-card__created">Criada <span x-text="formatDate(t.created_at)"></span></span>
                         </div>
                         <div x-show="t.comments?.length" style="margin-top:4px">
                           <span style="font-size:11px;color:#64748b"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> <span x-text="t.comments.length"></span> comentarios</span>
@@ -2789,8 +2807,8 @@
               <div class="task-board" x-show="ui.taskView === 'board'">
                 <template x-for="col in boardColumns" :key="col.key">
                   <div class="task-board__column">
-                    <div class="task-board__column-header" :class="col.cssClass || ''" :style="col.color ? 'background:' + col.color + '18; border-top:3px solid ' + col.color : ''">
-                      <span class="task-status-dot" :class="col.cssClass ? 'task-status-dot--' + col.key : ''" :style="col.color ? 'background:' + col.color : ''"></span>
+                    <div class="task-board__column-header" :class="col.cssClass || ''" :style="col.color ? 'background:' + col.color + '; border-top:3px solid ' + col.color : ''">
+                      <span class="task-status-dot" :class="col.cssClass ? 'task-status-dot--' + col.key : ''" :style="col.color ? 'background:#fff' : ''"></span>
                       <span x-text="col.label"></span>
                       <span class="task-board__column-count" x-text="tasksByStatus[col.key]?.length || 0"></span>
                     </div>
@@ -4603,7 +4621,11 @@
                 <div class="ds-detail__header">
                   <button class="btn btn--sm" @click="closeDsDetail()" aria-label="Voltar para lista">← Voltar</button>
                   <h2 class="ds-detail__title" x-text="data.dsProducoes.find(p => p.producao_id === ui.dsDetailProducaoId)?.mentorado_nome || 'Detalhe'"></h2>
-                  <span class="ds-status-badge" :style="'background:' + dsStatusConfig(data.dsMenteeDetail.status).color + '20; color:' + dsStatusConfig(data.dsMenteeDetail.status).color" x-text="dsStatusConfig(data.dsMenteeDetail.status).label"></span>
+                  <select class="ds-status-select" :style="'background:' + dsStatusConfig(data.dsMenteeDetail.status).color + '15; color:' + dsStatusConfig(data.dsMenteeDetail.status).color + '; border-color:' + dsStatusConfig(data.dsMenteeDetail.status).color + '40'" @change="updateDsStatus(ui.dsDetailProducaoId, $event.target.value)">
+                    <template x-for="s in dsAllStatuses()" :key="s.id">
+                      <option :value="s.id" :selected="s.id === data.dsMenteeDetail.status" x-text="s.label"></option>
+                    </template>
+                  </select>
                   <!-- EPIC 6: Gerar Dossiê com IA -->
                   <div style="margin-left:auto;display:flex;gap:4px">
                     <select x-model="ui.dossieGenType" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:4px">
@@ -4727,6 +4749,11 @@
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                             Google Docs ↗
                           </a>
+                          <button x-show="!doc.link_doc" class="btn btn--sm" style="border:1px dashed #4285f4;color:#4285f4;display:flex;align-items:center;gap:4px;font-size:11px"
+                            @click="let url = prompt('Cole o link do Google Docs:'); if(url && url.startsWith('https://')) { updateDocLink(doc.id, url); doc.link_doc = url; }">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                            Vincular Google Doc
+                          </button>
                           <button class="btn btn--sm btn--success" @click="advanceDocStage(doc.id)" :disabled="!dsCanAdvance(doc)" x-show="doc.estagio_atual !== 'finalizado'" aria-label="Avancar estagio">Avançar</button>
                           <button class="btn btn--sm" @click="dsPromptRegress(doc.id)" x-show="dsEstagioNum(doc.estagio_atual) > 1" aria-label="Voltar estagio">Voltar</button>
                         </div>

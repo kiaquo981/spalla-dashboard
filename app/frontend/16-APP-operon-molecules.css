@@ -162,7 +162,9 @@
 /* ===== TAB BAR (Molecule) ===== */
 .op-tabs {
   display: flex; gap: 0; border-bottom: 1px solid var(--neutral-200);
+  overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none;
 }
+.op-tabs::-webkit-scrollbar { display: none; }
 .op-tab {
   padding: var(--sp-3) var(--sp-5); font-size: var(--text-sm);
   font-weight: var(--fw-medium); color: var(--text-secondary);

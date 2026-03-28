@@ -244,7 +244,7 @@
 .op-tab.active .op-tab__count { background: var(--brand-100); color: var(--brand-700); }
 
 /* Tab content + header (detail page specific) */
-.op-tab-content { animation: op-fade-in 0.2s ease; }
+.op-tab-content { animation: op-fade-in 0.2s ease; padding: var(--sp-5); }
 .op-tab-header {
   display: flex; align-items: center; gap: var(--sp-2_5);
   margin-bottom: var(--sp-4);

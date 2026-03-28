@@ -5588,8 +5588,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.ui.taskDetailDrawer = taskId;
       this.ui.taskActivity = [];
       this._loadTaskActivity(taskId);
-      // Update URL for shareable link (without page reload)
-      if (taskId && window.history.replaceState) {
+      // Update URL for shareable link (without page reload) — only on tasks page
+      if (taskId && window.history.replaceState && this.ui.page === 'tasks') {
         window.history.replaceState(null, '', `/tasks?task=${taskId}`);
       }
     },
@@ -5626,8 +5626,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     closeTaskDetail() {
       this.ui.taskDetailDrawer = null;
-      // Reset URL (remove ?task= param)
-      if (window.history.replaceState) {
+      // Reset URL (remove ?task= param) — only on tasks page
+      if (window.history.replaceState && this.ui.page === 'tasks') {
         window.history.replaceState(null, '', '/tasks');
       }
     },
@@ -8818,6 +8818,10 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       return DS_STATUS_PRODUCAO.find(s => s.id === status) || DS_STATUS_PRODUCAO[0];
     },
 
+    dsAllStatuses() {
+      return DS_STATUS_PRODUCAO;
+    },
+
     dsEstagioNum(estagio) {
       const idx = DS_ESTAGIOS.findIndex(e => e.id === estagio);
       return idx >= 0 ? idx + 1 : 0;
@@ -9126,6 +9130,18 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (motivo === null) return; // cancelled
       if (!motivo.trim()) { this.toast('Informe o motivo para voltar o estagio', 'warning'); return; }
       this.regressDocStage(docId, motivo.trim());
+    },
+
+    async updateDsStatus(producaoId, newStatus) {
+      if (!sb || !newStatus) return;
+      const oldStatus = this.data.dsMenteeDetail?.status;
+      const { error } = await sb.from('ds_producoes').update({ status: newStatus }).eq('id', producaoId);
+      if (error) { this.toast('Erro ao atualizar status: ' + error.message, 'error'); return; }
+      const user = this.currentUserName;
+      await this._logDsEvento(producaoId, null, 'status_change', oldStatus, newStatus, user, `Status: ${oldStatus} → ${newStatus}`);
+      await this.loadDsData();
+      if (this.data.dsMenteeDetail) this.data.dsMenteeDetail.status = newStatus;
+      this.toast('Status atualizado', 'success');
     },
 
     async saveDsNotas(producaoId, notas) {
