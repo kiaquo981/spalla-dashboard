@@ -5001,6 +5001,12 @@
                 <option value="Lara">Lara</option>
                 <option value="Heitor">Heitor</option>
               </select>
+              <select class="op-toolbar__select" x-model="ui.dsTipoDoc" aria-label="Filtrar por tipo de dossiê">
+                <option value="all">Todos os tipos</option>
+                <option value="oferta">Oferta e Produto</option>
+                <option value="conteudo">Posicionamento</option>
+                <option value="funil">Funil de Vendas</option>
+              </select>
               <span class="op-toolbar__count" x-text="filteredDsProducoes.length + ' produções'" aria-live="polite"></span>
               <div class="op-tabs op-tabs--pills" style="margin-left:auto" role="tablist" aria-label="Modo de visualizacao">
                 <button class="op-tab" :class="{ 'active': ui.dsView === 'painel' }" @click="ui.dsView = 'painel'" role="tab" :aria-selected="ui.dsView === 'painel'">Painel</button>
@@ -5029,13 +5035,13 @@
                     <!-- 3 Doc Bars -->
                     <div class="ds-prod-card__docs">
                       <template x-for="dt in DS_DOC_TIPOS" :key="dt.id">
-                        <div class="ds-prod-card__doc-row">
-                          <span class="ds-prod-card__doc-icon" x-text="dt.icon" :title="dt.label"></span>
-                          <div class="ds-doc-bar" role="progressbar" :aria-valuenow="dsProgressPercent(p[dt.id + '_estagio'] || 'pendente')" aria-valuemin="0" aria-valuemax="100" :aria-label="dt.label">
+                        <div class="ds-prod-card__doc-row" style="display:flex;align-items:center;gap:6px;font-size:11px;padding:2px 0">
+                          <span class="ds-prod-card__doc-icon" x-text="dt.icon" :title="dt.label" style="min-width:14px"></span>
+                          <div class="ds-doc-bar" role="progressbar" :aria-valuenow="dsProgressPercent(p[dt.id + '_estagio'] || 'pendente')" aria-valuemin="0" aria-valuemax="100" :aria-label="dt.label" style="flex:1">
                             <div class="ds-doc-bar__fill" :style="'width:' + dsProgressPercent(p[dt.id + '_estagio'] || 'pendente') + '%; background:' + dt.color"></div>
                           </div>
-                          <span class="ds-prod-card__doc-stage" :style="'color:' + dsEstagioConfig(p[dt.id + '_estagio'] || 'pendente').color" x-text="dsEstagioConfig(p[dt.id + '_estagio'] || 'pendente').label"></span>
-                          <span x-show="p[dt.id + '_prazo']" class="ds-deadline-badge ds-deadline-badge--sm" :class="dsPrazoClass(p[dt.id + '_prazo'])" x-text="dsFormatDate(p[dt.id + '_prazo'])"></span>
+                          <span class="ds-prod-card__doc-stage" :style="'color:' + dsEstagioConfig(p[dt.id + '_estagio'] || 'pendente').color" x-text="dsEstagioConfig(p[dt.id + '_estagio'] || 'pendente').label" style="min-width:70px;font-size:10px;font-weight:600"></span>
+                          <span x-show="p[dt.id + '_prazo']" class="ds-deadline-badge ds-deadline-badge--sm" :class="dsPrazoClass(p[dt.id + '_prazo'])" x-text="dsFormatDate(p[dt.id + '_prazo'])" style="font-size:10px"></span>
                         </div>
                       </template>
                     </div>

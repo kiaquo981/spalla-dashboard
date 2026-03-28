@@ -237,6 +237,7 @@ function operon() {
       // Dossiê Production System
       dsFilter: 'all',
       dsCarteira: 'all',
+      dsTipoDoc: 'all',        // all | oferta | conteudo | funil
       dsView: 'painel',        // painel | pipeline | lista
       dsSearchQuery: '',
       dsExpandedDocs: {},       // { producaoId: true }
@@ -9079,11 +9080,22 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (this.ui.dsCarteira && this.ui.dsCarteira !== 'all') {
         list = list.filter(p => (p.carteira || '').toLowerCase() === this.ui.dsCarteira.toLowerCase());
       }
+      // Tipo doc filter (filter by which doc types have non-finalized stages)
+      if (this.ui.dsTipoDoc && this.ui.dsTipoDoc !== 'all') {
+        const tipo = this.ui.dsTipoDoc;
+        list = list.filter(p => {
+          const docs = this.data.dsAllDocs.filter(d => d.producao_id === p.producao_id && d.tipo === tipo);
+          return docs.length > 0;
+        });
+      }
       // Search filter
       if (this.ui.dsSearchQuery) {
         const q = this.ui.dsSearchQuery.toLowerCase();
         list = list.filter(p => (p.mentorado_nome || '').toLowerCase().includes(q) || (p.responsavel_atual || '').toLowerCase().includes(q));
       }
+      // Sort: active first (producao, revisao, aprovado, enviado), then nao_iniciado, then finalizado last
+      const statusOrder = { producao: 0, revisao: 1, aprovado: 2, enviado: 3, apresentado: 4, call_estrategia: 5, nao_iniciado: 6, finalizado: 9 };
+      list = [...list].sort((a, b) => (statusOrder[a.status] ?? 7) - (statusOrder[b.status] ?? 7));
       return list;
     },
 
