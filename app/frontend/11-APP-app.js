@@ -266,6 +266,10 @@ function operon() {
       waSearchResults: [],
       waSearchOpen: false,
       waTypingIndicator: false,
+      waGroupsPanel: false,
+      waGroupsSyncing: false,
+      waGroupCreateModal: false,
+      waGroupForm: { subject: '', mentorado_id: '', participants: '' },
       whatsappLoading: false,
       // WhatsApp Per-User Session
       waSessionLoading: false,
@@ -436,6 +440,7 @@ function operon() {
       // I-5: files for current notes drawer mentee
       menteeFiles: { docs: [], media: [], loading: false },
       groups: [],               // mentee_groups with member_ids
+      waGroups: [],             // wa_groups from Supabase (Story 8)
       // WA DM v2 (S9-B)
       waCannedAll: [],          // cache de canned responses
       // S9-C
@@ -7172,6 +7177,85 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         this._waReadObserver = null;
       }
       this._waReadSent.clear();
+    },
+
+    // ===== WA Group Management (Story 8) =====
+    async loadWaGroups() {
+      try {
+        const { data, error } = await sb.from('wa_groups')
+          .select('*')
+          .eq('is_active', true)
+          .order('last_activity', { ascending: false, nullsFirst: false });
+        if (error) throw error;
+        this.data.waGroups = data || [];
+      } catch (e) {
+        console.error('[Spalla] loadWaGroups error:', e);
+        this.data.waGroups = [];
+      }
+    },
+
+    async waGroupsSync() {
+      const { instance } = this._waActiveInstance();
+      if (!instance) { this.toast('WhatsApp nao conectado', 'warning'); return; }
+      this.ui.waGroupsSyncing = true;
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/wa/groups/sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+          body: JSON.stringify({ instance }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const result = await res.json();
+        this.toast(`${result.synced} grupos sincronizados`, 'success');
+        await this.loadWaGroups();
+      } catch (e) {
+        console.error('[Spalla] WA groups sync error:', e);
+        this.toast('Erro ao sincronizar grupos: ' + e.message, 'error');
+      } finally {
+        this.ui.waGroupsSyncing = false;
+      }
+    },
+
+    async waGroupCreate() {
+      const { instance } = this._waActiveInstance();
+      if (!instance) { this.toast('WhatsApp nao conectado', 'warning'); return; }
+      const { subject, mentorado_id, participants } = this.ui.waGroupForm;
+      if (!subject.trim()) { this.toast('Nome do grupo obrigatorio', 'warning'); return; }
+      const phones = participants.split('\n').map(p => p.trim()).filter(p => p.length >= 10);
+      if (phones.length === 0) { this.toast('Adicione pelo menos 1 telefone', 'warning'); return; }
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/wa/groups/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+          body: JSON.stringify({ instance, subject: subject.trim(), participants: phones, mentorado_id: mentorado_id || null }),
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || `HTTP ${res.status}`); }
+        this.toast(`Grupo "${subject}" criado!`, 'success');
+        this.ui.waGroupCreateModal = false;
+        this.ui.waGroupForm = { subject: '', mentorado_id: '', participants: '' };
+        await this.loadWaGroups();
+      } catch (e) {
+        console.error('[Spalla] WA group create error:', e);
+        this.toast('Erro ao criar grupo: ' + e.message, 'error');
+      }
+    },
+
+    async waGroupLink(groupId, mentoradoId) {
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/wa/groups/${groupId}/link`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+          body: JSON.stringify({ mentorado_id: mentoradoId ? parseInt(mentoradoId) : null }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        // Update local
+        const g = this.data.waGroups.find(g => g.id === groupId);
+        if (g) g.mentorado_id = mentoradoId ? parseInt(mentoradoId) : null;
+        this.toast(mentoradoId ? 'Grupo vinculado ao mentorado' : 'Vinculo removido', 'success');
+      } catch (e) {
+        console.error('[Spalla] WA group link error:', e);
+        this.toast('Erro ao vincular: ' + e.message, 'error');
+      }
     },
 
     // ===================== WA TOPICS BOARD =====================

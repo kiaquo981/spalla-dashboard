@@ -1861,6 +1861,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_instance_uuid()
         elif self.path == '/api/sheets/status':
             self._handle_sheets_status()
+        elif self.path == '/api/wa/groups':
+            self._handle_wa_groups_list()
         elif self.path.startswith('/api/storage/files'):
             self._handle_storage_list_files()
         elif self.path.startswith('/api/storage/status'):
@@ -1997,6 +1999,14 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_wa_send_media()
         elif self.path == '/api/wa/reply':
             self._handle_wa_reply()
+        # ===== WhatsApp Group Management =====
+        elif self.path == '/api/wa/groups/sync':
+            self._handle_wa_groups_sync()
+        elif self.path == '/api/wa/groups/create':
+            self._handle_wa_groups_create()
+        elif re.match(r'^/api/wa/groups/([^/]+)/link$', self.path):
+            _gm = re.match(r'^/api/wa/groups/([^/]+)/link$', self.path)
+            self._handle_wa_group_link(_gm.group(1))
         # ===== Chatwoot Webhook =====
         elif self.path == '/api/webhooks/chatwoot':
             self._handle_chatwoot_webhook()
@@ -3969,6 +3979,150 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': 'Key not found'}, 404)
         except Exception as e:
             log_error('APIKeys', f'revoke failed: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    # ===== WHATSAPP GROUP MANAGEMENT (Story 8) =====
+
+    def _handle_wa_groups_list(self):
+        """GET /api/wa/groups — List all tracked WA groups from Supabase."""
+        try:
+            result = supabase_request('GET', 'wa_groups?select=*&order=last_activity.desc.nullsfirst&is_active=eq.true')
+            self._send_json(result if isinstance(result, list) else [])
+        except Exception as e:
+            log_error('WA-Groups', f'list failed: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_wa_groups_sync(self):
+        """POST /api/wa/groups/sync — Sync groups from Evolution API to Supabase."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
+        try:
+            body = json.loads(self._read_body())
+            instance = body.get('instance', '').strip()
+            if not instance:
+                self._send_json({'error': 'instance is required'}, 400)
+                return
+
+            # Fetch groups from Evolution API
+            url = f'{EVOLUTION_BASE}/group/fetchAllGroups/{instance}?getParticipants=true'
+            req = urllib.request.Request(url, method='GET')
+            req.add_header('apikey', EVOLUTION_API_KEY)
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                groups = json.loads(resp.read())
+
+            if not isinstance(groups, list):
+                groups = groups.get('groups', groups.get('data', []))
+
+            synced = 0
+            for g in groups:
+                jid = g.get('id') or g.get('jid', '')
+                if not jid or not jid.endswith('@g.us'):
+                    continue
+                name = g.get('subject') or g.get('name') or jid
+                participants = g.get('participants', [])
+                row = {
+                    'group_jid': jid,
+                    'name': name,
+                    'description': g.get('desc', g.get('description', '')),
+                    'participant_count': len(participants),
+                    'participants': json.dumps(participants),
+                    'photo_url': g.get('profilePictureUrl', g.get('imgUrl', '')),
+                    'instance_name': instance,
+                    'is_active': True,
+                    'synced_at': datetime.now(timezone.utc).isoformat(),
+                    'updated_at': datetime.now(timezone.utc).isoformat(),
+                }
+                # Upsert by group_jid
+                supabase_request('POST',
+                    'wa_groups?on_conflict=group_jid',
+                    row)
+                synced += 1
+
+            log_info('WA-Groups', f'Synced {synced} groups from {instance}')
+            self._send_json({'ok': True, 'synced': synced})
+
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode()
+            log_error('WA-Groups', f'Evolution API error: {e.code} {error_body}')
+            self._send_json({'error': f'Evolution API: {e.code}', 'detail': error_body}, e.code)
+        except Exception as e:
+            log_error('WA-Groups', f'sync failed: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_wa_groups_create(self):
+        """POST /api/wa/groups/create — Create a new WA group via Evolution API."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
+        try:
+            body = json.loads(self._read_body())
+            instance = body.get('instance', '').strip()
+            subject = body.get('subject', '').strip()
+            participants = body.get('participants', [])  # list of phone numbers
+            mentorado_id = body.get('mentorado_id')
+
+            if not instance or not subject or not participants:
+                self._send_json({'error': 'instance, subject, and participants are required'}, 400)
+                return
+
+            # Create group via Evolution API
+            payload = json.dumps({'subject': subject, 'participants': participants}).encode()
+            url = f'{EVOLUTION_BASE}/group/create/{instance}'
+            req = urllib.request.Request(url, data=payload, method='POST')
+            req.add_header('Content-Type', 'application/json')
+            req.add_header('apikey', EVOLUTION_API_KEY)
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                result = json.loads(resp.read())
+
+            group_jid = result.get('id') or result.get('jid', '')
+
+            # Save to Supabase
+            if group_jid:
+                row = {
+                    'group_jid': group_jid,
+                    'name': subject,
+                    'participant_count': len(participants),
+                    'instance_name': instance,
+                    'is_active': True,
+                    'synced_at': datetime.now(timezone.utc).isoformat(),
+                }
+                if mentorado_id:
+                    row['mentorado_id'] = mentorado_id
+                supabase_request('POST', 'wa_groups', row)
+
+            log_info('WA-Groups', f'Created group "{subject}" ({group_jid}) by {auth.get("email", "?")}')
+            self._send_json({'ok': True, 'group_jid': group_jid, 'result': result})
+
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode()
+            log_error('WA-Groups', f'Create error: {e.code} {error_body}')
+            self._send_json({'error': f'Evolution API: {e.code}', 'detail': error_body}, e.code)
+        except Exception as e:
+            log_error('WA-Groups', f'create failed: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_wa_group_link(self, group_id):
+        """POST /api/wa/groups/{id}/link — Link a WA group to a mentorado."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
+        try:
+            body = json.loads(self._read_body())
+            mentorado_id = body.get('mentorado_id')
+            if mentorado_id is None:
+                self._send_json({'error': 'mentorado_id is required'}, 400)
+                return
+            result = supabase_request('PATCH',
+                f'wa_groups?id=eq.{group_id}',
+                {'mentorado_id': mentorado_id, 'updated_at': datetime.now(timezone.utc).isoformat()})
+            log_info('WA-Groups', f'Linked group {group_id} to mentorado {mentorado_id}')
+            self._send_json({'ok': True})
+        except Exception as e:
+            log_error('WA-Groups', f'link failed: {e}', e)
             self._send_json({'error': str(e)}, 500)
 
     # ===== WHATSAPP SEND + WEBHOOK (EPIC WA) =====

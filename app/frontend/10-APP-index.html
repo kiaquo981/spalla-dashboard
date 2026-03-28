@@ -3963,9 +3963,91 @@
                 <h3>Conversas WhatsApp</h3>
                 <div style="display:flex;gap:6px;align-items:center">
                   <span class="wa-status-indicator wa-status-indicator--connected" title="Conectado"></span>
+                  <button class="btn btn--sm" @click="ui.waGroupsPanel = !ui.waGroupsPanel; if(ui.waGroupsPanel) loadWaGroups()" title="Gerenciar grupos">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  </button>
                   <button class="btn btn--sm" @click="fetchWhatsAppChats()">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                   </button>
+                </div>
+              </div>
+
+              <!-- Groups Management Panel -->
+              <div class="wa-groups-panel" x-show="ui.waGroupsPanel" x-transition>
+                <div class="wa-groups-panel__header">
+                  <h4>Grupos WhatsApp</h4>
+                  <div style="display:flex;gap:4px">
+                    <button class="btn btn--sm btn--ghost" @click="waGroupsSync()" :disabled="ui.waGroupsSyncing">
+                      <template x-if="!ui.waGroupsSyncing">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                      </template>
+                      <template x-if="ui.waGroupsSyncing"><span class="settings-wa__spinner"></span></template>
+                      Sincronizar
+                    </button>
+                    <button class="btn btn--sm btn--primary" @click="ui.waGroupCreateModal = true">+ Criar</button>
+                    <button class="btn btn--sm btn--ghost" @click="ui.waGroupsPanel = false">&times;</button>
+                  </div>
+                </div>
+                <div class="wa-groups-panel__list">
+                  <template x-for="g in data.waGroups" :key="g.id">
+                    <div class="wa-group-card">
+                      <div class="wa-group-card__info">
+                        <strong x-text="g.name"></strong>
+                        <small x-text="g.participant_count + ' participantes'"></small>
+                        <small x-show="g.mentorado_id" style="color:var(--success)">
+                          Vinculado: <span x-text="data.mentees?.find(m => m.id == g.mentorado_id)?.nome || 'Mentorado #' + g.mentorado_id"></span>
+                        </small>
+                        <small x-show="!g.mentorado_id" style="color:var(--warning)">Sem mentorado vinculado</small>
+                      </div>
+                      <div class="wa-group-card__actions">
+                        <select class="wa-group-card__link-select" @change="waGroupLink(g.id, $event.target.value); $event.target.value = g.mentorado_id || ''" :value="g.mentorado_id || ''">
+                          <option value="">Vincular mentorado...</option>
+                          <template x-for="m in data.mentees" :key="m.id">
+                            <option :value="m.id" :selected="g.mentorado_id == m.id" x-text="m.nome"></option>
+                          </template>
+                        </select>
+                        <button class="btn btn--sm btn--ghost" @click="selectWhatsAppChat({id: g.group_jid, remoteJid: g.group_jid, name: g.name}); ui.waGroupsPanel = false" title="Abrir chat">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        </button>
+                      </div>
+                    </div>
+                  </template>
+                  <div x-show="!data.waGroups?.length" style="padding:16px;text-align:center;color:var(--neutral-400);font-size:13px">
+                    Nenhum grupo sincronizado. Clique "Sincronizar" para importar.
+                  </div>
+                </div>
+              </div>
+
+              <!-- Create Group Modal -->
+              <div class="modal-overlay" x-show="ui.waGroupCreateModal" x-transition.opacity @click.self="ui.waGroupCreateModal = false" style="z-index:100">
+                <div class="modal" style="max-width:420px" @click.stop>
+                  <div class="modal__header">
+                    <h3>Criar Grupo WhatsApp</h3>
+                    <button class="modal__close" @click="ui.waGroupCreateModal = false">&times;</button>
+                  </div>
+                  <div class="modal__body" style="display:flex;flex-direction:column;gap:12px">
+                    <div>
+                      <label class="label">Nome do grupo</label>
+                      <input class="input" type="text" x-model="ui.waGroupForm.subject" placeholder="Ex: CASE — João Silva">
+                    </div>
+                    <div>
+                      <label class="label">Mentorado</label>
+                      <select class="input" x-model="ui.waGroupForm.mentorado_id">
+                        <option value="">Selecionar mentorado...</option>
+                        <template x-for="m in data.mentees" :key="m.id">
+                          <option :value="m.id" x-text="m.nome"></option>
+                        </template>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="label">Telefones dos participantes (um por linha, com DDD+pais)</label>
+                      <textarea class="input" rows="3" x-model="ui.waGroupForm.participants" placeholder="5511999998888&#10;5511888887777"></textarea>
+                    </div>
+                  </div>
+                  <div class="modal__footer">
+                    <button class="btn btn--ghost" @click="ui.waGroupCreateModal = false">Cancelar</button>
+                    <button class="btn btn--primary" @click="waGroupCreate()" :disabled="!ui.waGroupForm.subject.trim()">Criar Grupo</button>
+                  </div>
                 </div>
               </div>
               <div class="wa-sidebar__list" x-show="!ui.waMobileSidebarHidden">

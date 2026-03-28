@@ -78,17 +78,18 @@ priority: urgente
 - [x] Enviar via waSendMedia()
 - **Arquivos:** 11-APP-app.js, 10-APP-index.html
 
-### STORY 8: Group Chat Management
-- [ ] Migration: CREATE TABLE wa_groups
-- [ ] Backend: GET /api/wa/groups (listar)
-- [ ] Backend: POST /api/wa/groups/sync (sync metadata)
-- [ ] Backend: POST /api/wa/groups/create (criar grupo)
-- [ ] Frontend: lista de grupos com member count, last activity
-- [ ] Frontend: criar grupo (selecionar mentorado + equipe)
-- [ ] Frontend: vincular grupo ao mentorado
-- [ ] Frontend: configurações do grupo (renomear, add/remove participantes)
-- **Arquivos:** 14-APP-server.py, 11-APP-app.js, 10-APP-index.html, migration SQL
-- **Status:** PR separada (requer migration + UI dedicada)
+### STORY 8: Group Chat Management ✅
+- [x] Migration: CREATE TABLE wa_groups (65-SQL-wa-groups.sql)
+- [x] Backend: GET /api/wa/groups (listar do Supabase)
+- [x] Backend: POST /api/wa/groups/sync (sync do Evolution API)
+- [x] Backend: POST /api/wa/groups/create (criar grupo via Evolution API)
+- [x] Backend: POST /api/wa/groups/{id}/link (vincular ao mentorado)
+- [x] Frontend: painel de grupos na sidebar (botão pessoas)
+- [x] Frontend: sincronizar grupos do WhatsApp
+- [x] Frontend: criar grupo (nome + telefones + mentorado)
+- [x] Frontend: vincular grupo ao mentorado (dropdown)
+- [x] Frontend: abrir chat do grupo direto
+- **Arquivos:** 14-APP-server.py, 11-APP-app.js, 10-APP-index.html, 13-APP-styles.css, migration SQL
 
 ### STORY 9: Typing Indicators ✅
 - [x] Enviar "composing" via Evolution API ao digitar
