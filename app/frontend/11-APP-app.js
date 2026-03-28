@@ -1842,6 +1842,8 @@ function operon() {
         this.loadGodLists();     // non-blocking: popula data.lists + data.sprints
 
         if (this.auth.authenticated) {
+          // Auto-refresh token before it expires (every 45 min)
+          this._startTokenAutoRefresh();
           await this.loadReminders(); // Load from Supabase
           await this.loadDashboard();
           this.loadCommandCenterData(); // non-blocking: populate CC from ClickUp
@@ -2018,6 +2020,63 @@ function operon() {
         this.auth.error = 'Erro ao criar conta: ' + e.message;
         console.error('[Spalla] Register error:', e);
       }
+    },
+
+    _startTokenAutoRefresh() {
+      // Refresh token every 45 minutes to prevent session expiry
+      if (this._tokenRefreshTimer) clearInterval(this._tokenRefreshTimer);
+      this._tokenRefreshTimer = setInterval(async () => {
+        const refreshToken = localStorage.getItem('spalla_refresh_token');
+        if (!refreshToken || !this.auth.authenticated) return;
+        try {
+          const resp = await fetch(`${CONFIG.API_BASE}/api/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: refreshToken })
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            this.auth.accessToken = data.access_token;
+            this.auth.refreshToken = data.refresh_token;
+            localStorage.setItem('spalla_access_token', data.access_token);
+            localStorage.setItem('spalla_refresh_token', data.refresh_token);
+            if (data.user) localStorage.setItem('spalla_user', JSON.stringify(data.user));
+            console.log('[Spalla] Token auto-refreshed');
+          }
+        } catch (e) {
+          console.warn('[Spalla] Token auto-refresh failed (offline?):', e.message);
+        }
+      }, 45 * 60 * 1000); // 45 min
+      // Also refresh on tab visibility change (user returns after idle)
+      document.addEventListener('visibilitychange', async () => {
+        if (document.visibilityState === 'visible' && this.auth.authenticated) {
+          const token = localStorage.getItem('spalla_access_token');
+          if (!token) return;
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            const minutesLeft = (payload.exp - Math.floor(Date.now() / 1000)) / 60;
+            if (minutesLeft < 15) {
+              // Token expiring soon, refresh now
+              const refreshToken = localStorage.getItem('spalla_refresh_token');
+              if (refreshToken) {
+                const resp = await fetch(`${CONFIG.API_BASE}/api/auth/refresh`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ refresh_token: refreshToken })
+                });
+                if (resp.ok) {
+                  const data = await resp.json();
+                  this.auth.accessToken = data.access_token;
+                  this.auth.refreshToken = data.refresh_token;
+                  localStorage.setItem('spalla_access_token', data.access_token);
+                  localStorage.setItem('spalla_refresh_token', data.refresh_token);
+                  console.log('[Spalla] Token refreshed on tab return');
+                }
+              }
+            }
+          } catch (e) { /* ignore parse errors */ }
+        }
+      }, { once: false });
     },
 
     _clearAuthStorage() {

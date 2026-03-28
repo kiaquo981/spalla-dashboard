@@ -2977,6 +2977,17 @@ img { max-width: 100%; display: block; }
 .detail-task-card__subtasks { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
 .detail-task-card__handoff { display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 11px; color: #f59e0b; }
 
+/* Task detail metadata grid — no overflow:hidden so dropdowns render correctly */
+.task-meta-grid {
+  display: grid; grid-template-columns: 150px 1fr 150px 1fr; gap: 0;
+  margin-bottom: var(--sp-10); border: 1px solid var(--neutral-200);
+  border-radius: var(--r-lg); font-size: var(--text-sm);
+}
+.task-meta-grid > div:first-child { border-top-left-radius: var(--r-lg); }
+.task-meta-grid > div:nth-child(4) { border-top-right-radius: var(--r-lg); }
+.task-meta-grid > div:nth-last-child(2) { border-bottom-left-radius: var(--r-lg); }
+.task-meta-grid > div:last-child { border-bottom-right-radius: var(--r-lg); }
+
 /* Task detail date inputs — override native browser styling */
 .task-meta-date {
   border: none; background: none; font-family: var(--font); font-size: var(--text-sm);
