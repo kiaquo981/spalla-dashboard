@@ -2977,6 +2977,17 @@ img { max-width: 100%; display: block; }
 .detail-task-card__subtasks { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
 .detail-task-card__handoff { display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 11px; color: #f59e0b; }
 
+/* Task detail date inputs — override native browser styling */
+.task-meta-date {
+  border: none; background: none; font-family: var(--font); font-size: var(--text-sm);
+  color: var(--neutral-600); cursor: pointer; padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--r-sm); outline: none; transition: background .15s;
+}
+.task-meta-date:hover { background: var(--neutral-100); }
+.task-meta-date:focus { background: var(--cream-100); }
+.task-meta-date--overdue { color: var(--danger); font-weight: var(--fw-semibold); }
+.task-meta-date::-webkit-calendar-picker-indicator { opacity: 0.4; cursor: pointer; }
+
 /* Detail Calls Timeline */
 .detail-calls-timeline { position: relative; padding-left: 20px; }
 .detail-calls-timeline::before { content: ''; position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: #e2e8f0; }
