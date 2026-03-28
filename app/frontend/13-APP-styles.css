@@ -1136,7 +1136,7 @@ img { max-width: 100%; display: block; }
 
 /* ===== WHATSAPP LAYOUT ===== */
 .wa-layout { display: flex; height: calc(100vh - var(--topbar-h)); }
-.wa-sidebar { width: 320px; border-right: 1px solid var(--neutral-200); background: #fff; display: flex; flex-direction: column; flex-shrink: 0; }
+.wa-sidebar { width: 320px; border-right: 1px solid var(--neutral-200); background: #fff; display: flex; flex-direction: column; flex-shrink: 0; position: relative; }
 .wa-sidebar__header { padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--neutral-200); display: flex; justify-content: space-between; align-items: center; }
 .wa-sidebar__header h3 { font-size: var(--text-md); font-weight: 600; margin: 0; }
 .wa-sidebar__list { flex: 1; overflow-y: auto; }
