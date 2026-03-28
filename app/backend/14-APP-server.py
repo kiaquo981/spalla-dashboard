@@ -85,6 +85,8 @@ CHATWOOT_BASE_URL = os.environ.get('CHATWOOT_BASE_URL', '')  # e.g. https://chat
 CHATWOOT_API_TOKEN = os.environ.get('CHATWOOT_API_TOKEN', '')  # user or bot token
 CHATWOOT_ACCOUNT_ID = os.environ.get('CHATWOOT_ACCOUNT_ID', '1')
 CHATWOOT_WEBHOOK_SECRET = os.environ.get('CHATWOOT_WEBHOOK_SECRET', '')  # HMAC verification
+EVOLUTION_WEBHOOK_SECRET = os.environ.get('EVOLUTION_WEBHOOK_SECRET', '')  # Evolution API webhook apikey
+WA_RATE_LIMIT_PER_MINUTE = int(os.environ.get('WA_RATE_LIMIT_PER_MINUTE', '30'))
 
 # ===== JWT AUTH CONFIG =====
 JWT_SECRET = os.environ.get('JWT_SECRET')
@@ -1985,6 +1987,16 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         # ===== API Keys Management =====
         elif self.path == '/api/keys/generate':
             self._handle_generate_api_key()
+        # ===== Evolution Webhook (Status Updates) =====
+        elif self.path == '/api/webhooks/evolution':
+            self._handle_evolution_webhook()
+        # ===== WhatsApp Send Endpoints =====
+        elif self.path == '/api/wa/send-text':
+            self._handle_wa_send_text()
+        elif self.path == '/api/wa/send-media':
+            self._handle_wa_send_media()
+        elif self.path == '/api/wa/reply':
+            self._handle_wa_reply()
         # ===== Chatwoot Webhook =====
         elif self.path == '/api/webhooks/chatwoot':
             self._handle_chatwoot_webhook()
@@ -3959,6 +3971,298 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             log_error('APIKeys', f'revoke failed: {e}')
             self._send_json({'error': str(e)}, 500)
 
+    # ===== WHATSAPP SEND + WEBHOOK (EPIC WA) =====
+
+    # Rate limiting: { user_email: [timestamp, ...] }
+    _wa_rate_limits = {}
+
+    def _wa_check_rate_limit(self, user_email):
+        """Check rate limit for WA sends. Returns True if allowed."""
+        now = time.time()
+        window = 60  # 1 minute
+        if user_email not in self._wa_rate_limits:
+            self._wa_rate_limits[user_email] = []
+        # Clean old entries
+        self._wa_rate_limits[user_email] = [
+            t for t in self._wa_rate_limits[user_email] if now - t < window
+        ]
+        if len(self._wa_rate_limits[user_email]) >= WA_RATE_LIMIT_PER_MINUTE:
+            return False
+        self._wa_rate_limits[user_email].append(now)
+        return True
+
+    def _wa_require_auth(self):
+        """Require JWT auth for WA endpoints. Returns auth dict or None (sends 401)."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Authentication required'}, 401)
+            return None
+        return auth
+
+    def _wa_send_via_evolution(self, instance, number, text, quoted_msg_id=None):
+        """Send text message via Evolution API. Returns response dict."""
+        payload = {'number': number, 'text': text}
+        if quoted_msg_id:
+            payload['quoted'] = {'key': {'id': quoted_msg_id}}
+        body = json.dumps(payload).encode()
+        url = f'{EVOLUTION_BASE}/message/sendText/{instance}'
+        req = urllib.request.Request(url, data=body, method='POST')
+        req.add_header('Content-Type', 'application/json')
+        req.add_header('apikey', EVOLUTION_API_KEY)
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read())
+
+    def _wa_send_media_via_evolution(self, instance, number, media_type, media_url, caption='', media_name=''):
+        """Send media message via Evolution API."""
+        endpoint_map = {
+            'image': 'sendMedia', 'video': 'sendMedia', 'audio': 'sendWhatsAppAudio',
+            'document': 'sendMedia',
+        }
+        endpoint = endpoint_map.get(media_type, 'sendMedia')
+        payload = {'number': number, 'media': media_url, 'caption': caption}
+        if media_type == 'document':
+            payload['fileName'] = media_name or 'document'
+        if media_type in ('image', 'video'):
+            payload['mediatype'] = media_type
+        body = json.dumps(payload).encode()
+        url = f'{EVOLUTION_BASE}/message/{endpoint}/{instance}'
+        req = urllib.request.Request(url, data=body, method='POST')
+        req.add_header('Content-Type', 'application/json')
+        req.add_header('apikey', EVOLUTION_API_KEY)
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read())
+
+    def _wa_insert_message(self, message_id, group_jid, sender_name, content_type, content_text,
+                           media_url=None, media_mime=None, reply_to_id=None, status='pending'):
+        """Insert a sent message into wa_messages via Supabase."""
+        row = {
+            'message_id': message_id,
+            'group_jid': group_jid,
+            'sender_name': sender_name,
+            'is_from_team': True,
+            'content_type': content_type,
+            'content_text': content_text,
+            'media_url': media_url,
+            'media_mime': media_mime,
+            'reply_to_id': reply_to_id,
+            'status': status,
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+        }
+        # Remove None values
+        row = {k: v for k, v in row.items() if v is not None}
+        return supabase_request('POST', 'wa_messages', row)
+
+    def _handle_evolution_webhook(self):
+        """POST /api/webhooks/evolution — Receive Evolution API webhook events (status updates)."""
+        try:
+            raw = self._read_body()
+            # Verify apikey header
+            incoming_key = self.headers.get('apikey', '')
+            if EVOLUTION_WEBHOOK_SECRET and incoming_key != EVOLUTION_WEBHOOK_SECRET:
+                self._send_json({'error': 'Invalid apikey'}, 401)
+                return
+
+            event = json.loads(raw)
+            event_type = event.get('event', '')
+            log_info('Evolution', f'Webhook: {event_type}')
+
+            if event_type == 'messages.update':
+                # Status update: sent → delivered → read
+                updates = event.get('data', [])
+                if isinstance(updates, dict):
+                    updates = [updates]
+                for upd in updates:
+                    msg_key = upd.get('keyId') or upd.get('key', {}).get('id', '')
+                    if not msg_key:
+                        continue
+                    raw_status = str(upd.get('status', '')).upper()
+                    # Evolution status codes: 1=PENDING, 2=SERVER_ACK(sent), 3=DELIVERY_ACK(delivered), 4=READ, 5=PLAYED
+                    status_map = {
+                        '1': 'pending', 'PENDING': 'pending',
+                        '2': 'sent', 'SERVER_ACK': 'sent',
+                        '3': 'delivered', 'DELIVERY_ACK': 'delivered',
+                        '4': 'read', 'READ': 'read',
+                        '5': 'read', 'PLAYED': 'read',
+                        'ERROR': 'failed', 'FAILED': 'failed',
+                    }
+                    new_status = status_map.get(raw_status, None)
+                    if not new_status:
+                        continue
+                    supabase_request('PATCH',
+                        f'wa_messages?message_id=eq.{msg_key}',
+                        {'status': new_status, 'status_updated_at': datetime.now(timezone.utc).isoformat()})
+                    log_info('Evolution', f'Status update: {msg_key} → {new_status}')
+
+            elif event_type == 'messages.upsert':
+                # New incoming message — n8n handles the main pipeline,
+                # but we can update status of our sent messages here
+                data = event.get('data', {})
+                msgs = data if isinstance(data, list) else [data]
+                for msg in msgs:
+                    key = msg.get('key', {})
+                    if key.get('fromMe'):
+                        msg_id = key.get('id', '')
+                        if msg_id:
+                            supabase_request('PATCH',
+                                f'wa_messages?message_id=eq.{msg_id}',
+                                {'status': 'sent', 'status_updated_at': datetime.now(timezone.utc).isoformat()})
+
+            self._send_json({'ok': True})
+        except Exception as e:
+            log_error('Evolution', f'Webhook error: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_wa_send_text(self):
+        """POST /api/wa/send-text — Send text message with audit trail."""
+        auth = self._wa_require_auth()
+        if not auth:
+            return
+        try:
+            body = json.loads(self._read_body())
+            number = body.get('number', '').strip()
+            text = body.get('text', '').strip()
+            instance = body.get('instance', '').strip()
+            group_jid = body.get('group_jid', '').strip()
+
+            if not number or not text:
+                self._send_json({'error': 'number and text are required'}, 400)
+                return
+            if not instance:
+                self._send_json({'error': 'instance is required'}, 400)
+                return
+
+            # Rate limit check
+            user_email = auth.get('email', auth.get('label', 'unknown'))
+            if not self._wa_check_rate_limit(user_email):
+                self._send_json({'error': f'Rate limit exceeded ({WA_RATE_LIMIT_PER_MINUTE}/min)'}, 429)
+                return
+
+            # Send via Evolution API
+            result = self._wa_send_via_evolution(instance, number, text)
+            msg_key = result.get('key', {}).get('id', '') if isinstance(result, dict) else ''
+
+            # Insert into wa_messages for Realtime + audit
+            if msg_key and group_jid:
+                self._wa_insert_message(
+                    message_id=msg_key,
+                    group_jid=group_jid,
+                    sender_name=auth.get('email', 'Equipe CASE'),
+                    content_type='text',
+                    content_text=text,
+                    status='sent',
+                )
+
+            log_info('WA-Send', f'Text sent by {user_email} to {number} (key={msg_key})')
+            self._send_json({'ok': True, 'message_id': msg_key, 'result': result})
+
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode()
+            log_error('WA-Send', f'Evolution API error: {e.code} {error_body}')
+            self._send_json({'error': f'Evolution API error: {e.code}', 'detail': error_body}, e.code)
+        except Exception as e:
+            log_error('WA-Send', f'send-text failed: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_wa_send_media(self):
+        """POST /api/wa/send-media — Send media message with audit trail."""
+        auth = self._wa_require_auth()
+        if not auth:
+            return
+        try:
+            body = json.loads(self._read_body())
+            number = body.get('number', '').strip()
+            instance = body.get('instance', '').strip()
+            group_jid = body.get('group_jid', '').strip()
+            media_url = body.get('media_url', '').strip()
+            media_type = body.get('media_type', 'document').strip()
+            caption = body.get('caption', '').strip()
+            media_name = body.get('media_name', '').strip()
+
+            if not number or not media_url or not instance:
+                self._send_json({'error': 'number, instance, and media_url are required'}, 400)
+                return
+
+            user_email = auth.get('email', auth.get('label', 'unknown'))
+            if not self._wa_check_rate_limit(user_email):
+                self._send_json({'error': f'Rate limit exceeded ({WA_RATE_LIMIT_PER_MINUTE}/min)'}, 429)
+                return
+
+            result = self._wa_send_media_via_evolution(instance, number, media_type, media_url, caption, media_name)
+            msg_key = result.get('key', {}).get('id', '') if isinstance(result, dict) else ''
+
+            if msg_key and group_jid:
+                self._wa_insert_message(
+                    message_id=msg_key,
+                    group_jid=group_jid,
+                    sender_name=auth.get('email', 'Equipe CASE'),
+                    content_type=media_type,
+                    content_text=caption or None,
+                    media_url=media_url,
+                    media_mime=body.get('media_mime'),
+                    status='sent',
+                )
+
+            log_info('WA-Send', f'Media ({media_type}) sent by {user_email} to {number}')
+            self._send_json({'ok': True, 'message_id': msg_key, 'result': result})
+
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode()
+            log_error('WA-Send', f'Evolution API error: {e.code} {error_body}')
+            self._send_json({'error': f'Evolution API error: {e.code}', 'detail': error_body}, e.code)
+        except Exception as e:
+            log_error('WA-Send', f'send-media failed: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_wa_reply(self):
+        """POST /api/wa/reply — Reply to a specific message (quoted)."""
+        auth = self._wa_require_auth()
+        if not auth:
+            return
+        try:
+            body = json.loads(self._read_body())
+            number = body.get('number', '').strip()
+            text = body.get('text', '').strip()
+            instance = body.get('instance', '').strip()
+            group_jid = body.get('group_jid', '').strip()
+            quoted_message_id = body.get('quoted_message_id', '').strip()
+
+            if not number or not text or not quoted_message_id:
+                self._send_json({'error': 'number, text, and quoted_message_id are required'}, 400)
+                return
+            if not instance:
+                self._send_json({'error': 'instance is required'}, 400)
+                return
+
+            user_email = auth.get('email', auth.get('label', 'unknown'))
+            if not self._wa_check_rate_limit(user_email):
+                self._send_json({'error': f'Rate limit exceeded ({WA_RATE_LIMIT_PER_MINUTE}/min)'}, 429)
+                return
+
+            result = self._wa_send_via_evolution(instance, number, text, quoted_msg_id=quoted_message_id)
+            msg_key = result.get('key', {}).get('id', '') if isinstance(result, dict) else ''
+
+            if msg_key and group_jid:
+                self._wa_insert_message(
+                    message_id=msg_key,
+                    group_jid=group_jid,
+                    sender_name=auth.get('email', 'Equipe CASE'),
+                    content_type='text',
+                    content_text=text,
+                    reply_to_id=quoted_message_id,
+                    status='sent',
+                )
+
+            log_info('WA-Reply', f'Reply by {user_email} to msg {quoted_message_id}')
+            self._send_json({'ok': True, 'message_id': msg_key, 'result': result})
+
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode()
+            log_error('WA-Reply', f'Evolution API error: {e.code} {error_body}')
+            self._send_json({'error': f'Evolution API error: {e.code}', 'detail': error_body}, e.code)
+        except Exception as e:
+            log_error('WA-Reply', f'reply failed: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
     # ===== CHATWOOT INTEGRATION (EPIC 1) =====
 
     def _verify_chatwoot_signature(self, raw_body):
@@ -4391,7 +4695,11 @@ if __name__ == '__main__':
     print(f'  GET  /api/storage/files     — List files by entity')
     print(f'  GET  /api/storage/status    — Storage overview & queue')
     print(f'  POST /api/storage/reprocess — Reprocess pending/failed files')
-    print(f'  POST /api/webhooks/chatwoot — Chatwoot webhook receiver')
+    print(f'  POST /api/webhooks/chatwoot  — Chatwoot webhook receiver')
+    print(f'  POST /api/webhooks/evolution — Evolution API status webhook')
+    print(f'  POST /api/wa/send-text       — Send WA text (JWT, rate-limited)')
+    print(f'  POST /api/wa/send-media      — Send WA media (JWT, rate-limited)')
+    print(f'  POST /api/wa/reply           — Reply to WA message (JWT, quoted)')
     print(f'  POST /api/fabric/run       — Run Fabric AI pattern')
     print(f'  GET  /api/health')
 

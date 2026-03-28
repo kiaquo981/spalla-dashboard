@@ -3999,7 +3999,11 @@
               </div>
               <div class="wa-chat__messages" x-show="ui.whatsappSelectedChat">
                 <template x-for="(msg, mi) in data.whatsappMessages" :key="msg.key?.id || mi">
-                  <div class="wa-bubble" :class="{ 'wa-bubble--me': msg.key?.fromMe }">
+                  <div class="wa-bubble" :class="{ 'wa-bubble--me': msg.key?.fromMe }" :id="'wa-msg-' + (msg.key?.id || mi)">
+                    <!-- Reply button -->
+                    <button class="wa-bubble__reply-btn" @click="setWaReply(msg)" title="Responder">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+                    </button>
                     <div class="wa-bubble__sender" x-show="!msg.key?.fromMe" x-text="msg.pushName || 'Desconhecido'"></div>
                     <template x-if="getWaMessageType(msg) === 'text'">
                       <div class="wa-bubble__text" x-text="getWaMessageText(msg)"></div>
@@ -4035,11 +4039,49 @@
                         </template>
                       </div>
                     </template>
-                    <div class="wa-bubble__time" x-text="getWaMessageTime(msg)"></div>
+                    <!-- Reply-to preview -->
+                    <template x-if="msg._replyToId">
+                      <div class="wa-bubble__reply-preview" @click="scrollToWaMessage(msg._replyToId)">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+                        <span x-text="getReplyPreviewText(msg._replyToId)"></span>
+                      </div>
+                    </template>
+                    <div class="wa-bubble__footer">
+                      <span class="wa-bubble__time" x-text="getWaMessageTime(msg)"></span>
+                      <!-- Message status indicators (only for sent messages) -->
+                      <template x-if="msg.key?.fromMe">
+                        <span class="wa-bubble__status" :class="'wa-status--' + (msg._status || 'sent')">
+                          <template x-if="msg._status === 'pending'">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                          </template>
+                          <template x-if="msg._status === 'sent' || !msg._status">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                          </template>
+                          <template x-if="msg._status === 'delivered'">
+                            <svg width="16" height="14" viewBox="0 0 28 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 6 11 17 8 14"/><polyline points="16 6 5 17 2 14"/></svg>
+                          </template>
+                          <template x-if="msg._status === 'read'">
+                            <svg width="16" height="14" viewBox="0 0 28 24" fill="none" stroke="#53bdeb" stroke-width="2.5"><polyline points="22 6 11 17 8 14"/><polyline points="16 6 5 17 2 14"/></svg>
+                          </template>
+                          <template x-if="msg._status === 'failed'">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                          </template>
+                        </span>
+                      </template>
+                    </div>
                   </div>
                 </template>
                 <div id="wa-messages-end"></div>
                 <div class="wa-chat__loading" x-show="ui.whatsappLoading">Carregando mensagens...</div>
+              </div>
+              <!-- Reply preview bar -->
+              <div class="wa-reply-bar" x-show="ui.waReplyTo" x-transition>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+                <div class="wa-reply-bar__text">
+                  <strong x-text="ui.waReplyTo?.pushName || 'Mensagem'"></strong>:
+                  <span x-text="getWaMessageText(ui.waReplyTo)?.substring(0, 80) + (getWaMessageText(ui.waReplyTo)?.length > 80 ? '...' : '')"></span>
+                </div>
+                <button class="wa-reply-bar__close" @click="clearWaReply()">&times;</button>
               </div>
               <div class="wa-chat__input" x-show="ui.whatsappSelectedChat">
                 <label class="wa-attach-btn" title="Enviar arquivo" :class="{ 'wa-attach-btn--loading': ui.waSendingMedia }">
