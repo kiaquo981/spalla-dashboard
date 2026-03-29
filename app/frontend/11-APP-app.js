@@ -270,6 +270,7 @@ function operon() {
       waGroupsSyncing: false,
       waGroupCreateModal: false,
       waGroupForm: { subject: '', mentorado_id: '', participants: '' },
+      detailWaMessage: '',
       whatsappLoading: false,
       // WhatsApp Per-User Session
       waSessionLoading: false,
@@ -3050,11 +3051,12 @@ function operon() {
 
     async _loadDetailWaMessages() {
       const { instance: _waInst } = this._waActiveInstance();
-      if (!_waInst) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
       const nome = this.data.detail?.profile?.nome;
+      const menteeId = this.ui.selectedMenteeId;
       if (!nome) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
+
       // Enrich detail with overview WA metrics
-      const overviewMentee = this.data.mentees.find(m => m.id === this.ui.selectedMenteeId);
+      const overviewMentee = this.data.mentees.find(m => m.id === menteeId);
       if (this.data.detail && overviewMentee) {
         this.data.detail._waMetrics = {
           whatsapp_7d: overviewMentee.whatsapp_7d,
@@ -3062,17 +3064,35 @@ function operon() {
           whatsapp_total: overviewMentee.whatsapp_total,
         };
       }
+
       try {
-        // Strategy 1: Use grupo_whatsapp_id from mentorados table (reliable)
-        const grupoId = overviewMentee?.grupo_whatsapp_id;
+        // Strategy 0: Check wa_groups for linked group (most reliable — Story 8)
         let remoteJid = null;
         let chatObj = null;
+        let usedSupabase = false;
 
-        if (grupoId) {
-          remoteJid = grupoId;
-          chatObj = { remoteJid: grupoId, id: grupoId, name: nome, _fromGrupoId: true };
-        } else {
-          // Strategy 2: Fallback to name matching in Evolution chats
+        const { data: linkedGroups } = await sb.from('wa_groups')
+          .select('group_jid,name')
+          .eq('mentorado_id', menteeId)
+          .eq('is_active', true)
+          .limit(1);
+
+        if (linkedGroups?.length) {
+          remoteJid = linkedGroups[0].group_jid;
+          chatObj = { remoteJid, id: remoteJid, name: linkedGroups[0].name || nome };
+        }
+
+        // Strategy 1: Use grupo_whatsapp_id from mentorados table
+        if (!remoteJid) {
+          const grupoId = overviewMentee?.grupo_whatsapp_id;
+          if (grupoId) {
+            remoteJid = grupoId;
+            chatObj = { remoteJid: grupoId, id: grupoId, name: nome };
+          }
+        }
+
+        // Strategy 2: Fallback to name matching in Evolution chats
+        if (!remoteJid && _waInst) {
           const firstName = nome.split(' ')[0].toLowerCase();
           let chats = this.data.whatsappChats;
           if (!chats.length) {
@@ -3093,31 +3113,89 @@ function operon() {
 
         if (!remoteJid) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
 
-        // Fetch last 10 messages using remoteJid
-        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${_waInst}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ where: { key: { remoteJid } }, limit: 10 }),
-        });
-        if (!res.ok) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
-        const data = await res.json();
-        const msgs = data.messages?.records || data.messages || data || [];
-        const interactions = (Array.isArray(msgs) ? msgs : []).reverse().map(msg => ({
-          sender: msg.key?.fromMe ? 'Equipe CASE' : (msg.pushName || nome),
-          conteudo: this.getWaMessageText(msg),
-          created_at: msg.messageTimestamp ? new Date(msg.messageTimestamp * 1000).toISOString() : null,
-        })).filter(i => i.conteudo);
+        // Try loading from Supabase wa_messages first (real data, with status)
+        const { data: dbMsgs } = await sb.from('wa_messages')
+          .select('id,message_id,sender_name,is_from_team,content_type,content_text,media_url,status,timestamp')
+          .eq('group_jid', remoteJid)
+          .order('timestamp', { ascending: false })
+          .limit(30);
+
+        let interactions = [];
+        if (dbMsgs?.length) {
+          usedSupabase = true;
+          interactions = dbMsgs.reverse().map(msg => ({
+            sender: msg.is_from_team ? 'Equipe CASE' : (msg.sender_name || nome),
+            conteudo: msg.content_text || `[${msg.content_type}]`,
+            created_at: msg.timestamp,
+            status: msg.status,
+            message_id: msg.message_id,
+            is_from_team: msg.is_from_team,
+            content_type: msg.content_type,
+            media_url: msg.media_url,
+          }));
+        }
+
+        // Fallback: Evolution API direct
+        if (!interactions.length && _waInst) {
+          const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${_waInst}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ where: { key: { remoteJid } }, limit: 30 }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const msgs = data.messages?.records || data.messages || data || [];
+            interactions = (Array.isArray(msgs) ? msgs : []).reverse().map(msg => ({
+              sender: msg.key?.fromMe ? 'Equipe CASE' : (msg.pushName || nome),
+              conteudo: this.getWaMessageText(msg),
+              created_at: msg.messageTimestamp ? new Date(msg.messageTimestamp * 1000).toISOString() : null,
+            })).filter(i => i.conteudo);
+          }
+        }
 
         if (this.data.detail) {
-          if (interactions.length) {
-            this.data.detail.last_interactions = interactions;
-            this.data.detail._waChat = chatObj;
-          }
+          this.data.detail.last_interactions = interactions;
+          this.data.detail._waChat = chatObj;
+          this.data.detail._waGroupJid = remoteJid;
+          this.data.detail._waFromSupabase = usedSupabase;
           this.data.detail._waLoaded = true;
         }
       } catch (e) {
         console.warn('[Spalla] Could not load detail WA messages:', e.message);
         if (this.data.detail) this.data.detail._waLoaded = true;
+      }
+    },
+
+    // Send message from mentee detail WhatsApp tab
+    async sendDetailWaMessage() {
+      const text = this.ui.detailWaMessage?.trim();
+      if (!text) return;
+      const jid = this.data.detail?._waGroupJid;
+      if (!jid) { this.toast('Nenhum grupo vinculado a este mentorado', 'warning'); return; }
+      const { instance } = this._waActiveInstance();
+      if (!instance) { this.toast('WhatsApp nao conectado', 'warning'); return; }
+
+      this.ui.detailWaMessage = '';
+      // Optimistic insert
+      if (this.data.detail?.last_interactions) {
+        this.data.detail.last_interactions.push({
+          sender: 'Equipe CASE',
+          conteudo: text,
+          created_at: new Date().toISOString(),
+          status: 'pending',
+          is_from_team: true,
+        });
+      }
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/wa/send-text`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+          body: JSON.stringify({ number: jid, text, instance, group_jid: jid }),
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || `HTTP ${res.status}`); }
+        this.toast('Mensagem enviada', 'success');
+      } catch (e) {
+        this.toast('Erro ao enviar: ' + e.message, 'error');
       }
     },
 

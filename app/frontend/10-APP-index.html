@@ -1975,23 +1975,59 @@
             </div>
 
             <!-- ===== TAB: WHATSAPP ===== -->
-            <div class="op-tab-content" x-show="ui.activeDetailTab === 'whatsapp_detail'">
-              <div class="op-tab-header">
+            <div class="op-tab-content" x-show="ui.activeDetailTab === 'whatsapp_detail'" style="display:flex;flex-direction:column;height:100%;padding:0">
+              <div class="op-tab-header" style="padding:var(--sp-3) var(--sp-4);border-bottom:1px solid var(--neutral-200);flex-shrink:0">
                 <h3>Conversas WhatsApp</h3>
-                <button class="badge badge--success" style="background:#25d366;color:#fff;border:none;cursor:pointer;font-size:12px" @click="openMenteeChat(data.detail.profile)">Abrir no WA</button>
-              </div>
-              <template x-if="data.detail?.last_interactions?.length">
-                <div class="detail-wa-feed">
-                  <template x-for="(msg, mi) in data.detail?.last_interactions || []" :key="mi">
-                    <div class="wa-msg" :class="{ 'wa-msg--sent': msg.sender === 'Equipe CASE' }">
-                      <div class="wa-msg__sender" x-text="msg.sender"></div>
-                      <div class="wa-msg__text" x-text="msg.conteudo"></div>
-                      <div class="wa-msg__time" x-text="formatDateFull(msg.created_at)"></div>
-                    </div>
-                  </template>
+                <div style="display:flex;gap:6px">
+                  <button class="badge badge--success" style="background:#25d366;color:#fff;border:none;cursor:pointer;font-size:12px" @click="openMenteeChat(data.detail.profile)">Abrir chat completo</button>
                 </div>
-              </template>
-              <div class="empty-state" x-show="!data.detail?.last_interactions?.length"><p>Nenhuma mensagem carregada.</p></div>
+              </div>
+
+              <!-- Linked group info -->
+              <div x-show="data.detail?._waGroupJid" style="padding:8px 16px;background:var(--neutral-50);border-bottom:1px solid var(--neutral-100);font-size:12px;color:var(--neutral-500);display:flex;align-items:center;gap:6px;flex-shrink:0">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                <span x-text="data.detail?._waChat?.name || data.detail?._waGroupJid"></span>
+                <span x-show="data.detail?._waFromSupabase" style="color:var(--success)">· tempo real</span>
+              </div>
+
+              <!-- Messages feed -->
+              <div style="flex:1;overflow-y:auto;padding:var(--sp-3) var(--sp-4)" id="detail-wa-feed">
+                <template x-if="data.detail?.last_interactions?.length">
+                  <div class="detail-wa-feed">
+                    <template x-for="(msg, mi) in data.detail?.last_interactions || []" :key="mi">
+                      <div class="wa-bubble" :class="{ 'wa-bubble--me': msg.is_from_team || msg.sender === 'Equipe CASE' }" style="max-width:85%">
+                        <div class="wa-bubble__sender" x-show="!msg.is_from_team && msg.sender !== 'Equipe CASE'" x-text="msg.sender"></div>
+                        <div class="wa-bubble__text" x-text="msg.conteudo"></div>
+                        <div class="wa-bubble__footer">
+                          <span class="wa-bubble__time" x-text="msg.created_at ? new Date(msg.created_at).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}) : ''"></span>
+                          <template x-if="msg.is_from_team && msg.status">
+                            <span class="wa-bubble__status" :class="'wa-status--' + msg.status">
+                              <template x-if="msg.status === 'pending'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></template>
+                              <template x-if="msg.status === 'sent'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></template>
+                              <template x-if="msg.status === 'delivered'"><svg width="14" height="12" viewBox="0 0 28 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 6 11 17 8 14"/><polyline points="16 6 5 17 2 14"/></svg></template>
+                              <template x-if="msg.status === 'read'"><svg width="14" height="12" viewBox="0 0 28 24" fill="none" stroke="#53bdeb" stroke-width="2.5"><polyline points="22 6 11 17 8 14"/><polyline points="16 6 5 17 2 14"/></svg></template>
+                            </span>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+                <div class="empty-state" x-show="!data.detail?.last_interactions?.length && data.detail?._waLoaded">
+                  <p x-show="!data.detail?._waGroupJid">Nenhum grupo WhatsApp vinculado a este mentorado.</p>
+                  <p x-show="data.detail?._waGroupJid">Nenhuma mensagem encontrada.</p>
+                  <button x-show="!data.detail?._waGroupJid" class="btn btn--sm btn--ghost" style="margin-top:8px" @click="ui.waGroupsPanel = true; navigate('whatsapp')">Vincular grupo</button>
+                </div>
+                <div x-show="!data.detail?._waLoaded" style="text-align:center;padding:24px;color:var(--neutral-400)">Carregando...</div>
+              </div>
+
+              <!-- Send message input (only if group linked) -->
+              <div x-show="data.detail?._waGroupJid" style="padding:8px 12px;border-top:1px solid var(--neutral-200);display:flex;gap:8px;align-items:center;flex-shrink:0;background:#fff">
+                <input type="text" x-model="ui.detailWaMessage" placeholder="Enviar mensagem..." @keydown.enter="sendDetailWaMessage()" style="flex:1;border:1px solid var(--neutral-200);border-radius:var(--r-md);padding:8px 12px;font-size:13px;outline:none">
+                <button class="btn btn--success btn--sm" @click="sendDetailWaMessage()" style="flex-shrink:0">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+              </div>
             </div>
 
             <!-- ===== TAB: VENDAS ===== -->
