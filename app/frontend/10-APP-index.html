@@ -1978,7 +1978,15 @@
             <div class="op-tab-content" x-show="ui.activeDetailTab === 'whatsapp_detail'" style="display:flex;flex-direction:column;height:100%;padding:0">
               <div class="op-tab-header" style="padding:var(--sp-3) var(--sp-4);border-bottom:1px solid var(--neutral-200);flex-shrink:0">
                 <h3>Conversas WhatsApp</h3>
-                <div style="display:flex;gap:6px">
+                <div style="display:flex;gap:6px;align-items:center">
+                  <!-- Response time alert -->
+                  <template x-if="data.detail?._waResponseInfo">
+                    <span class="badge" :class="data.detail._waResponseInfo.hours > 48 ? 'badge--danger' : data.detail._waResponseInfo.hours > 24 ? 'badge--warning' : 'badge--success'" x-text="data.detail._waResponseInfo.label" style="font-size:11px"></span>
+                  </template>
+                  <!-- Unread count -->
+                  <template x-if="data.detail?._waUnreadCount > 0">
+                    <span class="badge badge--danger" style="font-size:11px" x-text="data.detail._waUnreadCount + ' nao lidas'"></span>
+                  </template>
                   <button class="badge badge--success" style="background:#25d366;color:#fff;border:none;cursor:pointer;font-size:12px" @click="openMenteeChat(data.detail.profile)">Abrir chat completo</button>
                 </div>
               </div>
@@ -1996,13 +2004,64 @@
                   <div class="detail-wa-feed">
                     <template x-for="(msg, mi) in data.detail?.last_interactions || []" :key="mi">
                       <div class="wa-bubble" :class="{ 'wa-bubble--me': msg.is_from_team || msg.sender === 'Equipe CASE' }" style="max-width:85%">
-                        <div class="wa-bubble__sender" x-show="!msg.is_from_team && msg.sender !== 'Equipe CASE'" x-text="msg.sender"></div>
-                        <div class="wa-bubble__text" x-text="msg.conteudo"></div>
+                        <div class="wa-bubble__sender" x-show="!msg.is_from_team && msg.sender !== 'Equipe CASE'" x-text="waCleanSenderName(msg.sender)"></div>
+
+                        <!-- Text message -->
+                        <template x-if="!msg.content_type || msg.content_type === 'text'">
+                          <div class="wa-bubble__text" x-text="msg.conteudo"></div>
+                        </template>
+
+                        <!-- Audio message -->
+                        <template x-if="msg.content_type === 'audio'">
+                          <div class="wa-bubble__media">
+                            <template x-if="msg.media_url">
+                              <audio controls :src="waDetailMediaUrl(msg.media_url)" style="max-width:260px;border-radius:8px" preload="none"></audio>
+                            </template>
+                            <template x-if="!msg.media_url">
+                              <div style="padding:8px;color:var(--neutral-400);font-size:12px">🎤 Audio</div>
+                            </template>
+                          </div>
+                        </template>
+
+                        <!-- Image message -->
+                        <template x-if="msg.content_type === 'image'">
+                          <div class="wa-bubble__media">
+                            <template x-if="msg.media_url">
+                              <img :src="waDetailMediaUrl(msg.media_url)" style="max-width:260px;border-radius:8px;cursor:pointer" @click="ui.waLightboxUrl = waDetailMediaUrl(msg.media_url)" loading="lazy">
+                            </template>
+                            <template x-if="!msg.media_url">
+                              <div style="padding:8px;color:var(--neutral-400);font-size:12px">📷 Imagem</div>
+                            </template>
+                            <div x-show="msg.conteudo && msg.conteudo !== '[image]'" class="wa-bubble__text" x-text="msg.conteudo"></div>
+                          </div>
+                        </template>
+
+                        <!-- Video message -->
+                        <template x-if="msg.content_type === 'video'">
+                          <div class="wa-bubble__media">
+                            <template x-if="msg.media_url">
+                              <video controls :src="waDetailMediaUrl(msg.media_url)" style="max-width:260px;border-radius:8px" preload="metadata"></video>
+                            </template>
+                            <template x-if="!msg.media_url">
+                              <div style="padding:8px;color:var(--neutral-400);font-size:12px">🎥 Video</div>
+                            </template>
+                          </div>
+                        </template>
+
+                        <!-- Document message -->
+                        <template x-if="msg.content_type === 'document'">
+                          <div class="wa-bubble__media">
+                            <a :href="msg.media_url ? waDetailMediaUrl(msg.media_url) : '#'" target="_blank" class="wa-doc-link">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                              <span x-text="msg.conteudo || 'Documento'"></span>
+                            </a>
+                          </div>
+                        </template>
+
                         <div class="wa-bubble__footer">
                           <span class="wa-bubble__time" x-text="msg.created_at ? new Date(msg.created_at).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}) : ''"></span>
                           <template x-if="msg.is_from_team && msg.status">
                             <span class="wa-bubble__status" :class="'wa-status--' + msg.status">
-                              <template x-if="msg.status === 'pending'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></template>
                               <template x-if="msg.status === 'sent'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></template>
                               <template x-if="msg.status === 'delivered'"><svg width="14" height="12" viewBox="0 0 28 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 6 11 17 8 14"/><polyline points="16 6 5 17 2 14"/></svg></template>
                               <template x-if="msg.status === 'read'"><svg width="14" height="12" viewBox="0 0 28 24" fill="none" stroke="#53bdeb" stroke-width="2.5"><polyline points="22 6 11 17 8 14"/><polyline points="16 6 5 17 2 14"/></svg></template>
@@ -2021,7 +2080,7 @@
                 <div x-show="!data.detail?._waLoaded" style="text-align:center;padding:24px;color:var(--neutral-400)">Carregando...</div>
               </div>
 
-              <!-- Send message input (only if group linked) -->
+              <!-- Send message input -->
               <div x-show="data.detail?._waGroupJid" style="padding:8px 12px;border-top:1px solid var(--neutral-200);display:flex;gap:8px;align-items:center;flex-shrink:0;background:#fff">
                 <input type="text" x-model="ui.detailWaMessage" placeholder="Enviar mensagem..." @keydown.enter="sendDetailWaMessage()" style="flex:1;border:1px solid var(--neutral-200);border-radius:var(--r-md);padding:8px 12px;font-size:13px;outline:none">
                 <button class="btn btn--success btn--sm" @click="sendDetailWaMessage()" style="flex-shrink:0">

@@ -3159,6 +3159,41 @@ function operon() {
           this.data.detail._waGroupJid = remoteJid;
           this.data.detail._waFromSupabase = usedSupabase;
           this.data.detail._waLoaded = true;
+
+          // Calculate response time and unread count
+          if (interactions.length) {
+            // Find last team message and last mentee message
+            let lastTeamIdx = -1, lastMenteeIdx = -1;
+            for (let i = interactions.length - 1; i >= 0; i--) {
+              if ((interactions[i].is_from_team || interactions[i].sender === 'Equipe CASE') && lastTeamIdx === -1) lastTeamIdx = i;
+              if (!interactions[i].is_from_team && interactions[i].sender !== 'Equipe CASE' && lastMenteeIdx === -1) lastMenteeIdx = i;
+              if (lastTeamIdx >= 0 && lastMenteeIdx >= 0) break;
+            }
+            // Unread = messages from mentee after last team response
+            let unread = 0;
+            if (lastTeamIdx >= 0) {
+              for (let i = lastTeamIdx + 1; i < interactions.length; i++) {
+                if (!interactions[i].is_from_team && interactions[i].sender !== 'Equipe CASE') unread++;
+              }
+            } else {
+              // Team never responded — all mentee msgs are "unread"
+              unread = interactions.filter(m => !m.is_from_team && m.sender !== 'Equipe CASE').length;
+            }
+            this.data.detail._waUnreadCount = unread;
+
+            // Response time: if last message is from mentee, how long ago?
+            if (lastMenteeIdx >= 0 && (lastTeamIdx < 0 || lastMenteeIdx > lastTeamIdx)) {
+              const lastMenteeTime = new Date(interactions[lastMenteeIdx].created_at);
+              const hours = Math.round((Date.now() - lastMenteeTime.getTime()) / (1000 * 60 * 60));
+              let label = '';
+              if (hours < 1) label = 'Respondido agora';
+              else if (hours < 24) label = `Sem resposta ha ${hours}h`;
+              else { const days = Math.round(hours / 24); label = `Sem resposta ha ${days} dia${days > 1 ? 's' : ''}`; }
+              this.data.detail._waResponseInfo = { hours, label };
+            } else {
+              this.data.detail._waResponseInfo = null;
+            }
+          }
         }
       } catch (e) {
         console.warn('[Spalla] Could not load detail WA messages:', e.message);
@@ -3197,6 +3232,27 @@ function operon() {
       } catch (e) {
         this.toast('Erro ao enviar: ' + e.message, 'error');
       }
+    },
+
+    // Clean sender name — replace raw JID numbers with readable format
+    waCleanSenderName(name) {
+      if (!name) return 'Desconhecido';
+      // If it's a pure number (JID), format as phone
+      if (/^\d{10,15}$/.test(name)) {
+        // Format: 5511999887766 → (55) 11 99988-7766
+        if (name.length >= 12) return `+${name.slice(0,2)} ${name.slice(2,4)} ${name.slice(4,9)}-${name.slice(9)}`;
+        return name;
+      }
+      // Remove @s.whatsapp.net or @lid suffix
+      return name.replace(/@s\.whatsapp\.net$/, '').replace(/@lid$/, '');
+    },
+
+    // Resolve media URL for detail tab — S3 key → stream proxy, full URL → passthrough
+    waDetailMediaUrl(url) {
+      if (!url) return '';
+      if (url.startsWith('http')) return url;
+      // S3 key → stream proxy
+      return `${CONFIG.API_BASE}/api/media/stream?key=${encodeURIComponent(url)}`;
     },
 
     openDetailWhatsApp() {
