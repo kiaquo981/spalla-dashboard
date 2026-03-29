@@ -4239,7 +4239,7 @@
                   <template x-for="r in ui.waSearchResults" :key="r.id">
                     <div class="wa-search-result" @click="scrollToWaMessage(r.message_id); ui.waSearchOpen = false">
                       <strong x-text="r.sender_name || 'Desconhecido'"></strong>
-                      <span x-text="r.content_text?.substring(0, 100)"></span>
+                      <span x-text="(r.content || r.content_text)?.substring(0, 100)"></span>
                       <small x-text="new Date(r.timestamp).toLocaleString('pt-BR')"></small>
                     </div>
                   </template>

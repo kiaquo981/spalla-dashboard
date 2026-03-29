@@ -2193,8 +2193,8 @@ function operon() {
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
-          table: 'wa_messages',
-          filter: `group_jid=eq.${groupJid}`,
+          table: 'whatsapp_messages',
+          filter: `group_id=eq.${groupJid}`,
         }, (payload) => {
           const newMsg = this._waDbToEvolutionFormat(payload.new);
           // Avoid duplicates (optimistic insert from send)
@@ -2209,8 +2209,8 @@ function operon() {
         .on('postgres_changes', {
           event: 'UPDATE',
           schema: 'public',
-          table: 'wa_messages',
-          filter: `group_jid=eq.${groupJid}`,
+          table: 'whatsapp_messages',
+          filter: `group_id=eq.${groupJid}`,
         }, (payload) => {
           // Update status of existing message
           const updated = payload.new;
@@ -2231,32 +2231,34 @@ function operon() {
     },
 
     // Convert wa_messages DB row to Evolution API format (compatible with existing HTML template)
+    // Convert whatsapp_messages row to Evolution API format (HTML compatible)
     _waDbToEvolutionFormat(row) {
-      const isFromMe = row.is_from_team === true;
+      // whatsapp_messages schema: type, content, media_url, media_mime_type, quoted_message_id, group_id
+      const contentType = row.type || 'text';
       const msgObj = {};
-      if (row.content_type === 'text' || !row.content_type) {
-        msgObj.conversation = row.content_text || '';
-      } else if (row.content_type === 'image') {
-        msgObj.imageMessage = { caption: row.content_text || '', url: row.media_url };
-      } else if (row.content_type === 'audio') {
-        msgObj.audioMessage = { url: row.media_url, mimetype: row.media_mime || 'audio/ogg' };
-      } else if (row.content_type === 'video') {
-        msgObj.videoMessage = { caption: row.content_text || '', url: row.media_url };
-      } else if (row.content_type === 'document') {
-        msgObj.documentMessage = { fileName: row.content_text || 'Documento', url: row.media_url, mimetype: row.media_mime };
+      if (contentType === 'text' || contentType === 'chat' || !contentType) {
+        msgObj.conversation = row.content || '';
+      } else if (contentType === 'image') {
+        msgObj.imageMessage = { caption: row.caption || row.content || '', url: row.media_url };
+      } else if (contentType === 'audio' || contentType === 'ptt') {
+        msgObj.audioMessage = { url: row.media_url, mimetype: row.media_mime_type || 'audio/ogg' };
+      } else if (contentType === 'video') {
+        msgObj.videoMessage = { caption: row.caption || row.content || '', url: row.media_url };
+      } else if (contentType === 'document') {
+        msgObj.documentMessage = { fileName: row.file_name || row.content || 'Documento', url: row.media_url, mimetype: row.media_mime_type };
+      } else if (contentType === 'sticker') {
+        msgObj.conversation = '[Sticker]';
       } else {
-        msgObj.conversation = row.content_text || `[${row.content_type}]`;
+        msgObj.conversation = row.content || `[${contentType}]`;
       }
       return {
-        key: { id: row.message_id, fromMe: isFromMe, remoteJid: row.group_jid },
+        key: { id: row.message_id, fromMe: false, remoteJid: row.group_id || row.chat_id },
         message: msgObj,
         messageTimestamp: row.timestamp ? Math.floor(new Date(row.timestamp).getTime() / 1000) : Math.floor(Date.now() / 1000),
-        pushName: row.sender_name || (isFromMe ? 'Equipe CASE' : 'Desconhecido'),
+        pushName: row.sender_name || 'Desconhecido',
         _dbId: row.id,
-        _status: row.status || 'sent',
-        _statusUpdatedAt: row.status_updated_at,
-        _replyToId: row.reply_to_id,
-        _contentType: row.content_type,
+        _replyToId: row.quoted_message_id,
+        _contentType: contentType,
         _mediaUrl: row.media_url,
       };
     },
@@ -3115,9 +3117,9 @@ function operon() {
         if (!remoteJid) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
 
         // Try loading from Supabase wa_messages first (real data, with status)
-        const { data: dbMsgs } = await sb.from('wa_messages')
-          .select('id,message_id,sender_name,is_from_team,content_type,content_text,media_url,status,timestamp')
-          .eq('group_jid', remoteJid)
+        const { data: dbMsgs } = await sb.from('whatsapp_messages')
+          .select('id,message_id,sender_name,type,content,media_url,media_mime_type,quoted_message_id,timestamp,is_group,group_id')
+          .eq('group_id', remoteJid)
           .order('timestamp', { ascending: false })
           .limit(30);
 
@@ -3132,18 +3134,17 @@ function operon() {
         if (dbMsgs?.length) {
           usedSupabase = true;
           interactions = dbMsgs.reverse().map(msg => {
-            // Detect team: explicit flag OR sender name matches a team member
+            // Detect team: sender name matches a team member
             const senderLower = (msg.sender_name || '').toLowerCase();
-            const isTeam = msg.is_from_team || teamNames.has(senderLower) ||
+            const isTeam = teamNames.has(senderLower) ||
               [...teamNames].some(tn => senderLower.includes(tn) || tn.includes(senderLower));
             return {
               sender: isTeam ? (msg.sender_name || 'Equipe CASE') : (msg.sender_name || nome),
-              conteudo: msg.content_text || `[${msg.content_type}]`,
+              conteudo: msg.content || `[${msg.type || 'mensagem'}]`,
               created_at: msg.timestamp,
-              status: msg.status,
               message_id: msg.message_id,
               is_from_team: isTeam,
-              content_type: msg.content_type,
+              content_type: msg.type || 'text',
               media_url: msg.media_url,
             };
           });
@@ -6817,9 +6818,9 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       // Strategy: try Supabase wa_messages first, fallback to Evolution API
       let usedRealtime = false;
       try {
-        const { data: dbMsgs, error } = await sb.from('wa_messages')
-          .select('id,message_id,group_jid,sender_name,is_from_team,content_type,content_text,media_url,media_mime,reply_to_id,status,status_updated_at,timestamp')
-          .eq('group_jid', groupJid)
+        const { data: dbMsgs, error } = await sb.from('whatsapp_messages')
+          .select('id,message_id,group_id,sender_name,type,content,media_url,media_mime_type,quoted_message_id,timestamp')
+          .eq('group_id', groupJid)
           .order('timestamp', { ascending: true })
           .limit(100);
 
@@ -7297,10 +7298,10 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (!chat) return;
       const groupJid = chat.remoteJid || chat.id;
       try {
-        const { data, error } = await sb.from('wa_messages')
-          .select('id,message_id,sender_name,content_text,timestamp')
-          .eq('group_jid', groupJid)
-          .ilike('content_text', `%${q}%`)
+        const { data, error } = await sb.from('whatsapp_messages')
+          .select('id,message_id,sender_name,content,timestamp')
+          .eq('group_id', groupJid)
+          .ilike('content', `%${q}%`)
           .order('timestamp', { ascending: false })
           .limit(20);
         if (error) throw error;
@@ -7884,8 +7885,9 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     async loadInboxMessages(menteeId) {
       this.ui.waInbox.loading = true;
       try {
-        const { data, error } = await sb.from('wa_messages')
-          .select('id,sender_name,is_from_team,content_type,content_text,timestamp,topic_id')
+        // Use interacoes_mentoria (has mentorado_id + enriched data)
+        const { data, error } = await sb.from('interacoes_mentoria')
+          .select('id,sender_name,eh_equipe,tipo_interacao,conteudo,timestamp,topic_id')
           .eq('mentorado_id', menteeId)
           .order('timestamp', { ascending: false })
           .order('id', { ascending: false })
@@ -7910,10 +7912,9 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (!mentoradoId || !cursor || loading || !hasMore) return;
       this.ui.waInbox.loading = true;
       try {
-        const { data, error } = await sb.from('wa_messages')
-          .select('id,sender_name,is_from_team,content_type,content_text,timestamp,topic_id')
+        const { data, error } = await sb.from('interacoes_mentoria')
+          .select('id,sender_name,eh_equipe,tipo_interacao,conteudo,timestamp,topic_id')
           .eq('mentorado_id', mentoradoId)
-          // composite cursor: (ts < cur.ts) OR (ts = cur.ts AND id < cur.id)
           .or(`timestamp.lt.${cursor.timestamp},and(timestamp.eq.${cursor.timestamp},id.lt.${cursor.id})`)
           .order('timestamp', { ascending: false })
           .order('id', { ascending: false })
@@ -8773,8 +8774,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.ui.waTopicDetail = topic;
       this.ui.waTopicMessages = [];
       try {
-        const { data, error } = await sb.from('wa_messages')
-          .select('id,sender_name,is_from_team,content_type,content_text,timestamp')
+        const { data, error } = await sb.from('interacoes_mentoria')
+          .select('id,sender_name,eh_equipe,tipo_interacao,conteudo,timestamp')
           .eq('topic_id', topic.id)
           .order('timestamp', { ascending: true })
           .limit(100);
