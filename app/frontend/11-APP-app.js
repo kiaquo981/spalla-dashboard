@@ -3254,6 +3254,20 @@ function operon() {
       }
     },
 
+    // Date label for day separators in chat
+    waDateLabel(dateStr) {
+      if (!dateStr) return '';
+      const d = new Date(dateStr);
+      const today = new Date();
+      const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+      if (d.toDateString() === today.toDateString()) return 'Hoje';
+      if (d.toDateString() === yesterday.toDateString()) return 'Ontem';
+      const dias = ['Domingo','Segunda','Terca','Quarta','Quinta','Sexta','Sabado'];
+      const diff = Math.floor((today - d) / (1000*60*60*24));
+      if (diff < 7) return dias[d.getDay()];
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    },
+
     // Clean sender name — replace raw JID numbers with readable format
     waCleanSenderName(name) {
       if (!name) return 'Desconhecido';

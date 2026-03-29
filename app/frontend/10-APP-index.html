@@ -2003,6 +2003,11 @@
                 <template x-if="data.detail?.last_interactions?.length">
                   <div class="detail-wa-feed">
                     <template x-for="(msg, mi) in data.detail?.last_interactions || []" :key="mi">
+                      <div>
+                      <!-- Day separator -->
+                      <div x-show="mi === 0 || waDateLabel(msg.created_at) !== waDateLabel((data.detail?.last_interactions || [])[mi-1]?.created_at)" class="wa-day-separator">
+                        <span x-text="waDateLabel(msg.created_at)"></span>
+                      </div>
                       <div class="wa-bubble" :class="{ 'wa-bubble--me': msg.is_from_team || msg.sender === 'Equipe CASE' }" style="max-width:85%">
                         <div class="wa-bubble__sender" x-show="!msg.is_from_team && msg.sender !== 'Equipe CASE'" x-text="waCleanSenderName(msg.sender)"></div>
 
@@ -2068,6 +2073,7 @@
                             </span>
                           </template>
                         </div>
+                      </div>
                       </div>
                     </template>
                   </div>
