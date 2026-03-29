@@ -3121,18 +3121,31 @@ function operon() {
           .limit(30);
 
         let interactions = [];
+        // Build team member name set for matching
+        const teamNames = new Set();
+        (this.data.members || []).forEach(m => {
+          if (m.nome_curto) teamNames.add(m.nome_curto.toLowerCase());
+          if (m.nome_completo) teamNames.add(m.nome_completo.toLowerCase());
+        });
+
         if (dbMsgs?.length) {
           usedSupabase = true;
-          interactions = dbMsgs.reverse().map(msg => ({
-            sender: msg.is_from_team ? 'Equipe CASE' : (msg.sender_name || nome),
-            conteudo: msg.content_text || `[${msg.content_type}]`,
-            created_at: msg.timestamp,
-            status: msg.status,
-            message_id: msg.message_id,
-            is_from_team: msg.is_from_team,
-            content_type: msg.content_type,
-            media_url: msg.media_url,
-          }));
+          interactions = dbMsgs.reverse().map(msg => {
+            // Detect team: explicit flag OR sender name matches a team member
+            const senderLower = (msg.sender_name || '').toLowerCase();
+            const isTeam = msg.is_from_team || teamNames.has(senderLower) ||
+              [...teamNames].some(tn => senderLower.includes(tn) || tn.includes(senderLower));
+            return {
+              sender: isTeam ? (msg.sender_name || 'Equipe CASE') : (msg.sender_name || nome),
+              conteudo: msg.content_text || `[${msg.content_type}]`,
+              created_at: msg.timestamp,
+              status: msg.status,
+              message_id: msg.message_id,
+              is_from_team: isTeam,
+              content_type: msg.content_type,
+              media_url: msg.media_url,
+            };
+          });
         }
 
         // Fallback: Evolution API direct
@@ -3145,11 +3158,18 @@ function operon() {
           if (res.ok) {
             const data = await res.json();
             const msgs = data.messages?.records || data.messages || data || [];
-            interactions = (Array.isArray(msgs) ? msgs : []).reverse().map(msg => ({
-              sender: msg.key?.fromMe ? 'Equipe CASE' : (msg.pushName || nome),
-              conteudo: this.getWaMessageText(msg),
-              created_at: msg.messageTimestamp ? new Date(msg.messageTimestamp * 1000).toISOString() : null,
-            })).filter(i => i.conteudo);
+            interactions = (Array.isArray(msgs) ? msgs : []).reverse().map(msg => {
+              const pushName = msg.pushName || '';
+              const pushLower = pushName.toLowerCase();
+              const isTeam = msg.key?.fromMe || teamNames.has(pushLower) ||
+                [...teamNames].some(tn => pushLower.includes(tn) || tn.includes(pushLower));
+              return {
+                sender: isTeam ? (pushName || 'Equipe CASE') : (pushName || nome),
+                conteudo: this.getWaMessageText(msg),
+                created_at: msg.messageTimestamp ? new Date(msg.messageTimestamp * 1000).toISOString() : null,
+                is_from_team: isTeam,
+              };
+            }).filter(i => i.conteudo);
           }
         }
 
@@ -5672,7 +5692,9 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         this.ui.taskEditId = task.id;
         this.loadFieldDefs(task.space_id, task.list_id, task.id);
       } else {
-        this.taskForm = { titulo: '', descricao: '', responsavel: '', acompanhante: '', mentorado_nome: '', prioridade: 'normal', prazo: '', data_inicio: '', data_fim: '', doc_link: '', subtasks: [], checklist: [], comments: [], attachments: [], tags: [], dependencies: [], parent_task_id: null, space_id: 'space_jornada', list_id: '', recorrencia: 'nenhuma', dia_recorrencia: null, recorrencia_ativa: true, bloqueio_motivo: '', bloqueio_responsavel: '', newSubtask: '', newCheckItem: '', newComment: '', newTag: '', newDependsOn: '', newDependsOnType: 'finish_to_start', fieldValues: {} };
+        // Preserve mentorado_nome if it was pre-set (e.g. from mentee detail view)
+        const presetMentorado = this.taskForm?.mentorado_nome || '';
+        this.taskForm = { titulo: '', descricao: '', responsavel: '', acompanhante: '', mentorado_nome: presetMentorado, prioridade: 'normal', prazo: '', data_inicio: '', data_fim: '', doc_link: '', subtasks: [], checklist: [], comments: [], attachments: [], tags: [], dependencies: [], parent_task_id: null, space_id: 'space_jornada', list_id: '', recorrencia: 'nenhuma', dia_recorrencia: null, recorrencia_ativa: true, bloqueio_motivo: '', bloqueio_responsavel: '', newSubtask: '', newCheckItem: '', newComment: '', newTag: '', newDependsOn: '', newDependsOnType: 'finish_to_start', fieldValues: {} };
         this.ui.taskEditId = null;
         this.loadFieldDefs('space_jornada', null, null);
       }

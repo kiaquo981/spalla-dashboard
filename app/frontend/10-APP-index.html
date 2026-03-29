@@ -8949,7 +8949,7 @@
           <div class="modal__body" style="flex:1;overflow-y:auto;padding:var(--sp-6) var(--sp-8)">
 
             <!-- Show mentorado context when pre-filled -->
-            <div x-show="taskForm.mentorado_nome && data.detail?.profile?.nome" style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--cream-50);border:1px solid var(--neutral-200);border-radius:var(--r-md);margin-bottom:var(--sp-4);font-size:var(--text-sm)">
+            <div x-show="taskForm.mentorado_nome" style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--cream-50);border:1px solid var(--neutral-200);border-radius:var(--r-md);margin-bottom:var(--sp-4);font-size:var(--text-sm)">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--neutral-500)" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
               <span style="color:var(--neutral-600)">Tarefa para:</span>
               <strong x-text="taskForm.mentorado_nome" style="color:var(--neutral-800)"></strong>
@@ -8975,7 +8975,7 @@
 
             <!-- Mentorado + Responsável -->
             <div class="modal__row">
-              <div x-show="!taskForm.mentorado_nome || !data.detail?.profile?.nome"><label>Mentorado</label>
+              <div x-show="!taskForm.mentorado_nome"><label>Mentorado</label>
                 <select x-model="taskForm.mentorado_nome" class="modal__select">
                   <option value="">-- Selecione --</option>
                   <template x-for="name in menteeNames" :key="name">
