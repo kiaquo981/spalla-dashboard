@@ -184,6 +184,7 @@ function operon() {
       finDetailLoading: false,  // loading state for financial detail logs
       selectedMenteeId: null,
       activeDetailTab: 'resumo',
+      detailTaskFilter: 'pendentes',
       toasts: [],
       // Tasks
       taskFilter: 'all', // all | pendente | em_andamento | concluida | atrasada

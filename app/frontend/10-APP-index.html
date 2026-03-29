@@ -1466,20 +1466,10 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
                 Resumo
               </button>
-              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'tarefas_dela' }" @click="ui.activeDetailTab = 'tarefas_dela'">
+              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'tarefas' }" @click="ui.activeDetailTab = 'tarefas'">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                Tarefas Dela
-                <span class="op-tab__count" x-show="detailTasksDela.length" x-text="detailTasksDela.length"></span>
-              </button>
-              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'tarefas_equipe' }" @click="ui.activeDetailTab = 'tarefas_equipe'">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                Tarefas Equipe
-                <span class="op-tab__count" x-show="detailTasksEquipe.length" x-text="detailTasksEquipe.length"></span>
-              </button>
-              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'tarefas_queila' }" @click="ui.activeDetailTab = 'tarefas_queila'">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                Tarefas Queila
-                <span class="op-tab__count" x-show="detailTasksQueila.length" x-text="detailTasksQueila.length"></span>
+                Tarefas
+                <span class="op-tab__count" x-show="detailAllTasks.filter(t => t.status !== 'concluida').length" x-text="detailAllTasks.filter(t => t.status !== 'concluida').length"></span>
               </button>
               <button class="op-tab" :class="{ active: ui.activeDetailTab === 'calls' }" @click="ui.activeDetailTab = 'calls'">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
@@ -1574,15 +1564,15 @@
                     <div class="card__header"><h3>Tarefas Pendentes</h3><span class="badge badge--sm badge--info" x-text="detailAllTasks.filter(t => t.status !== 'concluida').length + ' pendentes'"></span></div>
                     <div class="card__body">
                       <div class="detail-task-summary">
-                        <div class="detail-task-summary__row" @click="ui.activeDetailTab = 'tarefas_dela'" style="cursor:pointer">
+                        <div class="detail-task-summary__row" @click="ui.activeDetailTab = 'tarefas'" style="cursor:pointer">
                           <span class="detail-task-summary__label">Tarefas Dela</span>
                           <span class="detail-task-summary__count" x-text="detailTasksDela.length"></span>
                         </div>
-                        <div class="detail-task-summary__row" @click="ui.activeDetailTab = 'tarefas_equipe'" style="cursor:pointer">
+                        <div class="detail-task-summary__row" @click="ui.activeDetailTab = 'tarefas'" style="cursor:pointer">
                           <span class="detail-task-summary__label">Tarefas Equipe</span>
                           <span class="detail-task-summary__count" x-text="detailTasksEquipe.length"></span>
                         </div>
-                        <div class="detail-task-summary__row" @click="ui.activeDetailTab = 'tarefas_queila'" style="cursor:pointer">
+                        <div class="detail-task-summary__row" @click="ui.activeDetailTab = 'tarefas'" style="cursor:pointer">
                           <span class="detail-task-summary__label">Tarefas Queila</span>
                           <span class="detail-task-summary__count" x-text="detailTasksQueila.length"></span>
                         </div>
@@ -1812,8 +1802,96 @@
 
             </div>
 
-            <!-- ===== TAB: TAREFAS DELA ===== -->
-            <div class="op-tab-content" x-show="ui.activeDetailTab === 'tarefas_dela'">
+            <!-- ===== TAB: TAREFAS (Board Unificado) ===== -->
+            <div class="op-tab-content" x-show="ui.activeDetailTab === 'tarefas'" style="padding:0">
+              <div class="op-tab-header" style="padding:var(--sp-3) var(--sp-4)">
+                <h3>Tarefas</h3>
+                <div style="display:flex;gap:6px;align-items:center;margin-left:auto">
+                  <select style="border:1px solid var(--neutral-200);background:#fff;font-size:11px;padding:3px 8px;border-radius:var(--r-sm);cursor:pointer" x-model="ui.detailTaskFilter">
+                    <option value="pendentes">Pendentes</option>
+                    <option value="todas">Todas</option>
+                    <option value="concluidas">Concluidas</option>
+                  </select>
+                  <button class="btn btn--sm btn--brand" @click="taskForm.mentorado_nome = data.detail?.profile?.nome; openTaskModal()">+ Nova Tarefa</button>
+                </div>
+              </div>
+
+              <!-- Board: 3 columns -->
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;border-top:1px solid var(--neutral-200);min-height:300px">
+                <!-- Column: Mentorado -->
+                <div style="border-right:1px solid var(--neutral-100);padding:8px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:0 4px">
+                    <span style="font-size:12px;font-weight:600;color:var(--neutral-600)">Mentorado</span>
+                    <span class="badge badge--sm badge--neutral" x-text="detailTasksDela.length"></span>
+                  </div>
+                  <template x-for="t in (ui.detailTaskFilter === 'todas' ? detailAllTasks.filter(x => { const r = (x.responsavel||'').toLowerCase(); return !r || r === 'mentorado' || r.includes(data.detail?.profile?.nome?.split(' ')[0]?.toLowerCase()||'---'); }) : ui.detailTaskFilter === 'concluidas' ? detailAllTasks.filter(x => x.status === 'concluida').filter(x => { const r = (x.responsavel||'').toLowerCase(); return !r || r === 'mentorado'; }) : detailTasksDela)" :key="t.id">
+                    <div class="detail-task-card" @click="openTaskDetail(t.id)" style="margin-bottom:6px">
+                      <div class="detail-task-card__check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
+                      <div class="detail-task-card__body">
+                        <div class="detail-task-card__title" :style="t.status === 'concluida' ? 'text-decoration:line-through;opacity:0.5' : ''"><span x-text="t.titulo"></span></div>
+                        <div class="detail-task-card__meta">
+                          <span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span>
+                          <span x-show="t.data_fim || t.prazo" class="detail-task-card__due" :class="{ 'detail-task-card__due--overdue': isOverdue(t.data_fim || t.prazo) }" x-text="formatDate(t.data_fim || t.prazo)"></span>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+
+                <!-- Column: Equipe -->
+                <div style="border-right:1px solid var(--neutral-100);padding:8px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:0 4px">
+                    <span style="font-size:12px;font-weight:600;color:var(--neutral-600)">Equipe</span>
+                    <span class="badge badge--sm badge--neutral" x-text="detailTasksEquipe.length"></span>
+                  </div>
+                  <template x-for="t in (ui.detailTaskFilter === 'todas' ? detailAllTasks.filter(x => { const tn=(data.members||[]).map(m=>(m.nome_curto||'').toLowerCase()); return tn.some(n=>x.responsavel?.toLowerCase()?.includes(n)); }) : ui.detailTaskFilter === 'concluidas' ? detailAllTasks.filter(x => x.status==='concluida').filter(x => { const tn=(data.members||[]).map(m=>(m.nome_curto||'').toLowerCase()); return tn.some(n=>x.responsavel?.toLowerCase()?.includes(n)); }) : detailTasksEquipe)" :key="t.id">
+                    <div class="detail-task-card" @click="openTaskDetail(t.id)" style="margin-bottom:6px">
+                      <div class="detail-task-card__check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
+                      <div class="detail-task-card__body">
+                        <div class="detail-task-card__title" :style="t.status === 'concluida' ? 'text-decoration:line-through;opacity:0.5' : ''"><span x-text="t.titulo"></span></div>
+                        <div class="detail-task-card__meta">
+                          <span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span>
+                          <span class="badge badge--sm badge--neutral" x-text="t.responsavel"></span>
+                          <span x-show="t.data_fim || t.prazo" class="detail-task-card__due" :class="{ 'detail-task-card__due--overdue': isOverdue(t.data_fim || t.prazo) }" x-text="formatDate(t.data_fim || t.prazo)"></span>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+
+                <!-- Column: Queila -->
+                <div style="padding:8px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:0 4px">
+                    <span style="font-size:12px;font-weight:600;color:var(--neutral-600)">Queila</span>
+                    <span class="badge badge--sm badge--neutral" x-text="detailTasksQueila.length"></span>
+                  </div>
+                  <!-- Direcionamentos -->
+                  <template x-for="(d, di) in data.detail?.directions || []" :key="'dir-'+di">
+                    <div style="padding:6px 8px;margin-bottom:4px;background:var(--cream-50);border-radius:var(--r-sm);border-left:2px solid #e8a87c;font-size:12px">
+                      <span x-text="d.texto" style="color:var(--neutral-700)"></span>
+                      <div style="font-size:10px;color:var(--neutral-400);margin-top:2px" x-text="formatDate(d.data)"></div>
+                    </div>
+                  </template>
+                  <template x-for="t in (ui.detailTaskFilter === 'todas' ? detailAllTasks.filter(x => x.responsavel?.toLowerCase()?.includes('queila')) : ui.detailTaskFilter === 'concluidas' ? detailAllTasks.filter(x => x.status==='concluida' && x.responsavel?.toLowerCase()?.includes('queila')) : detailTasksQueila)" :key="t.id">
+                    <div class="detail-task-card" @click="openTaskDetail(t.id)" style="margin-bottom:6px">
+                      <div class="detail-task-card__check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
+                      <div class="detail-task-card__body">
+                        <div class="detail-task-card__title" :style="t.status === 'concluida' ? 'text-decoration:line-through;opacity:0.5' : ''"><span x-text="t.titulo"></span></div>
+                        <div class="detail-task-card__meta">
+                          <span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span>
+                          <span x-show="t.data_fim || t.prazo" class="detail-task-card__due" :class="{ 'detail-task-card__due--overdue': isOverdue(t.data_fim || t.prazo) }" x-text="formatDate(t.data_fim || t.prazo)"></span>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+
+              <div class="empty-state" x-show="!detailAllTasks.length" style="padding:24px"><p>Nenhuma tarefa cadastrada.</p><button class="btn btn--brand" @click="taskForm.mentorado_nome = data.detail?.profile?.nome; openTaskModal()">Criar tarefa</button></div>
+            </div>
+
+            <!-- OLD TAB: TAREFAS DELA (hidden — replaced by unified board above) -->
+            <div class="op-tab-content" style="display:none" x-show="false">
               <div class="op-tab-header">
                 <h3>Tarefas Dela</h3>
                 <span class="badge badge--info" x-text="detailTasksDela.length + ' pendentes'"></span>
