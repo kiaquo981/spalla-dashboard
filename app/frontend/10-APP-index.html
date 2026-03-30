@@ -601,6 +601,74 @@
           <!-- Bento Grid -->
           <div class="bento-grid">
 
+            <!-- 0. BOARD DO CONSULTOR — "Tony Stark" -->
+            <div class="bento-card bento-card--full" style="height:auto;min-height:16rem">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Minha Carteira</span>
+                <span style="font-size:12px;color:var(--neutral-400)" x-text="ccConsultantBoard().length + ' mentorados'"></span>
+              </div>
+              <div class="bento-card__body" style="overflow-x:auto;padding:0">
+                <table style="width:100%;border-collapse:collapse;font-size:12px">
+                  <thead>
+                    <tr style="background:var(--bg-subtle);border-bottom:2px solid var(--border)">
+                      <th style="padding:8px 12px;text-align:left;font-weight:600;white-space:nowrap">Mentorado</th>
+                      <th style="padding:8px 8px;text-align:center;font-weight:600">Fase</th>
+                      <th style="padding:8px 8px;text-align:center;font-weight:600">Dossiê</th>
+                      <th style="padding:8px 8px;text-align:center;font-weight:600">Última Call</th>
+                      <th style="padding:8px 8px;text-align:center;font-weight:600">Tarefas</th>
+                      <th style="padding:8px 8px;text-align:center;font-weight:600">Financeiro</th>
+                      <th style="padding:8px 12px;text-align:left;font-weight:600">Próxima ação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <template x-for="m in ccConsultantBoard()" :key="m.id">
+                      <tr style="border-bottom:1px solid var(--neutral-100);cursor:pointer;transition:background .1s" @click="openDetail(m.id)" @mouseenter="$el.style.background='var(--bg-subtle)'" @mouseleave="$el.style.background=''">
+                        <!-- Nome -->
+                        <td style="padding:8px 12px;font-weight:500;white-space:nowrap">
+                          <div style="display:flex;align-items:center;gap:8px">
+                            <div style="width:6px;height:6px;border-radius:50%;flex-shrink:0" :style="'background:' + (m.urgency >= 15 ? '#ef4444' : m.urgency >= 5 ? '#f59e0b' : '#10b981')"></div>
+                            <span x-text="m.nome"></span>
+                          </div>
+                        </td>
+                        <!-- Fase -->
+                        <td style="padding:8px 8px;text-align:center">
+                          <span class="badge badge--xs" :class="{'badge--info': m.fase === 'onboarding', 'badge--success': m.fase === 'ativo', 'badge--warning': m.fase === 'producao'}" x-text="m.fase" style="font-size:10px"></span>
+                        </td>
+                        <!-- Dossiê -->
+                        <td style="padding:8px 8px;text-align:center">
+                          <span x-show="m.dossieAtrasado" class="badge badge--xs badge--danger">Atrasado</span>
+                          <span x-show="!m.dossieAtrasado && m.dossieEtapa" class="badge badge--xs badge--neutral" x-text="m.dossieEtapa" style="font-size:10px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block"></span>
+                          <span x-show="!m.dossieEtapa" style="color:var(--neutral-300)">—</span>
+                        </td>
+                        <!-- Call -->
+                        <td style="padding:8px 8px;text-align:center">
+                          <span :class="m.diasSemCall >= 30 ? 'badge badge--xs badge--danger' : m.diasSemCall >= 14 ? 'badge badge--xs badge--warning' : ''" :style="m.diasSemCall < 14 ? 'color:var(--neutral-500)' : ''" x-text="m.diasSemCall >= 999 ? 'Nunca' : m.diasSemCall + 'd'"></span>
+                          <div style="font-size:9px;color:var(--neutral-400)" x-text="m.ultimaCall !== 'Nunca' ? m.ultimaCall : ''"></div>
+                        </td>
+                        <!-- Tarefas -->
+                        <td style="padding:8px 8px;text-align:center">
+                          <span x-show="m.tarefasAtrasadas" class="badge badge--xs badge--danger" x-text="m.tarefasAtrasadas + ' atrasada' + (m.tarefasAtrasadas > 1 ? 's' : '')"></span>
+                          <span x-show="!m.tarefasAtrasadas && m.tarefasPendentes" class="badge badge--xs badge--info" x-text="m.tarefasPendentes + ' pendente' + (m.tarefasPendentes > 1 ? 's' : '')"></span>
+                          <span x-show="!m.tarefasAtrasadas && !m.tarefasPendentes" style="color:var(--neutral-300)">✓</span>
+                        </td>
+                        <!-- Financeiro -->
+                        <td style="padding:8px 8px;text-align:center">
+                          <span x-show="!m.contratoAssinado" class="badge badge--xs badge--danger">Sem contrato</span>
+                          <span x-show="m.statusFinanceiro === 'atrasado'" class="badge badge--xs badge--danger">Inadimplente</span>
+                          <span x-show="m.contratoAssinado && m.statusFinanceiro !== 'atrasado'" style="color:var(--neutral-300)">✓</span>
+                        </td>
+                        <!-- Próxima ação -->
+                        <td style="padding:8px 12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--neutral-600)">
+                          <span x-text="m.tarefasAtrasadas ? '⚠️ ' + m.tarefasAtrasadas + ' atrasada(s)' : m.dossieAtrasado ? '📑 Dossiê atrasado' : m.diasSemCall >= 14 ? '📞 Agendar call' : m.proximaTarefa ? m.proximaTarefa : '✅ Em dia'"></span>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+                <div x-show="!ccConsultantBoard().length" style="text-align:center;padding:24px;color:var(--neutral-400);font-size:13px">Nenhum mentorado na carteira</div>
+              </div>
+            </div>
+
             <!-- 1. SPRINT CARD (hero 2×2) -->
             <template x-if="ccSelectedSprint()">
               <div class="bento-card bento-card--hero">
