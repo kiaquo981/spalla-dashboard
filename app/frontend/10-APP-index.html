@@ -2467,7 +2467,7 @@
                       <div class="call-card__header"><span class="badge badge--sm badge--info" x-text="c.tipo"></span><span x-text="formatDateFull(c.data_call)"></span><span x-show="c.duracao" x-text="c.duracao + 'min'"></span></div>
                       <div class="call-card__body" x-text="c.resumo"></div>
                       <div class="call-card__links" style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
-                        <button x-show="c.gravacao" @click.stop="openMedia(c.gravacao, 'Gravação')" class="badge badge--sm badge--danger" style="border:none;cursor:pointer;display:inline-flex;align-items:center;gap:3px">
+                        <button x-show="c.gravacao" @click.stop="openMedia(c.gravacao, 'Gravação', c.senha_call)" class="badge badge--sm badge--danger" style="border:none;cursor:pointer;display:inline-flex;align-items:center;gap:3px">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Gravacao
                         </button>
                         <a x-show="c.transcricao" :href="c.transcricao" target="_blank" rel="noopener" class="badge badge--sm badge--purple" style="text-decoration:none;cursor:pointer">
@@ -4428,7 +4428,7 @@
                       </div>
                       <span class="ag-call-card__type" :class="'ag-call-card__type--' + c.tipo" x-text="c.tipo"></span>
                       <div class="ag-call-card__badges">
-                        <button x-show="c.gravacao" @click.stop="openMedia(c.gravacao, 'Gravação')" class="ag-call-card__link ag-call-card__link--video" title="Ver Gravação">
+                        <button x-show="c.gravacao" @click.stop="openMedia(c.gravacao, 'Gravação', c.senha_call)" class="ag-call-card__link ag-call-card__link--video" title="Ver Gravação">
                           <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                         </button>
                         <a x-show="c.transcricao" :href="c.transcricao" target="_blank" rel="noopener" class="ag-call-card__link ag-call-card__link--doc" @click.stop title="Ver Transcrição">

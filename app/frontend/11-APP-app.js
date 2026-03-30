@@ -9938,7 +9938,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
      * - Google Docs → abre em nova aba
      * - Zoom download → converte para share link (player em vez de download)
      */
-    openMedia(url, label) {
+    openMedia(url, label, password) {
       if (!url) return;
       // Google Drive file → modal preview
       const driveMatch = url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
@@ -9950,10 +9950,19 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         };
         return;
       }
-      // Zoom download link → convert to share link (opens player instead of downloading)
-      if (/zoom\.us\/rec\/download/i.test(url)) {
-        const shareUrl = url.replace('/rec/download/', '/rec/share/');
-        window.open(shareUrl, '_blank', 'noopener');
+      // Zoom recording → append password if available
+      if (/zoom\.us\/rec\//i.test(url)) {
+        let finalUrl = url;
+        // Convert download → share link
+        if (/\/rec\/download\//i.test(finalUrl)) {
+          finalUrl = finalUrl.replace('/rec/download/', '/rec/share/');
+        }
+        // Append password parameter if available
+        if (password) {
+          const separator = finalUrl.includes('?') ? '&' : '?';
+          finalUrl += `${separator}pwd=${encodeURIComponent(password)}`;
+        }
+        window.open(finalUrl, '_blank');
         return;
       }
       // Everything else → open in new tab
