@@ -3491,6 +3491,7 @@ function operon() {
           id: m.id,
           nome: m.nome,
           instagram: m.instagram,
+          dataEntrada: m.data_entrada || m.created_at || null,
           consultor: m.consultor_responsavel || '',
           fase: m.fase_jornada || 'ativo',
           tarefasPendentes: m.tarefas_pendentes || 0,
