@@ -48,8 +48,9 @@ GOOGLE_SA_PATH = os.environ.get('GOOGLE_SA_PATH', os.path.expanduser('~/.config/
 # YouTube API
 YOUTUBE_API_KEY = os.environ.get('YOUTUBE_API_KEY', '')
 
-# Google Drive
-GOOGLE_DRIVE_FOLDER_ID = os.environ.get('GOOGLE_DRIVE_FOLDER_ID', '')  # Root folder for mentee docs
+# Google Drive (2 produtos)
+GOOGLE_DRIVE_FOLDER_MENTORY = os.environ.get('GOOGLE_DRIVE_FOLDER_MENTORY', '')
+GOOGLE_DRIVE_FOLDER_CLINIC = os.environ.get('GOOGLE_DRIVE_FOLDER_CLINIC', '')
 
 # Supabase
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
@@ -4168,44 +4169,97 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': str(e)}, 500)
 
     def _handle_drive_sync(self):
-        """POST /api/drive/sync — Sync Google Drive folder for a mentorado."""
+        """POST /api/drive/sync — List Google Drive files for a mentorado folder."""
         auth = check_auth_any(self.headers)
         if not auth:
             self._send_json({'error': 'Auth required'}, 401)
             return
         try:
-            if not GOOGLE_DRIVE_FOLDER_ID:
-                self._send_json({'error': 'GOOGLE_DRIVE_FOLDER_ID not configured'}, 501)
+            folder_mentory = os.environ.get('GOOGLE_DRIVE_FOLDER_MENTORY', '')
+            folder_clinic = os.environ.get('GOOGLE_DRIVE_FOLDER_CLINIC', '')
+            if not folder_mentory and not folder_clinic:
+                self._send_json({'error': 'GOOGLE_DRIVE_FOLDER_MENTORY/CLINIC not configured'}, 501)
                 return
 
             body = self._read_json_body()
             mentorado_id = body.get('mentorado_id')
             mentorado_nome = body.get('mentorado_nome', '')
+            produto = body.get('produto', 'mentory')  # mentory | clinic
 
-            if not mentorado_id:
-                self._send_json({'error': 'mentorado_id required'}, 400)
+            if not mentorado_id or not mentorado_nome:
+                self._send_json({'error': 'mentorado_id and mentorado_nome required'}, 400)
                 return
 
-            # Load Google SA credentials
-            sa_creds = None
-            if os.path.exists(GOOGLE_SA_PATH):
-                with open(GOOGLE_SA_PATH) as f:
-                    sa_info = json.load(f)
-                # Build JWT for Drive API
-                import time as _time
-                now = int(_time.time())
-                jwt_header = base64.urlsafe_b64encode(json.dumps({'alg': 'RS256', 'typ': 'JWT'}).encode()).rstrip(b'=').decode()
-                jwt_claim = base64.urlsafe_b64encode(json.dumps({
-                    'iss': sa_info['client_email'],
-                    'scope': 'https://www.googleapis.com/auth/drive.readonly',
-                    'aud': 'https://oauth2.googleapis.com/token',
-                    'iat': now, 'exp': now + 3600,
-                }).encode()).rstrip(b'=').decode()
-                # For now, return not-implemented since full RSA signing needs a library
-                self._send_json({'error': 'Google Drive sync requires google-auth library. Install: pip install google-auth', 'status': 'not_implemented'}, 501)
+            parent_folder = folder_mentory if produto == 'mentory' else folder_clinic
+            if not parent_folder:
+                self._send_json({'error': f'GOOGLE_DRIVE_FOLDER_{produto.upper()} not configured'}, 501)
                 return
 
-            self._send_json({'error': 'Google SA credentials not found'}, 501)
+            # Use same SA auth as Calendar (google-auth library)
+            from google.oauth2 import service_account as sa_module
+            from googleapiclient.discovery import build as gbuild
+
+            sa_json = os.environ.get('GOOGLE_SA_JSON', '') or os.environ.get('GOOGLE_SA_CREDENTIALS_B64', '')
+            if sa_json:
+                sa_info = json.loads(base64.b64decode(sa_json))
+                credentials = sa_module.Credentials.from_service_account_info(
+                    sa_info, scopes=['https://www.googleapis.com/auth/drive']
+                )
+            elif os.path.exists(GOOGLE_SA_PATH):
+                credentials = sa_module.Credentials.from_service_account_file(
+                    GOOGLE_SA_PATH, scopes=['https://www.googleapis.com/auth/drive']
+                )
+            else:
+                self._send_json({'error': 'Google SA credentials not found'}, 501)
+                return
+
+            drive = gbuild('drive', 'v3', credentials=credentials)
+
+            # Step 1: Find or create mentee's folder inside parent
+            query = f"name='{mentorado_nome}' and '{parent_folder}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+            results = drive.files().list(q=query, fields='files(id,name)').execute()
+            mentee_folders = results.get('files', [])
+
+            if mentee_folders:
+                mentee_folder_id = mentee_folders[0]['id']
+                created_folder = False
+            else:
+                # Create folder for this mentee
+                folder_meta = {
+                    'name': mentorado_nome,
+                    'mimeType': 'application/vnd.google-apps.folder',
+                    'parents': [parent_folder],
+                }
+                folder = drive.files().create(body=folder_meta, fields='id').execute()
+                mentee_folder_id = folder['id']
+                created_folder = True
+
+            # Step 2: List files in mentee's folder
+            file_query = f"'{mentee_folder_id}' in parents and trashed=false"
+            file_results = drive.files().list(
+                q=file_query,
+                fields='files(id,name,mimeType,size,modifiedTime,webViewLink)',
+                orderBy='modifiedTime desc',
+                pageSize=50,
+            ).execute()
+            files = file_results.get('files', [])
+
+            self._send_json({
+                'folder_id': mentee_folder_id,
+                'folder_url': f'https://drive.google.com/drive/folders/{mentee_folder_id}',
+                'created_folder': created_folder,
+                'files': [{
+                    'id': f['id'],
+                    'name': f['name'],
+                    'type': f.get('mimeType', ''),
+                    'size': int(f.get('size', 0)) if f.get('size') else None,
+                    'modified': f.get('modifiedTime', ''),
+                    'url': f.get('webViewLink', ''),
+                } for f in files],
+                'count': len(files),
+            })
+        except ImportError:
+            self._send_json({'error': 'google-auth/google-api-python-client not installed. pip install google-auth google-api-python-client'}, 501)
         except Exception as e:
             logger.error(f'[drive-sync] Error: {e}')
             self._send_json({'error': str(e)}, 500)
