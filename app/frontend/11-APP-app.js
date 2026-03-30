@@ -10201,17 +10201,27 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         }
 
         try {
-          const startDt = new Date(`${f.data}T${f.horario}:00`);
-          const endDt = new Date(startDt.getTime() + (parseInt(f.duracao) || 60) * 60000);
+          // Use local datetime string (not UTC) to avoid timezone offset
+          const startLocal = `${f.data}T${f.horario}:00`;
+          const durMinutes = parseInt(f.duracao) || 60;
+          const endDt = new Date(new Date(`${startLocal}`).getTime() + durMinutes * 60000);
+          const endLocal = `${endDt.getFullYear()}-${String(endDt.getMonth()+1).padStart(2,'0')}-${String(endDt.getDate()).padStart(2,'0')}T${String(endDt.getHours()).padStart(2,'0')}:${String(endDt.getMinutes()).padStart(2,'0')}:00`;
+
+          // Build attendees: mentorado + consultant (logged-in user)
+          const attendees = [];
+          if (f.email) attendees.push(f.email); // mentorado
+          const consultantEmail = this.auth.currentUser?.email;
+          if (consultantEmail && consultantEmail !== f.email) attendees.push(consultantEmail);
+
           const calRes = await fetch(`${CONFIG.API_BASE}/api/calendar/create-event`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               summary: titulo,
-              start_iso: startDt.toISOString(),
-              end_iso: endDt.toISOString(),
-              description: f.notas || '',
-              attendees: f.email ? [f.email] : [],
+              start_iso: startLocal,
+              end_iso: endLocal,
+              description: `${f.notas || ''}\n\nTipo: ${f.tipo}\nMentorado: ${f.mentorado}\nZoom: ${zoomUrl || 'N/A'}`,
+              attendees,
               location: zoomUrl || '',
             }),
           });
@@ -10264,6 +10274,26 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         this.ui.gcalConflict = null;
         this.ui._conflictConfirmed = false;
         this.scheduleForm = { mentorado: '', mentorado_id: '', tipo: 'acompanhamento', data: '', horario: '10:00', duracao: 60, email: '', notas: '' };
+
+        // Send WhatsApp invite to mentorado
+        if (menteeId && sb) {
+          try {
+            const { data: groups } = await sb.from('wa_groups').select('group_jid').eq('mentorado_id', menteeId).limit(1);
+            if (groups?.length) {
+              const jid = groups[0].group_jid;
+              const dataFormatada = new Date(`${f.data}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+              const text = `📞 *Call agendada!*\n\n📅 ${dataFormatada} às ${f.horario}\n⏱ ${f.duracao} minutos\n🎯 Tipo: ${f.tipo}\n${zoomUrl ? '🔗 Link: ' + zoomUrl : ''}\n\nTe espero lá!`;
+              const { instance } = this._waActiveInstance();
+              if (instance) {
+                await fetch(`${CONFIG.API_BASE}/api/wa/send-text`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+                  body: JSON.stringify({ number: jid, text, instance, group_jid: jid }),
+                });
+              }
+            }
+          } catch (e) { console.warn('[Schedule] WA invite failed:', e); }
+        }
 
         // Refresh upcoming calls + gcal events
         this.fetchUpcomingCalls();
