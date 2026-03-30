@@ -603,69 +603,93 @@
 
             <!-- 0. BOARD DO CONSULTOR — "Tony Stark" -->
             <div class="bento-card bento-card--full" style="height:auto;min-height:16rem">
-              <div class="bento-card__header">
+              <div class="bento-card__header" style="flex-wrap:wrap;gap:8px">
                 <span class="bento-card__title" x-text="['kaique','gobbi','queila'].includes((auth.currentUser?.full_name || '').split(' ')[0].toLowerCase()) ? 'Todos os Mentorados' : 'Minha Carteira'"></span>
-                <span style="font-size:12px;color:var(--neutral-400)" x-text="ccConsultantBoard().length + ' mentorados'"></span>
+                <!-- Filter chips -->
+                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                  <button @click="ui.ccBoardFilter='priority'" :class="ui.ccBoardFilter==='priority' ? 'badge badge--sm badge--primary' : 'badge badge--sm badge--neutral'" style="cursor:pointer;border:none">Prioritários</button>
+                  <button @click="ui.ccBoardFilter='all'" :class="ui.ccBoardFilter==='all' ? 'badge badge--sm badge--primary' : 'badge badge--sm badge--neutral'" style="cursor:pointer;border:none">Todos</button>
+                  <button @click="ui.ccBoardFilter='onboarding'" :class="ui.ccBoardFilter==='onboarding' ? 'badge badge--sm badge--info' : 'badge badge--sm badge--neutral'" style="cursor:pointer;border:none">Onboarding</button>
+                  <button @click="ui.ccBoardFilter='concepcao'" :class="ui.ccBoardFilter==='concepcao' ? 'badge badge--sm badge--warning' : 'badge badge--sm badge--neutral'" style="cursor:pointer;border:none">Concepção</button>
+                  <button @click="ui.ccBoardFilter='validacao'" :class="ui.ccBoardFilter==='validacao' ? 'badge badge--sm badge--success' : 'badge badge--sm badge--neutral'" style="cursor:pointer;border:none">Validação</button>
+                  <button @click="ui.ccBoardFilter='escala'" :class="ui.ccBoardFilter==='escala' ? 'badge badge--sm badge--neutral' : 'badge badge--sm badge--neutral'" style="cursor:pointer;border:none;opacity:.7">Escala</button>
+                  <span style="font-size:11px;color:var(--neutral-400);margin-left:4px" x-text="ccBoardFiltered().length + ' mentorados'"></span>
+                </div>
               </div>
-              <div class="bento-card__body" style="overflow-x:auto;padding:0">
-                <table style="width:100%;border-collapse:collapse;font-size:12px">
-                  <thead>
-                    <tr style="background:var(--bg-subtle);border-bottom:2px solid var(--border)">
-                      <th style="padding:8px 12px;text-align:left;font-weight:600;white-space:nowrap">Mentorado</th>
-                      <th style="padding:8px 8px;text-align:center;font-weight:600">Fase</th>
-                      <th style="padding:8px 8px;text-align:center;font-weight:600">Dossiê</th>
-                      <th style="padding:8px 8px;text-align:center;font-weight:600">Última Call</th>
-                      <th style="padding:8px 8px;text-align:center;font-weight:600">Tarefas</th>
-                      <th style="padding:8px 8px;text-align:center;font-weight:600">Financeiro</th>
-                      <th style="padding:8px 12px;text-align:left;font-weight:600">Próxima ação</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <template x-for="m in ccConsultantBoard()" :key="m.id">
-                      <tr style="border-bottom:1px solid var(--neutral-100);cursor:pointer;transition:background .1s" @click="openDetail(m.id)" @mouseenter="$el.style.background='var(--bg-subtle)'" @mouseleave="$el.style.background=''">
-                        <!-- Nome -->
-                        <td style="padding:8px 12px;font-weight:500;white-space:nowrap">
-                          <div style="display:flex;align-items:center;gap:8px">
-                            <div style="width:6px;height:6px;border-radius:50%;flex-shrink:0" :style="'background:' + (m.urgency >= 15 ? '#ef4444' : m.urgency >= 5 ? '#f59e0b' : '#10b981')"></div>
-                            <span x-text="m.nome"></span>
+              <div class="bento-card__body" style="padding:12px;display:flex;flex-direction:column;gap:16px">
+                <!-- Phase groups -->
+                <template x-for="group in ccBoardGrouped()" :key="group.phase">
+                  <div>
+                    <!-- Phase header -->
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                      <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-secondary)" x-text="group.label"></span>
+                      <span style="font-size:10px;color:var(--neutral-400)" x-text="'(' + group.items.length + ')'"></span>
+                      <div style="flex:1;height:1px;background:var(--border)"></div>
+                    </div>
+                    <!-- Cards grid -->
+                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px">
+                      <template x-for="m in group.items" :key="m.id">
+                        <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;transition:box-shadow .15s" :style="m.urgency >= 15 ? 'border-left:3px solid #ef4444' : m.urgency >= 5 ? 'border-left:3px solid #f59e0b' : 'border-left:3px solid #10b981'">
+                          <!-- Card header — always visible, clickable -->
+                          <div style="padding:10px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:flex-start;gap:8px" @click="ccBoardToggle(m.id)">
+                            <div style="display:flex;flex-direction:column;gap:4px;min-width:0">
+                              <div style="display:flex;align-items:center;gap:6px">
+                                <span style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="m.nome"></span>
+                              </div>
+                              <!-- Inline metrics row -->
+                              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                                <!-- Call urgency -->
+                                <span style="font-size:11px;display:flex;align-items:center;gap:3px"
+                                      :style="m.diasSemCall >= 30 ? 'color:#ef4444' : m.diasSemCall >= 14 ? 'color:#f59e0b' : 'color:var(--neutral-500)'">
+                                  <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zM7 4h2v5H7V4zm0 6h2v2H7v-2z"/></svg>
+                                  <span x-text="m.diasSemCall >= 999 ? 'Sem call' : m.diasSemCall + 'd sem call'"></span>
+                                </span>
+                                <!-- Overdue tasks -->
+                                <span x-show="m.tarefasAtrasadas" class="badge badge--xs badge--danger" x-text="m.tarefasAtrasadas + ' atrasada' + (m.tarefasAtrasadas > 1 ? 's' : '')"></span>
+                                <!-- Pending tasks -->
+                                <span x-show="!m.tarefasAtrasadas && m.tarefasPendentes" class="badge badge--xs badge--neutral" x-text="m.tarefasPendentes + ' pendente' + (m.tarefasPendentes > 1 ? 's' : '')"></span>
+                                <!-- Dossiê atrasado -->
+                                <span x-show="m.dossieAtrasado" class="badge badge--xs badge--danger">Dossiê</span>
+                                <!-- Financeiro -->
+                                <span x-show="!m.contratoAssinado" class="badge badge--xs badge--danger">Sem contrato</span>
+                                <span x-show="m.contratoAssinado && m.statusFinanceiro === 'atrasado'" class="badge badge--xs badge--danger">Inadimplente</span>
+                              </div>
+                            </div>
+                            <!-- Expand chevron -->
+                            <svg style="flex-shrink:0;transition:transform .2s;margin-top:2px" :style="ui.ccBoardExpanded[m.id] ? 'transform:rotate(180deg)' : ''" width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L2 5h12z"/></svg>
                           </div>
-                        </td>
-                        <!-- Fase -->
-                        <td style="padding:8px 8px;text-align:center">
-                          <span class="badge badge--xs" :class="{'badge--info': m.fase === 'onboarding', 'badge--success': m.fase === 'ativo', 'badge--warning': m.fase === 'producao'}" x-text="m.fase" style="font-size:10px"></span>
-                        </td>
-                        <!-- Dossiê -->
-                        <td style="padding:8px 8px;text-align:center">
-                          <span x-show="m.dossieAtrasado" class="badge badge--xs badge--danger">Atrasado</span>
-                          <span x-show="!m.dossieAtrasado && m.dossieEtapa" class="badge badge--xs badge--neutral" x-text="m.dossieEtapa" style="font-size:10px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block"></span>
-                          <span x-show="!m.dossieEtapa" style="color:var(--neutral-300)">—</span>
-                        </td>
-                        <!-- Call -->
-                        <td style="padding:8px 8px;text-align:center">
-                          <span :class="m.diasSemCall >= 30 ? 'badge badge--xs badge--danger' : m.diasSemCall >= 14 ? 'badge badge--xs badge--warning' : ''" :style="m.diasSemCall < 14 ? 'color:var(--neutral-500)' : ''" x-text="m.diasSemCall >= 999 ? 'Nunca' : m.diasSemCall + 'd'"></span>
-                          <div style="font-size:9px;color:var(--neutral-400)" x-text="m.ultimaCall !== 'Nunca' ? m.ultimaCall : ''"></div>
-                        </td>
-                        <!-- Tarefas -->
-                        <td style="padding:8px 8px;text-align:center">
-                          <span x-show="m.tarefasAtrasadas" class="badge badge--xs badge--danger" x-text="m.tarefasAtrasadas + ' atrasada' + (m.tarefasAtrasadas > 1 ? 's' : '')"></span>
-                          <span x-show="!m.tarefasAtrasadas && m.tarefasPendentes" class="badge badge--xs badge--info" x-text="m.tarefasPendentes + ' pendente' + (m.tarefasPendentes > 1 ? 's' : '')"></span>
-                          <span x-show="!m.tarefasAtrasadas && !m.tarefasPendentes" style="color:var(--neutral-300)">✓</span>
-                        </td>
-                        <!-- Financeiro -->
-                        <td style="padding:8px 8px;text-align:center">
-                          <span x-show="!m.contratoAssinado" class="badge badge--xs badge--danger">Sem contrato</span>
-                          <span x-show="m.statusFinanceiro === 'atrasado'" class="badge badge--xs badge--danger">Inadimplente</span>
-                          <span x-show="m.contratoAssinado && m.statusFinanceiro !== 'atrasado'" style="color:var(--neutral-300)">✓</span>
-                        </td>
-                        <!-- Próxima ação -->
-                        <td style="padding:8px 12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--neutral-600)">
-                          <span x-text="m.tarefasAtrasadas ? '⚠️ ' + m.tarefasAtrasadas + ' atrasada(s)' : m.dossieAtrasado ? '📑 Dossiê atrasado' : m.diasSemCall >= 14 ? '📞 Agendar call' : m.proximaTarefa ? m.proximaTarefa : '✅ Em dia'"></span>
-                        </td>
-                      </tr>
-                    </template>
-                  </tbody>
-                </table>
-                <div x-show="!ccConsultantBoard().length" style="text-align:center;padding:24px;color:var(--neutral-400);font-size:13px">Nenhum mentorado na carteira</div>
+                          <!-- Expanded detail -->
+                          <div x-show="ui.ccBoardExpanded[m.id]" style="border-top:1px solid var(--border);padding:10px 12px;display:flex;flex-direction:column;gap:8px;background:var(--bg-subtle)"
+                               x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0">
+                            <!-- Última call date -->
+                            <div style="display:flex;justify-content:space-between;font-size:11px">
+                              <span style="color:var(--text-secondary)">Última call</span>
+                              <span x-text="m.ultimaCall"></span>
+                            </div>
+                            <!-- Dossiê etapa -->
+                            <div x-show="m.dossieEtapa" style="display:flex;justify-content:space-between;font-size:11px">
+                              <span style="color:var(--text-secondary)">Dossiê</span>
+                              <span style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="m.dossieEtapa"></span>
+                            </div>
+                            <!-- Consultor (admin only) -->
+                            <div x-show="['kaique','gobbi','queila'].includes((auth.currentUser?.full_name || '').split(' ')[0].toLowerCase()) && m.consultor" style="display:flex;justify-content:space-between;font-size:11px">
+                              <span style="color:var(--text-secondary)">Consultor</span>
+                              <span x-text="m.consultor"></span>
+                            </div>
+                            <!-- Próxima ação -->
+                            <div style="font-size:11px;padding:6px 8px;background:var(--bg-base);border-radius:6px;color:var(--neutral-700)" x-text="m.tarefasAtrasadas ? '⚠️ ' + m.tarefasAtrasadas + ' tarefa(s) atrasada(s)' : m.dossieAtrasado ? '📑 Dossiê com prazo vencido' : m.diasSemCall >= 14 ? '📞 Agendar call com mentorado' : m.tarefasPendentes ? '📋 ' + m.tarefasPendentes + ' tarefa(s) pendente(s)' : '✅ Tudo em dia'"></div>
+                            <!-- Action buttons -->
+                            <div style="display:flex;gap:6px">
+                              <button class="btn btn--xs btn--outline" style="flex:1" @click.stop="openDetail(m.id)">Ver ficha</button>
+                              <button class="btn btn--xs btn--outline" style="flex:1" @click.stop="openDetail(m.id); $nextTick(() => { ui.detailTab='calls'; scheduleForm.mentorado=m.id })">Agendar call</button>
+                            </div>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+                <div x-show="!ccBoardGrouped().length" style="text-align:center;padding:24px;color:var(--neutral-400);font-size:13px">Nenhum mentorado encontrado</div>
               </div>
             </div>
 
