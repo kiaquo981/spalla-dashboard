@@ -3430,75 +3430,55 @@ function operon() {
     },
 
     // === CC V2: Board do Consultor ("Tony Stark") ===
+    // Uses vw_god_overview which already has: consultor_responsavel, dias_desde_call, ultima_call_data, tarefas_pendentes, tarefas_atrasadas
     ccConsultantBoard() {
-      const me = (this.auth.currentUser?.full_name || '').toLowerCase();
       const mentees = this.data.mentees || [];
-      const tasks = this.data.tasks || [];
-      const calls = this.data.scheduledCalls || [];
+      const me = (this.auth.currentUser?.full_name || '').split(' ')[0]; // "Heitor", "Lara", "Kaique"
       const dsProds = this.data.dsProducoes || [];
       const dsDocs = this.data.dsAllDocs || [];
       const now = new Date();
 
+      // Filter by consultant's portfolio (admin sees all)
+      const isAdmin = ['kaique', 'gobbi', 'queila'].includes(me.toLowerCase());
+      const myMentees = isAdmin ? mentees : mentees.filter(m =>
+        (m.consultor_responsavel || '').toLowerCase() === me.toLowerCase()
+      );
+
       const board = [];
-      for (const m of mentees) {
-        if (m.status === 'offboarded' || m.status === 'cancelado') continue;
+      for (const m of myMentees) {
+        // Use data from vw_god_overview directly
+        const diasSemCall = m.dias_desde_call ?? 999;
+        const ultimaCallDate = m.ultima_call_data ? new Date(m.ultima_call_data).toLocaleDateString('pt-BR') : 'Nunca';
 
-        // --- Tarefas deste mentorado ---
-        const menteeTasks = tasks.filter(t => t.mentorado_id === m.id || (t.mentorado_nome || '').toLowerCase() === (m.nome || '').toLowerCase());
-        const pendentes = menteeTasks.filter(t => t.status === 'pendente' || t.status === 'em_andamento');
-        const atrasadas = menteeTasks.filter(t => {
-          const due = t.data_fim || t.prazo;
-          return due && new Date(due) < now && t.status !== 'concluida';
-        });
-
-        // --- Última call ---
-        const menteeCalls = calls.filter(c =>
-          c.mentorado_id === m.id || (c.mentorado_nome || '').toLowerCase() === (m.nome || '').toLowerCase()
-        );
-        const lastCall = menteeCalls.map(c => ({ date: new Date(c.data_call || c.dateStr || c.start), tipo: c.tipo }))
-          .filter(c => !isNaN(c.date)).sort((a, b) => b.date - a.date)[0];
-        const diasSemCall = lastCall ? Math.floor((now - lastCall.date) / 86400000) : 999;
-
-        // --- Dossiê status ---
+        // Dossiê from ds_producoes (if loaded)
         const prod = dsProds.find(p => p.mentorado_id === m.id);
         const docs = dsDocs.filter(d => d.producao_id === prod?.producao_id);
-        const dossieStatus = prod?.status || 'sem_producao';
         const dossieEtapa = docs.length ? docs.map(d => d.estagio_atual).join(', ') : null;
         const dossiePrazo = prod?.prazo_entrega || prod?.prazo_interno || null;
-        const dossieAtrasado = dossiePrazo && new Date(dossiePrazo) < now && dossieStatus !== 'finalizado';
+        const dossieAtrasado = dossiePrazo && new Date(dossiePrazo) < now && prod?.status !== 'finalizado';
 
-        // --- Fase jornada ---
-        const fase = m.fase_jornada || m.fase || 'ativo';
-
-        // --- Urgency score (pra ordenar) ---
+        // Urgency score
         let urgency = 0;
-        if (atrasadas.length) urgency += atrasadas.length * 10;
+        if (m.tarefas_atrasadas) urgency += m.tarefas_atrasadas * 10;
         if (dossieAtrasado) urgency += 15;
         if (diasSemCall >= 30) urgency += 10;
         else if (diasSemCall >= 14) urgency += 5;
-        if (pendentes.length) urgency += pendentes.length;
+        if (m.tarefas_pendentes) urgency += m.tarefas_pendentes;
 
         board.push({
           id: m.id,
           nome: m.nome,
           instagram: m.instagram,
-          fase,
-          // Tasks
-          tarefasPendentes: pendentes.length,
-          tarefasAtrasadas: atrasadas.length,
-          proximaTarefa: pendentes.sort((a, b) => new Date(a.data_fim || '9999') - new Date(b.data_fim || '9999'))[0]?.titulo || null,
-          // Calls
+          consultor: m.consultor_responsavel || '',
+          fase: m.fase_jornada || 'ativo',
+          tarefasPendentes: m.tarefas_pendentes || 0,
+          tarefasAtrasadas: m.tarefas_atrasadas || 0,
           diasSemCall,
-          ultimaCall: lastCall ? lastCall.date.toLocaleDateString('pt-BR') : 'Nunca',
-          tipoUltimaCall: lastCall?.tipo || null,
-          // Dossiê
-          dossieStatus,
+          ultimaCall: ultimaCallDate,
           dossieEtapa,
           dossieAtrasado,
-          // Financial
           statusFinanceiro: m.status_financeiro || 'em_dia',
           contratoAssinado: m.contrato_assinado !== false,
-          // Score
           urgency,
         });
       }
