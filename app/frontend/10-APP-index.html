@@ -660,80 +660,70 @@
                           </div>
                           <!-- Expanded detail (lazy: only renders when expanded) -->
                           <template x-if="ui.ccBoardExpanded[m.id]">
-                          <div style="border-top:1px solid var(--border);padding:10px 12px;display:flex;flex-direction:column;gap:6px;background:var(--bg-subtle)"
-                               x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0">
+                          <div style="border-top:1px solid var(--neutral-100);padding:12px;display:flex;flex-direction:column;gap:10px;background:var(--neutral-50,#faf9f7)">
 
                             <!-- Onboarding progress (only if in onboarding) -->
-                            <div x-show="m.fase === 'onboarding' && ccBoardOb(m.id)" style="padding:6px 8px;background:var(--bg-base);border-radius:6px">
-                              <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:4px">
-                                <span style="font-weight:600;color:var(--text-secondary)" x-text="'Onboarding: ' + (ccBoardOb(m.id)?.etapa_atual || 'Início')"></span>
-                                <span style="color:var(--primary);font-weight:600" x-text="(ccBoardOb(m.id)?.progresso_pct || 0) + '%'"></span>
+                            <div x-show="m.fase === 'onboarding' && ccBoardOb(m.id)" style="display:flex;flex-direction:column;gap:4px">
+                              <div style="display:flex;justify-content:space-between;align-items:center">
+                                <span style="font-size:11px;font-weight:600;color:var(--neutral-700)" x-text="ccBoardOb(m.id)?.etapa_atual || 'Onboarding'"></span>
+                                <span style="font-size:11px;font-weight:700;color:var(--brand-500,#10b981)" x-text="(ccBoardOb(m.id)?.progresso_pct || 0) + '%'"></span>
                               </div>
-                              <div style="height:4px;background:var(--neutral-200);border-radius:2px;overflow:hidden">
-                                <div style="height:100%;background:var(--primary);border-radius:2px;transition:width .3s" :style="'width:' + (ccBoardOb(m.id)?.progresso_pct || 0) + '%'"></div>
+                              <div style="height:6px;background:var(--neutral-200);border-radius:var(--r-full,99px);overflow:hidden">
+                                <div style="height:100%;background:var(--brand-500,#10b981);border-radius:var(--r-full,99px);transition:width .4s ease" :style="'width:' + (ccBoardOb(m.id)?.progresso_pct || 0) + '%'"></div>
                               </div>
-                              <div x-show="ccBoardOb(m.id)?.tarefas_atrasadas" style="font-size:10px;color:#ef4444;margin-top:3px" x-text="(ccBoardOb(m.id)?.tarefas_atrasadas || 0) + ' atrasada(s) no onboarding'"></div>
+                              <span x-show="ccBoardOb(m.id)?.tarefas_atrasadas" style="font-size:10px;color:var(--danger,#ef4444)" x-text="(ccBoardOb(m.id)?.tarefas_atrasadas || 0) + ' atrasada(s) no onboarding'"></span>
                             </div>
 
                             <!-- Dossiê pipeline -->
-                            <div x-show="ccBoardDossie(m.id)" style="padding:6px 8px;background:var(--bg-base);border-radius:6px">
-                              <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
-                                <span style="font-size:10px;font-weight:600;color:var(--text-secondary)">Dossiê</span>
-                                <span style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:3px;color:#fff" :style="'background:' + (ccBoardDossie(m.id)?.statusColor || '#6b7280')" x-text="ccBoardDossie(m.id)?.statusLabel || ''"></span>
+                            <div x-show="ccBoardDossie(m.id)" style="display:flex;flex-direction:column;gap:6px">
+                              <div style="display:flex;align-items:center;gap:8px">
+                                <span style="font-size:11px;font-weight:600;color:var(--neutral-700)">Dossiê</span>
+                                <span class="badge badge--xs" :style="'background:' + (ccBoardDossie(m.id)?.statusColor || '#6b7280') + ';color:#fff;border:none'" x-text="ccBoardDossie(m.id)?.statusLabel || ''"></span>
                               </div>
-                              <div style="display:flex;flex-direction:column;gap:3px">
+                              <div style="display:flex;flex-direction:column;gap:2px;font-size:11px">
                                 <template x-for="doc in (ccBoardDossie(m.id)?.docs || [])" :key="doc.tipo">
-                                  <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px">
+                                  <div style="display:flex;justify-content:space-between;align-items:center">
                                     <span style="color:var(--neutral-600)" x-text="doc.tipo"></span>
-                                    <span style="font-weight:500;padding:0 4px;border-radius:2px" :style="'color:' + doc.estagioColor" x-text="doc.estagio"></span>
+                                    <span style="font-weight:600" :style="'color:' + doc.estagioColor" x-text="doc.estagio"></span>
                                   </div>
                                 </template>
                               </div>
                             </div>
-                            <div x-show="!ccBoardDossie(m.id) && m.fase === 'concepcao'" style="font-size:10px;padding:5px 8px;background:var(--bg-base);border-radius:6px;color:var(--neutral-500)">Dossiê ainda não iniciado</div>
+                            <div x-show="!ccBoardDossie(m.id) && m.fase === 'concepcao'" style="font-size:11px;color:var(--neutral-400);font-style:italic">Dossiê ainda nao iniciado</div>
 
                             <!-- Tarefas bifurcadas -->
-                            <div x-show="ccBoardTasks(m.id).total > 0" style="display:flex;flex-direction:column;gap:4px">
+                            <div x-show="ccBoardTasks(m.id).total > 0" style="display:flex;flex-direction:column;gap:6px">
                               <!-- Equipe entrega -->
-                              <div x-show="ccBoardTasks(m.id).equipe.length" style="padding:5px 8px;background:var(--bg-base);border-radius:6px">
-                                <div style="font-size:10px;font-weight:600;color:var(--text-secondary);margin-bottom:3px">📤 Equipe entrega (<span x-text="ccBoardTasks(m.id).equipe.length"></span>)</div>
+                              <div x-show="ccBoardTasks(m.id).equipe.length">
+                                <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--neutral-400);margin-bottom:4px" x-text="'Equipe entrega (' + ccBoardTasks(m.id).equipe.length + ')'"></div>
                                 <template x-for="t in ccBoardTasks(m.id).equipe" :key="t.id">
-                                  <div style="font-size:10px;color:var(--neutral-700);padding:1px 0;display:flex;align-items:center;gap:4px">
-                                    <span :style="t.status === 'em_andamento' ? 'color:#f59e0b' : 'color:var(--neutral-400)'" x-text="t.status === 'em_andamento' ? '●' : '○'"></span>
+                                  <div style="font-size:11px;color:var(--neutral-700);padding:2px 0;display:flex;align-items:center;gap:6px">
+                                    <span style="width:6px;height:6px;border-radius:50%;flex-shrink:0" :style="t.status === 'em_andamento' ? 'background:#f59e0b' : 'background:var(--neutral-300)'"></span>
                                     <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="t.titulo"></span>
                                   </div>
                                 </template>
                               </div>
                               <!-- Mentorado executa -->
-                              <div x-show="ccBoardTasks(m.id).mentorado.length" style="padding:5px 8px;background:var(--bg-base);border-radius:6px">
-                                <div style="font-size:10px;font-weight:600;color:var(--text-secondary);margin-bottom:3px">✅ Mentorado executa (<span x-text="ccBoardTasks(m.id).mentorado.length"></span>)</div>
+                              <div x-show="ccBoardTasks(m.id).mentorado.length">
+                                <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--neutral-400);margin-bottom:4px" x-text="'Mentorado executa (' + ccBoardTasks(m.id).mentorado.length + ')'"></div>
                                 <template x-for="t in ccBoardTasks(m.id).mentorado" :key="t.id">
-                                  <div style="font-size:10px;color:var(--neutral-700);padding:1px 0;display:flex;align-items:center;gap:4px">
-                                    <span :style="t.status === 'em_andamento' ? 'color:#f59e0b' : 'color:var(--neutral-400)'" x-text="t.status === 'em_andamento' ? '●' : '○'"></span>
+                                  <div style="font-size:11px;color:var(--neutral-700);padding:2px 0;display:flex;align-items:center;gap:6px">
+                                    <span style="width:6px;height:6px;border-radius:50%;flex-shrink:0" :style="t.status === 'em_andamento' ? 'background:#f59e0b' : 'background:var(--neutral-300)'"></span>
                                     <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="t.titulo"></span>
                                   </div>
                                 </template>
                               </div>
                             </div>
 
-                            <!-- Meta row: call + consultor -->
-                            <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:11px">
-                              <div style="display:flex;align-items:center;gap:4px">
-                                <span style="color:var(--text-secondary)">Call:</span>
-                                <span x-text="m.ultimaCall"></span>
-                              </div>
-                              <div x-show="['kaique','gobbi','queila'].includes((auth.currentUser?.full_name || '').split(' ')[0].toLowerCase()) && m.consultor" style="display:flex;align-items:center;gap:4px">
-                                <span style="color:var(--text-secondary)">Consultor:</span>
-                                <span x-text="m.consultor"></span>
-                              </div>
+                            <!-- Meta row -->
+                            <div style="display:flex;gap:12px;font-size:11px;color:var(--neutral-500);border-top:1px solid var(--neutral-100);padding-top:8px">
+                              <span x-text="'Call: ' + m.ultimaCall"></span>
+                              <span x-show="['kaique','gobbi','queila'].includes((auth.currentUser?.full_name || '').split(' ')[0].toLowerCase()) && m.consultor" x-text="'Consultor: ' + m.consultor"></span>
                             </div>
 
-                            <!-- Próxima ação -->
-                            <div style="font-size:11px;padding:6px 8px;background:var(--bg-base);border-radius:6px;color:var(--neutral-700)" x-text="m.tarefasAtrasadas ? '⚠️ ' + m.tarefasAtrasadas + ' tarefa(s) atrasada(s)' : m.dossieAtrasado ? '📑 Dossiê com prazo vencido' : m.diasSemCall >= 14 ? '📞 Agendar call com mentorado' : m.tarefasPendentes ? '📋 ' + m.tarefasPendentes + ' tarefa(s) pendente(s)' : '✅ Tudo em dia'"></div>
-
                             <!-- Action buttons -->
-                            <div style="display:flex;gap:6px">
-                              <button class="btn btn--xs btn--outline" style="flex:1" @click.stop="openDetail(m.id)">Ver ficha</button>
+                            <div style="display:flex;gap:8px">
+                              <button class="btn btn--xs btn--brand" style="flex:1" @click.stop="openDetail(m.id)">Ver ficha</button>
                               <button class="btn btn--xs btn--outline" style="flex:1" @click.stop="openDetail(m.id); $nextTick(() => { ui.detailTab='calls'; scheduleForm.mentorado=m.id })">Agendar call</button>
                             </div>
                           </div>
@@ -10305,7 +10295,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=103"></script>
+  <script src="11-APP-app.js?v=104"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">
