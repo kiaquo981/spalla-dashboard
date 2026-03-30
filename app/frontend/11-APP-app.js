@@ -7920,7 +7920,18 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         // Check if message came from Supabase with _mediaUrl (S3 key or full URL)
         else if (msg._mediaUrl) {
           const url = msg._mediaUrl;
-          if (url.startsWith('http')) {
+          if (url.includes('mmg.whatsapp.net')) {
+            // Temporary WhatsApp URL — construct S3 fallback key
+            // S3 path: evolution-api/{INSTANCE_UUID}/{chatId}/{messageType}/{timestamp}_{msgId}.{ext}
+            const instanceUuid = (typeof EVOLUTION_CONFIG !== 'undefined' ? EVOLUTION_CONFIG?.INSTANCE_UUID : null) || 'default';
+            const chatId = msg.key?.remoteJid || this.ui.whatsappSelectedChat?.remoteJid || 'unknown';
+            const mediaType = msg._contentType === 'image' ? 'imageMessage' : msg._contentType === 'video' ? 'videoMessage' : msg._contentType === 'document' ? 'documentMessage' : 'audioMessage';
+            const ts = msg.messageTimestamp ? Math.floor(msg.messageTimestamp * 1000) : Date.now();
+            const ext = mediaType === 'audioMessage' ? 'oga' : mediaType === 'imageMessage' ? 'jpg' : mediaType === 'videoMessage' ? 'mp4' : 'bin';
+            const s3Key = `evolution-api/${instanceUuid}/${chatId}/${mediaType}/${ts}_${msgId}.${ext}`;
+            // Try S3 first (more reliable), fallback to WA URL
+            this.waMediaUrls[msgId] = `${CONFIG.API_BASE}/api/media/stream?key=${encodeURIComponent(s3Key)}&fallback=${encodeURIComponent(url)}`;
+          } else if (url.startsWith('http')) {
             this.waMediaUrls[msgId] = url;
           } else {
             // S3 key — use stream proxy

@@ -2684,9 +2684,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': str(e)}, 500)
 
     def _handle_media_stream(self):
-        """Stream media directly from Hetzner S3 (proxy to avoid CORS)"""
+        """Stream media directly from Hetzner S3 (proxy to avoid CORS). Supports fallback URL."""
         params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
         key = params.get('key', [''])[0]
+        fallback_url = params.get('fallback', [''])[0]
 
         if not key:
             self._send_json({'error': 'key parameter required'}, 400)
@@ -2725,7 +2726,29 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             print(f'[Stream] Successfully streamed {key}')
 
         except urllib.error.HTTPError as he:
-            # If 403/404, try to find the correct instanceId
+            # If 403/404, try fallback URL (temporary WhatsApp URL)
+            if he.code in [403, 404] and fallback_url:
+                print(f'[Stream] S3 key not found: {key}. Trying fallback URL...')
+                try:
+                    fb_req = urllib.request.Request(fallback_url)
+                    fb_resp = urllib.request.urlopen(fb_req, timeout=30)
+                    ct = fb_resp.headers.get('Content-Type', 'application/octet-stream')
+                    cl = fb_resp.headers.get('Content-Length')
+                    self.send_response(200)
+                    self.send_header('Content-Type', ct)
+                    if cl: self.send_header('Content-Length', cl)
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.send_header('Cache-Control', 'public, max-age=3600')
+                    self.end_headers()
+                    while True:
+                        chunk = fb_resp.read(8192)
+                        if not chunk: break
+                        self.wfile.write(chunk)
+                    print(f'[Stream] Fallback URL worked for {key}')
+                    return
+                except Exception as fb_err:
+                    print(f'[Stream] Fallback URL also failed: {fb_err}')
+
             if he.code in [403, 404]:
                 print(f'[Stream] Key not found: {key}, status {he.code}. Attempting to discover correct UUID...')
                 try:
