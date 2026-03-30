@@ -45,6 +45,12 @@ ZOOM_CLIENT_SECRET = os.environ.get('ZOOM_CLIENT_SECRET', '')
 # Google Service Account
 GOOGLE_SA_PATH = os.environ.get('GOOGLE_SA_PATH', os.path.expanduser('~/.config/google/credentials.json'))
 
+# YouTube API
+YOUTUBE_API_KEY = os.environ.get('YOUTUBE_API_KEY', '')
+
+# Google Drive
+GOOGLE_DRIVE_FOLDER_ID = os.environ.get('GOOGLE_DRIVE_FOLDER_ID', '')  # Root folder for mentee docs
+
 # Supabase
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
 SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', '')
@@ -2007,6 +2013,15 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         elif re.match(r'^/api/wa/groups/([^/]+)/link$', self.path):
             _gm = re.match(r'^/api/wa/groups/([^/]+)/link$', self.path)
             self._handle_wa_group_link(_gm.group(1))
+        # ===== YouTube Upload =====
+        elif self.path == '/api/youtube/upload':
+            self._handle_youtube_upload()
+        # ===== Google Drive Sync =====
+        elif self.path == '/api/drive/sync':
+            self._handle_drive_sync()
+        # ===== Resumo Semanal =====
+        elif self.path == '/api/mentee/weekly-summary':
+            self._handle_weekly_summary()
         # ===== Task from Audio (TASK-07) =====
         elif self.path == '/api/tasks/from-audio':
             self._handle_tasks_from_audio()
@@ -4055,6 +4070,214 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': f'Evolution API: {e.code}', 'detail': error_body}, e.code)
         except Exception as e:
             log_error('WA-Groups', f'sync failed: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_youtube_upload(self):
+        """POST /api/youtube/upload — Upload Zoom recording to YouTube."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
+        try:
+            if not YOUTUBE_API_KEY:
+                self._send_json({'error': 'YOUTUBE_API_KEY not configured. Set it in Railway env vars.'}, 501)
+                return
+            body = self._read_json_body()
+            zoom_recording_url = body.get('recording_url', '')
+            title = body.get('title', 'Call de Mentoria')
+            description = body.get('description', '')
+            mentorado_nome = body.get('mentorado_nome', '')
+            privacy = body.get('privacy', 'unlisted')  # unlisted | private | public
+
+            if not zoom_recording_url:
+                self._send_json({'error': 'recording_url required'}, 400)
+                return
+
+            # Step 1: Download Zoom recording
+            zoom_token = get_zoom_token()
+            req = urllib.request.Request(zoom_recording_url)
+            req.add_header('Authorization', f'Bearer {zoom_token}')
+            with urllib.request.urlopen(req, timeout=300) as resp:
+                video_bytes = resp.read()
+
+            # Step 2: Upload to YouTube via resumable upload
+            # First, get upload URL
+            metadata = json.dumps({
+                'snippet': {
+                    'title': f'{title} — {mentorado_nome}' if mentorado_nome else title,
+                    'description': description or f'Gravação de call de mentoria. Mentorado: {mentorado_nome}',
+                    'tags': ['mentoria', 'case', mentorado_nome] if mentorado_nome else ['mentoria', 'case'],
+                    'categoryId': '27',  # Education
+                },
+                'status': {'privacyStatus': privacy, 'selfDeclaredMadeForKids': False},
+            }).encode()
+
+            init_req = urllib.request.Request(
+                f'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status&key={YOUTUBE_API_KEY}',
+                data=metadata, method='POST')
+            init_req.add_header('Content-Type', 'application/json; charset=UTF-8')
+            init_req.add_header('X-Upload-Content-Length', str(len(video_bytes)))
+            init_req.add_header('X-Upload-Content-Type', 'video/mp4')
+
+            with urllib.request.urlopen(init_req, timeout=30) as init_resp:
+                upload_url = init_resp.headers.get('Location')
+
+            if not upload_url:
+                self._send_json({'error': 'Failed to get YouTube upload URL'}, 500)
+                return
+
+            # Step 3: Upload video bytes
+            up_req = urllib.request.Request(upload_url, data=video_bytes, method='PUT')
+            up_req.add_header('Content-Type', 'video/mp4')
+            up_req.add_header('Content-Length', str(len(video_bytes)))
+            with urllib.request.urlopen(up_req, timeout=600) as up_resp:
+                result = json.loads(up_resp.read())
+
+            video_id = result.get('id', '')
+            self._send_json({
+                'success': True,
+                'video_id': video_id,
+                'url': f'https://youtu.be/{video_id}',
+                'title': result.get('snippet', {}).get('title', ''),
+            })
+        except Exception as e:
+            logger.error(f'[youtube-upload] Error: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_drive_sync(self):
+        """POST /api/drive/sync — Sync Google Drive folder for a mentorado."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
+        try:
+            if not GOOGLE_DRIVE_FOLDER_ID:
+                self._send_json({'error': 'GOOGLE_DRIVE_FOLDER_ID not configured'}, 501)
+                return
+
+            body = self._read_json_body()
+            mentorado_id = body.get('mentorado_id')
+            mentorado_nome = body.get('mentorado_nome', '')
+
+            if not mentorado_id:
+                self._send_json({'error': 'mentorado_id required'}, 400)
+                return
+
+            # Load Google SA credentials
+            sa_creds = None
+            if os.path.exists(GOOGLE_SA_PATH):
+                with open(GOOGLE_SA_PATH) as f:
+                    sa_info = json.load(f)
+                # Build JWT for Drive API
+                import time as _time
+                now = int(_time.time())
+                jwt_header = base64.urlsafe_b64encode(json.dumps({'alg': 'RS256', 'typ': 'JWT'}).encode()).rstrip(b'=').decode()
+                jwt_claim = base64.urlsafe_b64encode(json.dumps({
+                    'iss': sa_info['client_email'],
+                    'scope': 'https://www.googleapis.com/auth/drive.readonly',
+                    'aud': 'https://oauth2.googleapis.com/token',
+                    'iat': now, 'exp': now + 3600,
+                }).encode()).rstrip(b'=').decode()
+                # For now, return not-implemented since full RSA signing needs a library
+                self._send_json({'error': 'Google Drive sync requires google-auth library. Install: pip install google-auth', 'status': 'not_implemented'}, 501)
+                return
+
+            self._send_json({'error': 'Google SA credentials not found'}, 501)
+        except Exception as e:
+            logger.error(f'[drive-sync] Error: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_weekly_summary(self):
+        """POST /api/mentee/weekly-summary — Generate AI weekly summary for a mentorado."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
+        try:
+            body = self._read_json_body()
+            mentorado_id = body.get('mentorado_id')
+            if not mentorado_id:
+                self._send_json({'error': 'mentorado_id required'}, 400)
+                return
+
+            # Gather data from last 7 days
+            seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+
+            # 1. Messages
+            messages = supabase_request('GET',
+                f'interacoes_mentoria?mentorado_id=eq.{mentorado_id}&created_at=gte.{seven_days_ago}'
+                f'&select=conteudo,categoria,sentimento,tipo_interacao,requer_resposta,respondido,sender_name,created_at'
+                f'&order=created_at.asc&limit=50')
+
+            # 2. Tasks
+            tasks = supabase_request('GET',
+                f'god_tasks?mentorado_id=eq.{mentorado_id}&updated_at=gte.{seven_days_ago}'
+                f'&select=titulo,status,tipo,responsavel,updated_at&limit=30')
+
+            # 3. Percepcoes
+            percs = supabase_request('GET',
+                f'percepcoes_mentorado?mentorado_id=eq.{mentorado_id}&created_at=gte.{seven_days_ago}'
+                f'&select=conteudo,tipo,autor,created_at&limit=10')
+
+            if not GEMINI_API_KEY:
+                self._send_json({'error': 'GEMINI_API_KEY not configured'}, 501)
+                return
+
+            # Build context
+            msg_texts = [f"[{m.get('categoria','?')}] {m.get('sender_name','?')}: {(m.get('conteudo',''))[:200]}" for m in (messages or [])]
+            task_texts = [f"[{t.get('status','')}] {t.get('titulo','')}" for t in (tasks or [])]
+            perc_texts = [f"[{p.get('tipo','')}] {p.get('conteudo','')}" for p in (percs or [])]
+
+            prompt = f"""Gere um resumo semanal para o consultor sobre este mentorado.
+Seja direto, prático, em português. Máximo 300 palavras.
+
+Estrutura:
+1. **Resumo geral** (1-2 frases)
+2. **Pontos positivos** (o que avançou)
+3. **Pontos de atenção** (o que precisa de ação)
+4. **Próximos passos sugeridos** (2-3 ações concretas)
+
+Dados da semana:
+--- MENSAGENS ({len(messages or [])}) ---
+{chr(10).join(msg_texts[:20])}
+
+--- TAREFAS ({len(tasks or [])}) ---
+{chr(10).join(task_texts[:15])}
+
+--- PERCEPÇÕES ({len(percs or [])}) ---
+{chr(10).join(perc_texts[:5])}
+"""
+
+            gemini_body = {
+                'contents': [{'parts': [{'text': prompt}]}],
+                'generationConfig': {'temperature': 0.3, 'maxOutputTokens': 800}
+            }
+            conn = http.client.HTTPSConnection('generativelanguage.googleapis.com', timeout=30)
+            conn.request('POST',
+                         f'/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}',
+                         body=json.dumps(gemini_body).encode(),
+                         headers={'Content-Type': 'application/json'})
+            resp = conn.getresponse()
+            resp_data = resp.read()
+            conn.close()
+
+            if resp.status >= 400:
+                self._send_json({'error': f'Gemini error {resp.status}'}, 500)
+                return
+
+            result = json.loads(resp_data)
+            summary = result['candidates'][0]['content']['parts'][0]['text']
+
+            self._send_json({
+                'summary': summary,
+                'stats': {
+                    'messages': len(messages or []),
+                    'tasks': len(tasks or []),
+                    'percepcoes': len(percs or []),
+                },
+            })
+        except Exception as e:
+            logger.error(f'[weekly-summary] Error: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_tasks_from_audio(self):

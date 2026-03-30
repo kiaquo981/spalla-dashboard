@@ -936,6 +936,201 @@
               </div>
             </div>
 
+            <!-- CC V2: ALERTAS ONBOARDING ATRASADO -->
+            <div class="bento-card bento-card--half" x-show="ccAlertasEtapaAtrasada().length" style="height:auto;min-height:10rem">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Onboarding Atrasado</span>
+                <span class="badge badge--danger badge--sm" x-text="ccAlertasEtapaAtrasada().length"></span>
+              </div>
+              <div class="bento-card__body" style="overflow-y:auto;max-height:200px">
+                <template x-for="a in ccAlertasEtapaAtrasada()" :key="a.mentorado_id">
+                  <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--neutral-100);cursor:pointer" @click="openDetail(a.mentorado_id)">
+                    <div>
+                      <div style="font-size:13px;font-weight:500" x-text="a.mentorado_nome"></div>
+                      <div style="font-size:11px;color:var(--neutral-400)" x-text="a.etapa + ' • ' + a.progresso + '% concluído'"></div>
+                    </div>
+                    <span class="badge badge--sm badge--danger" x-text="a.atrasadas + ' atrasada' + (a.atrasadas > 1 ? 's' : '')"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- CC V2: DOSSIÊS GARGALADOS -->
+            <div class="bento-card bento-card--half" style="height:auto;min-height:12rem">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Dossiês Gargalados</span>
+                <span class="badge badge--danger badge--sm" x-show="ccDossiesGargalados().length" x-text="ccDossiesGargalados().length"></span>
+              </div>
+              <div class="bento-card__body" style="overflow-y:auto;max-height:220px">
+                <template x-for="d in ccDossiesGargalados()" :key="d.id">
+                  <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--neutral-100);cursor:pointer" @click="openDsDetail(d.producao_id)">
+                    <div style="min-width:0">
+                      <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="d.mentorado_nome"></div>
+                      <div style="font-size:11px;color:var(--neutral-400)" x-text="d.estagio_label + ' • ' + (d.tipo || '')"></div>
+                    </div>
+                    <span class="badge badge--sm" :class="d.diasParado >= 7 ? 'badge--danger' : 'badge--warning'" x-text="d.diasParado + 'd parado'"></span>
+                  </div>
+                </template>
+                <div x-show="!ccDossiesGargalados().length" style="text-align:center;padding:16px;color:var(--neutral-400);font-size:12px">Nenhum dossiê gargalado</div>
+              </div>
+            </div>
+
+            <!-- CC V2: MENTORADOS SEM CALL -->
+            <div class="bento-card bento-card--half" style="height:auto;min-height:12rem">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Sem Call há +14 dias</span>
+                <span class="badge badge--warning badge--sm" x-show="ccMentoradosSemCall().length" x-text="ccMentoradosSemCall().length"></span>
+              </div>
+              <div class="bento-card__body" style="overflow-y:auto;max-height:220px">
+                <template x-for="m in ccMentoradosSemCall()" :key="m.id">
+                  <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--neutral-100);cursor:pointer" @click="openDetail(m.id)">
+                    <div style="font-size:13px;font-weight:500" x-text="m.nome"></div>
+                    <div style="text-align:right">
+                      <span class="badge badge--sm" :class="m.diasSemCall >= 30 ? 'badge--danger' : 'badge--warning'" x-text="m.diasSemCall >= 999 ? 'Nunca' : m.diasSemCall + 'd'"></span>
+                      <div style="font-size:10px;color:var(--neutral-400)" x-text="'Última: ' + m.lastCall"></div>
+                    </div>
+                  </div>
+                </template>
+                <div x-show="!ccMentoradosSemCall().length" style="text-align:center;padding:16px;color:var(--neutral-400);font-size:12px">Todos com call recente</div>
+              </div>
+            </div>
+
+            <!-- CC V2: DOWNLOAD DA SEMANA -->
+            <div class="bento-card bento-card--full" style="height:auto;min-height:14rem">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Download da Semana</span>
+                <span style="font-size:11px;color:var(--neutral-400)" x-text="ccDownloadSemana().periodo"></span>
+              </div>
+              <div class="bento-card__body">
+                <!-- KPIs Row -->
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin-bottom:12px">
+                  <div class="op-stat" style="padding:8px 12px">
+                    <div style="font-size:20px;font-weight:700;color:var(--brand)" x-text="ccDownloadSemana().tarefasConcluidas"></div>
+                    <div style="font-size:11px;color:var(--neutral-500)">Concluídas</div>
+                  </div>
+                  <div class="op-stat" style="padding:8px 12px">
+                    <div style="font-size:20px;font-weight:700;color:#0ea5e9" x-text="ccDownloadSemana().tarefasCriadas"></div>
+                    <div style="font-size:11px;color:var(--neutral-500)">Criadas</div>
+                  </div>
+                  <div class="op-stat" style="padding:8px 12px">
+                    <div style="font-size:20px;font-weight:700" :style="ccDownloadSemana().tarefasAtrasadas ? 'color:#ef4444' : 'color:var(--neutral-400)'" x-text="ccDownloadSemana().tarefasAtrasadas"></div>
+                    <div style="font-size:11px;color:var(--neutral-500)">Atrasadas</div>
+                  </div>
+                  <div class="op-stat" style="padding:8px 12px">
+                    <div style="font-size:20px;font-weight:700;color:#10b981" x-text="ccDownloadSemana().dossiesEntregues"></div>
+                    <div style="font-size:11px;color:var(--neutral-500)">Dossiês entregues</div>
+                  </div>
+                  <div class="op-stat" style="padding:8px 12px">
+                    <div style="font-size:20px;font-weight:700" :style="ccDownloadSemana().dossiesGargalados ? 'color:#f59e0b' : 'color:var(--neutral-400)'" x-text="ccDownloadSemana().dossiesGargalados"></div>
+                    <div style="font-size:11px;color:var(--neutral-500)">Gargalados</div>
+                  </div>
+                  <div class="op-stat" style="padding:8px 12px">
+                    <div style="font-size:20px;font-weight:700;color:var(--neutral-600)" x-text="ccDownloadSemana().mentoradosAtivos"></div>
+                    <div style="font-size:11px;color:var(--neutral-500)">Mentorados ativos</div>
+                  </div>
+                </div>
+                <!-- Top Lists -->
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+                  <div>
+                    <div style="font-size:11px;font-weight:600;color:var(--neutral-500);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Top concluídas</div>
+                    <template x-for="t in ccDownloadSemana().topConcluidas" :key="t.id">
+                      <div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--neutral-100);display:flex;gap:4px;align-items:baseline">
+                        <span style="color:#10b981">✓</span>
+                        <span x-text="t.titulo" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+                      </div>
+                    </template>
+                    <div x-show="!ccDownloadSemana().topConcluidas.length" style="font-size:11px;color:var(--neutral-400)">Nenhuma</div>
+                  </div>
+                  <div>
+                    <div style="font-size:11px;font-weight:600;color:#ef4444;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Atrasadas</div>
+                    <template x-for="t in ccDownloadSemana().topAtrasadas" :key="t.id">
+                      <div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--neutral-100);display:flex;gap:4px;align-items:baseline">
+                        <span style="color:#ef4444">!</span>
+                        <span x-text="t.titulo" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+                      </div>
+                    </template>
+                    <div x-show="!ccDownloadSemana().topAtrasadas.length" style="font-size:11px;color:var(--neutral-400)">Nenhuma</div>
+                  </div>
+                  <div>
+                    <div style="font-size:11px;font-weight:600;color:#f59e0b;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Alta prioridade pendente</div>
+                    <template x-for="t in ccDownloadSemana().topPendentes" :key="t.id">
+                      <div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--neutral-100);display:flex;gap:4px;align-items:baseline">
+                        <span style="color:#f59e0b">●</span>
+                        <span x-text="t.titulo" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+                      </div>
+                    </template>
+                    <div x-show="!ccDownloadSemana().topPendentes.length" style="font-size:11px;color:var(--neutral-400)">Nenhuma</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- CC V2: PLANEJAMENTO DA SEMANA -->
+            <div class="bento-card bento-card--full" style="height:auto;min-height:14rem">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Planejamento da Semana</span>
+                <span class="badge badge--info badge--sm" x-text="ccPlanejamentoSemana().totalAcoes + ' ações'"></span>
+              </div>
+              <div class="bento-card__body">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+                  <!-- Atrasadas (resolver primeiro) -->
+                  <div>
+                    <div style="font-size:11px;font-weight:600;color:#ef4444;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:4px">
+                      <span style="width:8px;height:8px;border-radius:50%;background:#ef4444;display:inline-block"></span>
+                      Resolver atrasadas (<span x-text="ccPlanejamentoSemana().atrasadas.length"></span>)
+                    </div>
+                    <template x-for="t in ccPlanejamentoSemana().atrasadas" :key="t.id">
+                      <div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--neutral-100);cursor:pointer" @click="openTaskDetail(t.id)">
+                        <div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="t.titulo"></div>
+                        <div style="font-size:10px;color:var(--neutral-400)" x-text="(t.responsavel || 'Sem resp.') + ' • Prazo: ' + formatDate(t.data_fim || t.prazo)"></div>
+                      </div>
+                    </template>
+                    <div x-show="!ccPlanejamentoSemana().atrasadas.length" style="font-size:11px;color:var(--neutral-400);padding:8px 0">Nenhuma atrasada</div>
+                  </div>
+                  <!-- Com prazo esta semana -->
+                  <div>
+                    <div style="font-size:11px;font-weight:600;color:#0ea5e9;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:4px">
+                      <span style="width:8px;height:8px;border-radius:50%;background:#0ea5e9;display:inline-block"></span>
+                      Prazo esta semana (<span x-text="ccPlanejamentoSemana().comPrazo.length"></span>)
+                    </div>
+                    <template x-for="t in ccPlanejamentoSemana().comPrazo" :key="t.id">
+                      <div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--neutral-100);cursor:pointer" @click="openTaskDetail(t.id)">
+                        <div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="t.titulo"></div>
+                        <div style="font-size:10px;color:var(--neutral-400)" x-text="(t.responsavel || 'Sem resp.') + ' • ' + formatDate(t.data_fim || t.prazo)"></div>
+                      </div>
+                    </template>
+                    <div x-show="!ccPlanejamentoSemana().comPrazo.length" style="font-size:11px;color:var(--neutral-400);padding:8px 0">Nada com prazo</div>
+                  </div>
+                  <!-- Follow-ups + alertas -->
+                  <div>
+                    <div style="font-size:11px;font-weight:600;color:#f59e0b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:4px">
+                      <span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block"></span>
+                      Follow-ups + Alertas
+                    </div>
+                    <template x-for="t in ccPlanejamentoSemana().followups" :key="t.id">
+                      <div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--neutral-100);cursor:pointer" @click="openTaskDetail(t.id)">
+                        <div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🔄 <span x-text="t.titulo"></span></div>
+                        <div style="font-size:10px;color:var(--neutral-400)" x-text="t.responsavel + ' • ' + formatDate(t.data_fim || t.prazo)"></div>
+                      </div>
+                    </template>
+                    <template x-for="m in ccPlanejamentoSemana().semCall" :key="m.id">
+                      <div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--neutral-100);cursor:pointer" @click="openDetail(m.id)">
+                        <div style="font-weight:500">📞 <span x-text="'Agendar call — ' + m.nome"></span></div>
+                        <div style="font-size:10px;color:var(--neutral-400)" x-text="m.diasSemCall + ' dias sem call'"></div>
+                      </div>
+                    </template>
+                    <template x-for="d in ccPlanejamentoSemana().dossiesCriticos" :key="d.id || d.producao_id">
+                      <div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--neutral-100);cursor:pointer" @click="openDsDetail(d.producao_id)">
+                        <div style="font-weight:500">📑 <span x-text="'Dossiê ' + (d.mentorado_nome || '')"></span></div>
+                        <div style="font-size:10px;color:#ef4444" x-text="'Prazo: ' + formatDate(d.deadline || d.prazo_entrega)"></div>
+                      </div>
+                    </template>
+                    <div x-show="!ccPlanejamentoSemana().followups.length && !ccPlanejamentoSemana().semCall.length && !ccPlanejamentoSemana().dossiesCriticos.length" style="font-size:11px;color:var(--neutral-400);padding:8px 0">Nada pendente</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- 7. FERRAMENTAS (full row) -->
             <div class="bento-card bento-card--full" style="height:auto;min-height:14rem">
               <div class="bento-card__header">
@@ -1511,7 +1706,7 @@
                 Contexto
                 <span class="op-tab__count" x-show="data.menteeContext?.length" x-text="data.menteeContext?.length"></span>
               </button>
-              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'financeiro' }" @click="ui.activeDetailTab = 'financeiro'; loadFinDetailLogs()" x-show="isCfoUser">
+              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'financeiro' }" @click="ui.activeDetailTab = 'financeiro'; loadFinDetailLogs()">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                 Financeiro
               </button>
@@ -1802,6 +1997,166 @@
                       <button class="btn btn--ghost btn--sm" @click="ui.perfilModal = false">Cancelar</button>
                       <button class="btn btn--primary btn--sm" @click="savePerfilComportamental()">Salvar</button>
                     </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Resumo Semanal IA -->
+              <div class="card" style="margin-top:12px">
+                <div class="card__header">
+                  <h3>Resumo Semanal</h3>
+                  <button class="btn btn--xs btn--brand" @click="loadWeeklySummary(data.detail?.id)" :disabled="weeklySummary.loading" x-text="weeklySummary.loading ? 'Gerando...' : weeklySummary.text ? 'Atualizar' : 'Gerar resumo'"></button>
+                </div>
+                <div class="card__body">
+                  <div x-show="weeklySummary.loading" style="text-align:center;padding:16px;color:var(--neutral-400)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite;display:inline-block;margin-right:6px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15A9 9 0 1 1 22 12"/></svg>
+                    Gemini está analisando mensagens, tarefas e percepções...
+                  </div>
+                  <div x-show="weeklySummary.text && !weeklySummary.loading" style="font-size:13px;line-height:1.6;white-space:pre-wrap" x-text="weeklySummary.text"></div>
+                  <div x-show="weeklySummary.stats && !weeklySummary.loading" style="display:flex;gap:12px;margin-top:8px;font-size:11px;color:var(--neutral-400)">
+                    <span x-text="'Msgs: ' + (weeklySummary.stats?.messages || 0)"></span>
+                    <span x-text="'Tarefas: ' + (weeklySummary.stats?.tasks || 0)"></span>
+                    <span x-text="'Percepções: ' + (weeklySummary.stats?.percepcoes || 0)"></span>
+                  </div>
+                  <div x-show="!weeklySummary.text && !weeklySummary.loading" style="text-align:center;padding:12px;color:var(--neutral-400);font-size:12px">Clique "Gerar resumo" para um digest IA da semana</div>
+                </div>
+              </div>
+
+              <!-- Contexto Onboarding -->
+              <div class="card" style="margin-top:12px" x-init="$watch('data.detail?.id', v => { if(v) loadObContext(v) })">
+                <div class="card__header">
+                  <h3>Onboarding</h3>
+                  <span x-show="obContext.trilha" class="badge badge--sm" :class="obContext.trilha?.status === 'concluido' ? 'badge--success' : 'badge--info'" x-text="obContext.trilha?.status === 'concluido' ? 'Concluído' : 'Em andamento'"></span>
+                </div>
+                <div class="card__body">
+                  <div x-show="obContext.loading" style="text-align:center;padding:12px;color:var(--neutral-400);font-size:12px">Carregando...</div>
+                  <div x-show="!obContext.loading && obContext.trilha">
+                    <div style="display:flex;gap:12px;margin-bottom:10px;font-size:12px;color:var(--neutral-500)">
+                      <span x-text="'Responsável: ' + (obContext.trilha?.responsavel || '-')"></span>
+                      <span x-text="'Início: ' + (obContext.trilha?.data_inicio ? new Date(obContext.trilha.data_inicio).toLocaleDateString('pt-BR') : '-')"></span>
+                    </div>
+                    <template x-for="etapa in obContext.etapas" :key="etapa.id">
+                      <div style="margin-bottom:8px;padding:8px;background:var(--bg-subtle);border-radius:6px;border-left:3px solid" :style="'border-color:' + (etapa.status === 'concluido' ? '#10b981' : etapa.status === 'em_andamento' ? '#0ea5e9' : '#d1d5db')">
+                        <div style="display:flex;justify-content:space-between;align-items:center">
+                          <span style="font-size:12px;font-weight:600" x-text="etapa.nome || etapa.titulo"></span>
+                          <span class="badge badge--xs" :class="etapa.status === 'concluido' ? 'badge--success' : etapa.status === 'em_andamento' ? 'badge--info' : 'badge--neutral'" x-text="etapa.status"></span>
+                        </div>
+                        <div x-show="etapa.ob_tarefas?.length" style="margin-top:4px">
+                          <template x-for="tar in etapa.ob_tarefas" :key="tar.id">
+                            <div style="font-size:11px;padding:2px 0;display:flex;align-items:center;gap:4px">
+                              <span x-text="tar.status === 'concluido' ? '✅' : tar.status === 'em_andamento' ? '🔄' : '⬜'"></span>
+                              <span x-text="tar.descricao" :style="tar.status === 'concluido' ? 'text-decoration:line-through;opacity:0.5' : ''"></span>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                  <div x-show="!obContext.loading && !obContext.trilha" style="text-align:center;padding:12px;color:var(--neutral-400);font-size:12px">Sem trilha de onboarding</div>
+                </div>
+              </div>
+
+              <!-- WA Intelligence Layer -->
+              <div class="card" style="margin-top:12px" x-init="$watch('data.detail?.id', v => { if(v) loadWaIntelligence(v) })">
+                <div class="card__header">
+                  <h3>Inteligência WA <span style="font-size:11px;font-weight:400;color:var(--neutral-400)">últimos 30 dias</span></h3>
+                  <span x-show="waIntel.classifications.pendencias" class="badge badge--danger badge--sm" x-text="waIntel.classifications.pendencias + ' pendências'"></span>
+                </div>
+                <div class="card__body" x-show="!waIntel.loading">
+                  <!-- KPIs row -->
+                  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px">
+                    <div style="text-align:center;padding:8px;background:var(--bg-subtle);border-radius:6px">
+                      <div style="font-size:18px;font-weight:700;color:var(--brand)" x-text="waIntel.classifications.total || 0"></div>
+                      <div style="font-size:10px;color:var(--neutral-500)">Interações</div>
+                    </div>
+                    <div style="text-align:center;padding:8px;background:var(--bg-subtle);border-radius:6px">
+                      <div style="font-size:18px;font-weight:700" :style="waIntel.classifications.pendencias ? 'color:#ef4444' : 'color:var(--neutral-400)'" x-text="waIntel.classifications.pendencias || 0"></div>
+                      <div style="font-size:10px;color:var(--neutral-500)">Pendências</div>
+                    </div>
+                    <div style="text-align:center;padding:8px;background:var(--bg-subtle);border-radius:6px">
+                      <div style="font-size:18px;font-weight:700;color:#0ea5e9" x-text="waIntel.classifications.avgEngajamento || 0"></div>
+                      <div style="font-size:10px;color:var(--neutral-500)">Engajamento</div>
+                    </div>
+                    <div style="text-align:center;padding:8px;background:var(--bg-subtle);border-radius:6px">
+                      <div style="font-size:18px;font-weight:700;color:#10b981" x-text="waIntel.percepcoes.length || 0"></div>
+                      <div style="font-size:10px;color:var(--neutral-500)">Percepções</div>
+                    </div>
+                  </div>
+                  <!-- Categories + Sentiments -->
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                    <div>
+                      <div style="font-size:11px;font-weight:600;color:var(--neutral-500);margin-bottom:6px">Categorias</div>
+                      <template x-for="[cat, count] in (waIntel.classifications.categorias || [])" :key="cat">
+                        <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px">
+                          <span x-text="cat"></span>
+                          <span class="badge badge--xs badge--info" x-text="count"></span>
+                        </div>
+                      </template>
+                    </div>
+                    <div>
+                      <div style="font-size:11px;font-weight:600;color:var(--neutral-500);margin-bottom:6px">Sentimento</div>
+                      <template x-for="[sent, count] in (waIntel.classifications.sentimentos || [])" :key="sent">
+                        <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px">
+                          <span x-text="sent === 'positivo' ? '😊 Positivo' : sent === 'negativo' ? '😟 Negativo' : '😐 Neutro'"></span>
+                          <span class="badge badge--xs" :class="sent === 'positivo' ? 'badge--success' : sent === 'negativo' ? 'badge--danger' : 'badge--neutral'" x-text="count"></span>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                  <!-- Pendências (messages requiring response) -->
+                  <div x-show="waIntel.pendencias.length" style="margin-bottom:12px">
+                    <div style="font-size:11px;font-weight:600;color:#ef4444;margin-bottom:6px">Mensagens aguardando resposta</div>
+                    <template x-for="p in waIntel.pendencias.slice(0, 5)" :key="p.id || p.message_id">
+                      <div style="font-size:12px;padding:6px 8px;background:#fef2f2;border-radius:6px;margin-bottom:4px;border-left:3px solid #ef4444">
+                        <div style="font-weight:500" x-text="p.sender_name || 'Mentorado'"></div>
+                        <div style="color:var(--neutral-600);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="(p.conteudo || '').substring(0, 100)"></div>
+                        <div style="font-size:10px;color:var(--neutral-400);margin-top:2px" x-text="new Date(p.created_at).toLocaleDateString('pt-BR') + ' • ' + (p.urgencia_resposta || '')"></div>
+                      </div>
+                    </template>
+                  </div>
+                  <!-- Percepções -->
+                  <div x-show="waIntel.percepcoes.length">
+                    <div style="font-size:11px;font-weight:600;color:var(--neutral-500);margin-bottom:6px">Percepções e Notas</div>
+                    <template x-for="perc in waIntel.percepcoes.slice(0, 5)" :key="perc.id">
+                      <div style="font-size:12px;padding:6px 8px;background:var(--bg-subtle);border-radius:6px;margin-bottom:4px;border-left:3px solid var(--brand)">
+                        <div style="display:flex;justify-content:space-between">
+                          <span style="font-weight:500" x-text="perc.tipo || 'Nota'"></span>
+                          <span style="font-size:10px;color:var(--neutral-400)" x-text="new Date(perc.created_at).toLocaleDateString('pt-BR')"></span>
+                        </div>
+                        <div style="color:var(--neutral-600);margin-top:2px" x-text="perc.conteudo"></div>
+                        <div x-show="perc.autor" style="font-size:10px;color:var(--neutral-400);margin-top:2px" x-text="'— ' + perc.autor"></div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+                <div x-show="waIntel.loading" style="text-align:center;padding:16px;color:var(--neutral-400);font-size:12px">Carregando inteligência WA...</div>
+              </div>
+
+              <!-- Comentários do mentorado -->
+              <div class="card" style="margin-top:12px" x-init="$watch('data.detail?.id', v => { if(v) loadCardComments({mentorado_id: v}) })">
+                <div class="card__header">
+                  <h3>Comentários <span style="font-weight:400;color:var(--neutral-400);font-size:12px" x-text="cardComments.length ? '(' + cardComments.length + ')' : ''"></span></h3>
+                </div>
+                <div class="card__body">
+                  <div style="max-height:250px;overflow-y:auto;margin-bottom:8px">
+                    <template x-for="c in cardComments" :key="c.id">
+                      <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--neutral-100)">
+                        <div style="width:26px;height:26px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0" x-text="(c.author || 'E')[0].toUpperCase()"></div>
+                        <div style="flex:1;min-width:0">
+                          <div style="display:flex;align-items:baseline;gap:6px">
+                            <span style="font-size:11px;font-weight:600" x-text="c.author"></span>
+                            <span style="font-size:10px;color:var(--neutral-400)" x-text="new Date(c.created_at).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})"></span>
+                          </div>
+                          <div style="font-size:12px;line-height:1.4;white-space:pre-wrap" x-text="c.content"></div>
+                        </div>
+                        <button style="opacity:0.3;background:none;border:none;cursor:pointer;font-size:11px;color:#ef4444" @click="deleteCardComment(c.id)">&times;</button>
+                      </div>
+                    </template>
+                    <div x-show="!cardComments.length && !cardCommentsLoading" style="text-align:center;padding:8px;color:var(--neutral-400);font-size:11px">Nenhum comentário</div>
+                  </div>
+                  <div style="display:flex;gap:6px">
+                    <input type="text" x-model="cardCommentInput" placeholder="Comentar..." @keydown.enter="addCardComment({mentorado_id: data.detail?.id})" style="flex:1;border:1px solid var(--neutral-200);border-radius:6px;padding:6px 10px;font-size:12px">
+                    <button class="btn btn--sm btn--brand" @click="addCardComment({mentorado_id: data.detail?.id})" :disabled="!cardCommentInput.trim()" style="font-size:11px">Enviar</button>
                   </div>
                 </div>
               </div>
@@ -5134,8 +5489,12 @@
                     <input type="date" class="ds-input" :value="data.dsMenteeDetail.data_call_apresentacao_pos_funil || ''" @change="setCallDate(ui.dsDetailProducaoId, 'data_call_apresentacao_pos_funil', $event.target.value)">
                   </div>
                   <div class="ds-marcos__item">
-                    <label class="ds-marcos__label ds-marcos__label--prazo" :class="dsPrazoClass(data.dsMenteeDetail.prazo_entrega)">Prazo de Entrega</label>
+                    <label class="ds-marcos__label ds-marcos__label--prazo" :class="dsPrazoClass(data.dsMenteeDetail.prazo_entrega)">Prazo Externo (mentorado)</label>
                     <input type="date" class="ds-input" :class="{ 'ds-input--danger': dsPrazoClass(data.dsMenteeDetail.prazo_entrega) === 'ds-deadline--overdue', 'ds-input--warning': dsPrazoClass(data.dsMenteeDetail.prazo_entrega) === 'ds-deadline--soon' }" :value="data.dsMenteeDetail.prazo_entrega || ''" @change="setCallDate(ui.dsDetailProducaoId, 'prazo_entrega', $event.target.value)">
+                  </div>
+                  <div class="ds-marcos__item">
+                    <label class="ds-marcos__label" :class="dsPrazoClass(data.dsMenteeDetail.prazo_interno)" style="border-left:3px solid #f59e0b;padding-left:6px">Prazo Interno (equipe)</label>
+                    <input type="date" class="ds-input" :class="{ 'ds-input--danger': dsPrazoClass(data.dsMenteeDetail.prazo_interno) === 'ds-deadline--overdue', 'ds-input--warning': dsPrazoClass(data.dsMenteeDetail.prazo_interno) === 'ds-deadline--soon' }" :value="data.dsMenteeDetail.prazo_interno || ''" @change="setCallDate(ui.dsDetailProducaoId, 'prazo_interno', $event.target.value)">
                   </div>
                 </div>
 
@@ -5304,6 +5663,35 @@
                 <div class="ds-section">
                   <h3 class="ds-section-title">Notas</h3>
                   <textarea class="ds-notas-textarea" rows="3" :value="data.dsMenteeDetail.notas || ''" @blur="saveDsNotas(ui.dsDetailProducaoId, $event.target.value)" placeholder="Notas sobre esta producao..."></textarea>
+                </div>
+
+                <!-- Comentários do dossiê -->
+                <div class="ds-section" x-init="$watch('ui.dsDetailProducaoId', v => { if(v) loadCardComments({producao_id: v}) })">
+                  <h3 class="ds-section-title">Comentários <span style="font-weight:400;color:var(--neutral-400);font-size:12px" x-text="cardComments.length ? '(' + cardComments.length + ')' : ''"></span></h3>
+                  <div style="max-height:300px;overflow-y:auto;margin-bottom:8px">
+                    <template x-for="c in cardComments" :key="c.id">
+                      <div style="display:flex;gap:8px;padding:8px 0;border-bottom:1px solid var(--neutral-100)">
+                        <div style="width:28px;height:28px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0" x-text="(c.author || 'E')[0].toUpperCase()"></div>
+                        <div style="flex:1;min-width:0">
+                          <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:2px">
+                            <span style="font-size:12px;font-weight:600" x-text="c.author"></span>
+                            <span style="font-size:10px;color:var(--neutral-400)" x-text="new Date(c.created_at).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})"></span>
+                          </div>
+                          <div style="font-size:13px;line-height:1.5;white-space:pre-wrap" x-text="c.content"></div>
+                          <div x-show="c.media_url" style="margin-top:4px">
+                            <img x-show="c.content_type === 'image'" :src="c.media_url" style="max-width:200px;border-radius:6px;cursor:pointer" @click="ui.waLightboxUrl = c.media_url">
+                            <audio x-show="c.content_type === 'audio'" :src="c.media_url" controls style="height:28px"></audio>
+                          </div>
+                        </div>
+                        <button style="opacity:0.3;background:none;border:none;cursor:pointer;font-size:11px;color:#ef4444;flex-shrink:0" @click="deleteCardComment(c.id)" title="Excluir">&times;</button>
+                      </div>
+                    </template>
+                    <div x-show="!cardComments.length && !cardCommentsLoading" style="text-align:center;padding:12px;color:var(--neutral-400);font-size:12px">Nenhum comentário ainda</div>
+                  </div>
+                  <div style="display:flex;gap:6px">
+                    <input type="text" x-model="cardCommentInput" placeholder="Escrever comentário..." @keydown.enter="addCardComment({producao_id: ui.dsDetailProducaoId})" style="flex:1;border:1px solid var(--neutral-200);border-radius:6px;padding:6px 10px;font-size:12px">
+                    <button class="btn btn--sm btn--brand" @click="addCardComment({producao_id: ui.dsDetailProducaoId})" :disabled="!cardCommentInput.trim()">Enviar</button>
+                  </div>
                 </div>
 
                 <!-- Audit Trail -->
@@ -5595,8 +5983,9 @@
                             <span x-text="p.responsavel_atual || '-'"></span>
                             <span class="ds-aging ds-aging--sm" :class="dsAgingClass(p.dias_no_estagio)" x-show="p.dias_no_estagio" x-text="p.dias_no_estagio + 'd'"></span>
                           </div>
-                          <div x-show="p.prazo_entrega || p.oferta_prazo || p.funil_prazo || p.conteudo_prazo" class="ds-pipeline__card-prazo" style="flex-direction:column;align-items:flex-start;gap:2px">
-                            <span x-show="p.prazo_entrega" class="ds-deadline-badge ds-deadline-badge--sm" :class="dsPrazoClass(p.prazo_entrega)" title="Prazo Global">🎯 <span x-text="dsFormatDate(p.prazo_entrega)"></span></span>
+                          <div x-show="p.prazo_entrega || p.prazo_interno || p.oferta_prazo || p.funil_prazo || p.conteudo_prazo" class="ds-pipeline__card-prazo" style="flex-direction:column;align-items:flex-start;gap:2px">
+                            <span x-show="p.prazo_interno" class="ds-deadline-badge ds-deadline-badge--sm" :class="dsPrazoClass(p.prazo_interno)" title="Prazo Interno (equipe)">⚙️ <span x-text="dsFormatDate(p.prazo_interno)"></span></span>
+                            <span x-show="p.prazo_entrega" class="ds-deadline-badge ds-deadline-badge--sm" :class="dsPrazoClass(p.prazo_entrega)" title="Prazo Externo (mentorado)">🎯 <span x-text="dsFormatDate(p.prazo_entrega)"></span></span>
                             <template x-for="dt in DS_DOC_TIPOS" :key="dt.id">
                               <span x-show="p[dt.id + '_prazo']" class="ds-deadline-badge ds-deadline-badge--sm" :class="dsPrazoClass(p[dt.id + '_prazo'])" :title="dt.label"><span x-text="dt.icon"></span> <span x-text="dsFormatDate(p[dt.id + '_prazo'])"></span></span>
                             </template>

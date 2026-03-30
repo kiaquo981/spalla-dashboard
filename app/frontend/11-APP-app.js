@@ -3330,6 +3330,192 @@ function operon() {
       this.toast(`Follow-up criado: checar em ${days} dias`, 'info');
     },
 
+    // --- Resumo Semanal ---
+    weeklySummary: { text: '', loading: false, stats: null },
+
+    async loadWeeklySummary(mentoradoId) {
+      if (!mentoradoId) return;
+      this.weeklySummary.loading = true;
+      this.weeklySummary.text = '';
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/mentee/weekly-summary`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+          body: JSON.stringify({ mentorado_id: mentoradoId }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          this.weeklySummary.text = data.summary || '';
+          this.weeklySummary.stats = data.stats || null;
+        } else {
+          this.weeklySummary.text = 'Erro: ' + (data.error || 'Falha ao gerar resumo');
+        }
+      } catch (e) {
+        this.weeklySummary.text = 'Erro de conexão';
+      }
+      this.weeklySummary.loading = false;
+    },
+
+    // --- Contexto Onboarding ---
+    obContext: { trilha: null, etapas: [], loading: false },
+
+    async loadObContext(mentoradoId) {
+      if (!sb || !mentoradoId) return;
+      this.obContext.loading = true;
+      try {
+        const { data: trilhas } = await sb.from('ob_trilhas')
+          .select('*')
+          .eq('mentorado_id', mentoradoId)
+          .limit(1);
+        this.obContext.trilha = trilhas?.[0] || null;
+
+        if (this.obContext.trilha) {
+          const { data: etapas } = await sb.from('ob_etapas')
+            .select('*, ob_tarefas(*)')
+            .eq('trilha_id', this.obContext.trilha.id)
+            .order('ordem');
+          this.obContext.etapas = etapas || [];
+        }
+      } catch (e) { console.warn('[ob-context]', e); }
+      this.obContext.loading = false;
+    },
+
+    // --- Alertas Etapa Atrasada (Onboarding) ---
+    ccAlertasEtapaAtrasada() {
+      const trilhas = this.data.obTrilhas || [];
+      const now = new Date();
+      const alertas = [];
+      for (const t of trilhas) {
+        if (t.status === 'concluido') continue;
+        const atrasadas = (t.tarefas_atrasadas || 0);
+        if (atrasadas > 0) {
+          alertas.push({
+            mentorado_id: t.mentorado_id,
+            mentorado_nome: t.mentorado_nome || 'Mentorado',
+            etapa: t.etapa_atual || 'Onboarding',
+            atrasadas,
+            progresso: t.progresso_pct || 0,
+          });
+        }
+      }
+      return alertas.sort((a, b) => b.atrasadas - a.atrasadas);
+    },
+
+    // --- Grupos WA por fase ---
+    get waGroupsByFase() {
+      const groups = this.data.waGroups || [];
+      const fases = {};
+      const faseOrder = ['interno', 'onboarding', 'acompanhamento', 'producao', 'entrega', 'pos_entrega', 'geral'];
+      const faseLabels = {
+        interno: 'Interno', onboarding: 'Onboarding', acompanhamento: 'Acompanhamento',
+        producao: 'Produção', entrega: 'Entrega', pos_entrega: 'Pós-entrega', geral: 'Geral',
+      };
+      for (const g of groups) {
+        const fase = g.fase || 'geral';
+        if (!fases[fase]) fases[fase] = { label: faseLabels[fase] || fase, groups: [] };
+        fases[fase].groups.push(g);
+      }
+      return faseOrder.filter(f => fases[f]).map(f => fases[f]);
+    },
+
+    async updateWaGroupFase(groupId, fase) {
+      if (!sb) return;
+      await sb.from('wa_groups').update({ fase }).eq('id', groupId);
+      const g = this.data.waGroups.find(gr => gr.id === groupId);
+      if (g) g.fase = fase;
+      this.toast('Grupo atualizado', 'success');
+    },
+
+    // --- WA Intelligence Layer ---
+    waIntel: { classifications: [], percepcoes: [], pendencias: [], loading: false },
+
+    async loadWaIntelligence(mentoradoId) {
+      if (!sb || !mentoradoId) return;
+      this.waIntel.loading = true;
+      try {
+        // Classifications summary (last 30 days)
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
+        const { data: interactions } = await sb.from('interacoes_mentoria')
+          .select('categoria,tipo_interacao,sentimento,score_engajamento,requer_resposta,respondido,conteudo,sender_name,created_at,urgencia_resposta,intencao_primaria')
+          .eq('mentorado_id', mentoradoId)
+          .gte('created_at', thirtyDaysAgo)
+          .order('created_at', { ascending: false })
+          .limit(100);
+
+        // Aggregate classifications
+        const catCounts = {};
+        const sentCounts = {};
+        let pendCount = 0;
+        for (const i of (interactions || [])) {
+          catCounts[i.categoria || 'OUTROS'] = (catCounts[i.categoria || 'OUTROS'] || 0) + 1;
+          sentCounts[i.sentimento || 'neutro'] = (sentCounts[i.sentimento || 'neutro'] || 0) + 1;
+          if (i.requer_resposta && !i.respondido) pendCount++;
+        }
+        this.waIntel.classifications = {
+          total: (interactions || []).length,
+          categorias: Object.entries(catCounts).sort((a, b) => b[1] - a[1]),
+          sentimentos: Object.entries(sentCounts).sort((a, b) => b[1] - a[1]),
+          pendencias: pendCount,
+          avgEngajamento: interactions?.length ? Math.round(interactions.reduce((s, i) => s + (i.score_engajamento || 0), 0) / interactions.length) : 0,
+        };
+
+        // Pendências (requer_resposta = true, respondido = false)
+        this.waIntel.pendencias = (interactions || []).filter(i => i.requer_resposta && !i.respondido);
+
+        // Percepções (all time, last 20)
+        const { data: percs } = await sb.from('percepcoes_mentorado')
+          .select('*')
+          .eq('mentorado_id', mentoradoId)
+          .order('created_at', { ascending: false })
+          .limit(20);
+        this.waIntel.percepcoes = percs || [];
+      } catch (e) {
+        console.warn('[wa-intel] Error:', e);
+      }
+      this.waIntel.loading = false;
+    },
+
+    // --- Card Comments (dossiê + mentorado) ---
+    cardComments: [],
+    cardCommentInput: '',
+    cardCommentsLoading: false,
+
+    async loadCardComments(opts = {}) {
+      if (!sb) return;
+      this.cardCommentsLoading = true;
+      let query = sb.from('card_comments').select('*').order('created_at', { ascending: true });
+      if (opts.producao_id) query = query.eq('producao_id', opts.producao_id);
+      else if (opts.documento_id) query = query.eq('documento_id', opts.documento_id);
+      else if (opts.mentorado_id) query = query.eq('mentorado_id', opts.mentorado_id);
+      else { this.cardCommentsLoading = false; return; }
+      const { data, error } = await query.limit(200);
+      this.cardComments = error ? [] : (data || []);
+      this.cardCommentsLoading = false;
+    },
+
+    async addCardComment(opts = {}) {
+      if (!sb || !this.cardCommentInput.trim()) return;
+      const row = {
+        content: this.cardCommentInput.trim(),
+        content_type: 'text',
+        author: this.currentUserName || 'Equipe',
+      };
+      if (opts.producao_id) row.producao_id = opts.producao_id;
+      if (opts.documento_id) row.documento_id = opts.documento_id;
+      if (opts.mentorado_id) row.mentorado_id = opts.mentorado_id;
+
+      const { data: created, error } = await sb.from('card_comments').insert(row).select().single();
+      if (error) { this.toast('Erro ao salvar comentário: ' + error.message, 'error'); return; }
+      this.cardComments.push(created);
+      this.cardCommentInput = '';
+    },
+
+    async deleteCardComment(commentId) {
+      if (!sb || !confirm('Excluir comentário?')) return;
+      await sb.from('card_comments').delete().eq('id', commentId);
+      this.cardComments = this.cardComments.filter(c => c.id !== commentId);
+    },
+
     // --- Batch Task from Audio (TASK-07) ---
     batchTask: {
       recording: false,
@@ -4043,6 +4229,149 @@ function operon() {
       return Object.values(members)
         .filter(m => m.hoje.length + m.ontem.length + m.bloqueios.length > 0)
         .sort((a, b) => (b.hoje.length + b.bloqueios.length) - (a.hoje.length + a.bloqueios.length));
+    },
+
+    // === CC V2: Dossiês Gargalados ===
+    ccDossiesGargalados() {
+      const docs = this.data.dsAllDocs || [];
+      const prods = this.data.dsProducoes || [];
+      const now = new Date();
+      const gargalados = [];
+      for (const doc of docs) {
+        if (doc.estagio_atual === 'finalizado' || doc.estagio_atual === 'pendente') continue;
+        const updatedAt = doc.updated_at ? new Date(doc.updated_at) : null;
+        const diasParado = updatedAt ? Math.floor((now - updatedAt) / (1000 * 60 * 60 * 24)) : null;
+        if (diasParado !== null && diasParado >= 3) {
+          const prod = prods.find(p => p.producao_id === doc.producao_id);
+          gargalados.push({
+            ...doc,
+            mentorado_nome: prod?.mentorado_nome || doc.mentorado_nome || '?',
+            diasParado,
+            estagio_label: (this.dsEstagioConfig?.(doc.estagio_atual) || {}).label || doc.estagio_atual,
+          });
+        }
+      }
+      return gargalados.sort((a, b) => b.diasParado - a.diasParado).slice(0, 10);
+    },
+
+    // === CC V2: Mentorados sem call há X dias ===
+    ccMentoradosSemCall() {
+      const mentees = this.data.mentees || [];
+      const calls = this.data.scheduledCalls || [];
+      const now = new Date();
+      const result = [];
+      for (const m of mentees) {
+        if (m.status === 'offboarded' || m.status === 'cancelado') continue;
+        // Find last call for this mentorado
+        const menteeCalls = calls.filter(c =>
+          c.mentorado_id === m.id ||
+          (c.mentorado_nome || '').toLowerCase() === (m.nome || '').toLowerCase()
+        );
+        const lastCall = menteeCalls
+          .map(c => new Date(c.data_call || c.dateStr || c.start))
+          .filter(d => !isNaN(d))
+          .sort((a, b) => b - a)[0];
+        const diasSemCall = lastCall ? Math.floor((now - lastCall) / (1000 * 60 * 60 * 24)) : 999;
+        if (diasSemCall >= 14) {
+          result.push({ id: m.id, nome: m.nome, diasSemCall, lastCall: lastCall?.toLocaleDateString('pt-BR') || 'Nunca' });
+        }
+      }
+      return result.sort((a, b) => b.diasSemCall - a.diasSemCall).slice(0, 15);
+    },
+
+    // === CC V2: Download da Semana (sexta — consolidado semanal) ===
+    ccDownloadSemana() {
+      const now = new Date();
+      const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay() + 1); weekStart.setHours(0, 0, 0, 0); // segunda
+      const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6); weekEnd.setHours(23, 59, 59, 999); // domingo
+      const tasks = this.data.tasks || [];
+      const mentees = this.data.mentees || [];
+
+      // Tarefas concluídas esta semana
+      const concluidas = tasks.filter(t => {
+        const updated = new Date(t.updated_at);
+        return t.status === 'concluida' && updated >= weekStart && updated <= weekEnd;
+      });
+
+      // Tarefas criadas esta semana
+      const criadas = tasks.filter(t => {
+        const created = new Date(t.created_at);
+        return created >= weekStart && created <= weekEnd;
+      });
+
+      // Pendentes ainda abertas
+      const pendentes = tasks.filter(t => t.status === 'pendente' || t.status === 'em_andamento');
+
+      // Atrasadas
+      const atrasadas = tasks.filter(t => {
+        const due = t.data_fim || t.prazo;
+        return due && new Date(due) < now && t.status !== 'concluida';
+      });
+
+      // Mentorados ativos
+      const ativos = mentees.filter(m => m.status !== 'offboarded' && m.status !== 'cancelado');
+
+      // Dossiês entregues esta semana
+      const entregues = (this.data.dsAllDocs || []).filter(d => {
+        if (d.estagio_atual !== 'finalizado') return false;
+        const updated = new Date(d.updated_at);
+        return updated >= weekStart && updated <= weekEnd;
+      });
+
+      return {
+        periodo: `${weekStart.toLocaleDateString('pt-BR')} — ${weekEnd.toLocaleDateString('pt-BR')}`,
+        tarefasConcluidas: concluidas.length,
+        tarefasCriadas: criadas.length,
+        tarefasPendentes: pendentes.length,
+        tarefasAtrasadas: atrasadas.length,
+        mentoradosAtivos: ativos.length,
+        dossiesEntregues: entregues.length,
+        dossiesGargalados: this.ccDossiesGargalados().length,
+        topConcluidas: concluidas.slice(0, 5),
+        topPendentes: pendentes.filter(t => t.prioridade === 'alta' || t.prioridade === 'urgente').slice(0, 5),
+        topAtrasadas: atrasadas.slice(0, 5),
+      };
+    },
+
+    // === CC V2: Planejamento da Semana (segunda — o que priorizar) ===
+    ccPlanejamentoSemana() {
+      const now = new Date();
+      const tasks = this.data.tasks || [];
+
+      // Próximos 7 dias
+      const in7days = new Date(now); in7days.setDate(in7days.getDate() + 7);
+
+      // Tarefas com prazo nos próximos 7 dias
+      const comPrazo = tasks.filter(t => {
+        const due = t.data_fim || t.prazo;
+        if (!due || t.status === 'concluida') return false;
+        const d = new Date(due);
+        return d >= now && d <= in7days;
+      }).sort((a, b) => new Date(a.data_fim || a.prazo) - new Date(b.data_fim || b.prazo));
+
+      // Atrasadas (prioridade máxima)
+      const atrasadas = tasks.filter(t => {
+        const due = t.data_fim || t.prazo;
+        return due && new Date(due) < now && t.status !== 'concluida';
+      }).sort((a, b) => new Date(a.data_fim || a.prazo) - new Date(b.data_fim || b.prazo));
+
+      // Follow-ups pendentes
+      const followups = tasks.filter(t => t.tipo === 'follow_up' && t.status === 'pendente');
+
+      // Dossiês com prazo crítico
+      const dossiesCriticos = this.dsNewsCriticos?.() || [];
+
+      // Sem call há muito tempo
+      const semCall = this.ccMentoradosSemCall();
+
+      return {
+        atrasadas: atrasadas.slice(0, 10),
+        comPrazo: comPrazo.slice(0, 10),
+        followups: followups.slice(0, 10),
+        dossiesCriticos: dossiesCriticos.slice(0, 5),
+        semCall: semCall.slice(0, 5),
+        totalAcoes: atrasadas.length + comPrazo.length + followups.length,
+      };
     },
 
     async loadCommandCenterData() {
