@@ -3375,7 +3375,7 @@ function operon() {
         formData.append('audio', blob, 'batch-tasks.webm');
         const res = await fetch(`${CONFIG.API_BASE}/api/tasks/from-audio`, {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${this.auth.jwt}` },
+          headers: { 'Authorization': `Bearer ${this.auth.accessToken}` },
           body: formData,
         });
         const data = await res.json();
@@ -6204,7 +6204,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       try {
         await fetch(`${CONFIG.API_BASE}/api/tasks/notify`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.jwt}` },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
           body: JSON.stringify({ titulo: task.titulo, responsavel: task.responsavel, criador, prazo, link }),
         });
       } catch (e) { /* silent */ }
