@@ -6213,9 +6213,16 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         }
 
         // Build message
+        const tipoInfo = this.TASK_TIPO_MAP[task.tipo] || this.TASK_TIPO_MAP.geral;
+        const now = new Date();
+        const dataHora = now.toLocaleDateString('pt-BR') + ' às ' + now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         const lines = [`📋 *Nova tarefa:* ${task.titulo}`];
-        if (criador) lines.push(`👤 De: ${criador}`);
-        if (prazo) lines.push(`📅 Prazo: ${prazo}`);
+        if (task.descricao) lines.push(`📝 ${task.descricao.substring(0, 150)}${task.descricao.length > 150 ? '...' : ''}`);
+        lines.push(`${tipoInfo.icon} Tipo: ${tipoInfo.label}`);
+        if (criador) lines.push(`👤 Criada por: ${criador}`);
+        if (task.mentorado_nome) lines.push(`🧑 Mentorado: ${task.mentorado_nome}`);
+        if (prazo) lines.push(`📅 Prazo: ${new Date(prazo + 'T12:00:00').toLocaleDateString('pt-BR')}`);
+        lines.push(`🕐 Cadastrada em: ${dataHora}`);
         if (link) lines.push(`🔗 ${link}`);
         const text = lines.join('\n');
 
