@@ -631,8 +631,13 @@
                       <template x-for="m in group.items" :key="m.id">
                         <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;transition:box-shadow .15s" :style="m.urgency >= 15 ? 'border-left:3px solid #ef4444' : m.urgency >= 5 ? 'border-left:3px solid #f59e0b' : 'border-left:3px solid #10b981'">
                           <!-- Card header — always visible, clickable -->
-                          <div style="padding:10px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:flex-start;gap:8px" @click="ccBoardToggle(m.id)">
-                            <div style="display:flex;flex-direction:column;gap:4px;min-width:0">
+                          <div style="padding:10px 12px;cursor:pointer;display:flex;align-items:flex-start;gap:10px" @click="ccBoardToggle(m.id)">
+                            <!-- Avatar -->
+                            <div style="width:32px;height:32px;border-radius:50%;flex-shrink:0;background:var(--neutral-200);background-size:cover;background-position:center;overflow:hidden;margin-top:1px"
+                                 :style="igPhotoStyle(m.instagram || m.nome)">
+                              <div x-show="!igPhoto(m.instagram || m.nome)" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--neutral-500)" x-text="m.nome.split(' ').map(p => p[0]).slice(0,2).join('').toUpperCase()"></div>
+                            </div>
+                            <div style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
                               <div style="display:flex;align-items:center;gap:6px">
                                 <span style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="m.nome"></span>
                               </div>
@@ -656,7 +661,7 @@
                               </div>
                             </div>
                             <!-- Expand chevron -->
-                            <svg style="flex-shrink:0;transition:transform .2s;margin-top:2px" :style="ui.ccBoardExpanded[m.id] ? 'transform:rotate(180deg)' : ''" width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L2 5h12z"/></svg>
+                            <svg style="flex-shrink:0;transition:transform .2s;margin-top:10px" :style="ui.ccBoardExpanded[m.id] ? 'transform:rotate(180deg)' : ''" width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 11L2 5h12z"/></svg>
                           </div>
                           <!-- Expanded detail (lazy: only renders when expanded) -->
                           <template x-if="ui.ccBoardExpanded[m.id]">
@@ -10295,7 +10300,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=104"></script>
+  <script src="11-APP-app.js?v=105"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">
