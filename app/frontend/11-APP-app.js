@@ -280,6 +280,8 @@ function operon() {
       batchTaskModal: false,
       feedbackCatFilter: '',
       feedbackStatusFilter: '',
+      driveSyncing: false,
+      waFaseFilter: '',
       whatsappLoading: false,
       // WhatsApp Per-User Session
       waSessionLoading: false,
@@ -3330,6 +3332,32 @@ function operon() {
       this.toast(`Follow-up criado: checar em ${days} dias`, 'info');
     },
 
+    // --- Google Drive Sync ---
+    driveFiles: { files: [], folder_url: '', created_folder: false },
+
+    async syncDriveFiles() {
+      if (!this.data.detail?.id || !this.data.detail?.nome) return;
+      this.ui.driveSyncing = true;
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/drive/sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+          body: JSON.stringify({
+            mentorado_id: this.data.detail.id,
+            mentorado_nome: this.data.detail.nome,
+            produto: 'mentory',
+          }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          this.driveFiles = data;
+        } else {
+          this.toast('Erro Drive: ' + (data.error || ''), 'error');
+        }
+      } catch (e) { this.toast('Erro de conexão com Drive', 'error'); }
+      this.ui.driveSyncing = false;
+    },
+
     // --- Resumo Semanal ---
     weeklySummary: { text: '', loading: false, stats: null },
 
@@ -3572,11 +3600,13 @@ function operon() {
           _idx: i,
           _selected: true,
           titulo: t.titulo || '',
+          descricao: t.descricao || '',
           responsavel: t.responsavel || '',
           mentorado: t.mentorado || '',
           prioridade: t.prioridade || 'normal',
           tipo: t.tipo || 'geral',
           prazo_dias: t.prazo_dias || null,
+          subtasks: (t.subtasks || []).map(s => typeof s === 'string' ? { text: s, done: false } : s),
         }));
         if (!this.batchTask.extractedTasks.length) {
           this.toast('Nenhuma tarefa identificada no áudio', 'warning');
@@ -3606,11 +3636,21 @@ function operon() {
           status: 'pendente',
           fonte: 'audio_batch',
           auto_gerada: true,
-          descricao: `Criada por áudio em ${new Date().toLocaleDateString('pt-BR')}`,
+          descricao: t.descricao ? `${t.descricao}\n\n[Criada por áudio em ${new Date().toLocaleDateString('pt-BR')}]` : `Criada por áudio em ${new Date().toLocaleDateString('pt-BR')}`,
         };
         const { data: newTask, error } = await sb.from('god_tasks').insert(row).select().single();
         if (!error && newTask) {
           this.data.tasks.push(newTask);
+          // Create subtasks if any
+          if (t.subtasks?.length && newTask.id) {
+            const subRows = t.subtasks.map((s, idx) => ({
+              task_id: newTask.id,
+              texto: s.text || s,
+              done: false,
+              sort_order: idx,
+            }));
+            await sb.from('god_task_subtasks').insert(subRows);
+          }
           created++;
         }
       }

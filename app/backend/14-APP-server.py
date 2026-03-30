@@ -4385,16 +4385,38 @@ Dados da semana:
                 return
 
             # Step 2: Extract tasks via Gemini Flash
-            extraction_prompt = f"""Analise a transcrição abaixo e extraia TODAS as tarefas mencionadas.
-Para cada tarefa, retorne um JSON array com objetos contendo:
-- "titulo": string (curto, imperativo, max 80 chars)
-- "responsavel": string ou null (nome da pessoa se mencionado)
-- "mentorado": string ou null (nome do mentorado se mencionado)
-- "prioridade": "baixa" | "normal" | "alta" | "urgente"
-- "tipo": "geral" | "dossie" | "ajuste_dossie" | "follow_up" | "rotina"
-- "prazo_dias": number ou null (estimativa em dias se mencionado, senão null)
+            extraction_prompt = f"""Você é um assistente especializado em extrair tarefas de áudio transcrito.
+O contexto é uma consultoria de mentoria (CASE), onde a equipe descarrega demandas por áudio.
 
-Retorne APENAS o JSON array, sem markdown, sem explicação.
+REGRAS DE EXTRAÇÃO:
+1. Cada AÇÃO DISTINTA é uma tarefa separada. Se o falante diz "precisa fazer X e Y", são 2 tarefas.
+2. Se uma tarefa tem SUB-ITENS (checklist), agrupe como subtasks dentro da tarefa pai.
+3. DETECTE o tipo correto:
+   - "dossie": produção, revisão, ajuste de dossiê
+   - "ajuste_dossie": correção específica de dossiê já feito
+   - "follow_up": checar com mentorado, cobrar resposta, fazer acompanhamento
+   - "rotina": algo recorrente (toda semana, todo dia, etc.)
+   - "geral": qualquer outra coisa
+4. DETECTE responsável pelo NOME se mencionado (Heitor, Lara, Mariza, Kaique, Queila, Hugo, Gobbi).
+5. DETECTE mentorado pelo NOME se mencionado.
+6. DETECTE prazo: "amanhã"=1, "essa semana"=5, "semana que vem"=10, "urgente"=1, "até sexta"=calcule dias.
+7. DETECTE prioridade: "urgente"/"agora"→urgente, "importante"→alta, default→normal.
+8. Se o falante menciona DATAS ESPECÍFICAS (dia X, segunda, etc.), converta em prazo_dias relativo a hoje.
+9. Subtasks são itens dentro de uma tarefa maior. Ex: "precisa revisar o dossiê: checar oferta, ajustar funil, validar copy" = 1 tarefa com 3 subtasks.
+
+FORMATO DE SAÍDA (JSON array):
+[{{
+  "titulo": "string (imperativo, max 80 chars, ex: 'Revisar dossiê da Betina')",
+  "descricao": "string ou null (contexto adicional extraído do áudio)",
+  "responsavel": "string ou null (primeiro nome)",
+  "mentorado": "string ou null (nome do mentorado)",
+  "prioridade": "baixa" | "normal" | "alta" | "urgente",
+  "tipo": "geral" | "dossie" | "ajuste_dossie" | "follow_up" | "rotina",
+  "prazo_dias": number ou null,
+  "subtasks": ["string", "string"] ou []
+}}]
+
+Retorne APENAS o JSON array. Sem markdown, sem explicação, sem comentários.
 Se não houver tarefas claras, retorne [].
 
 Transcrição:
