@@ -6194,48 +6194,58 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     async _notifyTaskViaWa(task) {
-      if (!task.responsavel) return;
+      if (!task.responsavel || !sb) return;
       const baseUrl = window.location.origin;
       const link = `${baseUrl}/tasks?detail=${task.id}`;
       const prazo = task.data_fim || task.prazo || '';
       const criador = this.currentUserName || '';
 
-      // TASK-09: Notify responsavel (always)
+      // Lookup responsavel's whatsapp_jid from spalla_members (via Supabase, no backend needed)
       try {
-        await fetch(`${CONFIG.API_BASE}/api/tasks/notify`, {
+        const { data: members } = await sb.from('spalla_members')
+          .select('nome_curto,whatsapp_jid')
+          .eq('ativo', true);
+
+        const member = (members || []).find(m => m.nome_curto?.toLowerCase() === task.responsavel.toLowerCase());
+        if (!member?.whatsapp_jid) {
+          console.warn('[task-notify] No whatsapp_jid for', task.responsavel);
+          return;
+        }
+
+        // Build message
+        const lines = [`📋 *Nova tarefa:* ${task.titulo}`];
+        if (criador) lines.push(`👤 De: ${criador}`);
+        if (prazo) lines.push(`📅 Prazo: ${prazo}`);
+        if (link) lines.push(`🔗 ${link}`);
+        const text = lines.join('\n');
+
+        // Send via backend proxy (same endpoint as WA chat — already works)
+        const { instance } = this._waActiveInstance();
+        if (!instance) return;
+        const number = member.whatsapp_jid.split('@')[0];
+        await fetch(`${CONFIG.API_BASE}/api/wa/send-text`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
-          body: JSON.stringify({ titulo: task.titulo, responsavel: task.responsavel, criador, prazo, link }),
+          body: JSON.stringify({ number, text, instance }),
         });
-      } catch (e) { /* silent */ }
+      } catch (e) { console.warn('[task-notify]', e); }
 
       // TASK-09: Notify mentorado if opted in and tipo is dossie/ajuste
-      if (task._notifyMentorado && task.mentorado_nome && sb) {
+      if (task._notifyMentorado && task.mentorado_nome) {
         const tipo = task.tipo || 'geral';
         if (['dossie', 'ajuste_dossie'].includes(tipo)) {
           this._notifyMentoradoViaWa(task).catch(e => console.warn('[task-notify-mentee]', e));
         }
       }
-
-      // TASK-09: Log notification
-      if (sb) {
-        sb.from('god_task_notifications').insert({
-          task_id: task.id,
-          destinatario: task.responsavel,
-          canal: 'whatsapp',
-        }).then(() => {});
-      }
     },
 
     async _notifyMentoradoViaWa(task) {
       if (!sb || !task.mentorado_nome) return;
-      // Find mentorado's WA group
       const mentoradoId = task.mentorado_id;
       if (!mentoradoId) return;
       const { data: groups } = await sb.from('wa_groups').select('group_jid').eq('mentorado_id', mentoradoId).limit(1);
       if (!groups?.length) return;
       const jid = groups[0].group_jid;
-      const tipoLabel = this.taskTipoLabel(task.tipo);
 
       const text = `Olá! Uma nova ação foi registrada para você:\n\n📋 *${task.titulo}*\n${task.data_fim ? '📅 Prazo: ' + new Date(task.data_fim + 'T12:00:00').toLocaleDateString('pt-BR') : ''}\n\nSe tiver dúvidas, é só mandar aqui!`;
 
@@ -6246,14 +6256,6 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
         body: JSON.stringify({ number: jid, text, instance, group_jid: jid }),
       });
-
-      if (sb) {
-        sb.from('god_task_notifications').insert({
-          task_id: task.id,
-          destinatario: task.mentorado_nome,
-          canal: 'whatsapp_mentorado',
-        }).then(() => {});
-      }
     },
 
     async updateTaskField(taskId, field, value) {
