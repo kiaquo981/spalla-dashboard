@@ -1800,13 +1800,23 @@ function operon() {
       try {
         // Deep-link: resolve URL pathname to page
         const pathname = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
-        if (pathname && this._routeMap[pathname]) {
+        // Deep-link: /mentorado/:id — store for after auth
+        const menteeDeepLink = pathname.match(/^mentorado\/(.+)$/);
+        if (menteeDeepLink) {
+          this._pendingMenteeId = menteeDeepLink[1];
+        } else if (pathname && this._routeMap[pathname]) {
           this.ui.page = this._routeMap[pathname];
           localStorage.setItem('spalla_page', this._routeMap[pathname]);
         }
         // Handle browser back/forward
         window.addEventListener('popstate', (e) => {
           const p = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
+          // Deep-link: /mentorado/:id
+          const menteeMatch = p.match(/^mentorado\/(.+)$/);
+          if (menteeMatch) {
+            this.loadMenteeDetail(menteeMatch[1]);
+            return;
+          }
           if (p && this._routeMap[p]) {
             this.ui.page = this._routeMap[p];
           } else if (!p || p === '') {
@@ -2007,6 +2017,11 @@ function operon() {
           this.ui.page = target;
           localStorage.setItem('spalla_page', target);
           console.log('[Spalla] Deep-link restored to:', target);
+        }
+        // Deep-link: /mentorado/:id
+        if (this._pendingMenteeId) {
+          setTimeout(() => this.loadMenteeDetail(this._pendingMenteeId), 300);
+          this._pendingMenteeId = null;
         }
         // Deep-link task: /tasks?task=UUID
         const taskParam = new URLSearchParams(window.location.search).get('task');
@@ -3023,6 +3038,11 @@ function operon() {
         const bestDays = (dynamicDays !== null && origDays !== null) ? Math.min(dynamicDays, origDays) : (dynamicDays ?? origDays);
         return { ...m, dias_desde_call: bestDays ?? m.dias_desde_call };
       });
+    },
+
+    openDetail(id) {
+      this.loadMenteeDetail(id);
+      history.pushState({ page: 'detail', menteeId: id }, '', '/mentorado/' + id);
     },
 
     async loadMenteeDetail(id) {
@@ -5813,6 +5833,7 @@ function operon() {
       localStorage.setItem('spalla_page', 'dashboard');
       this.data.detail = null;
       this.ui.selectedMenteeId = null;
+      history.pushState({ page: 'dashboard' }, '', '/dashboard');
     },
 
     // ===================== PLANO DE AÇÃO (PA) =====================
