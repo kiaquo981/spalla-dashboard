@@ -1800,13 +1800,23 @@ function operon() {
       try {
         // Deep-link: resolve URL pathname to page
         const pathname = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
-        if (pathname && this._routeMap[pathname]) {
+        // Deep-link: /mentorado/:id — store for after auth
+        const menteeDeepLink = pathname.match(/^mentorado\/(.+)$/);
+        if (menteeDeepLink) {
+          this._pendingMenteeId = menteeDeepLink[1];
+        } else if (pathname && this._routeMap[pathname]) {
           this.ui.page = this._routeMap[pathname];
           localStorage.setItem('spalla_page', this._routeMap[pathname]);
         }
         // Handle browser back/forward
         window.addEventListener('popstate', (e) => {
           const p = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
+          // Deep-link: /mentorado/:id
+          const menteeMatch = p.match(/^mentorado\/(.+)$/);
+          if (menteeMatch) {
+            this.loadMenteeDetail(menteeMatch[1]);
+            return;
+          }
           if (p && this._routeMap[p]) {
             this.ui.page = this._routeMap[p];
           } else if (!p || p === '') {
@@ -2007,6 +2017,11 @@ function operon() {
           this.ui.page = target;
           localStorage.setItem('spalla_page', target);
           console.log('[Spalla] Deep-link restored to:', target);
+        }
+        // Deep-link: /mentorado/:id
+        if (this._pendingMenteeId) {
+          setTimeout(() => this.loadMenteeDetail(this._pendingMenteeId), 300);
+          this._pendingMenteeId = null;
         }
         // Deep-link task: /tasks?task=UUID
         const taskParam = new URLSearchParams(window.location.search).get('task');
@@ -3025,6 +3040,11 @@ function operon() {
       });
     },
 
+    openDetail(id) {
+      this.loadMenteeDetail(id);
+      history.pushState({ page: 'detail', menteeId: id }, '', '/mentorado/' + id);
+    },
+
     async loadMenteeDetail(id) {
       this.destroyPerfilCharts();
       this.data.perfilComportamental = null;
@@ -3455,7 +3475,7 @@ function operon() {
         // Dossiê from ds_producoes (if loaded)
         const prod = dsProds.find(p => p.mentorado_id === m.id);
         const docs = dsDocs.filter(d => d.producao_id === prod?.producao_id);
-        const dossieEtapa = docs.length ? docs.map(d => d.estagio_atual).join(', ') : null;
+        const dossieEtapa = docs.length ? docs.map(d => (DS_ESTAGIOS.find(e => e.id === d.estagio_atual) || {}).label || d.estagio_atual).join(', ') : null;
         const dossiePrazo = prod?.prazo_entrega || prod?.prazo_interno || null;
         const dossieAtrasado = dossiePrazo && new Date(dossiePrazo) < now && prod?.status !== 'finalizado';
 
@@ -3511,6 +3531,51 @@ function operon() {
 
     ccBoardToggle(id) {
       this.ui.ccBoardExpanded = { ...this.ui.ccBoardExpanded, [id]: !this.ui.ccBoardExpanded[id] };
+    },
+
+    // Dossiê status for a mentee (used in expanded card)
+    ccBoardDossie(mentoradoId) {
+      const prod = (this.data.dsProducoes || []).find(p => p.mentorado_id === mentoradoId);
+      if (!prod) return null;
+      const docs = (this.data.dsAllDocs || []).filter(d => d.producao_id === prod.producao_id);
+      const cfg = DS_STATUS_PRODUCAO.find(s => s.id === prod.status) || DS_STATUS_PRODUCAO[0];
+      return {
+        statusId: prod.status,
+        statusLabel: cfg.label,
+        statusColor: cfg.color,
+        docs: docs.map(d => {
+          const tipo = DS_DOC_TIPOS.find(t => t.id === d.tipo) || { label: d.tipo, color: '#6b7280' };
+          const estagio = DS_ESTAGIOS.find(e => e.id === d.estagio_atual) || DS_ESTAGIOS[0];
+          return { tipo: tipo.label, tipoColor: tipo.color, estagio: estagio.label, estagioColor: estagio.color };
+        }),
+      };
+    },
+
+    // Bifurcated tasks: team delivers vs mentee executes
+    ccBoardTasks(mentoradoId) {
+      const mentee = (this.data.mentees || []).find(x => x.id === mentoradoId);
+      if (!mentee) return { equipe: [], mentorado: [], total: 0 };
+      const firstName = (mentee.nome || '').split(' ')[0].toLowerCase();
+      const active = (this.data.tasks || []).filter(t =>
+        t.mentorado_id === mentoradoId &&
+        !['concluida', 'arquivada', 'cancelada'].includes(t.status)
+      );
+      const equipe = [];
+      const mentorado = [];
+      for (const t of active) {
+        const resp = (t.responsavel || '').toLowerCase();
+        if (firstName.length > 2 && resp.includes(firstName)) {
+          mentorado.push(t);
+        } else {
+          equipe.push(t);
+        }
+      }
+      return { equipe: equipe.slice(0, 4), mentorado: mentorado.slice(0, 4), total: active.length };
+    },
+
+    // Onboarding trilha for a mentee
+    ccBoardOb(mentoradoId) {
+      return (this.data.obTrilhas || []).find(t => t.mentorado_id === mentoradoId && t.status !== 'concluido') || null;
     },
 
     // --- Grupos WA por fase ---
@@ -5768,6 +5833,7 @@ function operon() {
       localStorage.setItem('spalla_page', 'dashboard');
       this.data.detail = null;
       this.ui.selectedMenteeId = null;
+      history.pushState({ page: 'dashboard' }, '', '/dashboard');
     },
 
     // ===================== PLANO DE AÇÃO (PA) =====================
