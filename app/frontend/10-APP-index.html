@@ -640,6 +640,7 @@
                             <div style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1">
                               <div style="display:flex;align-items:center;gap:6px">
                                 <span style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="m.nome"></span>
+                                <span x-show="m.dataEntrada" style="font-size:10px;color:var(--neutral-400);white-space:nowrap" x-text="m.dataEntrada ? new Date(m.dataEntrada).toLocaleDateString('pt-BR',{day:'numeric',month:'short'}) : ''"></span>
                               </div>
                               <!-- Inline metrics row -->
                               <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
@@ -10300,7 +10301,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=105"></script>
+  <script src="11-APP-app.js?v=106"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">
