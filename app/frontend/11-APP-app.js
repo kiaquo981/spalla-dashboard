@@ -202,6 +202,8 @@ function operon() {
       taskSpaceFilter: 'all', // space_id filter
       taskListFilter: 'all', // list_id filter
       ccWeekOffset: 0,       // Command Center week nav: 0=current, -1=prev, +1=next
+      ccBoardFilter: 'priority', // 'all' | 'priority' (hide escala/validacao) | 'onboarding' | 'concepcao' | 'validacao' | 'escala'
+      ccBoardExpanded: {},   // mentorado id → boolean
       spaceExpanded: null,   // which space has sub-lists visible
       docsTab: 'arquivos',   // 'arquivos' | 'biblioteca' | 'google_docs'
       taskGroupBy: 'status', // 'status' | 'assignee' | 'priority' | 'list'
@@ -3453,7 +3455,7 @@ function operon() {
         // Dossiê from ds_producoes (if loaded)
         const prod = dsProds.find(p => p.mentorado_id === m.id);
         const docs = dsDocs.filter(d => d.producao_id === prod?.producao_id);
-        const dossieEtapa = docs.length ? docs.map(d => d.estagio_atual).join(', ') : null;
+        const dossieEtapa = docs.length ? docs.map(d => (DS_ESTAGIOS.find(e => e.id === d.estagio_atual) || {}).label || d.estagio_atual).join(', ') : null;
         const dossiePrazo = prod?.prazo_entrega || prod?.prazo_interno || null;
         const dossieAtrasado = dossiePrazo && new Date(dossiePrazo) < now && prod?.status !== 'finalizado';
 
@@ -3484,6 +3486,76 @@ function operon() {
       }
 
       return board.sort((a, b) => b.urgency - a.urgency);
+    },
+
+    ccBoardFiltered() {
+      const board = this.ccConsultantBoard();
+      const f = this.ui.ccBoardFilter || 'priority';
+      if (f === 'all') return board;
+      if (f === 'priority') return board.filter(m => ['onboarding', 'concepcao'].includes(m.fase));
+      return board.filter(m => m.fase === f);
+    },
+
+    ccBoardGrouped() {
+      const board = this.ccBoardFiltered();
+      const PHASE_ORDER = ['onboarding', 'concepcao', 'validacao', 'escala'];
+      const PHASE_LABELS = { onboarding: 'Onboarding', concepcao: 'Concepção', validacao: 'Validação', escala: 'Escala' };
+      const groups = {};
+      for (const m of board) {
+        const phase = m.fase && PHASE_ORDER.includes(m.fase) ? m.fase : 'onboarding';
+        if (!groups[phase]) groups[phase] = [];
+        groups[phase].push(m);
+      }
+      return PHASE_ORDER.filter(p => groups[p]).map(p => ({ phase: p, label: PHASE_LABELS[p], items: groups[p] }));
+    },
+
+    ccBoardToggle(id) {
+      this.ui.ccBoardExpanded = { ...this.ui.ccBoardExpanded, [id]: !this.ui.ccBoardExpanded[id] };
+    },
+
+    // Dossiê status for a mentee (used in expanded card)
+    ccBoardDossie(mentoradoId) {
+      const prod = (this.data.dsProducoes || []).find(p => p.mentorado_id === mentoradoId);
+      if (!prod) return null;
+      const docs = (this.data.dsAllDocs || []).filter(d => d.producao_id === prod.producao_id);
+      const cfg = DS_STATUS_PRODUCAO.find(s => s.id === prod.status) || DS_STATUS_PRODUCAO[0];
+      return {
+        statusId: prod.status,
+        statusLabel: cfg.label,
+        statusColor: cfg.color,
+        docs: docs.map(d => {
+          const tipo = DS_DOC_TIPOS.find(t => t.id === d.tipo) || { label: d.tipo, color: '#6b7280' };
+          const estagio = DS_ESTAGIOS.find(e => e.id === d.estagio_atual) || DS_ESTAGIOS[0];
+          return { tipo: tipo.label, tipoColor: tipo.color, estagio: estagio.label, estagioColor: estagio.color };
+        }),
+      };
+    },
+
+    // Bifurcated tasks: team delivers vs mentee executes
+    ccBoardTasks(mentoradoId) {
+      const mentee = (this.data.mentees || []).find(x => x.id === mentoradoId);
+      if (!mentee) return { equipe: [], mentorado: [], total: 0 };
+      const firstName = (mentee.nome || '').split(' ')[0].toLowerCase();
+      const active = (this.data.tasks || []).filter(t =>
+        t.mentorado_id === mentoradoId &&
+        !['concluida', 'arquivada', 'cancelada'].includes(t.status)
+      );
+      const equipe = [];
+      const mentorado = [];
+      for (const t of active) {
+        const resp = (t.responsavel || '').toLowerCase();
+        if (firstName.length > 2 && resp.includes(firstName)) {
+          mentorado.push(t);
+        } else {
+          equipe.push(t);
+        }
+      }
+      return { equipe: equipe.slice(0, 4), mentorado: mentorado.slice(0, 4), total: active.length };
+    },
+
+    // Onboarding trilha for a mentee
+    ccBoardOb(mentoradoId) {
+      return (this.data.obTrilhas || []).find(t => t.mentorado_id === mentoradoId && t.status !== 'concluido') || null;
     },
 
     // --- Grupos WA por fase ---
