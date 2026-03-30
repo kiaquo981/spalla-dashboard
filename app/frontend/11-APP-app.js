@@ -188,6 +188,7 @@ function operon() {
       toasts: [],
       // Tasks
       taskFilter: 'all', // all | pendente | em_andamento | concluida | atrasada
+      taskTipoFilter: '', // '' = todos; 'dossie', 'follow_up', etc.
       taskAssignee: '', // '' = todos; '__mine__' = minhas tarefas
       taskModal: false,
       taskEditId: null,
@@ -272,6 +273,13 @@ function operon() {
       waGroupCreateModal: false,
       waGroupForm: { subject: '', mentorado_id: '', participants: '' },
       detailWaMessage: '',
+      waFollowupEnabled: false,
+      waFollowupDays: 2,
+      bulkFollowupModal: false,
+      feedbackFormOpen: false,
+      batchTaskModal: false,
+      feedbackCatFilter: '',
+      feedbackStatusFilter: '',
       whatsappLoading: false,
       // WhatsApp Per-User Session
       waSessionLoading: false,
@@ -453,6 +461,7 @@ function operon() {
       menteeMessages: [],  // EPIC 1: Chatwoot messages for current mentorado
       menteeContext: [],   // Context Hub: áudios, notas, arquivos para dossiê
       teamPerformance: [],
+      feedbackList: [],           // TASK-10: god_feedback entries
       // Command Center static data
       projects: [
         {
@@ -576,12 +585,24 @@ function operon() {
       },
     ],
 
+    // --- Task Type Icons ---
+    TASK_TIPO_MAP: {
+      geral:         { icon: '📋', label: 'Geral' },
+      dossie:        { icon: '📑', label: 'Dossiê' },
+      ajuste_dossie: { icon: '🔧', label: 'Ajuste dossiê' },
+      follow_up:     { icon: '🔄', label: 'Follow-up' },
+      rotina:        { icon: '📅', label: 'Rotina' },
+      bug_report:    { icon: '🐛', label: 'Bug report' },
+    },
+
     // --- Task Form ---
     taskForm: {
       titulo: '',
       descricao: '',
       responsavel: '',
       mentorado_nome: '',
+      tipo: 'geral',
+      notificarMentorado: false,
       prioridade: 'normal',
       prazo: '', // this becomes data_fim
       data_inicio: '',
@@ -1194,7 +1215,19 @@ function operon() {
           });
         }
       }
+      // Tipo filter
+      if (this.ui.taskTipoFilter) {
+        list = list.filter(t => (t.tipo || 'geral') === this.ui.taskTipoFilter);
+      }
       return list;
+    },
+
+    taskTipoIcon(tipo) {
+      return (this.TASK_TIPO_MAP[tipo] || this.TASK_TIPO_MAP.geral).icon;
+    },
+
+    taskTipoLabel(tipo) {
+      return (this.TASK_TIPO_MAP[tipo] || this.TASK_TIPO_MAP.geral).label;
     },
 
     _debounce(timerKey, fn, delay = 500) {
@@ -2204,6 +2237,10 @@ function operon() {
               const el = document.getElementById('wa-messages-end');
               if (el) el.scrollIntoView({ behavior: 'smooth' });
             });
+          }
+          // TASK-05: Check if this message resolves a pending follow-up
+          if (!payload.new.is_from_team) {
+            this._checkFollowupResponse(groupJid, payload.new);
           }
         })
         .on('postgres_changes', {
@@ -3250,9 +3287,377 @@ function operon() {
           body: JSON.stringify({ number: jid, text, instance, group_jid: jid }),
         });
         if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || `HTTP ${res.status}`); }
+        // TASK-04: Create follow-up task if enabled
+        if (this.ui.waFollowupEnabled && sb) {
+          await this._createFollowupTask(text, jid);
+          this.ui.waFollowupEnabled = false;
+        }
         this.toast('Mensagem enviada', 'success');
       } catch (e) {
         this.toast('Erro ao enviar: ' + e.message, 'error');
+      }
+    },
+
+    async _createFollowupTask(msgText, groupJid) {
+      const mentoradoNome = this.data.detail?.nome || '';
+      const days = this.ui.waFollowupDays || 2;
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + days);
+      const dueDateStr = dueDate.toISOString().split('T')[0];
+      const responsavel = this.currentUserName || '';
+      const preview = msgText.length > 100 ? msgText.substring(0, 100) + '...' : msgText;
+
+      const taskData = {
+        titulo: `Follow-up — ${mentoradoNome}`,
+        descricao: `Mensagem enviada: "${preview}" em ${new Date().toLocaleDateString('pt-BR')}\nChecar se mentorado respondeu.`,
+        tipo: 'follow_up',
+        prioridade: 'normal',
+        responsavel,
+        mentorado_nome: mentoradoNome,
+        mentorado_id: this.data.detail?.id || null,
+        tags: ['follow-up'],
+        data_fim: dueDateStr,
+        status: 'pendente',
+        fonte: 'auto_followup',
+        auto_gerada: true,
+        follow_up_group_jid: groupJid || null,
+      };
+
+      const { data: created, error } = await sb.from('god_tasks').insert(taskData).select().single();
+      if (error) { console.warn('[follow-up] Error creating task:', error); return; }
+      this.data.tasks.push(created);
+      this._cacheTasksLocal();
+      this.toast(`Follow-up criado: checar em ${days} dias`, 'info');
+    },
+
+    // --- Batch Task from Audio (TASK-07) ---
+    batchTask: {
+      recording: false,
+      recorder: null,
+      transcribing: false,
+      transcript: '',
+      extractedTasks: [],
+      saving: false,
+    },
+
+    async batchTaskStartRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+        const chunks = [];
+        recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+        recorder.onstop = () => {
+          stream.getTracks().forEach(t => t.stop());
+          const blob = new Blob(chunks, { type: 'audio/webm' });
+          this.batchTaskProcessAudio(blob);
+        };
+        recorder.start();
+        this.batchTask.recorder = recorder;
+        this.batchTask.recording = true;
+        this.batchTask.transcript = '';
+        this.batchTask.extractedTasks = [];
+      } catch (e) {
+        this.toast('Erro ao acessar microfone: ' + e.message, 'error');
+      }
+    },
+
+    batchTaskStopRecording() {
+      if (this.batchTask.recorder && this.batchTask.recording) {
+        this.batchTask.recorder.stop();
+        this.batchTask.recording = false;
+      }
+    },
+
+    async batchTaskProcessAudio(blob) {
+      this.batchTask.transcribing = true;
+      try {
+        const formData = new FormData();
+        formData.append('audio', blob, 'batch-tasks.webm');
+        const res = await fetch(`${CONFIG.API_BASE}/api/tasks/from-audio`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${this.auth.jwt}` },
+          body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok) { this.toast('Erro: ' + (data.error || 'Falha na transcrição'), 'error'); return; }
+        this.batchTask.transcript = data.transcript || '';
+        this.batchTask.extractedTasks = (data.tasks || []).map((t, i) => ({
+          ...t,
+          _idx: i,
+          _selected: true,
+          titulo: t.titulo || '',
+          responsavel: t.responsavel || '',
+          mentorado: t.mentorado || '',
+          prioridade: t.prioridade || 'normal',
+          tipo: t.tipo || 'geral',
+          prazo_dias: t.prazo_dias || null,
+        }));
+        if (!this.batchTask.extractedTasks.length) {
+          this.toast('Nenhuma tarefa identificada no áudio', 'warning');
+        }
+      } catch (e) {
+        this.toast('Erro ao processar áudio: ' + e.message, 'error');
+      } finally {
+        this.batchTask.transcribing = false;
+      }
+    },
+
+    async batchTaskConfirmAll() {
+      if (!sb) return;
+      const selected = this.batchTask.extractedTasks.filter(t => t._selected);
+      if (!selected.length) return;
+      this.batchTask.saving = true;
+      let created = 0;
+      for (const t of selected) {
+        const dueDate = t.prazo_dias ? new Date(Date.now() + t.prazo_dias * 86400000).toISOString().split('T')[0] : null;
+        const row = {
+          titulo: t.titulo,
+          tipo: t.tipo,
+          prioridade: t.prioridade,
+          responsavel: t.responsavel || '',
+          mentorado_nome: t.mentorado || '',
+          data_fim: dueDate,
+          status: 'pendente',
+          fonte: 'audio_batch',
+          auto_gerada: true,
+          descricao: `Criada por áudio em ${new Date().toLocaleDateString('pt-BR')}`,
+        };
+        const { data: newTask, error } = await sb.from('god_tasks').insert(row).select().single();
+        if (!error && newTask) {
+          this.data.tasks.push(newTask);
+          created++;
+        }
+      }
+      this._cacheTasksLocal();
+      this.batchTask.saving = false;
+      this.batchTask.extractedTasks = [];
+      this.batchTask.transcript = '';
+      this.ui.batchTaskModal = false;
+      this.toast(`${created} tarefas criadas a partir do áudio`, 'success');
+    },
+
+    // --- Feedback Form ---
+    feedbackForm: {
+      titulo: '',
+      descricao: '',
+      categoria: 'bug',
+      prioridade: 'normal',
+    },
+
+    get filteredFeedback() {
+      let list = [...this.data.feedbackList];
+      if (this.ui.feedbackCatFilter) list = list.filter(f => f.categoria === this.ui.feedbackCatFilter);
+      if (this.ui.feedbackStatusFilter) list = list.filter(f => f.status === this.ui.feedbackStatusFilter);
+      list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      return list;
+    },
+
+    async loadFeedback() {
+      if (!sb) return;
+      const { data, error } = await sb.from('god_feedback').select('*').order('created_at', { ascending: false }).limit(200);
+      if (!error && data) this.data.feedbackList = data;
+    },
+
+    async submitFeedback() {
+      if (!sb || !this.feedbackForm.titulo.trim()) return;
+      const row = {
+        titulo: this.feedbackForm.titulo.trim(),
+        descricao: this.feedbackForm.descricao.trim() || null,
+        categoria: this.feedbackForm.categoria,
+        prioridade: this.feedbackForm.prioridade,
+        created_by: this.currentUserName || 'equipe',
+      };
+      const { data: created, error } = await sb.from('god_feedback').insert(row).select().single();
+      if (error) { this.toast('Erro ao enviar feedback: ' + error.message, 'error'); return; }
+      this.data.feedbackList.unshift(created);
+      this.feedbackForm = { titulo: '', descricao: '', categoria: 'bug', prioridade: 'normal' };
+      this.ui.feedbackFormOpen = false;
+      this.toast('Feedback enviado', 'success');
+    },
+
+    async updateFeedbackStatus(fbId, newStatus) {
+      if (!sb) return;
+      const { error } = await sb.from('god_feedback').update({ status: newStatus }).eq('id', fbId);
+      if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      const fb = this.data.feedbackList.find(f => f.id === fbId);
+      if (fb) fb.status = newStatus;
+      this.toast('Status atualizado', 'success');
+    },
+
+    async convertFeedbackToTask(fb) {
+      if (!sb) return;
+      const taskData = {
+        titulo: fb.titulo,
+        descricao: `[Convertido de feedback]\n${fb.descricao || ''}\n\nCategoria: ${fb.categoria}\nPrioridade sentida: ${fb.prioridade}\nReportado por: ${fb.created_by}`,
+        tipo: 'bug_report',
+        prioridade: fb.prioridade,
+        status: 'pendente',
+        fonte: 'feedback',
+        tags: [fb.categoria],
+      };
+      const { data: created, error } = await sb.from('god_tasks').insert(taskData).select().single();
+      if (error) { this.toast('Erro ao criar tarefa: ' + error.message, 'error'); return; }
+      // Update feedback status
+      await sb.from('god_feedback').update({ status: 'convertido', converted_task_id: created.id }).eq('id', fb.id);
+      fb.status = 'convertido';
+      fb.converted_task_id = created.id;
+      this.data.tasks.push(created);
+      this._cacheTasksLocal();
+      this.toast('Tarefa criada a partir do feedback', 'success');
+    },
+
+    async discardFeedback(fbId, motivo) {
+      if (!sb) return;
+      const { error } = await sb.from('god_feedback').update({ status: 'descartado', descarte_motivo: motivo || null }).eq('id', fbId);
+      if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      const fb = this.data.feedbackList.find(f => f.id === fbId);
+      if (fb) { fb.status = 'descartado'; fb.descarte_motivo = motivo; }
+      this.toast('Feedback descartado', 'info');
+    },
+
+    // --- Bulk Follow-up State ---
+    bulkFollowup: {
+      template: 'Oi {nome}! Passando pra checar como estão as coisas. Precisa de algo?',
+      days: 2,
+      mentees: [],
+      sending: false,
+      sent: 0,
+    },
+
+    async openBulkFollowup() {
+      if (!sb) return;
+      this.bulkFollowup.mentees = [];
+      this.bulkFollowup.sending = false;
+      this.bulkFollowup.sent = 0;
+
+      // Load mentorados with their WA groups and last response info
+      const mentorados = this.data.mentorados || [];
+      const waGroups = await sb.from('wa_groups').select('group_jid,mentorado_id').then(r => r.data || []);
+      const groupMap = {};
+      for (const g of waGroups) { if (g.mentorado_id) groupMap[g.mentorado_id] = g.group_jid; }
+
+      const menteeList = [];
+      for (const m of mentorados) {
+        const jid = groupMap[m.id];
+        if (!jid) continue; // skip mentorados without WA group
+
+        // Get last team message and last mentorado message
+        const { data: lastTeam } = await sb.from('whatsapp_messages')
+          .select('created_at')
+          .eq('group_id', jid).eq('is_from_team', true)
+          .order('created_at', { ascending: false }).limit(1);
+
+        const { data: lastMentee } = await sb.from('whatsapp_messages')
+          .select('created_at,content')
+          .eq('group_id', jid).eq('is_from_team', false)
+          .order('created_at', { ascending: false }).limit(1);
+
+        const lastTeamDate = lastTeam?.[0]?.created_at ? new Date(lastTeam[0].created_at) : null;
+        const lastMenteeDate = lastMentee?.[0]?.created_at ? new Date(lastMentee[0].created_at) : null;
+
+        // Calculate days since last response from mentee (or since team's last msg)
+        let daysSinceResponse = null;
+        if (lastTeamDate && (!lastMenteeDate || lastMenteeDate < lastTeamDate)) {
+          daysSinceResponse = Math.floor((Date.now() - lastTeamDate) / (1000 * 60 * 60 * 24));
+        }
+
+        menteeList.push({
+          id: m.id,
+          nome: m.nome,
+          jid,
+          daysSinceResponse,
+          lastMsg: lastMentee?.[0]?.content?.substring(0, 60) || '',
+          selected: daysSinceResponse !== null && daysSinceResponse >= 3,
+        });
+      }
+
+      // Sort: most days without response first
+      menteeList.sort((a, b) => (b.daysSinceResponse || 0) - (a.daysSinceResponse || 0));
+      this.bulkFollowup.mentees = menteeList;
+      this.ui.bulkFollowupModal = true;
+    },
+
+    async executeBulkFollowup() {
+      const selected = this.bulkFollowup.mentees.filter(m => m.selected);
+      if (!selected.length || !this.bulkFollowup.template.trim()) return;
+
+      this.bulkFollowup.sending = true;
+      this.bulkFollowup.sent = 0;
+      const { instance } = this._waActiveInstance();
+      if (!instance) { this.toast('WhatsApp não conectado', 'warning'); this.bulkFollowup.sending = false; return; }
+
+      let success = 0;
+      for (const m of selected) {
+        const text = this.bulkFollowup.template.replace(/\{nome\}/gi, m.nome.split(' ')[0]);
+        try {
+          await fetch(`${CONFIG.API_BASE}/api/wa/send-text`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+            body: JSON.stringify({ number: m.jid, text, instance, group_jid: m.jid }),
+          });
+          // Create follow-up task
+          if (sb) {
+            const dueDate = new Date();
+            dueDate.setDate(dueDate.getDate() + this.bulkFollowup.days);
+            await sb.from('god_tasks').insert({
+              titulo: `Follow-up — ${m.nome}`,
+              descricao: `Follow-up em bloco enviado em ${new Date().toLocaleDateString('pt-BR')}`,
+              tipo: 'follow_up',
+              prioridade: 'normal',
+              responsavel: this.currentUserName || '',
+              mentorado_nome: m.nome,
+              mentorado_id: m.id,
+              tags: ['follow-up'],
+              data_fim: dueDate.toISOString().split('T')[0],
+              status: 'pendente',
+              fonte: 'auto_followup_bulk',
+              auto_gerada: true,
+              follow_up_group_jid: m.jid,
+            });
+          }
+          success++;
+        } catch (e) {
+          console.warn(`[bulk-followup] Failed for ${m.nome}:`, e);
+        }
+        this.bulkFollowup.sent = success;
+        // Small delay to respect rate limits
+        await new Promise(r => setTimeout(r, 500));
+      }
+
+      this.bulkFollowup.sending = false;
+      // Reload tasks
+      await this.loadTasks?.();
+      this.toast(`${success} follow-ups enviados, ${success} tarefas criadas`, 'success');
+      this.ui.bulkFollowupModal = false;
+    },
+
+    // TASK-05: Check if incoming message resolves pending follow-up tasks
+    async _checkFollowupResponse(groupJid, msg) {
+      if (!sb || !groupJid) return;
+      // Find pending follow-up tasks for this group
+      const pendingFollowups = this.data.tasks.filter(t =>
+        t.tipo === 'follow_up' &&
+        t.status === 'pendente' &&
+        t.follow_up_group_jid === groupJid &&
+        !t.follow_up_responded_at
+      );
+      if (!pendingFollowups.length) return;
+
+      const now = new Date().toISOString();
+      const preview = (msg.content || '').substring(0, 80);
+      for (const task of pendingFollowups) {
+        // Mark as responded (but don't close — consultant decides)
+        task.follow_up_responded_at = now;
+        await sb.from('god_tasks').update({ follow_up_responded_at: now }).eq('id', task.id);
+        // Add auto-comment
+        await sb.from('god_task_comments').insert({
+          task_id: task.id,
+          author: 'Sistema',
+          texto: `Mentorado respondeu em ${new Date().toLocaleDateString('pt-BR')}: "${preview}..."`,
+        });
+      }
+      if (pendingFollowups.length) {
+        this.toast(`${pendingFollowups.length} follow-up(s) sinalizados como respondidos`, 'info');
       }
     },
 
@@ -3838,6 +4243,7 @@ function operon() {
       'wa-topics': 'wa_topics',
       'wa-management': 'wa_management',
       'reminders': 'reminders',
+      'feedback': 'feedback',
       'dossies': 'dossies',
       'planos-acao': 'planos_acao',
       'onboarding': 'onboarding',
@@ -5678,6 +6084,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           responsavel: (TEAM_MEMBERS.find(m => m.name.toLowerCase() === (task.responsavel||'').toLowerCase())?.name) || task.responsavel || '',
           acompanhante: (TEAM_MEMBERS.find(m => m.name.toLowerCase() === (task.acompanhante||'').toLowerCase())?.name) || task.acompanhante || '',
           mentorado_nome: task.mentorado_nome || '',
+          tipo: task.tipo || 'geral',
           prioridade: task.prioridade || 'normal',
           prazo: task.data_fim || task.prazo || '',
           data_inicio: task.data_inicio || '',
@@ -5710,7 +6117,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       } else {
         // Preserve mentorado_nome if it was pre-set (e.g. from mentee detail view)
         const presetMentorado = this.taskForm?.mentorado_nome || '';
-        this.taskForm = { titulo: '', descricao: '', responsavel: '', acompanhante: '', mentorado_nome: presetMentorado, prioridade: 'normal', prazo: '', data_inicio: '', data_fim: '', doc_link: '', subtasks: [], checklist: [], comments: [], attachments: [], tags: [], dependencies: [], parent_task_id: null, space_id: 'space_jornada', list_id: '', recorrencia: 'nenhuma', dia_recorrencia: null, recorrencia_ativa: true, bloqueio_motivo: '', bloqueio_responsavel: '', newSubtask: '', newCheckItem: '', newComment: '', newTag: '', newDependsOn: '', newDependsOnType: 'finish_to_start', fieldValues: {} };
+        const presetTipo = this.taskForm?.tipo || 'geral';
+        this.taskForm = { titulo: '', descricao: '', responsavel: '', acompanhante: '', mentorado_nome: presetMentorado, tipo: presetTipo, prioridade: 'normal', prazo: '', data_inicio: '', data_fim: '', doc_link: '', subtasks: [], checklist: [], comments: [], attachments: [], tags: [], dependencies: [], parent_task_id: null, space_id: 'space_jornada', list_id: '', recorrencia: 'nenhuma', dia_recorrencia: null, recorrencia_ativa: true, bloqueio_motivo: '', bloqueio_responsavel: '', newSubtask: '', newCheckItem: '', newComment: '', newTag: '', newDependsOn: '', newDependsOnType: 'finish_to_start', fieldValues: {} };
         this.ui.taskEditId = null;
         this.loadFieldDefs('space_jornada', null, null);
       }
@@ -5774,10 +6182,78 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         if (newTask.checklist?.length) await this._sbSyncChecklist(newId, newTask.checklist);
         if (tagsObjects.length) await this._sbSyncTagRelations(newId, tagsObjects);
         await this.saveFieldValues(newId);
+        // TASK-03/09: Notify responsavel via WhatsApp (only on creation, not edit)
+        if (newTask.responsavel) {
+          newTask._notifyMentorado = this.taskForm.notificarMentorado || false;
+          this._notifyTaskViaWa(newTask).catch(e => console.warn('[task-notify]', e));
+        }
       }
       this._cacheTasksLocal();
       this.closeTaskModal();
       this.toast('Tarefa salva', 'success');
+    },
+
+    async _notifyTaskViaWa(task) {
+      if (!task.responsavel) return;
+      const baseUrl = window.location.origin;
+      const link = `${baseUrl}/tasks?detail=${task.id}`;
+      const prazo = task.data_fim || task.prazo || '';
+      const criador = this.currentUserName || '';
+
+      // TASK-09: Notify responsavel (always)
+      try {
+        await fetch(`${CONFIG.API_BASE}/api/tasks/notify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.jwt}` },
+          body: JSON.stringify({ titulo: task.titulo, responsavel: task.responsavel, criador, prazo, link }),
+        });
+      } catch (e) { /* silent */ }
+
+      // TASK-09: Notify mentorado if opted in and tipo is dossie/ajuste
+      if (task._notifyMentorado && task.mentorado_nome && sb) {
+        const tipo = task.tipo || 'geral';
+        if (['dossie', 'ajuste_dossie'].includes(tipo)) {
+          this._notifyMentoradoViaWa(task).catch(e => console.warn('[task-notify-mentee]', e));
+        }
+      }
+
+      // TASK-09: Log notification
+      if (sb) {
+        sb.from('god_task_notifications').insert({
+          task_id: task.id,
+          destinatario: task.responsavel,
+          canal: 'whatsapp',
+        }).then(() => {});
+      }
+    },
+
+    async _notifyMentoradoViaWa(task) {
+      if (!sb || !task.mentorado_nome) return;
+      // Find mentorado's WA group
+      const mentoradoId = task.mentorado_id;
+      if (!mentoradoId) return;
+      const { data: groups } = await sb.from('wa_groups').select('group_jid').eq('mentorado_id', mentoradoId).limit(1);
+      if (!groups?.length) return;
+      const jid = groups[0].group_jid;
+      const tipoLabel = this.taskTipoLabel(task.tipo);
+
+      const text = `Olá! Uma nova ação foi registrada para você:\n\n📋 *${task.titulo}*\n${task.data_fim ? '📅 Prazo: ' + new Date(task.data_fim + 'T12:00:00').toLocaleDateString('pt-BR') : ''}\n\nSe tiver dúvidas, é só mandar aqui!`;
+
+      const { instance } = this._waActiveInstance();
+      if (!instance) return;
+      await fetch(`${CONFIG.API_BASE}/api/wa/send-text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+        body: JSON.stringify({ number: jid, text, instance, group_jid: jid }),
+      });
+
+      if (sb) {
+        sb.from('god_task_notifications').insert({
+          task_id: task.id,
+          destinatario: task.mentorado_nome,
+          canal: 'whatsapp_mentorado',
+        }).then(() => {});
+      }
     },
 
     async updateTaskField(taskId, field, value) {
@@ -9810,6 +10286,36 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (motivo === null) return; // cancelled
       if (!motivo.trim()) { this.toast('Informe o motivo para voltar o estagio', 'warning'); return; }
       this.regressDocStage(docId, motivo.trim());
+    },
+
+    async createAdjustmentTask(doc) {
+      if (!doc || !sb) return;
+      const prod = this.data.dsProducoes.find(p => p.producao_id === doc.producao_id);
+      const mentoradoNome = prod?.mentorado_nome || doc.mentorado_nome || '';
+      const tipoLabel = { oferta: 'Oferta', posicionamento: 'Posicionamento', funil: 'Funil' }[doc.tipo] || doc.tipo || '';
+      const estagio = this.dsEstagioConfig(doc.estagio_atual);
+      const user = this.currentUserName;
+
+      const taskData = {
+        titulo: `Ajuste dossiê — ${mentoradoNome}${tipoLabel ? ' (' + tipoLabel + ')' : ''}`,
+        descricao: `Dossiê: ${tipoLabel} | Etapa: ${estagio?.label || doc.estagio_atual} | Solicitado por: ${user}`,
+        tipo: 'ajuste_dossie',
+        prioridade: 'alta',
+        responsavel: '',
+        mentorado_nome: mentoradoNome,
+        mentorado_id: doc.mentorado_id || prod?.mentorado_id || null,
+        tags: ['ajuste-dossie'],
+        doc_link: doc.link_doc || '',
+        status: 'pendente',
+        fonte: 'auto_dossie',
+        auto_gerada: true,
+      };
+
+      const { data: created, error } = await sb.from('god_tasks').insert(taskData).select().single();
+      if (error) { this.toast('Erro ao criar tarefa: ' + error.message, 'error'); return; }
+      this.data.tasks.push(created);
+      this._cacheTasksLocal();
+      this.toast(`Tarefa de ajuste criada: ${taskData.titulo}`, 'success');
     },
 
     async updateDsStatus(producaoId, newStatus) {

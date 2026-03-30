@@ -410,6 +410,11 @@
             <span x-show="ui.sidebarOpen">Lembretes</span>
           </a>
 
+          <a class="op-nav-item" :class="{ active: ui.page === 'feedback' }" @click="navigate('feedback'); loadFeedback()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span x-show="ui.sidebarOpen">Feedback</span>
+          </a>
+
           <div class="op-sidebar__section" x-show="ui.sidebarOpen">Documentos</div>
           <a class="op-nav-item" :class="{ active: ui.page === 'documentos' }" @click="navigate('documentos'); if(!ui.docsTab) ui.docsTab='arquivos'; if(ui.docsTab==='arquivos') loadArquivos(); if(ui.docsTab==='biblioteca') loadBiblioteca()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
@@ -586,6 +591,11 @@
               </div>
               <span style="font-size:12px;font-weight:700;color:var(--primary)" x-text="ccSprintProgress() + '%'"></span>
             </div>
+            <!-- Bulk Follow-up Button -->
+            <button class="btn btn--sm" style="background:var(--brand);color:#fff;display:flex;align-items:center;gap:6px;margin-left:auto" @click="openBulkFollowup()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              Follow-up em bloco
+            </button>
           </div>
 
           <!-- Bento Grid -->
@@ -1824,7 +1834,7 @@
                     <div class="detail-task-card" @click="openTaskDetail(t.id)" style="margin-bottom:6px">
                       <div class="detail-task-card__check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
                       <div class="detail-task-card__body">
-                        <div class="detail-task-card__title" :style="t.status === 'concluida' ? 'text-decoration:line-through;opacity:0.5' : ''"><span x-text="t.titulo"></span></div>
+                        <div class="detail-task-card__title" :style="t.status === 'concluida' ? 'text-decoration:line-through;opacity:0.5' : ''"><span class="task-tipo-icon" x-show="t.tipo && t.tipo !== 'geral'" x-text="taskTipoIcon(t.tipo)" style="font-size:12px"></span><span x-text="t.titulo"></span></div>
                         <div class="detail-task-card__meta">
                           <span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span>
                           <span x-show="t.data_fim || t.prazo" class="detail-task-card__due" :class="{ 'detail-task-card__due--overdue': isOverdue(t.data_fim || t.prazo) }" x-text="formatDate(t.data_fim || t.prazo)"></span>
@@ -1844,7 +1854,7 @@
                     <div class="detail-task-card" @click="openTaskDetail(t.id)" style="margin-bottom:6px">
                       <div class="detail-task-card__check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
                       <div class="detail-task-card__body">
-                        <div class="detail-task-card__title" :style="t.status === 'concluida' ? 'text-decoration:line-through;opacity:0.5' : ''"><span x-text="t.titulo"></span></div>
+                        <div class="detail-task-card__title" :style="t.status === 'concluida' ? 'text-decoration:line-through;opacity:0.5' : ''"><span class="task-tipo-icon" x-show="t.tipo && t.tipo !== 'geral'" x-text="taskTipoIcon(t.tipo)" style="font-size:12px"></span><span x-text="t.titulo"></span></div>
                         <div class="detail-task-card__meta">
                           <span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span>
                           <span class="badge badge--sm badge--neutral" x-text="t.responsavel"></span>
@@ -1872,7 +1882,7 @@
                     <div class="detail-task-card" @click="openTaskDetail(t.id)" style="margin-bottom:6px">
                       <div class="detail-task-card__check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
                       <div class="detail-task-card__body">
-                        <div class="detail-task-card__title" :style="t.status === 'concluida' ? 'text-decoration:line-through;opacity:0.5' : ''"><span x-text="t.titulo"></span></div>
+                        <div class="detail-task-card__title" :style="t.status === 'concluida' ? 'text-decoration:line-through;opacity:0.5' : ''"><span class="task-tipo-icon" x-show="t.tipo && t.tipo !== 'geral'" x-text="taskTipoIcon(t.tipo)" style="font-size:12px"></span><span x-text="t.titulo"></span></div>
                         <div class="detail-task-card__meta">
                           <span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span>
                           <span x-show="t.data_fim || t.prazo" class="detail-task-card__due" :class="{ 'detail-task-card__due--overdue': isOverdue(t.data_fim || t.prazo) }" x-text="formatDate(t.data_fim || t.prazo)"></span>
@@ -2161,11 +2171,23 @@
               </div>
 
               <!-- Send message input -->
-              <div x-show="data.detail?._waGroupJid" style="padding:8px 12px;border-top:1px solid var(--neutral-200);display:flex;gap:8px;align-items:center;flex-shrink:0;background:#fff">
-                <input type="text" x-model="ui.detailWaMessage" placeholder="Enviar mensagem..." @keydown.enter="sendDetailWaMessage()" style="flex:1;border:1px solid var(--neutral-200);border-radius:var(--r-md);padding:8px 12px;font-size:13px;outline:none">
-                <button class="btn btn--success btn--sm" @click="sendDetailWaMessage()" style="flex-shrink:0">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                </button>
+              <div x-show="data.detail?._waGroupJid" style="padding:8px 12px;border-top:1px solid var(--neutral-200);flex-shrink:0;background:#fff">
+                <div style="display:flex;gap:8px;align-items:center">
+                  <input type="text" x-model="ui.detailWaMessage" placeholder="Enviar mensagem..." @keydown.enter="sendDetailWaMessage()" style="flex:1;border:1px solid var(--neutral-200);border-radius:var(--r-md);padding:8px 12px;font-size:13px;outline:none">
+                  <button class="btn btn--success btn--sm" @click="sendDetailWaMessage()" style="flex-shrink:0">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  </button>
+                </div>
+                <!-- Follow-up toggle -->
+                <div style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;color:var(--neutral-500)">
+                  <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+                    <input type="checkbox" x-model="ui.waFollowupEnabled" style="accent-color:var(--brand)">
+                    <span>Criar follow-up</span>
+                  </label>
+                  <span x-show="ui.waFollowupEnabled" style="display:flex;align-items:center;gap:4px">
+                    em <input type="number" x-model.number="ui.waFollowupDays" min="1" max="30" style="width:40px;padding:2px 4px;border:1px solid var(--neutral-200);border-radius:4px;font-size:12px;text-align:center"> dias
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -2908,6 +2930,10 @@
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="7" y="10" width="14" height="4" rx="1"/><rect x="5" y="16" width="10" height="4" rx="1"/></svg>
                     </button>
                   </div>
+                  <button class="btn btn--sm" style="display:flex;align-items:center;gap:4px;border-color:var(--brand);color:var(--brand)" @click="ui.batchTaskModal = true" title="Criar tarefas por áudio">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                    Por áudio
+                  </button>
                   <button class="btn btn--brand" @click="openTaskModal()">+ Nova Tarefa</button>
                 </div>
               </div>
@@ -2947,6 +2973,12 @@
                   <option value="next30">Próximos 30 dias</option>
                   <option value="overdue">Atrasadas</option>
                   <option value="no_date">Sem data</option>
+                </select>
+                <select class="op-toolbar__select" x-model="ui.taskTipoFilter" style="min-width:130px" :class="{ 'op-toolbar__select--active': ui.taskTipoFilter }">
+                  <option value="">Todos os tipos</option>
+                  <template x-for="[key, val] in Object.entries(TASK_TIPO_MAP)" :key="key">
+                    <option :value="key" x-text="val.icon + ' ' + val.label"></option>
+                  </template>
                 </select>
                 <select class="op-toolbar__select" x-model="ui.taskGroupBy" style="width:auto;min-width:120px">
                   <option value="status">Agrupar: Status</option>
@@ -3000,6 +3032,7 @@
                         <div class="task-board__card" draggable="true" @dragstart="onDragStart($event, t.id)" @dragend="onDragEnd($event)" @click="openTaskDetail(t.id)" :class="{ 'task-board__card--overdue': status === 'pendente' && isOverdue(t.data_fim || t.prazo), 'task-board__card--mine': isMyTask(t) }">
                           <div class="task-board__card-header">
                             <span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span>
+                            <span x-show="t.follow_up_responded_at" class="badge badge--sm badge--success" title="Mentorado respondeu">✉️ respondeu</span>
                             <div class="task-board__card-actions">
                               <button class="task-card__btn" @click.stop="openTaskModal(t)" title="Editar">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -3007,6 +3040,7 @@
                             </div>
                           </div>
                           <div class="task-board__card-title">
+                            <span class="task-tipo-icon" x-show="t.tipo && t.tipo !== 'geral'" x-text="taskTipoIcon(t.tipo)" :title="taskTipoLabel(t.tipo)"></span>
                             <span x-text="t.titulo"></span>
                             <span class="task-auto-badge" x-show="t.auto_gerada">Auto</span>
                             <span class="task-recurring-badge" x-show="t.recorrencia && t.recorrencia !== 'nenhuma'" :title="'Recorrente: ' + recorrenciaLabel(t.recorrencia)">
@@ -4668,6 +4702,95 @@
 
         </div>
 
+        <!-- ===== PAGE: FEEDBACK ===== -->
+        <div class="page-content" x-show="ui.page === 'feedback'" x-transition>
+          <div class="page-header">
+            <h2>Feedback & Bug Reports</h2>
+            <button class="btn btn--brand" @click="ui.feedbackFormOpen = !ui.feedbackFormOpen">+ Novo Feedback</button>
+          </div>
+
+          <!-- New Feedback Form -->
+          <div x-show="ui.feedbackFormOpen" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px;margin-bottom:16px">
+            <div class="modal__row">
+              <div style="flex:2"><label>Título</label><input type="text" x-model="feedbackForm.titulo" class="modal__input" placeholder="Descreva o problema ou sugestão"></div>
+              <div style="flex:1"><label>Categoria</label>
+                <select x-model="feedbackForm.categoria" class="modal__select">
+                  <option value="bug">Bug</option>
+                  <option value="sugestao">Sugestão</option>
+                  <option value="feature">Feature</option>
+                  <option value="outro">Outro</option>
+                </select>
+              </div>
+              <div style="flex:1"><label>Prioridade sentida</label>
+                <select x-model="feedbackForm.prioridade" class="modal__select">
+                  <option value="baixa">Baixa</option>
+                  <option value="normal">Normal</option>
+                  <option value="alta">Alta</option>
+                  <option value="urgente">Urgente</option>
+                </select>
+              </div>
+            </div>
+            <div style="margin-top:8px"><label>Descrição</label>
+              <textarea x-model="feedbackForm.descricao" class="modal__input" rows="3" style="width:100%;resize:vertical" placeholder="Detalhes: o que aconteceu, onde, como reproduzir..."></textarea>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+              <button class="btn btn--sm" @click="ui.feedbackFormOpen = false">Cancelar</button>
+              <button class="btn btn--sm btn--brand" @click="submitFeedback()" :disabled="!feedbackForm.titulo.trim()">Enviar feedback</button>
+            </div>
+          </div>
+
+          <!-- Filters -->
+          <div class="op-toolbar" style="margin-bottom:12px">
+            <select class="op-toolbar__select" x-model="ui.feedbackCatFilter" style="min-width:120px">
+              <option value="">Todas categorias</option>
+              <option value="bug">Bug</option>
+              <option value="sugestao">Sugestão</option>
+              <option value="feature">Feature</option>
+              <option value="outro">Outro</option>
+            </select>
+            <select class="op-toolbar__select" x-model="ui.feedbackStatusFilter" style="min-width:120px">
+              <option value="">Todos status</option>
+              <option value="novo">Novo</option>
+              <option value="em_analise">Em análise</option>
+              <option value="convertido">Convertido</option>
+              <option value="descartado">Descartado</option>
+            </select>
+            <span class="op-toolbar__count" x-text="filteredFeedback.length + ' feedbacks'"></span>
+          </div>
+
+          <!-- Feedback List -->
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <template x-for="fb in filteredFeedback" :key="fb.id">
+              <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);padding:12px 16px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                  <span class="badge badge--sm" :class="{
+                    'badge--danger': fb.categoria === 'bug',
+                    'badge--info': fb.categoria === 'feature',
+                    'badge--warning': fb.categoria === 'sugestao',
+                    'badge--neutral': fb.categoria === 'outro'
+                  }" x-text="{ bug:'Bug', sugestao:'Sugestão', feature:'Feature', outro:'Outro' }[fb.categoria] || fb.categoria"></span>
+                  <span class="badge badge--sm" :class="{
+                    'badge--success': fb.status === 'convertido',
+                    'badge--danger': fb.status === 'descartado',
+                    'badge--warning': fb.status === 'em_analise',
+                    'badge--info': fb.status === 'novo'
+                  }" x-text="{ novo:'Novo', em_analise:'Em análise', convertido:'Convertido', descartado:'Descartado' }[fb.status] || fb.status"></span>
+                  <span style="font-size:11px;color:var(--neutral-400)" x-text="new Date(fb.created_at).toLocaleDateString('pt-BR')"></span>
+                  <span style="font-size:11px;color:var(--neutral-400)" x-text="'por ' + (fb.created_by || 'equipe')"></span>
+                </div>
+                <div style="font-weight:600;font-size:14px;margin-bottom:4px" x-text="fb.titulo"></div>
+                <div x-show="fb.descricao" style="font-size:13px;color:var(--neutral-600);margin-bottom:8px;white-space:pre-wrap" x-text="fb.descricao"></div>
+                <div style="display:flex;gap:6px">
+                  <button x-show="fb.status === 'novo'" class="btn btn--xs" style="color:var(--brand);border-color:var(--brand)" @click="updateFeedbackStatus(fb.id, 'em_analise')">Analisar</button>
+                  <button x-show="fb.status !== 'convertido' && fb.status !== 'descartado'" class="btn btn--xs btn--brand" @click="convertFeedbackToTask(fb)">Converter em tarefa</button>
+                  <button x-show="fb.status !== 'descartado' && fb.status !== 'convertido'" class="btn btn--xs" style="color:#ef4444;border-color:#fecaca" @click="let m = prompt('Motivo?'); if(m !== null) discardFeedback(fb.id, m)">Descartar</button>
+                </div>
+              </div>
+            </template>
+            <div x-show="!filteredFeedback.length" style="text-align:center;padding:32px;color:var(--neutral-400);font-size:14px">Nenhum feedback registrado</div>
+          </div>
+        </div>
+
         <!-- ===== PAGE: REMINDERS ===== -->
         <div class="page-content" x-show="ui.page === 'reminders'" x-transition>
           <div class="page-header">
@@ -5105,6 +5228,10 @@
                           </button>
                           <button class="btn btn--sm btn--success" @click="advanceDocStage(doc.id)" :disabled="!dsCanAdvance(doc)" x-show="doc.estagio_atual !== 'finalizado'" aria-label="Avancar estagio">Avançar</button>
                           <button class="btn btn--sm" @click="dsPromptRegress(doc.id)" x-show="dsEstagioNum(doc.estagio_atual) > 1" aria-label="Voltar estagio">Voltar</button>
+                          <button class="btn btn--sm" style="border-color:#d97706;color:#d97706;display:flex;align-items:center;gap:4px" @click="createAdjustmentTask(doc)" title="Criar tarefa de ajuste para este dossiê">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                            Tarefa de ajuste
+                          </button>
                         </div>
 
                         <!-- Ajustes for this doc -->
@@ -9071,6 +9198,23 @@
               </div>
             </div>
 
+            <!-- Tipo + Notificar mentorado -->
+            <div class="modal__row">
+              <div style="flex:1"><label>Tipo</label>
+                <select x-model="taskForm.tipo" class="modal__select">
+                  <template x-for="[key, val] in Object.entries(TASK_TIPO_MAP)" :key="key">
+                    <option :value="key" x-text="val.icon + ' ' + val.label"></option>
+                  </template>
+                </select>
+              </div>
+              <div x-show="['dossie','ajuste_dossie'].includes(taskForm.tipo) && taskForm.mentorado_nome" style="display:flex;align-items:flex-end;padding-bottom:4px">
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;white-space:nowrap">
+                  <input type="checkbox" x-model="taskForm.notificarMentorado" style="accent-color:var(--brand)">
+                  Notificar mentorado
+                </label>
+              </div>
+            </div>
+
             <!-- Datas -->
             <div class="modal__row">
               <div><label>Data Inicio</label><input type="date" x-model="taskForm.data_inicio" class="modal__input"></div>
@@ -9483,6 +9627,142 @@
       }, 2000);
     });
   </script>
+
+  <!-- TASK-07: Batch Task from Audio Modal -->
+  <template x-if="ui.batchTaskModal">
+    <div class="modal-overlay" x-show="ui.batchTaskModal" x-transition.opacity @click.self="ui.batchTaskModal = false" style="z-index:1100">
+      <div class="modal" style="max-width:640px;max-height:85vh;overflow-y:auto">
+        <div class="modal__header">
+          <h3 style="margin:0">Criar tarefas por áudio</h3>
+          <button class="modal__close" @click="ui.batchTaskModal = false">&times;</button>
+        </div>
+        <div style="padding:16px">
+          <!-- Step 1: Record -->
+          <div x-show="!batchTask.transcript && !batchTask.transcribing" style="text-align:center;padding:24px">
+            <p style="font-size:13px;color:var(--neutral-500);margin-bottom:16px">Grave um áudio descrevendo as tarefas. A IA vai transcrever e extrair cada tarefa automaticamente.</p>
+            <button x-show="!batchTask.recording" class="btn btn--brand" style="display:inline-flex;align-items:center;gap:8px;padding:12px 24px;font-size:14px" @click="batchTaskStartRecording()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+              Gravar áudio
+            </button>
+            <button x-show="batchTask.recording" class="btn" style="display:inline-flex;align-items:center;gap:8px;padding:12px 24px;font-size:14px;background:#ef4444;color:#fff;animation:pulse 1.5s infinite" @click="batchTaskStopRecording()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+              Parar gravação
+            </button>
+          </div>
+
+          <!-- Step 2: Processing -->
+          <div x-show="batchTask.transcribing" style="text-align:center;padding:32px">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2" style="animation:spin 1s linear infinite;margin-bottom:12px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15A9 9 0 1 1 22 12"/></svg>
+            <p style="font-size:13px;color:var(--neutral-500)">Transcrevendo e extraindo tarefas...</p>
+          </div>
+
+          <!-- Step 3: Preview & Edit -->
+          <div x-show="batchTask.transcript && !batchTask.transcribing">
+            <!-- Transcript -->
+            <div style="margin-bottom:12px">
+              <label style="font-size:11px;font-weight:600;color:var(--neutral-400);text-transform:uppercase;letter-spacing:.05em">Transcrição</label>
+              <div style="background:var(--bg-subtle);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:12px;color:var(--neutral-600);max-height:100px;overflow-y:auto;margin-top:4px" x-text="batchTask.transcript"></div>
+            </div>
+            <!-- Extracted tasks -->
+            <div style="margin-bottom:12px">
+              <label style="font-size:11px;font-weight:600;color:var(--neutral-400);text-transform:uppercase;letter-spacing:.05em" x-text="batchTask.extractedTasks.length + ' tarefas extraídas'"></label>
+              <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+                <template x-for="(t, idx) in batchTask.extractedTasks" :key="idx">
+                  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px" :style="!t._selected ? 'opacity:0.4' : ''">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                      <input type="checkbox" x-model="t._selected" style="accent-color:var(--brand)">
+                      <input type="text" x-model="t.titulo" style="flex:1;border:1px solid var(--neutral-200);border-radius:4px;padding:4px 8px;font-size:13px;font-weight:500">
+                    </div>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                      <select x-model="t.tipo" style="font-size:11px;padding:2px 6px;border:1px solid var(--neutral-200);border-radius:4px">
+                        <template x-for="[key, val] in Object.entries(TASK_TIPO_MAP)" :key="key"><option :value="key" x-text="val.icon + ' ' + val.label"></option></template>
+                      </select>
+                      <select x-model="t.prioridade" style="font-size:11px;padding:2px 6px;border:1px solid var(--neutral-200);border-radius:4px">
+                        <option value="baixa">Baixa</option><option value="normal">Normal</option><option value="alta">Alta</option><option value="urgente">Urgente</option>
+                      </select>
+                      <input type="text" x-model="t.responsavel" placeholder="Responsável" style="font-size:11px;padding:2px 6px;border:1px solid var(--neutral-200);border-radius:4px;width:100px">
+                      <input type="text" x-model="t.mentorado" placeholder="Mentorado" style="font-size:11px;padding:2px 6px;border:1px solid var(--neutral-200);border-radius:4px;width:100px">
+                      <span x-show="t.prazo_dias" style="font-size:11px;color:var(--neutral-400);padding:2px 0" x-text="'Prazo: ' + t.prazo_dias + ' dias'"></span>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+            <!-- Actions -->
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <button class="btn btn--sm" @click="batchTask.transcript=''; batchTask.extractedTasks=[]">Gravar novamente</button>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn--sm" @click="ui.batchTaskModal = false">Cancelar</button>
+                <button class="btn btn--sm btn--brand" @click="batchTaskConfirmAll()" :disabled="batchTask.saving || !batchTask.extractedTasks.some(t => t._selected)">
+                  <span x-text="batchTask.saving ? 'Salvando...' : 'Criar ' + batchTask.extractedTasks.filter(t => t._selected).length + ' tarefas'"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- TASK-06: Bulk Follow-up Modal -->
+  <template x-if="ui.bulkFollowupModal">
+    <div class="modal-overlay" x-show="ui.bulkFollowupModal" x-transition.opacity @click.self="ui.bulkFollowupModal = false" style="z-index:1100">
+      <div class="modal" style="max-width:680px;max-height:85vh;overflow-y:auto">
+        <div class="modal__header">
+          <h3 style="margin:0">Follow-up em bloco</h3>
+          <button class="modal__close" @click="ui.bulkFollowupModal = false">&times;</button>
+        </div>
+        <div style="padding:16px">
+          <!-- Template message -->
+          <div style="margin-bottom:12px">
+            <label style="font-size:12px;font-weight:600;color:var(--neutral-600)">Mensagem template</label>
+            <textarea x-model="bulkFollowup.template" rows="3" class="modal__input" style="width:100%;resize:vertical;font-size:13px" placeholder="Oi {nome}! Passando pra checar como estão as coisas..."></textarea>
+            <div style="font-size:11px;color:var(--neutral-400);margin-top:4px">Use <strong>{nome}</strong> para personalizar. Ex: "Oi {nome}, tudo bem?"</div>
+          </div>
+          <!-- Follow-up days -->
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+            <label style="font-size:12px;color:var(--neutral-600)">Criar tarefa follow-up para checar em</label>
+            <input type="number" x-model.number="bulkFollowup.days" min="1" max="30" style="width:50px;padding:4px 6px;border:1px solid var(--neutral-200);border-radius:4px;font-size:13px;text-align:center">
+            <span style="font-size:12px;color:var(--neutral-600)">dias</span>
+          </div>
+          <!-- Mentorado list -->
+          <div style="margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <label style="font-size:12px;font-weight:600;color:var(--neutral-600)" x-text="'Mentorados (' + bulkFollowup.mentees.filter(m => m.selected).length + '/' + bulkFollowup.mentees.length + ')'"></label>
+              <button class="btn btn--xs btn--ghost" @click="bulkFollowup.mentees.forEach(m => m.selected = !m.selected)">Inverter seleção</button>
+            </div>
+            <div style="max-height:300px;overflow-y:auto;border:1px solid var(--neutral-200);border-radius:8px">
+              <template x-for="(m, idx) in bulkFollowup.mentees" :key="m.id">
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--neutral-100)" :style="m.selected ? 'background:#f0fdf4' : ''">
+                  <input type="checkbox" x-model="m.selected" style="accent-color:var(--brand)">
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:13px;font-weight:500" x-text="m.nome"></div>
+                    <div style="font-size:11px;color:var(--neutral-400)" x-text="m.daysSinceResponse ? m.daysSinceResponse + ' dias sem resposta' : 'Sem dados'"></div>
+                  </div>
+                  <div style="font-size:11px;color:var(--neutral-400);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="m.lastMsg || ''"></div>
+                </div>
+              </template>
+              <div x-show="!bulkFollowup.mentees.length" style="padding:16px;text-align:center;color:var(--neutral-400);font-size:13px">Nenhum mentorado com follow-up pendente</div>
+            </div>
+          </div>
+          <!-- Progress -->
+          <div x-show="bulkFollowup.sending" style="margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--brand)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15A9 9 0 1 1 22 12"/></svg>
+              <span x-text="'Enviando ' + bulkFollowup.sent + '/' + bulkFollowup.mentees.filter(m => m.selected).length + '...'"></span>
+            </div>
+          </div>
+          <!-- Actions -->
+          <div style="display:flex;justify-content:flex-end;gap:8px">
+            <button class="btn btn--sm" @click="ui.bulkFollowupModal = false">Cancelar</button>
+            <button class="btn btn--sm btn--brand" @click="executeBulkFollowup()" :disabled="bulkFollowup.sending || !bulkFollowup.mentees.some(m => m.selected) || !bulkFollowup.template.trim()">
+              <span x-text="bulkFollowup.sending ? 'Enviando...' : 'Enviar ' + bulkFollowup.mentees.filter(m => m.selected).length + ' follow-ups'"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
 
 </body>
 </html>

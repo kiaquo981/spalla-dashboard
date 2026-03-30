@@ -2007,6 +2007,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         elif re.match(r'^/api/wa/groups/([^/]+)/link$', self.path):
             _gm = re.match(r'^/api/wa/groups/([^/]+)/link$', self.path)
             self._handle_wa_group_link(_gm.group(1))
+        # ===== Task from Audio (TASK-07) =====
+        elif self.path == '/api/tasks/from-audio':
+            self._handle_tasks_from_audio()
+        # ===== Task Notifications =====
+        elif self.path == '/api/tasks/notify':
+            self._handle_task_notify()
         # ===== Chatwoot Webhook =====
         elif self.path == '/api/webhooks/chatwoot':
             self._handle_chatwoot_webhook()
@@ -4049,6 +4055,145 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': f'Evolution API: {e.code}', 'detail': error_body}, e.code)
         except Exception as e:
             log_error('WA-Groups', f'sync failed: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_tasks_from_audio(self):
+        """POST /api/tasks/from-audio — Transcribe audio, extract N tasks via Gemini."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
+        try:
+            content_type = self.headers.get('Content-Type', '')
+            if 'multipart/form-data' not in content_type:
+                self._send_json({'error': 'Expected multipart/form-data'}, 400)
+                return
+
+            # Parse multipart
+            import cgi
+            environ = {'REQUEST_METHOD': 'POST', 'CONTENT_TYPE': content_type}
+            form = cgi.FieldStorage(fp=self.rfile, headers=self.headers, environ=environ)
+            audio_field = form['audio']
+            audio_bytes = audio_field.file.read()
+            filename = audio_field.filename or 'audio.webm'
+            mime_type = audio_field.type or 'audio/webm'
+
+            # Step 1: Transcribe via Whisper
+            transcript = openai_whisper(audio_bytes, filename, mime_type)
+            if not transcript or len(transcript.strip()) < 10:
+                self._send_json({'error': 'Transcrição vazia ou muito curta', 'transcript': transcript}, 400)
+                return
+
+            # Step 2: Extract tasks via Gemini Flash
+            extraction_prompt = f"""Analise a transcrição abaixo e extraia TODAS as tarefas mencionadas.
+Para cada tarefa, retorne um JSON array com objetos contendo:
+- "titulo": string (curto, imperativo, max 80 chars)
+- "responsavel": string ou null (nome da pessoa se mencionado)
+- "mentorado": string ou null (nome do mentorado se mencionado)
+- "prioridade": "baixa" | "normal" | "alta" | "urgente"
+- "tipo": "geral" | "dossie" | "ajuste_dossie" | "follow_up" | "rotina"
+- "prazo_dias": number ou null (estimativa em dias se mencionado, senão null)
+
+Retorne APENAS o JSON array, sem markdown, sem explicação.
+Se não houver tarefas claras, retorne [].
+
+Transcrição:
+---
+{transcript}
+---"""
+
+            if not GEMINI_API_KEY:
+                self._send_json({'error': 'GEMINI_API_KEY not configured'}, 500)
+                return
+
+            gemini_body = {
+                'contents': [{'parts': [{'text': extraction_prompt}]}],
+                'generationConfig': {'temperature': 0.1, 'responseMimeType': 'application/json'}
+            }
+            conn = http.client.HTTPSConnection('generativelanguage.googleapis.com', timeout=30)
+            conn.request('POST',
+                         f'/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}',
+                         body=json.dumps(gemini_body).encode(),
+                         headers={'Content-Type': 'application/json'})
+            resp = conn.getresponse()
+            resp_data = resp.read()
+            conn.close()
+
+            if resp.status >= 400:
+                self._send_json({'error': f'Gemini error {resp.status}', 'detail': resp_data.decode()[:300]}, 500)
+                return
+
+            gemini_result = json.loads(resp_data)
+            raw_text = gemini_result['candidates'][0]['content']['parts'][0]['text']
+
+            # Parse JSON from response (handle markdown code blocks)
+            clean = raw_text.strip()
+            if clean.startswith('```'):
+                clean = clean.split('\n', 1)[1] if '\n' in clean else clean[3:]
+                if clean.endswith('```'):
+                    clean = clean[:-3]
+            tasks = json.loads(clean.strip())
+
+            self._send_json({
+                'transcript': transcript,
+                'tasks': tasks,
+                'count': len(tasks),
+            })
+        except Exception as e:
+            logger.error(f'[tasks-from-audio] Error: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_task_notify(self):
+        """POST /api/tasks/notify — Send WhatsApp notification when a task is created."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
+        try:
+            body = self._read_json_body()
+            task_titulo = body.get('titulo', '')
+            responsavel = body.get('responsavel', '')
+            criador = body.get('criador', '')
+            prazo = body.get('prazo', '')
+            task_link = body.get('link', '')
+
+            if not responsavel:
+                self._send_json({'error': 'responsavel required'}, 400)
+                return
+
+            # Lookup whatsapp_jid from spalla_members
+            members = supabase_request('GET', f'spalla_members?select=nome_curto,whatsapp_jid&ativo=eq.true')
+            if not members:
+                self._send_json({'sent': False, 'reason': 'no members found'})
+                return
+
+            jid = None
+            for m in members:
+                if m.get('nome_curto', '').lower() == responsavel.lower():
+                    jid = m.get('whatsapp_jid')
+                    break
+
+            if not jid:
+                self._send_json({'sent': False, 'reason': f'no whatsapp_jid for {responsavel}'})
+                return
+
+            # Format message
+            lines = [f'📋 *Nova tarefa:* {task_titulo}']
+            if criador:
+                lines.append(f'👤 De: {criador}')
+            if prazo:
+                lines.append(f'📅 Prazo: {prazo}')
+            if task_link:
+                lines.append(f'🔗 {task_link}')
+            text = '\n'.join(lines)
+
+            # Extract phone number from JID (55XXXXXXXXXXX@s.whatsapp.net → 55XXXXXXXXXXX)
+            number = jid.split('@')[0] if '@' in jid else jid
+            instance = os.getenv('EVOLUTION_INSTANCE', 'producao002')
+            result = self._wa_send_via_evolution(instance, number, text)
+            self._send_json({'sent': True, 'result': result})
+        except Exception as e:
+            logger.error(f'[task-notify] Error: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_wa_groups_create(self):

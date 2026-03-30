@@ -1842,6 +1842,14 @@ img { max-width: 100%; display: block; }
   color: var(--neutral-900);
   margin-bottom: var(--sp-2);
   line-height: var(--leading-tight);
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.task-tipo-icon {
+  font-size: 13px;
+  flex-shrink: 0;
 }
 
 .task-board__card-meta {
