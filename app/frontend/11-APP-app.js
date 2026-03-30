@@ -9939,7 +9939,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       void this.photoTick;
 
       const isHandle = !handleOrName.includes(' ');
-      const clean = handleOrName.replace('@','').toLowerCase();
+      const clean = handleOrName.replace('@','').trim().toLowerCase();
 
       // First: try embedded data URLs (PHOTO_DATA_URLS — base64, never expire)
       if (typeof PHOTO_DATA_URLS !== 'undefined' && PHOTO_DATA_URLS[clean]) {
