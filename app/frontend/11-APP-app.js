@@ -6385,7 +6385,7 @@ function operon() {
               const { data: sprintData } = await sb.from('god_tasks').select('id, sprint_id').not('sprint_id', 'is', null);
               if (sprintData) {
                 const sprintMap = Object.fromEntries(sprintData.map(s => [s.id, s.sprint_id]));
-                this.data.tasks.forEach(t => { if (sprintMap[t.id]) t.sprint_id = sprintMap[t.id]; });
+                this.data.tasks.forEach(t => { t.sprint_id = sprintMap[t.id] || ''; });
               }
             } catch (e) {}
             this._autoCategorize();
@@ -6853,12 +6853,14 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (!t) return;
       // Normalize responsavel to lowercase (prevent duplicates like "Kaique" vs "kaique")
       if (field === 'responsavel' && value) value = value.toLowerCase().trim();
+      // Normalize empty strings to null for DB (sprint_id, list_id)
+      const dbValue = (value === '' && ['sprint_id', 'list_id'].includes(field)) ? null : value;
       const old = t[field];
       t[field] = value;
       t.updated_at = new Date().toISOString();
       this._cacheTasksLocal();
       if (sb) {
-        const { error } = await sb.from('god_tasks').update({ [field]: value, updated_at: t.updated_at }).eq('id', taskId);
+        const { error } = await sb.from('god_tasks').update({ [field]: dbValue, updated_at: t.updated_at }).eq('id', taskId);
         if (error) { t[field] = old; this._cacheTasksLocal(); this.toast('Erro ao atualizar ' + field, 'error'); }
       }
     },
