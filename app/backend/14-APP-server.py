@@ -104,8 +104,8 @@ if not JWT_SECRET:
     JWT_SECRET = _s.token_hex(32)
     print(f'[WARNING] JWT_SECRET not set — generated ephemeral key (tokens will not survive restarts)')
 JWT_ALGORITHM = 'HS256'
-ACCESS_TOKEN_EXPIRY_MINUTES = 60
-REFRESH_TOKEN_EXPIRY_DAYS = 7
+ACCESS_TOKEN_EXPIRY_MINUTES = 480  # 8 hours — avoids mid-day session drops
+REFRESH_TOKEN_EXPIRY_DAYS = 30
 
 # ===== API KEY CONFIG =====
 STATIC_API_KEYS = {}

@@ -2138,35 +2138,36 @@ function operon() {
           console.warn('[Spalla] Token auto-refresh failed (offline?):', e.message);
         }
       }, 45 * 60 * 1000); // 45 min
-      // Also refresh on tab visibility change (user returns after idle)
+      // Refresh on tab visibility change (user returns after idle)
       document.addEventListener('visibilitychange', async () => {
-        if (document.visibilityState === 'visible' && this.auth.authenticated) {
-          const token = localStorage.getItem('spalla_access_token');
-          if (!token) return;
-          try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            const minutesLeft = (payload.exp - Math.floor(Date.now() / 1000)) / 60;
-            if (minutesLeft < 15) {
-              // Token expiring soon, refresh now
-              const refreshToken = localStorage.getItem('spalla_refresh_token');
-              if (refreshToken) {
-                const resp = await fetch(`${CONFIG.API_BASE}/api/auth/refresh`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ refresh_token: refreshToken })
-                });
-                if (resp.ok) {
-                  const data = await resp.json();
-                  this.auth.accessToken = data.access_token;
-                  this.auth.refreshToken = data.refresh_token;
-                  localStorage.setItem('spalla_access_token', data.access_token);
-                  localStorage.setItem('spalla_refresh_token', data.refresh_token);
-                  console.log('[Spalla] Token refreshed on tab return');
-                }
-              }
+        if (document.visibilityState !== 'visible' || !this.auth.authenticated) return;
+        const token = localStorage.getItem('spalla_access_token');
+        if (!token) return;
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          const minutesLeft = (payload.exp - Math.floor(Date.now() / 1000)) / 60;
+          // If token expired or expiring within 60min, refresh immediately
+          if (minutesLeft < 60) {
+            const refreshToken = localStorage.getItem('spalla_refresh_token');
+            if (!refreshToken) { this.logout(); return; }
+            const resp = await fetch(`${CONFIG.API_BASE}/api/auth/refresh`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ refresh_token: refreshToken })
+            });
+            if (resp.ok) {
+              const data = await resp.json();
+              this.auth.accessToken = data.access_token;
+              this.auth.refreshToken = data.refresh_token;
+              localStorage.setItem('spalla_access_token', data.access_token);
+              localStorage.setItem('spalla_refresh_token', data.refresh_token);
+              console.log('[Spalla] Token refreshed on tab return (' + Math.round(minutesLeft) + 'min left)');
+            } else if (resp.status === 401) {
+              console.warn('[Spalla] Refresh token expired, logging out');
+              this.logout();
             }
-          } catch (e) { /* ignore parse errors */ }
-        }
+          }
+        } catch (e) { console.warn('[Spalla] visibilitychange refresh error:', e.message); }
       }, { once: false });
     },
 

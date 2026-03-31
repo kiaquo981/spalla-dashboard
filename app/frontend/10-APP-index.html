@@ -2541,13 +2541,22 @@
                       <div class="call-card__timeline-dot"></div>
                       <div class="call-card__header"><span class="badge badge--sm badge--info" x-text="c.tipo"></span><span x-text="formatDateFull(c.data_call)"></span><span x-show="c.duracao" x-text="c.duracao + 'min'"></span></div>
                       <div class="call-card__body" x-text="c.resumo"></div>
-                      <div class="call-card__links" style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
-                        <button x-show="c.gravacao" @click.stop="openMedia(c.gravacao, 'Gravação', c.senha_call)" class="badge badge--sm badge--danger" style="border:none;cursor:pointer;display:inline-flex;align-items:center;gap:3px">
+                      <!-- Zoom topic -->
+                      <div x-show="c.zoom_topic" style="font-size:12px;color:var(--neutral-600);margin-top:4px" x-text="c.zoom_topic"></div>
+                      <!-- Links: gravação, transcrição, zoom, senha -->
+                      <div class="call-card__links" style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center">
+                        <button x-show="c.gravacao" @click.stop="openMedia(c.gravacao, 'Gravacao', c.senha_call || c.senha_Call)" class="badge badge--sm badge--danger" style="border:none;cursor:pointer;display:inline-flex;align-items:center;gap:3px">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Gravacao
                         </button>
-                        <a x-show="c.transcricao" :href="c.transcricao" target="_blank" rel="noopener" class="badge badge--sm badge--purple" style="text-decoration:none;cursor:pointer">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:3px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Transcricao
+                        <a x-show="c.transcricao" :href="c.transcricao" target="_blank" rel="noopener" class="badge badge--sm badge--purple" style="text-decoration:none;cursor:pointer;display:inline-flex;align-items:center;gap:3px">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Transcricao
                         </a>
+                        <a x-show="c.youtube_link" :href="c.youtube_link" target="_blank" rel="noopener" class="badge badge--sm" style="text-decoration:none;cursor:pointer;display:inline-flex;align-items:center;gap:3px;background:#fee2e2;color:#dc2626">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19.13C5.12 19.56 12 19.56 12 19.56s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.43z"/><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/></svg> YouTube
+                        </a>
+                        <button x-show="c.senha_call || c.senha_Call" @click.stop="navigator.clipboard.writeText(c.senha_call || c.senha_Call); toast('Senha copiada!', 'success')" class="badge badge--sm badge--warning" style="border:none;cursor:pointer;display:inline-flex;align-items:center;gap:3px" title="Copiar senha da gravacao">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Senha
+                        </button>
                       </div>
                       <div class="call-card__decisions" x-show="(c.decisoes_tomadas || []).length"><strong>Decisoes:</strong>
                         <template x-for="(d, di) in c.decisoes_tomadas || []" :key="di"><span class="badge badge--sm badge--brand" x-text="d"></span></template>
