@@ -1806,7 +1806,11 @@ function operon() {
         const pathname = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
         // Deep-link: /mentorado/:id — store for after auth
         const menteeDeepLink = pathname.match(/^mentorado\/(.+)$/);
-        if (menteeDeepLink) {
+        const taskDeepLink = new URLSearchParams(window.location.search).get('task');
+        if (taskDeepLink) {
+          this._pendingTaskId = taskDeepLink;
+          this.ui.page = 'tasks';
+        } else if (menteeDeepLink) {
           this._pendingMenteeId = menteeDeepLink[1];
         } else if (pathname && this._routeMap[pathname]) {
           this.ui.page = this._routeMap[pathname];
@@ -2028,10 +2032,16 @@ function operon() {
           this._pendingMenteeId = null;
         }
         // Deep-link task: /tasks?task=UUID
-        const taskParam = new URLSearchParams(window.location.search).get('task');
-        if (taskParam) {
+        if (this._pendingTaskId) {
           this.ui.page = 'tasks';
-          setTimeout(() => this.openTaskDetail(taskParam), 500);
+          const tid = this._pendingTaskId;
+          this._pendingTaskId = null;
+          // Wait for tasks to load before opening drawer
+          const waitForTasks = () => {
+            if (this.data.tasks.length) { this.openTaskDetail(tid); }
+            else { setTimeout(waitForTasks, 200); }
+          };
+          setTimeout(waitForTasks, 300);
         }
       } catch (e) {
         this.auth.error = 'Erro ao fazer login: ' + e.message;
