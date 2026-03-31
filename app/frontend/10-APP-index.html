@@ -10489,7 +10489,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=130"></script>
+  <script src="11-APP-app.js?v=132"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">
@@ -10504,11 +10504,20 @@
     document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => {
         if (document.getElementById('loading-fallback')) {
-          console.warn('[Operon] Force-showing app');
+          console.warn('[Operon] Force-showing app (fallback after 2s)');
           document.getElementById('loading-fallback')?.remove();
           document.getElementById('app').style.display = '';
         }
       }, 2000);
+      // Safety net: if app still hidden after 5s, force show (prevents permanent white screen)
+      setTimeout(() => {
+        const app = document.getElementById('app');
+        if (app && app.style.display === 'none') {
+          console.error('[Operon] App still hidden after 5s — forcing display');
+          app.style.display = '';
+          document.getElementById('loading-fallback')?.remove();
+        }
+      }, 5000);
     });
   </script>
 
