@@ -2281,23 +2281,27 @@ function operon() {
           table: 'whatsapp_messages',
           filter: `group_id=eq.${groupJid}`,
         }, (payload) => {
-          const newMsg = this._waDbToEvolutionFormat(payload.new);
-          // Avoid duplicates (optimistic insert from send)
-          if (!this.data.whatsappMessages.find(m => m.key?.id === newMsg.key?.id)) {
-            // Only auto-scroll if user is already near the bottom
-            const feed = document.querySelector('.wa-chat__messages');
-            const wasAtBottom = feed ? (feed.scrollHeight - feed.scrollTop - feed.clientHeight < 150) : true;
-            this.data.whatsappMessages.push(newMsg);
-            if (wasAtBottom) {
-              this.$nextTick(() => {
-                const el = document.getElementById('wa-messages-end');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-              });
+          try {
+            const newMsg = this._waDbToEvolutionFormat(payload.new);
+            // Avoid duplicates (optimistic insert from send)
+            if (!this.data.whatsappMessages.find(m => m.key?.id === newMsg.key?.id)) {
+              // Only auto-scroll if user is already near the bottom
+              const feed = document.querySelector('.wa-chat__messages');
+              const wasAtBottom = feed ? (feed.scrollHeight - feed.scrollTop - feed.clientHeight < 150) : true;
+              this.data.whatsappMessages.push(newMsg);
+              if (wasAtBottom) {
+                this.$nextTick(() => {
+                  const el = document.getElementById('wa-messages-end');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                });
+              }
             }
-          }
-          // TASK-05: Check if this message resolves a pending follow-up
-          if (!payload.new.is_from_team) {
-            this._checkFollowupResponse(groupJid, payload.new);
+            // TASK-05: Check if this message resolves a pending follow-up
+            if (!payload.new.is_from_team) {
+              this._checkFollowupResponse(groupJid, payload.new);
+            }
+          } catch (e) {
+            console.error('[Spalla] Realtime INSERT handler error:', e);
           }
         })
         .on('postgres_changes', {
@@ -2472,7 +2476,7 @@ function operon() {
         const doc = await resp.json();
         this.bib.activeDoc = doc;
         this.bib.renderedHtml = (typeof marked !== 'undefined')
-          ? marked.parse(doc.conteudo_md || '')
+          ? (typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(marked.parse(doc.conteudo_md || '')) : marked.parse(doc.conteudo_md || ''))
           : '<pre>' + (doc.conteudo_md || '').replace(/</g, '&lt;') + '</pre>';
         this.$nextTick(() => {
           const body = document.querySelector('.bib__reader-body');
@@ -2567,7 +2571,8 @@ function operon() {
         if (error) throw error;
         // Re-render preview
         this.bib.renderedHtml = (typeof marked !== 'undefined')
-          ? marked.parse(doc.conteudo_md || '') : doc.conteudo_md;
+          ? (typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(marked.parse(doc.conteudo_md || '')) : marked.parse(doc.conteudo_md || ''))
+          : (doc.conteudo_md || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         this.bib.editMode = false;
         // Unmount editor
         const editorEl = this.$refs.bibEditor;
@@ -7192,7 +7197,10 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       // Render markdown if marked is available, otherwise fallback
       let html = '';
       if (typeof marked !== 'undefined') {
-        try { html = marked.parse(text); } catch (e) { html = text.replace(/\n/g, '<br>'); }
+        try {
+          html = marked.parse(text);
+          if (typeof DOMPurify !== 'undefined') html = DOMPurify.sanitize(html);
+        } catch (e) { html = text.replace(/\n/g, '<br>'); }
       } else {
         html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
       }
@@ -8323,7 +8331,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       // Escape HTML to prevent XSS
       const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       // Convert URLs to <a> tags
-      return escaped.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:#3b82f6;text-decoration:underline;word-break:break-all">$1</a>');
+      return escaped.replace(/(https?:\/\/[^\s<"']+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:#3b82f6;text-decoration:underline;word-break:break-all">$1</a>');
     },
 
     // ===== Reply-to helpers =====
