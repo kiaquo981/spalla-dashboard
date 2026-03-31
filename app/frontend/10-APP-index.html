@@ -3416,7 +3416,7 @@
 
               <!-- Spaces -->
               <div class="tasks-sidebar__section-label" style="margin-top:8px">SPACES</div>
-              <template x-for="space in spaces.filter(s => s.id !== 'space_sistema')" :key="space.id">
+              <template x-for="space in spaces" :key="space.id">
                 <div class="tasks-sidebar__space">
                   <div class="tasks-sidebar__item tasks-sidebar__item--space" :class="{ active: ui.taskSpaceFilter === space.id && ui.taskListFilter === 'all' }" @click="ui.taskSpaceFilter = space.id; ui.taskListFilter = 'all'">
                     <span class="tasks-sidebar__space-dot" :style="'background:' + space.color"></span>

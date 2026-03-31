@@ -554,39 +554,28 @@ function operon() {
     // --- Media Cache ---
     waMediaUrls: {},  // messageId → presigned URL
 
-    // Task organization: 2 Spaces — Jornada (mentee-owned) + Gestão (team-owned)
+    // Task organization: 3 Spaces — Atendimento (mentorado) + Produto (interno) + Tecnologia
     spaces: [
-      { id: 'space_jornada', name: 'Jornada Mentorados', icon: '◎', color: '#6366f1',
+      { id: 'space_atendimento', name: 'Atendimento', icon: '◎', color: '#6366f1',
         lists: [
-          { id: 'list_onboarding', name: 'Onboarding', icon: '▸' },
-          { id: 'list_concepcao', name: 'Concepção', icon: '◇' },
-          { id: 'list_validacao', name: 'Validação', icon: '●' },
-          { id: 'list_otimizacao', name: 'Otimização', icon: '◆' },
-          { id: 'list_escala', name: 'Escala', icon: '▲' },
-        ]
-      },
-      { id: 'space_gestao', name: 'Gestão CASE', icon: '◈', color: '#f59e0b',
-        lists: [
-          { id: 'list_direcionamentos', name: 'Direcionamentos Queila', icon: '★' },
-          { id: 'list_operacional', name: 'Operacional', icon: '✦' },
-          { id: 'list_conteudo', name: 'Conteúdo & Marketing', icon: '◉' },
-          { id: 'list_vendas', name: 'Vendas & Comercial', icon: '◆' },
-          { id: 'list_playbooks', name: 'Playbooks & Materiais', icon: '■' },
           { id: 'list_dossies', name: 'Dossiês', icon: '◇' },
+          { id: 'list_analises', name: 'Análises & Revisões', icon: '◉' },
+          { id: 'list_poscall', name: 'Pós-call', icon: '★' },
+          { id: 'list_operacional', name: 'Operacional', icon: '✦' },
         ]
       },
-      { id: 'space_ia', name: 'IA & Automação', icon: '◈', color: '#f59e0b',
+      { id: 'space_produto', name: 'Produto', icon: '◈', color: '#f59e0b',
         lists: [
-          { id: 'list_agentes', name: 'Agentes', icon: '◉' },
-          { id: 'list_workflows', name: 'Workflows N8N', icon: '◆' },
+          { id: 'list_aulas', name: 'Aulas & Gravações', icon: '▸' },
+          { id: 'list_manuais', name: 'Manuais & Kits', icon: '■' },
+          { id: 'list_planejamento', name: 'Planejamento de Produto', icon: '●' },
         ]
       },
-      // Sistema & Dev — lists populadas dinamicamente por loadGodLists() com sprints reais
-      { id: 'space_sistema', name: 'Sistema & Dev', icon: '◈', color: '#0ea5e9',
+      // Tecnologia — sprints populados dinamicamente por loadGodLists()
+      { id: 'space_tecnologia', name: 'Tecnologia', icon: '◈', color: '#0ea5e9',
         lists: [
-          { id: '901113377455', name: 'Sprint 1 (3/16 - 3/22)', icon: '✓', isSprint: true, status: 'encerrado' },
-          { id: '901113377456', name: 'Sprint 2 (3/23 - 3/29)', icon: '⚡', isSprint: true, status: 'ativo' },
-          { id: '901113377457', name: 'Sprint 3 (3/30 - 4/5)',  icon: '○', isSprint: true, status: 'planejado' },
+          { id: 'list_maestro', name: 'Maestro', icon: '◆' },
+          { id: 'list_agentes', name: 'Agentes & Automações', icon: '◉' },
         ]
       },
     ],
@@ -621,7 +610,7 @@ function operon() {
       tags: [],
       parent_task_id: null,
       acompanhante: '',
-      space_id: 'space_jornada',
+      space_id: 'space_atendimento',
       list_id: '',
       newSubtask: '',
       newCheckItem: '',
@@ -4696,11 +4685,11 @@ function operon() {
             this.data.sprints = sprints;
           }
 
-          // Popula space_sistema.lists com sprints como items navegáveis
+          // Popula space_tecnologia.lists com sprints como items navegáveis
           // Usa map() no array inteiro para garantir reatividade Alpine.js
           if (sprints.length) {
             this.spaces = this.spaces.map(s => {
-              if (s.id !== 'space_sistema') return s;
+              if (s.id !== 'space_tecnologia') return s;
               return {
                 ...s,
                 lists: sprints.map(sp => ({
@@ -6394,61 +6383,65 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     _autoCategorize() {
-      const phaseList = (fase) => {
-        if (fase === 'onboarding') return 'list_onboarding';
-        if (fase === 'concepcao') return 'list_concepcao';
-        if (fase === 'validacao') return 'list_validacao';
-        if (fase === 'otimizacao') return 'list_otimizacao';
-        if (fase === 'escala') return 'list_escala';
-        return 'list_concepcao';
-      };
       this.data.tasks.forEach(t => {
         // Migrate old space IDs to new ones
-        if (t.space_id === 'space_mentorados' || t.space_id === 'space_equipe' || t.space_id === 'space_queila') {
+        const oldSpaces = ['space_mentorados', 'space_equipe', 'space_queila', 'space_jornada', 'space_gestao', 'space_ia', 'space_sistema'];
+        if (oldSpaces.includes(t.space_id)) {
           t.space_id = null; t.list_id = null;
         }
         if (!t.space_id) {
           const titulo = (t.titulo || '').toLowerCase();
           const fonte = t.fonte || '';
           const resp = t.responsavel || '';
-          const mentee = this.data.mentees.find(m => m.nome === t.mentorado_nome);
-          const fase = mentee?.fase_jornada || '';
 
-          // Mentee-owned tasks → Jornada, list by phase
-          if (resp === 'mentorado' || fonte === 'tarefas_acordadas' || fonte === 'analise_call') {
-            t.space_id = 'space_jornada';
-            t.list_id = phaseList(fase);
-            if (!t.acompanhante) t.acompanhante = 'Kaique';
-          }
-          // Queila directions → Gestão
-          else if (resp === 'Queila' || fonte === 'direcionamento') {
-            t.space_id = 'space_gestao';
-            t.list_id = titulo.includes('playbook') || titulo.includes('material') ? 'list_playbooks' : 'list_direcionamentos';
-          }
-          // Dossiê tasks → Gestão / Dossiês
-          else if (titulo.includes('dossie') || titulo.includes('dossiê') || fonte === 'dossie') {
-            t.space_id = 'space_gestao';
+          // Dossiê tasks → Atendimento / Dossiês
+          if (titulo.includes('dossie') || titulo.includes('dossiê') || titulo.startsWith('[ds]') || fonte === 'dossie') {
+            t.space_id = 'space_atendimento';
             t.list_id = 'list_dossies';
           }
-          // Content/Marketing → Gestão
-          else if (titulo.includes('conteudo') || titulo.includes('conteúdo') || titulo.includes('video') || titulo.includes('post') || titulo.includes('campanha') || titulo.includes('trafego') || titulo.includes('tráfego')) {
-            t.space_id = 'space_gestao';
-            t.list_id = 'list_conteudo';
+          // Pós-call actions → Atendimento / Pós-call
+          else if (fonte === 'tarefas_acordadas' || fonte === 'analise_call' || titulo.includes('pós-call') || titulo.includes('pos-call')) {
+            t.space_id = 'space_atendimento';
+            t.list_id = 'list_poscall';
           }
-          // Sales → Gestão
-          else if (titulo.includes('venda') || titulo.includes('funil') || titulo.includes('oferta') || titulo.includes('comercial')) {
-            t.space_id = 'space_gestao';
-            t.list_id = 'list_vendas';
+          // Análises & revisões do mentorado → Atendimento / Análises
+          else if (titulo.includes('revisão') || titulo.includes('revisao') || titulo.includes('análise') || titulo.includes('analise') || titulo.includes('lapidação') || titulo.includes('lapidacao') || titulo.includes('linha editorial') || titulo.includes('evento presencial')) {
+            t.space_id = 'space_atendimento';
+            t.list_id = 'list_analises';
           }
-          // Has mentee associated → Jornada, by phase
+          // Aulas & gravações → Produto / Aulas
+          else if (titulo.includes('aula') || titulo.includes('gravação') || titulo.includes('gravacao') || titulo.includes('roteiro') || titulo.includes('gravar') || titulo.includes('área de membros')) {
+            t.space_id = 'space_produto';
+            t.list_id = 'list_aulas';
+          }
+          // Manuais, kits, processos → Produto / Manuais & Kits
+          else if (titulo.includes('manual') || titulo.includes('kit') || titulo.includes('playbook') || titulo.includes('processo') || titulo.includes('classificação') || titulo.includes('c1/c2/c3') || titulo.includes('template') || titulo.includes('protocolo')) {
+            t.space_id = 'space_produto';
+            t.list_id = 'list_manuais';
+          }
+          // Planejamento de produto → Produto / Planejamento
+          else if (titulo.includes('oferta') || titulo.includes('funil') || titulo.includes('produto') || titulo.includes('formato') || titulo.includes('precificação') || titulo.includes('precificacao') || fonte === 'direcionamento') {
+            t.space_id = 'space_produto';
+            t.list_id = 'list_planejamento';
+          }
+          // Spalla / sistema → Tecnologia / Maestro
+          else if (titulo.includes('spalla') || titulo.includes('maestro') || titulo.includes('dashboard') || titulo.includes('painel') || titulo.includes('wireframe')) {
+            t.space_id = 'space_tecnologia';
+            t.list_id = 'list_maestro';
+          }
+          // Agentes & automações → Tecnologia
+          else if (titulo.includes('agente') || titulo.includes('n8n') || titulo.includes('workflow') || titulo.includes('automação') || titulo.includes('automacao') || titulo.includes('manychat') || titulo.includes('webhook')) {
+            t.space_id = 'space_tecnologia';
+            t.list_id = 'list_agentes';
+          }
+          // Has mentorado associated → Atendimento / Operacional
           else if (t.mentorado_nome) {
-            t.space_id = 'space_jornada';
-            t.list_id = phaseList(fase);
-            if (!t.acompanhante && resp && resp !== 'mentorado') t.acompanhante = resp;
+            t.space_id = 'space_atendimento';
+            t.list_id = 'list_operacional';
           }
-          // Everything else → Gestão / Operacional
+          // Everything else → Atendimento / Operacional
           else {
-            t.space_id = 'space_gestao';
+            t.space_id = 'space_atendimento';
             t.list_id = 'list_operacional';
           }
         }
@@ -6651,7 +6644,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           tags: task.tags ? [...task.tags] : [],
           dependencies: task.dependencies ? [...task.dependencies] : [],
           parent_task_id: task.parent_task_id || null,
-          space_id: task.space_id || 'space_jornada',
+          space_id: task.space_id || 'space_atendimento',
           list_id: task.list_id || '',
           recorrencia: task.recorrencia || 'nenhuma',
           dia_recorrencia: task.dia_recorrencia || null,
@@ -6672,9 +6665,9 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         // Preserve mentorado_nome if it was pre-set (e.g. from mentee detail view)
         const presetMentorado = this.taskForm?.mentorado_nome || '';
         const presetTipo = this.taskForm?.tipo || 'geral';
-        this.taskForm = { titulo: '', descricao: '', responsavel: '', acompanhante: '', mentorado_nome: presetMentorado, tipo: presetTipo, prioridade: 'normal', prazo: '', data_inicio: '', data_fim: '', doc_link: '', subtasks: [], checklist: [], comments: [], attachments: [], tags: [], dependencies: [], parent_task_id: null, space_id: 'space_jornada', list_id: '', recorrencia: 'nenhuma', dia_recorrencia: null, recorrencia_ativa: true, bloqueio_motivo: '', bloqueio_responsavel: '', newSubtask: '', newCheckItem: '', newComment: '', newTag: '', newDependsOn: '', newDependsOnType: 'finish_to_start', fieldValues: {} };
+        this.taskForm = { titulo: '', descricao: '', responsavel: '', acompanhante: '', mentorado_nome: presetMentorado, tipo: presetTipo, prioridade: 'normal', prazo: '', data_inicio: '', data_fim: '', doc_link: '', subtasks: [], checklist: [], comments: [], attachments: [], tags: [], dependencies: [], parent_task_id: null, space_id: 'space_atendimento', list_id: '', recorrencia: 'nenhuma', dia_recorrencia: null, recorrencia_ativa: true, bloqueio_motivo: '', bloqueio_responsavel: '', newSubtask: '', newCheckItem: '', newComment: '', newTag: '', newDependsOn: '', newDependsOnType: 'finish_to_start', fieldValues: {} };
         this.ui.taskEditId = null;
-        this.loadFieldDefs('space_jornada', null, null);
+        this.loadFieldDefs('space_atendimento', null, null);
       }
       this.ui.taskModal = true;
       this.ui.taskTagsDropdown = false;
@@ -10050,10 +10043,11 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         if (/\/rec\/download\//i.test(finalUrl)) {
           finalUrl = finalUrl.replace('/rec/download/', '/rec/share/');
         }
-        // Append password parameter if available
-        if (password) {
+        // Append password parameter if available (filter out "undefined" string)
+        const cleanPwd = password && password !== 'undefined' && password !== 'null' ? password : null;
+        if (cleanPwd && !finalUrl.includes('pwd=')) {
           const separator = finalUrl.includes('?') ? '&' : '?';
-          finalUrl += `${separator}pwd=${encodeURIComponent(password)}`;
+          finalUrl += `${separator}pwd=${encodeURIComponent(cleanPwd)}`;
         }
         window.open(finalUrl, '_blank');
         return;
