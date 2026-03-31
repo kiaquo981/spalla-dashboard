@@ -4501,7 +4501,7 @@ Transcrição:
                     return
                 import urllib.request as _urlreq
                 MAX_AUDIO_BYTES = 50 * 1024 * 1024  # 50 MB limit
-                logger.info(f'[context-transcribe] Downloading: {arquivo_url[:120]}')
+                print(f'[context-transcribe] Downloading: {arquivo_url[:120]}')
                 try:
                     req = _urlreq.Request(arquivo_url, headers={'User-Agent': 'Spalla/1.0'})
                     with _urlreq.urlopen(req, timeout=60) as r:
@@ -4511,12 +4511,12 @@ Transcrição:
                             return
                         mime_type = r.headers.get('Content-Type', 'audio/mpeg')
                 except Exception as dl_err:
-                    logger.error(f'[context-transcribe] Download failed: {dl_err}')
+                    print(f'[context-transcribe] Download failed: {dl_err}')
                     self._send_json({'error': f'Falha ao baixar audio: {dl_err}'}, 502)
                     return
                 import os
                 filename = os.path.basename(arquivo_url.split('?')[0]) or 'audio.webm'
-                logger.info(f'[context-transcribe] Downloaded {len(audio_bytes)} bytes, sending to Whisper')
+                print(f'[context-transcribe] Downloaded {len(audio_bytes)} bytes, sending to Whisper')
 
             if not OPENAI_API_KEY:
                 self._send_json({'error': 'OPENAI_API_KEY not configured'}, 500)
@@ -4530,7 +4530,7 @@ Transcrição:
 
             self._send_json({'transcricao': transcricao.strip()})
         except Exception as e:
-            logger.error(f'[context-transcribe] Error: {e}')
+            print(f'[context-transcribe] Error: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_task_notify(self):
