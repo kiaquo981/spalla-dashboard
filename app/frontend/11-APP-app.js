@@ -6676,6 +6676,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     closeTaskModal() {
       this.ui.taskModal = false;
       this.ui.taskEditId = null;
+      this.taskForm.mentorado_nome = '';
     },
 
     async saveTask() {
