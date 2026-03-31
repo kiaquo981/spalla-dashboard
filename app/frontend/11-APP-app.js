@@ -6380,6 +6380,14 @@ function operon() {
               is_blocked: t.is_blocked || false,
               attachments: [],
             }));
+            // Merge sprint_id from god_tasks (not in view)
+            try {
+              const { data: sprintData } = await sb.from('god_tasks').select('id, sprint_id').not('sprint_id', 'is', null);
+              if (sprintData) {
+                const sprintMap = Object.fromEntries(sprintData.map(s => [s.id, s.sprint_id]));
+                this.data.tasks.forEach(t => { if (sprintMap[t.id]) t.sprint_id = sprintMap[t.id]; });
+              }
+            } catch (e) {}
             this._autoCategorize();
             this._cacheTasksLocal();
 this._buildNotifications(); // F2.5 — refresh notification bell after tasks load
