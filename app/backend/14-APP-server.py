@@ -1603,6 +1603,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         length = int(self.headers.get('Content-Length', 0))
         return self.rfile.read(length) if length > 0 else b''
 
+    def _read_json_body(self):
+        return json.loads(self._read_body())
+
     def _send_json(self, data, status=200):
         body = json.dumps(data, ensure_ascii=False, default=str).encode()
         self.send_response(status)
@@ -2751,6 +2754,16 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         key = params.get('key', [''])[0]
         fallback_url = params.get('fallback', [''])[0]
 
+        # SSRF protection: only allow known media domains as fallback
+        ALLOWED_FALLBACK_DOMAINS = ['mmg.whatsapp.net', 'media.whatsapp.net', 'web.whatsapp.net', 'pps.whatsapp.net']
+        if fallback_url:
+            try:
+                fb_host = urllib.parse.urlparse(fallback_url).hostname or ''
+                if not any(fb_host.endswith(d) for d in ALLOWED_FALLBACK_DOMAINS):
+                    fallback_url = ''  # silently ignore non-whatsapp URLs
+            except Exception:
+                fallback_url = ''
+
         if not key:
             self._send_json({'error': 'key parameter required'}, 400)
             return
@@ -3679,7 +3692,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             user_id = payload.get('user_id')
 
             # Fetch fresh user data
-            user_data = supabase_request('GET', f'auth_users?id=eq.{user_id}&select=id,email,full_name')
+            user_data = supabase_request('GET', f'auth_users?id=eq.{user_id}&select=id,email,full_name,role')
             user = user_data[0] if isinstance(user_data, list) and len(user_data) > 0 else {'id': user_id, 'email': email}
             role = user.get('role', 'equipe')
 
@@ -4226,7 +4239,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'title': result.get('snippet', {}).get('title', ''),
             })
         except Exception as e:
-            logger.error(f'[youtube-upload] Error: {e}')
+            print(f'[youtube-upload] Error: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_drive_sync(self):
@@ -4322,7 +4335,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         except ImportError:
             self._send_json({'error': 'google-auth/google-api-python-client not installed. pip install google-auth google-api-python-client'}, 501)
         except Exception as e:
-            logger.error(f'[drive-sync] Error: {e}')
+            print(f'[drive-sync] Error: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_weekly_summary(self):
@@ -4415,7 +4428,7 @@ Dados da semana:
                 },
             })
         except Exception as e:
-            logger.error(f'[weekly-summary] Error: {e}')
+            print(f'[weekly-summary] Error: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_tasks_from_audio(self):
@@ -4523,7 +4536,7 @@ Transcrição:
                 'count': len(tasks),
             })
         except Exception as e:
-            logger.error(f'[tasks-from-audio] Error: {e}')
+            print(f'[tasks-from-audio] Error: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_context_transcribe(self):
@@ -4641,7 +4654,7 @@ Transcrição:
             result = self._wa_send_via_evolution(instance, number, text)
             self._send_json({'sent': True, 'result': result})
         except Exception as e:
-            logger.error(f'[task-notify] Error: {e}')
+            print(f'[task-notify] Error: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_wa_groups_create(self):
