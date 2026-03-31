@@ -9508,22 +9508,51 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     // From WA main page (Evolution API raw message format)
     async saveWaMsgAsContext(msg) {
-      // Identify mentorado from current chat's linked group
-      const chatJid = this.ui.whatsappSelectedChat?.remoteJid || this.ui.whatsappSelectedChat?.id;
-      const group = (this.data.waGroups || []).find(g => g.group_jid === chatJid);
-      let menteeId = group?.mentorado_id;
+      // Identify mentorado from current chat
+      const chat = this.ui.whatsappSelectedChat;
+      const chatJid = chat?.remoteJid || chat?.id;
+      const chatName = this.getWaChatName(chat).toLowerCase();
+
+      let menteeId = null;
       let menteeName = '';
 
+      // Strategy 1: wa_groups linked mentorado
+      const group = (this.data.waGroups || []).find(g => g.group_jid === chatJid);
+      if (group?.mentorado_id) {
+        menteeId = group.mentorado_id;
+        menteeName = this.data.mentees.find(m => m.id == menteeId)?.nome || '';
+      }
+
+      // Strategy 2: fuzzy match chat name against mentees
+      if (!menteeId && chatName) {
+        for (const m of this.data.mentees) {
+          const nome = m.nome.toLowerCase();
+          const firstName = nome.split(' ')[0];
+          const lastName = nome.split(' ').pop();
+          if (chatName.includes(nome) || chatName.includes(firstName + ' ' + lastName) ||
+              (firstName.length > 3 && chatName.includes(firstName) && (chatName.includes('case') || chatName.includes('mentory') || chatName.includes('clinic')))) {
+            menteeId = m.id;
+            menteeName = m.nome;
+            break;
+          }
+        }
+      }
+
+      // Strategy 3: grupo_whatsapp_id match
       if (!menteeId) {
-        // Fallback: ask user to pick mentorado
-        const name = prompt('Mentorado nao detectado automaticamente.\nDigite o nome do mentorado:');
+        const mentee = this.data.mentees.find(m => m.grupo_whatsapp_id === chatJid);
+        if (mentee) { menteeId = mentee.id; menteeName = mentee.nome; }
+      }
+
+      // Fallback: dropdown picker
+      if (!menteeId) {
+        const options = this.data.mentees.map(m => m.nome).sort().join('\n');
+        const name = prompt('Selecione o mentorado (digite o nome):\n\n' + options);
         if (!name) return;
         const match = this.data.mentees.find(m => m.nome.toLowerCase().includes(name.toLowerCase()));
         if (!match) { this.toast('Mentorado nao encontrado: ' + name, 'error'); return; }
         menteeId = match.id;
         menteeName = match.nome;
-      } else {
-        menteeName = this.data.mentees.find(m => m.id == menteeId)?.nome || '';
       }
 
       const msgType = this.getWaMessageType(msg);
