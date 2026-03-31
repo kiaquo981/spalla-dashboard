@@ -914,7 +914,14 @@ def _openai_request(endpoint, method='POST', body=None, files=None, timeout=120)
     conn.close()
     if resp.status >= 400:
         raise ValueError(f'OpenAI API error {resp.status}: {data.decode()[:500]}')
-    return json.loads(data)
+    # Whisper with response_format=text returns plain text, not JSON
+    text = data.decode('utf-8').strip()
+    if not text:
+        return {}
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        return text
 
 
 def _voyage_request(endpoint, body, timeout=60):
