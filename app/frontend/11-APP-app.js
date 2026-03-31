@@ -8179,8 +8179,6 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     getWaMessageType(msg) {
-      // Supabase-sourced messages have _contentType set during normalization
-      if (msg?._contentType) return msg._contentType;
       if (!msg?.message) return 'text';
       const m = msg.message;
       if (m.audioMessage) return 'audio';
