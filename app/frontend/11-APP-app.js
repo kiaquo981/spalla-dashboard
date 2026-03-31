@@ -7081,6 +7081,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     // ===================== MENTIONS =====================
 
     // Detecta @ enquanto digita no textarea de comentário
+    handleMentionInput(e) { return this.onCommentKeyup(e); },
     onCommentKeyup(e) {
       const ta = e.target;
       const text = ta.value;
@@ -7115,8 +7116,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       );
     },
 
-    insertMention(name) {
-      const ta = this.$refs.commentTextarea;
+    insertMention(name, targetEl) {
+      const ta = targetEl || this.$refs.commentTextarea;
       if (!ta) return;
       const text = this.taskForm.newComment || '';
       const before = text.slice(0, this.ui.mentionStart);
