@@ -3214,7 +3214,7 @@ function operon() {
           .select('id,message_id,sender_name,type,content,media_url,media_mime_type,quoted_message_id,timestamp,is_group,group_id')
           .eq('group_id', remoteJid)
           .order('timestamp', { ascending: false })
-          .limit(30);
+          .limit(100);
 
         let interactions = [];
         // Build team member name set for matching
@@ -7925,11 +7925,13 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       // Strategy: try Supabase wa_messages first, fallback to Evolution API
       let usedRealtime = false;
       try {
-        const { data: dbMsgs, error } = await sb.from('whatsapp_messages')
+        const { data: rawMsgs, error } = await sb.from('whatsapp_messages')
           .select('id,message_id,group_id,sender_name,type,content,media_url,media_mime_type,quoted_message_id,timestamp')
           .eq('group_id', groupJid)
-          .order('timestamp', { ascending: true })
+          .order('timestamp', { ascending: false })
           .limit(100);
+        // Reverse to chronological order (oldest first for display)
+        const dbMsgs = rawMsgs ? rawMsgs.reverse() : [];
 
         if (!error && dbMsgs && dbMsgs.length > 0) {
           // Use Supabase data — convert to Evolution format for HTML compatibility
