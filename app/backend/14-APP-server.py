@@ -71,7 +71,9 @@ S3_REGION     = os.environ.get('S3_REGION', 'eu-central')
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
 VOYAGE_API_KEY = os.environ.get('VOYAGE_API_KEY', '')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 WHISPER_MODEL = 'whisper-1'
+GROQ_WHISPER_MODEL = 'whisper-large-v3'
 VISION_MODEL = 'gpt-4o'
 GEMINI_VISION_MODEL = 'gemini-2.5-flash'
 
@@ -1007,15 +1009,64 @@ def rerank_results(query, results, top_n=10):
 
 
 def openai_whisper(audio_bytes, filename, mime_type):
-    """Transcribe audio/video via Whisper API. Returns text."""
-    result = _openai_request('audio/transcriptions',
-        body={'model': WHISPER_MODEL, 'language': 'pt', 'response_format': 'text'},
-        files={'file': (filename, audio_bytes, mime_type)},
-        timeout=300)
-    # When response_format=text, result is plain text not JSON
-    if isinstance(result, dict) and 'text' in result:
-        return result['text']
-    return str(result)
+    """Transcribe audio via Whisper. Tries Groq first (free), falls back to OpenAI."""
+    # Try Groq first (free, fast, whisper-large-v3)
+    if GROQ_API_KEY:
+        try:
+            result = _whisper_request('api.groq.com', GROQ_API_KEY, GROQ_WHISPER_MODEL,
+                                      audio_bytes, filename, mime_type)
+            if result:
+                print(f'[whisper] Groq OK: {len(result)} chars')
+                return result
+        except Exception as e:
+            print(f'[whisper] Groq failed, trying OpenAI: {e}')
+
+    # Fallback to OpenAI
+    if OPENAI_API_KEY:
+        result = _whisper_request('api.openai.com', OPENAI_API_KEY, WHISPER_MODEL,
+                                  audio_bytes, filename, mime_type)
+        if result:
+            print(f'[whisper] OpenAI OK: {len(result)} chars')
+            return result
+
+    raise ValueError('Nenhuma API de transcricao configurada (GROQ_API_KEY ou OPENAI_API_KEY)')
+
+
+def _whisper_request(host, api_key, model, audio_bytes, filename, mime_type):
+    """Send audio to Whisper-compatible API (OpenAI or Groq). Returns transcribed text."""
+    boundary = f'----FormBoundary{secrets.token_hex(8)}'
+    parts = []
+    parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\n{model}\r\n')
+    parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="language"\r\n\r\npt\r\n')
+    parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="response_format"\r\n\r\ntext\r\n')
+    parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{filename}"\r\nContent-Type: {mime_type}\r\n\r\n')
+    parts.append(audio_bytes)
+    parts.append(f'\r\n--{boundary}--\r\n')
+
+    raw_body = b''
+    for p in parts:
+        raw_body += p.encode() if isinstance(p, str) else p
+
+    conn = http.client.HTTPSConnection(host, timeout=300)
+    conn.request('POST', '/openai/v1/audio/transcriptions' if 'groq' in host else '/v1/audio/transcriptions',
+                 body=raw_body, headers={
+                     'Authorization': f'Bearer {api_key}',
+                     'Content-Type': f'multipart/form-data; boundary={boundary}',
+                 })
+    resp = conn.getresponse()
+    data = resp.read()
+    conn.close()
+    if resp.status >= 400:
+        raise ValueError(f'Whisper API error {resp.status} ({host}): {data.decode()[:300]}')
+    text = data.decode('utf-8').strip()
+    if not text:
+        return None
+    # response_format=text returns plain text, but some APIs wrap in JSON
+    try:
+        parsed = json.loads(text)
+        return parsed.get('text', text) if isinstance(parsed, dict) else text
+    except (json.JSONDecodeError, ValueError):
+        return text
 
 
 def gemini_vision_describe(image_bytes, mime_type):
