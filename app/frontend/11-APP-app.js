@@ -9509,7 +9509,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     // From WA main page (Evolution API raw message format)
     async saveWaMsgAsContext(msg) {
       // Identify mentorado from current chat's linked group
-      const chatJid = ui.whatsappSelectedChat?.remoteJid || ui.whatsappSelectedChat?.id;
+      const chatJid = this.ui.whatsappSelectedChat?.remoteJid || this.ui.whatsappSelectedChat?.id;
       const group = (this.data.waGroups || []).find(g => g.group_jid === chatJid);
       let menteeId = group?.mentorado_id;
       let menteeName = '';
