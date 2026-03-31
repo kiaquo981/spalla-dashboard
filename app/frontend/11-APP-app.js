@@ -3471,7 +3471,12 @@ function operon() {
       const board = [];
       for (const m of myMentees) {
         // Use data from vw_god_overview directly
-        const diasSemCall = m.dias_desde_call ?? 999;
+        // If no call ever, fallback to days since entry (not 999)
+        let diasSemCall = m.dias_desde_call;
+        if (diasSemCall == null && m.data_entrada) {
+          diasSemCall = Math.floor((now - new Date(m.data_entrada)) / 86400000);
+        }
+        if (diasSemCall == null) diasSemCall = 999;
         const ultimaCallDate = m.ultima_call_data ? new Date(m.ultima_call_data).toLocaleDateString('pt-BR') : 'Nunca';
 
         // Dossiê from ds_producoes (if loaded)
@@ -4481,11 +4486,15 @@ function operon() {
     // === CC V2: Mentorados sem call há X dias ===
     ccMentoradosSemCall() {
       const mentees = this.data.mentees || [];
+      const now = new Date();
       const result = [];
       for (const m of mentees) {
         if (m.status === 'offboarded' || m.status === 'cancelado') continue;
-        // Use dias_desde_call from vw_god_overview (already computed correctly)
-        const diasSemCall = m.dias_desde_call ?? 999;
+        let diasSemCall = m.dias_desde_call;
+        if (diasSemCall == null && m.data_entrada) {
+          diasSemCall = Math.floor((now - new Date(m.data_entrada)) / 86400000);
+        }
+        if (diasSemCall == null) diasSemCall = 999;
         if (diasSemCall >= 14) {
           const lastCallDate = m.ultima_call_data ? new Date(m.ultima_call_data).toLocaleDateString('pt-BR') : 'Nunca';
           result.push({ id: m.id, nome: m.nome, diasSemCall, lastCall: lastCallDate });
