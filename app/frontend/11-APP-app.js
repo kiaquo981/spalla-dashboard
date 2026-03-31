@@ -3222,13 +3222,18 @@ function operon() {
             const senderLower = (msg.sender_name || '').toLowerCase();
             const isTeam = teamNames.has(senderLower) ||
               [...teamNames].some(tn => senderLower.includes(tn) || tn.includes(senderLower));
+            // Normalize content_type: Supabase stores WA types like 'conversation', 'extendedTextMessage'
+            // Template expects: text, audio, image, video, document
+            const MEDIA_TYPES = new Set(['audio', 'image', 'video', 'document', 'sticker']);
+            const rawType = (msg.type || '').toLowerCase();
+            const normalizedType = MEDIA_TYPES.has(rawType) ? rawType : 'text';
             return {
               sender: isTeam ? (msg.sender_name || 'Equipe CASE') : (msg.sender_name || nome),
-              conteudo: msg.content || `[${msg.type || 'mensagem'}]`,
+              conteudo: msg.content || (normalizedType !== 'text' ? `[${rawType}]` : ''),
               created_at: msg.timestamp,
               message_id: msg.message_id,
               is_from_team: isTeam,
-              content_type: msg.type || 'text',
+              content_type: normalizedType,
               media_url: msg.media_url,
             };
           });

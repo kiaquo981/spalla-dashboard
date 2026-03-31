@@ -3160,10 +3160,24 @@
                   <!-- Linha 2: fase + salvar (esconde durante gravação) -->
                   <div x-show="!ui.ctxRecording" style="display:flex;gap:8px;align-items:center;justify-content:flex-end">
                     <select x-model="ui.ctxFase" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;color:var(--text-secondary)">
-                      <option value="onboarding">Onboarding</option>
-                      <option value="dossie_oferta">Dossie Oferta</option>
-                      <option value="dossie_posicionamento">Dossie Posicionamento</option>
-                      <option value="dossie_funil">Dossie Funil</option>
+                      <optgroup label="Jornada">
+                        <option value="onboarding">Onboarding</option>
+                        <option value="travas">Travas / Bloqueios</option>
+                        <option value="momentos">Momentos / Insights</option>
+                        <option value="acoes">Acoes / Execucoes</option>
+                      </optgroup>
+                      <optgroup label="Dossies">
+                        <option value="dossie_oferta">Dossie Oferta</option>
+                        <option value="dossie_posicionamento">Dossie Posicionamento</option>
+                        <option value="dossie_funil">Dossie Funil</option>
+                      </optgroup>
+                      <optgroup label="Operacional">
+                        <option value="funil_novo">Novo Funil</option>
+                        <option value="campanha">Campanha</option>
+                        <option value="conteudo">Conteudo</option>
+                        <option value="financeiro">Financeiro</option>
+                        <option value="geral">Geral</option>
+                      </optgroup>
                     </select>
                     <button class="btn btn--brand btn--sm" @click="saveContext()"
                             :disabled="ui.ctxSaving || ui.ctxRecording || (ui.ctxTipo === 'texto' && !ui.ctxConteudo) || (ui.ctxTipo === 'link' && !ui.ctxLinkUrl) || (['audio','arquivo','gravacao'].includes(ui.ctxTipo) && !ui.ctxArquivo)">
@@ -3186,9 +3200,17 @@
                   <select x-model="ui.ctxFilter.fase" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px">
                     <option value="all">Todas as fases</option>
                     <option value="onboarding">Onboarding</option>
+                    <option value="travas">Travas / Bloqueios</option>
+                    <option value="momentos">Momentos / Insights</option>
+                    <option value="acoes">Acoes / Execucoes</option>
                     <option value="dossie_oferta">Dossie Oferta</option>
                     <option value="dossie_posicionamento">Dossie Posicionamento</option>
                     <option value="dossie_funil">Dossie Funil</option>
+                    <option value="funil_novo">Novo Funil</option>
+                    <option value="campanha">Campanha</option>
+                    <option value="conteudo">Conteudo</option>
+                    <option value="financeiro">Financeiro</option>
+                    <option value="geral">Geral</option>
                   </select>
                   <span style="font-size:11px;color:var(--text-secondary);align-self:center" x-text="filteredMenteeContext.length + ' item(s)'"></span>
                   <div style="margin-left:auto;display:flex;gap:6px">
