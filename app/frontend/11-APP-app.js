@@ -1445,8 +1445,7 @@ function operon() {
         .from('god_tasks')
         .select('titulo')
         .eq('mentorado_id', menteeId)
-        .eq('fase_origem', newPhase)
-        .eq('auto_gerada', true);
+        .eq('fase_origem', newPhase);
       if (fetchErr) throw fetchErr;
       const existingTitles = new Set((existing || []).map(t => t.titulo));
       const newTasks = templates
@@ -1458,7 +1457,6 @@ function operon() {
           prioridade: t.prioridade,
           status: 'pendente',
           fase_origem: newPhase,
-          auto_gerada: true,
         }));
       if (!newTasks.length) return 0;
       const { error } = await sb.from('god_tasks').insert(newTasks);
@@ -1528,7 +1526,7 @@ function operon() {
               acompanhante: null, mentorado_nome: null,
               data_inicio: sub.data_inicio || null,
               data_fim: sub.data_fim || null, prazo: sub.data_fim || null,
-              tags: [], is_blocked: false, auto_gerada: false, recorrencia: 'nenhuma',
+              tags: [], is_blocked: false, recorrencia: 'nenhuma',
               _depth: 1, _childCount: 0, _isSubtask: true, _parentId: task.id, _subIdx: idx,
             });
           });
@@ -1542,7 +1540,7 @@ function operon() {
               responsavel: ci.assignee || '',
               acompanhante: null, mentorado_nome: null,
               data_inicio: null, data_fim: ci.due_date || null, prazo: ci.due_date || null,
-              tags: [], is_blocked: false, auto_gerada: false, recorrencia: 'nenhuma',
+              tags: [], is_blocked: false, recorrencia: 'nenhuma',
               _depth: 1, _childCount: 0, _isChecklist: true, _parentId: task.id, _checkIdx: idx,
             });
           });
@@ -3349,7 +3347,6 @@ function operon() {
         data_fim: dueDateStr,
         status: 'pendente',
         fonte: 'auto_followup',
-        auto_gerada: true,
         follow_up_group_jid: groupJid || null,
       };
 
@@ -3717,8 +3714,7 @@ function operon() {
               mentorado_id: opts.mentorado_id || null,
               status: 'pendente',
               fonte: 'mention',
-              auto_gerada: true,
-            };
+                };
             const { data: task } = await sb.from('god_tasks').insert(taskData).select().single();
             if (task) {
               this.data.tasks.push(task);
@@ -3828,7 +3824,6 @@ function operon() {
           data_fim: dueDate,
           status: 'pendente',
           fonte: 'audio_batch',
-          auto_gerada: true,
           descricao: t.descricao ? `${t.descricao}\n\n[Criada por áudio em ${new Date().toLocaleDateString('pt-BR')}]` : `Criada por áudio em ${new Date().toLocaleDateString('pt-BR')}`,
         };
         const { data: newTask, error } = await sb.from('god_tasks').insert(row).select().single();
@@ -4030,8 +4025,7 @@ function operon() {
               data_fim: dueDate.toISOString().split('T')[0],
               status: 'pendente',
               fonte: 'auto_followup_bulk',
-              auto_gerada: true,
-              follow_up_group_jid: m.jid,
+                  follow_up_group_jid: m.jid,
             });
           }
           success++;
@@ -10877,7 +10871,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         const siblings = this.data.dsAllDocs.filter(d => d.producao_id === doc.producao_id && d.id !== docId);
         const allApproved = siblings.every(s => this.dsEstagioNum(s.estagio_atual) >= this.dsEstagioNum('aprovado'));
         if (!allApproved) {
-          if (!confirm('Os outros documentos ainda não foram aprovados. Avançar mesmo assim?')) return;
+          if (!confirm('Os outros documentos do dossiê (oferta/funil/conteúdo) ainda não passaram por todas as revisões. Enviar este documento mesmo assim?')) return;
         }
       }
 
@@ -10974,7 +10968,6 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         doc_link: doc.link_doc || '',
         status: 'pendente',
         fonte: 'auto_dossie',
-        auto_gerada: true,
       };
 
       const { data: created, error } = await sb.from('god_tasks').insert(taskData).select().single();
