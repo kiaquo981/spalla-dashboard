@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="16-APP-operon-molecules.css?v=3">
   <link rel="stylesheet" href="17-APP-operon-utilities.css?v=2">
   <link rel="stylesheet" href="18-APP-operon-bridge.css?v=1">
-  <link rel="stylesheet" href="13-APP-styles.css?v=79">
+  <link rel="stylesheet" href="13-APP-styles.css?v=80">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1c1910,#35301d,#1c1910);font-family:'Inter',system-ui,sans-serif;color:var(--brand-500,#8a7d52);font-size:24px;font-weight:700;letter-spacing:0.05em; }
@@ -73,13 +73,6 @@
     .wa-extract-btn { opacity:0;font-size:13px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;color:#3b82f6;padding:2px 6px;transition:opacity .15s;flex-shrink:0;margin-top:4px; }
     .wa-msg-wrapper:hover .wa-extract-btn { opacity:1; }
     .wa-inbox-empty { text-align:center;color:#94a3b8;font-size:13px;padding:32px 16px; }
-
-    /* Save to context button on WA bubbles */
-    .wa-bubble__actions { position:absolute;top:4px;right:4px;display:flex;gap:2px;opacity:0;transition:opacity .15s;z-index:2; }
-    .wa-bubble:hover .wa-bubble__actions { opacity:1; }
-    .wa-bubble__ctx-btn { position:absolute;top:4px;right:4px;opacity:0;background:#fff;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;color:#8a7d52;padding:3px 5px;transition:opacity .15s;z-index:2; }
-    .wa-bubble:hover .wa-bubble__ctx-btn { opacity:1; }
-    .wa-bubble__ctx-btn:hover { background:#f0ead6;border-color:#8a7d52; }
 
     /* Collision badge */
     .collision-badge { font-size:11px;background:#fef9c3;color:#92400e;border-radius:8px;padding:3px 8px;font-weight:500; }
@@ -514,7 +507,7 @@
                    x-transition:enter="transition ease-out duration-150"
                    x-transition:enter-start="opacity-0 scale-95"
                    x-transition:enter-end="opacity-100 scale-100"
-                   style="position:absolute;right:0;top:calc(100% + 8px);width:320px;background:var(--surface, #fff);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:500;overflow:hidden">
+                   style="position:absolute;right:0;top:calc(100% + 8px);width:320px;background:var(--surface, #fff);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:9999;overflow:hidden">
 
                 <!-- Header -->
                 <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)">
@@ -2548,22 +2541,13 @@
                       <div class="call-card__timeline-dot"></div>
                       <div class="call-card__header"><span class="badge badge--sm badge--info" x-text="c.tipo"></span><span x-text="formatDateFull(c.data_call)"></span><span x-show="c.duracao" x-text="c.duracao + 'min'"></span></div>
                       <div class="call-card__body" x-text="c.resumo"></div>
-                      <!-- Zoom topic -->
-                      <div x-show="c.zoom_topic" style="font-size:12px;color:var(--neutral-600);margin-top:4px" x-text="c.zoom_topic"></div>
-                      <!-- Links: gravação, transcrição, zoom, senha -->
-                      <div class="call-card__links" style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center">
-                        <button x-show="c.gravacao" @click.stop="openMedia(c.gravacao, 'Gravacao', c.senha_call || c.senha_Call)" class="badge badge--sm badge--danger" style="border:none;cursor:pointer;display:inline-flex;align-items:center;gap:3px">
+                      <div class="call-card__links" style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
+                        <button x-show="c.gravacao" @click.stop="openMedia(c.gravacao, 'Gravação', c.senha_call)" class="badge badge--sm badge--danger" style="border:none;cursor:pointer;display:inline-flex;align-items:center;gap:3px">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Gravacao
                         </button>
-                        <a x-show="c.transcricao" :href="c.transcricao" target="_blank" rel="noopener" class="badge badge--sm badge--purple" style="text-decoration:none;cursor:pointer;display:inline-flex;align-items:center;gap:3px">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Transcricao
+                        <a x-show="c.transcricao" :href="c.transcricao" target="_blank" rel="noopener" class="badge badge--sm badge--purple" style="text-decoration:none;cursor:pointer">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:3px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Transcricao
                         </a>
-                        <a x-show="c.youtube_link" :href="c.youtube_link" target="_blank" rel="noopener" class="badge badge--sm" style="text-decoration:none;cursor:pointer;display:inline-flex;align-items:center;gap:3px;background:#fee2e2;color:#dc2626">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19.13C5.12 19.56 12 19.56 12 19.56s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.43z"/><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/></svg> YouTube
-                        </a>
-                        <button x-show="c.senha_call || c.senha_Call" @click.stop="navigator.clipboard.writeText(c.senha_call || c.senha_Call); toast('Senha copiada!', 'success')" class="badge badge--sm badge--warning" style="border:none;cursor:pointer;display:inline-flex;align-items:center;gap:3px" title="Copiar senha da gravacao">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Senha
-                        </button>
                       </div>
                       <div class="call-card__decisions" x-show="(c.decisoes_tomadas || []).length"><strong>Decisoes:</strong>
                         <template x-for="(d, di) in c.decisoes_tomadas || []" :key="di"><span class="badge badge--sm badge--brand" x-text="d"></span></template>
@@ -2609,16 +2593,12 @@
                       <div x-show="mi === 0 || waDateLabel(msg.created_at) !== waDateLabel((data.detail?.last_interactions || [])[mi-1]?.created_at)" class="wa-day-separator">
                         <span x-text="waDateLabel(msg.created_at)"></span>
                       </div>
-                      <div class="wa-bubble" :class="{ 'wa-bubble--me': msg.is_from_team || msg.sender === 'Equipe CASE' }" style="max-width:85%;position:relative">
-                        <!-- Save to context button -->
-                        <button class="wa-bubble__ctx-btn" @click="saveDetailWaMsgAsContext(msg)" title="Salvar como contexto">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                        </button>
+                      <div class="wa-bubble" :class="{ 'wa-bubble--me': msg.is_from_team || msg.sender === 'Equipe CASE' }" style="max-width:85%">
                         <div class="wa-bubble__sender" x-show="!msg.is_from_team && msg.sender !== 'Equipe CASE'" x-text="waCleanSenderName(msg.sender)"></div>
 
                         <!-- Text message -->
                         <template x-if="!msg.content_type || msg.content_type === 'text'">
-                          <div class="wa-bubble__text" x-html="linkifyText(msg.conteudo)"></div>
+                          <div class="wa-bubble__text" x-text="msg.conteudo"></div>
                         </template>
 
                         <!-- Audio message -->
@@ -3101,24 +3081,39 @@
                 <!-- ── Formulário de novo contexto ── -->
                 <div style="background:var(--bg-subtle);border-radius:10px;padding:14px;margin-bottom:16px">
 
-                  <!-- Recording active banner -->
-                  <template x-if="ui.ctxRecording">
-                    <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:#fee2e2;border-radius:8px;margin-bottom:10px">
-                      <span style="width:12px;height:12px;background:#dc2626;border-radius:50%;animation:pulse 1s infinite;flex-shrink:0"></span>
-                      <span style="font-size:14px;font-weight:600;color:#dc2626" x-text="'Gravando ' + Math.floor(ui.ctxRecordingSeconds/60).toString().padStart(2,'0') + ':' + (ui.ctxRecordingSeconds%60).toString().padStart(2,'0')"></span>
-                      <button @click="stopRecording()" class="btn btn--sm" style="margin-left:auto;background:#dc2626;color:#fff;border:none">Parar e salvar</button>
-                    </div>
-                  </template>
+                  <!-- Quick actions bar -->
+                  <div x-show="!ui.ctxRecording" style="display:flex;gap:6px;margin-bottom:10px">
+                    <button @click="ui.ctxTipo = 'texto'" :style="ui.ctxTipo === 'texto' ? 'background:var(--brand-100,#f0ead6);border-color:var(--brand-500,#8a7d52);color:var(--brand-700,#5c5235)' : ''" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;background:var(--bg-card);display:flex;align-items:center;gap:4px">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      Nota
+                    </button>
+                    <button @click="ui.ctxTipo = 'gravacao'; if(!ui.ctxRecording && !ui.ctxArquivo) startRecording()" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;background:var(--bg-card);display:flex;align-items:center;gap:4px;color:#dc2626;border-color:#fca5a5">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+                      Gravar
+                    </button>
+                    <button @click="ui.ctxTipo = 'audio'" :style="ui.ctxTipo === 'audio' ? 'background:var(--brand-100,#f0ead6);border-color:var(--brand-500,#8a7d52);color:var(--brand-700,#5c5235)' : ''" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;background:var(--bg-card);display:flex;align-items:center;gap:4px">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                      Upload
+                    </button>
+                    <button @click="ui.ctxTipo = 'arquivo'" :style="ui.ctxTipo === 'arquivo' ? 'background:var(--brand-100,#f0ead6);border-color:var(--brand-500,#8a7d52);color:var(--brand-700,#5c5235)' : ''" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;background:var(--bg-card);display:flex;align-items:center;gap:4px">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                      Arquivo
+                    </button>
+                    <button @click="ui.ctxTipo = 'link'" :style="ui.ctxTipo === 'link' ? 'background:var(--brand-100,#f0ead6);border-color:var(--brand-500,#8a7d52);color:var(--brand-700,#5c5235)' : ''" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;background:var(--bg-card);display:flex;align-items:center;gap:4px">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                      Link
+                    </button>
+                  </div>
 
-                  <!-- Linha 1: tipo + título -->
+                  <!-- Recording active banner -->
+                  <div x-show="ui.ctxRecording" style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:#fee2e2;border-radius:8px;margin-bottom:10px">
+                    <span style="width:12px;height:12px;background:#dc2626;border-radius:50%;animation:pulse 1s infinite;flex-shrink:0"></span>
+                    <span style="font-size:13px;font-weight:600;color:#dc2626" x-text="'Gravando ' + Math.floor(ui.ctxRecordingSeconds/60).toString().padStart(2,'0') + ':' + (ui.ctxRecordingSeconds%60).toString().padStart(2,'0')"></span>
+                    <button @click="stopRecording()" style="margin-left:auto;padding:6px 16px;background:#dc2626;color:#fff;border:none;border-radius:20px;cursor:pointer;font-size:12px;font-weight:600">Parar e salvar</button>
+                  </div>
+
+                  <!-- Linha 1: título (tipo agora é via botões acima) -->
                   <div x-show="!ui.ctxRecording" style="display:flex;gap:8px;margin-bottom:10px">
-                    <select x-model="ui.ctxTipo" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;min-width:140px;background:var(--bg-card)">
-                      <option value="texto">Texto / Nota</option>
-                      <option value="audio">Upload Audio</option>
-                      <option value="gravacao">Gravar Audio</option>
-                      <option value="arquivo">Arquivo</option>
-                      <option value="link">Link / URL</option>
-                    </select>
                     <input type="text" x-model="ui.ctxTitulo" placeholder="Titulo (ex: Call de onboarding, Briefing inicial...)" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px">
                   </div>
 
@@ -3127,7 +3122,7 @@
                     <textarea x-model="ui.ctxConteudo" rows="4" placeholder="Escreva aqui observacoes, notas da call, percepcoes sobre o mentorado..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
                   </div>
 
-                  <!-- Upload Audio -->
+                  <!-- Upload Áudio -->
                   <div x-show="ui.ctxTipo === 'audio' && !ui.ctxRecording" style="margin-bottom:10px">
                     <label style="display:flex;align-items:center;gap:8px;padding:14px;border:2px dashed var(--border);border-radius:8px;cursor:pointer;justify-content:center;font-size:12px;color:var(--text-secondary)">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -3136,26 +3131,14 @@
                     </label>
                   </div>
 
-                  <!-- Gravar Audio — botão iniciar ou resultado -->
-                  <div x-show="ui.ctxTipo === 'gravacao' && !ui.ctxRecording" style="margin-bottom:10px">
-                    <template x-if="!ui.ctxArquivo">
-                      <div style="display:flex;align-items:center;justify-content:center;padding:14px;border:2px dashed var(--border);border-radius:8px">
-                        <button @click="startRecording()" class="btn btn--sm" style="background:#dc2626;color:#fff;border:none;display:flex;align-items:center;gap:6px">
-                          <span style="width:8px;height:8px;background:#fff;border-radius:50%;display:inline-block"></span>
-                          Iniciar gravacao
-                        </button>
-                      </div>
-                    </template>
-                    <template x-if="ui.ctxArquivo">
-                      <div>
-                        <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;font-size:12px;color:#166534">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                          <span x-text="ui.ctxArquivo?.name || 'gravacao.webm'"></span>
-                          <button @click="ui.ctxArquivo = null; ui.ctxTitulo = ''" style="margin-left:auto;background:none;border:none;cursor:pointer;color:#dc2626;font-size:11px;text-decoration:underline">remover</button>
-                        </div>
-                        <p style="font-size:11px;color:var(--text-secondary);margin:6px 0 0;text-align:center">Transcricao automatica apos salvar.</p>
-                      </div>
-                    </template>
+                  <!-- Gravar Áudio — resultado da gravação (após parar) -->
+                  <div x-show="ui.ctxTipo === 'gravacao' && !ui.ctxRecording && ui.ctxArquivo" style="margin-bottom:10px">
+                    <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;font-size:12px;color:#166534">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                      <span x-text="ui.ctxArquivo.name"></span>
+                      <button @click="ui.ctxArquivo = null; ui.ctxTitulo = ''" style="margin-left:auto;background:none;border:none;cursor:pointer;color:#dc2626;font-size:11px;text-decoration:underline">remover</button>
+                    </div>
+                    <p style="font-size:11px;color:var(--text-secondary);margin:6px 0 0;text-align:center">Transcricao automatica apos salvar.</p>
                   </div>
 
                   <!-- Arquivo -->
@@ -3174,7 +3157,7 @@
                     <textarea x-model="ui.ctxConteudo" rows="2" placeholder="Descricao do link (opcional)" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;box-sizing:border-box"></textarea>
                   </div>
 
-                  <!-- Linha 2: fase + salvar -->
+                  <!-- Linha 2: fase + salvar (esconde durante gravação) -->
                   <div x-show="!ui.ctxRecording" style="display:flex;gap:8px;align-items:center;justify-content:flex-end">
                     <select x-model="ui.ctxFase" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:11px;color:var(--text-secondary)">
                       <optgroup label="Jornada">
@@ -3258,13 +3241,9 @@
 
                         <!-- Título + meta -->
                         <div style="flex:1;min-width:0">
-                          <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
-                            <span x-show="ctx.ativo_codigo" style="font-size:10px;font-weight:700;color:var(--brand-500,#8a7d52);background:var(--brand-100,#f0ead6);padding:1px 6px;border-radius:3px;font-family:monospace" x-text="ctx.ativo_codigo"></span>
-                            <span style="font-size:13px;font-weight:600" x-text="ctx.titulo || ctx.tipo"></span>
-                          </div>
+                          <div style="font-size:13px;font-weight:600;margin-bottom:2px" x-text="ctx.titulo || ctx.tipo"></div>
                           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                             <span style="font-size:10px;padding:1px 6px;border-radius:3px;background:var(--bg-subtle);color:var(--text-secondary)" x-text="ctx.fase?.replaceAll('_',' ')"></span>
-                            <span x-show="ctx.origem && ctx.origem !== 'manual'" style="font-size:10px;padding:1px 6px;border-radius:3px;background:#dbeafe;color:#1d4ed8" x-text="ctx.origem === 'whatsapp_ui' ? 'via WhatsApp' : ctx.origem"></span>
                             <span style="font-size:10px;color:var(--text-secondary)" x-text="ctx.criado_por?.split('@')[0] || 'sistema'"></span>
                             <span style="font-size:10px;color:var(--text-secondary)" x-text="new Date(ctx.created_at).toLocaleDateString('pt-BR', {day:'2-digit',month:'short',year:'numeric'})"></span>
                           </div>
@@ -3322,27 +3301,14 @@
                           🔗 <span x-text="ctx.link_url?.replace(/^https?:\/\//, '').substring(0, 50)"></span>
                         </a>
 
-                        <!-- Botão Transcrever -->
+                        <!-- Botão Transcrever (só p/ áudio/gravacao sem transcrição ainda) -->
                         <button x-show="['audio','gravacao'].includes(ctx.tipo) && ctx.arquivo_url && !ctx.transcricao"
                                 @click="transcribeContext(ctx.id)"
                                 :disabled="ui.ctxTranscribing[ctx.id]"
                                 style="display:flex;align-items:center;gap:4px;padding:3px 10px;border:1px solid #d97706;border-radius:4px;background:transparent;cursor:pointer;font-size:11px;color:#d97706"
                                 :style="ui.ctxTranscribing[ctx.id] ? 'opacity:0.6;cursor:not-allowed' : ''">
-                          <span x-show="!ui.ctxTranscribing[ctx.id]">Transcrever</span>
+                          <span x-show="!ui.ctxTranscribing[ctx.id]">🤖 Transcrever</span>
                           <span x-show="ui.ctxTranscribing[ctx.id]">Transcrevendo...</span>
-                        </button>
-                        <!-- Criar tarefa a partir deste ativo -->
-                        <button x-show="ctx.ativo_codigo" @click="taskForm.mentorado_nome = data.detail?.profile?.nome; taskForm.context_ativo_ids = [ctx.ativo_codigo]; taskForm.descricao = (ctx.titulo || ctx.tipo) + (ctx.conteudo ? '\n\n' + ctx.conteudo.substring(0,200) : ''); openTaskModal()"
-                                style="display:flex;align-items:center;gap:4px;padding:3px 10px;border:1px solid var(--brand-500,#8a7d52);border-radius:4px;background:transparent;cursor:pointer;font-size:11px;color:var(--brand-500,#8a7d52)">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-                          Criar tarefa
-                        </button>
-                        <!-- Copiar código do ativo -->
-                        <button x-show="ctx.ativo_codigo" @click="navigator.clipboard.writeText(ctx.ativo_codigo); toast('Codigo copiado: ' + ctx.ativo_codigo, 'success')"
-                                style="display:flex;align-items:center;gap:4px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:transparent;cursor:pointer;font-size:11px;color:var(--text-secondary)"
-                                title="Copiar codigo do ativo">
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                          <span x-text="ctx.ativo_codigo"></span>
                         </button>
                       </div>
                     </div>
@@ -5034,21 +5000,13 @@
               <div class="wa-chat__messages" x-show="ui.whatsappSelectedChat">
                 <template x-for="(msg, mi) in data.whatsappMessages" :key="msg.key?.id || mi">
                   <div class="wa-bubble" :class="{ 'wa-bubble--me': msg.key?.fromMe }" :id="'wa-msg-' + (msg.key?.id || mi)">
-                    <!-- Action buttons (reply + save to context) -->
-                    <div class="wa-bubble__actions">
-                      <button class="wa-bubble__reply-btn" @click="setWaReply(msg)" title="Responder">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
-                      </button>
-                      <button class="wa-bubble__reply-btn" @click="saveWaMsgAsContext(msg)" title="Salvar como contexto na ficha" style="color:#8a7d52">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                      </button>
-                    </div>
-                    <div class="wa-bubble__sender" x-show="!msg.key?.fromMe">
-                      <span x-text="msg.pushName || 'Desconhecido'"></span>
-                      <span x-show="msg._isForwarded" style="font-size:9px;color:#94a3b8;font-style:italic;margin-left:4px">encaminhada</span>
-                    </div>
+                    <!-- Reply button -->
+                    <button class="wa-bubble__reply-btn" @click="setWaReply(msg)" title="Responder">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+                    </button>
+                    <div class="wa-bubble__sender" x-show="!msg.key?.fromMe" x-text="msg.pushName || 'Desconhecido'"></div>
                     <template x-if="getWaMessageType(msg) === 'text'">
-                      <div class="wa-bubble__text" x-html="linkifyText(getWaMessageText(msg))"></div>
+                      <div class="wa-bubble__text" x-text="getWaMessageText(msg)"></div>
                     </template>
                     <template x-if="getWaMessageType(msg) === 'audio'">
                       <div class="wa-bubble__media">
@@ -5185,65 +5143,6 @@
         <div class="wa-lightbox" x-show="ui.waLightboxUrl" x-transition.opacity @click.self="ui.waLightboxUrl = null" style="display:none" :style="ui.waLightboxUrl ? 'display:flex' : 'display:none'">
           <button class="wa-lightbox__close" @click="ui.waLightboxUrl = null">&times;</button>
           <img :src="ui.waLightboxUrl" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain;">
-        </div>
-
-        <!-- ===== MODAL: Save WA msg as Context ===== -->
-        <div class="modal-overlay" x-show="ui.ctxSaveModal" x-transition.opacity @click.self="ui.ctxSaveModal = false; ui.ctxSaveDesc = ''; ui.ctxSavePasta = ''" role="dialog" aria-modal="true" @keydown.escape.window="ui.ctxSaveModal = false; ui.ctxSaveDesc = ''; ui.ctxSavePasta = ''" style="z-index:400">
-          <div class="modal" style="max-width:480px" @click.stop>
-            <div class="modal__header">
-              <h3>Salvar como ativo</h3>
-              <button class="modal__close" @click="ui.ctxSaveModal = false; ui.ctxSaveDesc = ''; ui.ctxSavePasta = ''">&times;</button>
-            </div>
-            <div class="modal__body" style="display:flex;flex-direction:column;gap:12px">
-              <!-- Mentorado -->
-              <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg-subtle);border-radius:8px;font-size:13px">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--neutral-500)" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                <span x-text="ui.ctxSaveData?.menteeName || ''"></span>
-                <span style="margin-left:auto;font-size:11px;padding:2px 8px;border-radius:4px;background:var(--brand-100,#f0ead6);color:var(--brand-700)" x-text="ui.ctxSaveData?.tipo || ''"></span>
-              </div>
-              <!-- Descrição -->
-              <div>
-                <label style="font-size:12px;font-weight:600;color:var(--neutral-600);margin-bottom:4px;display:block">Descricao do ativo *</label>
-                <textarea x-model="ui.ctxSaveDesc" rows="3" placeholder="Descreva o que e esse ativo, pra que serve, contexto..." style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
-              </div>
-              <!-- Categoria/Pasta -->
-              <div>
-                <label style="font-size:12px;font-weight:600;color:var(--neutral-600);margin-bottom:4px;display:block">Categoria</label>
-                <select x-model="ui.ctxSavePasta" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px">
-                  <optgroup label="Jornada">
-                    <option value="geral">Geral</option>
-                    <option value="onboarding">Onboarding</option>
-                    <option value="travas">Travas / Bloqueios</option>
-                    <option value="momentos">Momentos / Insights</option>
-                    <option value="acoes">Acoes / Execucoes</option>
-                  </optgroup>
-                  <optgroup label="Dossies">
-                    <option value="dossie_oferta">Dossie Oferta</option>
-                    <option value="dossie_posicionamento">Dossie Posicionamento</option>
-                    <option value="dossie_funil">Dossie Funil</option>
-                  </optgroup>
-                  <optgroup label="Operacional">
-                    <option value="funil_novo">Novo Funil</option>
-                    <option value="campanha">Campanha</option>
-                    <option value="conteudo">Conteudo</option>
-                    <option value="financeiro">Financeiro</option>
-                  </optgroup>
-                </select>
-              </div>
-              <!-- Preview da mensagem original -->
-              <div x-show="ui.ctxSaveData?.msgText" style="padding:8px 10px;background:var(--neutral-50);border-radius:6px;border-left:3px solid var(--neutral-300);font-size:12px;color:var(--neutral-600);max-height:80px;overflow-y:auto">
-                <span style="font-weight:600" x-text="ui.ctxSaveData?.sender"></span>:
-                <span x-text="ui.ctxSaveData?.msgText?.substring(0, 300)"></span>
-              </div>
-            </div>
-            <div class="modal__footer">
-              <button class="btn btn--ghost" @click="ui.ctxSaveModal = false; ui.ctxSaveDesc = ''; ui.ctxSavePasta = ''">Cancelar</button>
-              <button class="btn btn--brand" @click="confirmSaveContext()" :disabled="ui.ctxSaveSaving || !ui.ctxSaveDesc?.trim()">
-                <span x-show="!ui.ctxSaveSaving">Salvar ativo</span>
-                <span x-show="ui.ctxSaveSaving">Salvando...</span>
-              </button>
-            </div>
-          </div>
         </div>
 
         <!-- ===== PAGE: WA TOPICS BOARD ===== -->
@@ -5818,7 +5717,7 @@
                             } else if(window.OperonEditor && window.OperonEditor.isActive($refs.bibEditor)) {
                               bib.activeDoc.conteudo_md = window.OperonEditor.getMarkdown($refs.bibEditor);
                               window.OperonEditor.unmount($refs.bibEditor);
-                              bib.renderedHtml = (typeof marked !== 'undefined') ? (typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(marked.parse(bib.activeDoc.conteudo_md || '')) : marked.parse(bib.activeDoc.conteudo_md || '')) : bib.activeDoc.conteudo_md;
+                              bib.renderedHtml = (typeof marked !== 'undefined') ? marked.parse(bib.activeDoc.conteudo_md || '') : bib.activeDoc.conteudo_md;
                             }"
                           x-text="bib.editMode ? '👁 Visualizar' : '✏️ Editar'"></button>
                         <button class="btn btn--sm" style="padding:2px 10px;font-size:11px;background:var(--op-accent);color:#fff;"
@@ -10017,31 +9916,6 @@
                  })"
                  style="min-height:150px;border:1px solid var(--op-border);border-radius:8px;overflow:hidden;background:var(--op-bg-1)"></div>
 
-            <!-- Ativos vinculados (S4) -->
-            <div x-show="taskForm.mentorado_nome" style="margin-bottom:var(--sp-3)">
-              <label>Ativos vinculados</label>
-              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
-                <template x-for="(code, ci) in (taskForm.context_ativo_ids || [])" :key="ci">
-                  <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:var(--brand-100,#f0ead6);color:var(--brand-700,#5c5235);border-radius:4px;font-size:11px;font-weight:600">
-                    <span x-text="code"></span>
-                    <button @click="taskForm.context_ativo_ids = taskForm.context_ativo_ids.filter((_,i) => i !== ci)" style="background:none;border:none;cursor:pointer;color:var(--brand-500);font-size:13px;line-height:1">&times;</button>
-                  </span>
-                </template>
-              </div>
-              <div style="position:relative">
-                <input type="text" x-model="ui.ativoSearch" @input.debounce.200ms="ui.ativoResults = (data.menteeContext || []).filter(c => c.ativo_codigo && (c.ativo_codigo.toLowerCase().includes(($el.value||'').toLowerCase()) || (c.titulo||'').toLowerCase().includes(($el.value||'').toLowerCase())) && !(taskForm.context_ativo_ids||[]).includes(c.ativo_codigo)).slice(0,8)" @focus="if(!ui.ativoResults?.length && $el.value.length < 1) ui.ativoResults = (data.menteeContext || []).filter(c => c.ativo_codigo && !(taskForm.context_ativo_ids||[]).includes(c.ativo_codigo)).slice(0,8)" @blur="setTimeout(() => ui.ativoResults = [], 200)" placeholder="Buscar ativo por codigo ou titulo..." class="modal__input" style="font-size:12px">
-                <div x-show="ui.ativoResults?.length" style="position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);max-height:200px;overflow-y:auto;z-index:50;margin-top:2px">
-                  <template x-for="ctx in ui.ativoResults || []" :key="ctx.id">
-                    <div @mousedown.prevent="taskForm.context_ativo_ids = [...(taskForm.context_ativo_ids||[]), ctx.ativo_codigo]; ui.ativoSearch = ''; ui.ativoResults = []" style="padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:12px;border-bottom:1px solid var(--neutral-50)" @mouseover="$el.style.background='var(--neutral-50)'" @mouseout="$el.style.background=''">
-                      <span style="font-weight:700;color:var(--brand-500);min-width:70px" x-text="ctx.ativo_codigo"></span>
-                      <span style="color:var(--neutral-600);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="ctx.titulo || ctx.tipo"></span>
-                      <span style="margin-left:auto;font-size:10px;color:var(--neutral-400)" x-text="ctx.tipo"></span>
-                    </div>
-                  </template>
-                </div>
-              </div>
-            </div>
-
             <!-- Mentorado + Responsável -->
             <div class="modal__row">
               <div x-show="!taskForm.mentorado_nome"><label>Mentorado</label>
@@ -10611,7 +10485,6 @@
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
   <script src="11-APP-app.js?v=133"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">
   <script src="operon-editor.umd.js?v=1"></script>
@@ -10625,20 +10498,11 @@
     document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => {
         if (document.getElementById('loading-fallback')) {
-          console.warn('[Operon] Force-showing app (fallback after 2s)');
+          console.warn('[Operon] Force-showing app');
           document.getElementById('loading-fallback')?.remove();
           document.getElementById('app').style.display = '';
         }
       }, 2000);
-      // Safety net: if app still hidden after 5s, force show (prevents permanent white screen)
-      setTimeout(() => {
-        const app = document.getElementById('app');
-        if (app && app.style.display === 'none') {
-          console.error('[Operon] App still hidden after 5s — forcing display');
-          app.style.display = '';
-          document.getElementById('loading-fallback')?.remove();
-        }
-      }, 5000);
     });
   </script>
 
