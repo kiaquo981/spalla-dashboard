@@ -9452,7 +9452,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       try {
         const resp = await fetch(`${CONFIG.API_BASE}/api/context/transcribe`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.token || ''}` },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken || localStorage.getItem('spalla_access_token') || ''}` },
           body: JSON.stringify({ arquivo_url: ctx.arquivo_url }),
         });
         const result = await resp.json();
@@ -9475,7 +9475,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       try {
         const resp = await fetch(`${CONFIG.API_BASE}/api/context/transcribe`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.token || ''}` },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken || localStorage.getItem('spalla_access_token') || ''}` },
           body: JSON.stringify({ arquivo_url: arquivoUrl }),
         });
         const result = await resp.json();
