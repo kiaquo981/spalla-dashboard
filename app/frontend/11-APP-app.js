@@ -10871,14 +10871,13 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const curIdx = DS_ESTAGIOS.findIndex(e => e.id === doc.estagio_atual);
       if (curIdx < 0 || curIdx >= DS_ESTAGIOS.length - 1) return;
 
-      // Dependency check: enviado requires all 3 docs approved
+      // Dependency check: enviado requires all 3 docs approved (admin can override)
       const nextEstagio = DS_ESTAGIOS[curIdx + 1];
       if (nextEstagio.id === 'enviado') {
         const siblings = this.data.dsAllDocs.filter(d => d.producao_id === doc.producao_id && d.id !== docId);
         const allApproved = siblings.every(s => this.dsEstagioNum(s.estagio_atual) >= this.dsEstagioNum('aprovado'));
         if (!allApproved) {
-          this.toast('Todos os 3 documentos precisam estar aprovados antes de enviar', 'warning');
-          return;
+          if (!confirm('Os outros documentos ainda não foram aprovados. Avançar mesmo assim?')) return;
         }
       }
 
@@ -11159,11 +11158,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (!doc) return false;
       const curIdx = DS_ESTAGIOS.findIndex(e => e.id === doc.estagio_atual);
       if (curIdx < 0 || curIdx >= DS_ESTAGIOS.length - 1) return false;
-      const next = DS_ESTAGIOS[curIdx + 1];
-      if (next.id === 'enviado') {
-        const siblings = this.data.dsAllDocs.filter(d => d.producao_id === doc.producao_id && d.id !== doc.id);
-        return siblings.every(s => this.dsEstagioNum(s.estagio_atual) >= this.dsEstagioNum('aprovado'));
-      }
+      // Admin can always advance — confirm dialog handles the warning
       return true;
     },
 
