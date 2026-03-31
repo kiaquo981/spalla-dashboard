@@ -10020,7 +10020,10 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     // ===================== MENTEE LIST (for dropdowns) =====================
 
     get menteeNames() {
-      return ALL_MENTEE_NAMES || this.data.mentees.map(m => m.nome).sort();
+      if (this.data.mentees && this.data.mentees.length > 0) {
+        return this.data.mentees.map(m => m.nome).sort();
+      }
+      return ALL_MENTEE_NAMES || [];
     },
 
     // ===================== AGENDA (calls globais) =====================
