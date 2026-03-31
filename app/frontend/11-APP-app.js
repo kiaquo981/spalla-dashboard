@@ -225,6 +225,8 @@ function operon() {
       ctxRecordingChunks: [],
       ctxRecordingSeconds: 0,
       ctxRecordingTimer: null,
+      ativoSearch: '',
+      ativoResults: [],
       taskTagFilter: [],       // tag ids for filtering
       taskDateFilter: 'all', // all | today | next7 | next30 | overdue | no_date
       taskTagsDropdown: false, // tags dropdown open in modal
@@ -642,6 +644,7 @@ function operon() {
       recorrencia_ativa: true,
       bloqueio_motivo: '',
       bloqueio_responsavel: '',
+      context_ativo_ids: [],
       fieldValues: {},         // { fieldId: <value> } for custom fields
     },
 
@@ -6510,7 +6513,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     async _sbUpsertTask(task, isNew = false) {
       if (!sb) return { ok: false };
-      const VALID_COLS = ['id','titulo','descricao','status','prioridade','responsavel','acompanhante','mentorado_id','mentorado_nome','data_inicio','data_fim','space_id','list_id','parent_task_id','tags','fonte','doc_link','created_at','updated_at','created_by','recorrencia','dia_recorrencia','recorrencia_ativa','recorrencia_origem_id','bloqueio_motivo','bloqueio_responsavel'];
+      const VALID_COLS = ['id','titulo','descricao','status','prioridade','responsavel','acompanhante','mentorado_id','mentorado_nome','data_inicio','data_fim','space_id','list_id','parent_task_id','tags','fonte','doc_link','created_at','updated_at','created_by','recorrencia','dia_recorrencia','recorrencia_ativa','recorrencia_origem_id','bloqueio_motivo','bloqueio_responsavel','tipo','context_ativo_ids'];
       const DATE_COLS = ['data_inicio', 'data_fim'];
       const row = {};
       for (const k of VALID_COLS) { if (task[k] !== undefined) row[k] = task[k]; }
@@ -6713,15 +6716,18 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           newDependsOnType: 'finish_to_start',
           bloqueio_motivo: task.bloqueio_motivo || '',
           bloqueio_responsavel: task.bloqueio_responsavel || '',
+          context_ativo_ids: task.context_ativo_ids || [],
           fieldValues: {},
         };
         this.ui.taskEditId = task.id;
         this.loadFieldDefs(task.space_id, task.list_id, task.id);
+        // Load mentee context for ativo autocomplete
+        if (task.mentorado_id) this.loadMenteeContext(task.mentorado_id);
       } else {
         // Preserve mentorado_nome if it was pre-set (e.g. from mentee detail view)
         const presetMentorado = this.taskForm?.mentorado_nome || '';
         const presetTipo = this.taskForm?.tipo || 'geral';
-        this.taskForm = { titulo: '', descricao: '', responsavel: '', acompanhante: '', mentorado_nome: presetMentorado, tipo: presetTipo, prioridade: 'normal', prazo: '', data_inicio: '', data_fim: '', doc_link: '', subtasks: [], checklist: [], comments: [], attachments: [], tags: [], dependencies: [], parent_task_id: null, space_id: 'space_atendimento', list_id: '', recorrencia: 'nenhuma', dia_recorrencia: null, recorrencia_ativa: true, bloqueio_motivo: '', bloqueio_responsavel: '', newSubtask: '', newCheckItem: '', newComment: '', newTag: '', newDependsOn: '', newDependsOnType: 'finish_to_start', fieldValues: {} };
+        this.taskForm = { titulo: '', descricao: '', responsavel: '', acompanhante: '', mentorado_nome: presetMentorado, tipo: presetTipo, prioridade: 'normal', prazo: '', data_inicio: '', data_fim: '', doc_link: '', subtasks: [], checklist: [], comments: [], attachments: [], tags: [], dependencies: [], parent_task_id: null, space_id: 'space_atendimento', list_id: '', recorrencia: 'nenhuma', dia_recorrencia: null, recorrencia_ativa: true, bloqueio_motivo: '', bloqueio_responsavel: '', context_ativo_ids: [], newSubtask: '', newCheckItem: '', newComment: '', newTag: '', newDependsOn: '', newDependsOnType: 'finish_to_start', fieldValues: {} };
         this.ui.taskEditId = null;
         this.loadFieldDefs('space_atendimento', null, null);
       }
