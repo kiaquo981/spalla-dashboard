@@ -204,6 +204,8 @@ function operon() {
       ccWeekOffset: 0,       // Command Center week nav: 0=current, -1=prev, +1=next
       ccBoardFilter: 'priority', // 'all' | 'priority' (hide escala/validacao) | 'onboarding' | 'concepcao' | 'validacao' | 'escala'
       ccBoardExpanded: {},   // mentorado id → boolean
+      ccDailyExpanded: false,
+      ccActivityExpanded: false,
       spaceExpanded: null,   // which space has sub-lists visible
       docsTab: 'arquivos',   // 'arquivos' | 'biblioteca' | 'google_docs'
       taskGroupBy: 'status', // 'status' | 'assignee' | 'priority' | 'list'
