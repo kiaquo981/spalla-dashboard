@@ -201,6 +201,7 @@ function operon() {
       taskGanttRange: 'month', // 'week' | 'month' | 'quarter'
       taskSpaceFilter: 'all', // space_id filter
       taskListFilter: 'all', // list_id filter
+      taskSprintFilter: 'all', // sprint_id filter
       ccWeekOffset: 0,       // Command Center week nav: 0=current, -1=prev, +1=next
       ccBoardFilter: 'priority', // 'all' | 'priority' (hide escala/validacao) | 'onboarding' | 'concepcao' | 'validacao' | 'escala'
       ccBoardExpanded: {},   // mentorado id → boolean
@@ -215,6 +216,15 @@ function operon() {
       dossieGenType: 'oferta',
       // Context Hub
       ctxTipo: 'texto', ctxTitulo: '', ctxConteudo: '', ctxArquivo: null, ctxFase: 'onboarding', ctxSaving: false,
+      ctxLinkUrl: '',
+      ctxFilter: { tipo: 'all', fase: 'all' },
+      ctxExpanded: {},
+      ctxTranscribing: {},
+      ctxRecording: false,
+      ctxMediaRecorder: null,
+      ctxRecordingChunks: [],
+      ctxRecordingSeconds: 0,
+      ctxRecordingTimer: null,
       taskTagFilter: [],       // tag ids for filtering
       taskDateFilter: 'all', // all | today | next7 | next30 | overdue | no_date
       taskTagsDropdown: false, // tags dropdown open in modal
@@ -554,14 +564,25 @@ function operon() {
     // --- Media Cache ---
     waMediaUrls: {},  // messageId → presigned URL
 
-    // Task organization: 3 Spaces — Atendimento (mentorado) + Produto (interno) + Tecnologia
+    // Task organization: 5 Spaces — Entregas + Atendimento + Mentorado + Produto + Tecnologia
     spaces: [
-      { id: 'space_atendimento', name: 'Atendimento', icon: '◎', color: '#6366f1',
+      { id: 'space_entregas', name: 'Entregas', icon: '◇', color: '#8b5cf6',
         lists: [
           { id: 'list_dossies', name: 'Dossiês', icon: '◇' },
+          { id: 'list_materiais_mentorado', name: 'Materiais & Manuais', icon: '■' },
+        ]
+      },
+      { id: 'space_atendimento', name: 'Atendimento', icon: '◎', color: '#6366f1',
+        lists: [
           { id: 'list_analises', name: 'Análises & Revisões', icon: '◉' },
           { id: 'list_poscall', name: 'Pós-call', icon: '★' },
           { id: 'list_operacional', name: 'Operacional', icon: '✦' },
+        ]
+      },
+      { id: 'space_mentorado', name: 'Mentorado', icon: '●', color: '#10b981',
+        lists: [
+          { id: 'list_tarefas_mentorado', name: 'Tarefas do Mentorado', icon: '▸' },
+          { id: 'list_checklist_mentorado', name: 'Checklists', icon: '✓' },
         ]
       },
       { id: 'space_produto', name: 'Produto', icon: '◈', color: '#f59e0b',
@@ -1183,6 +1204,9 @@ function operon() {
       if (this.ui.taskListFilter !== 'all') {
         list = list.filter(t => t.list_id === this.ui.taskListFilter);
       }
+      if (this.ui.taskSprintFilter !== 'all') {
+        list = list.filter(t => t.sprint_id === this.ui.taskSprintFilter);
+      }
       if (this.ui.taskTagFilter.length) {
         list = list.filter(t => {
           const taskTagIds = (t.tags || []).map(tg => tg.id).filter(Boolean);
@@ -1430,8 +1454,7 @@ function operon() {
         .from('god_tasks')
         .select('titulo')
         .eq('mentorado_id', menteeId)
-        .eq('fase_origem', newPhase)
-        .eq('auto_gerada', true);
+        .eq('fase_origem', newPhase);
       if (fetchErr) throw fetchErr;
       const existingTitles = new Set((existing || []).map(t => t.titulo));
       const newTasks = templates
@@ -1443,7 +1466,6 @@ function operon() {
           prioridade: t.prioridade,
           status: 'pendente',
           fase_origem: newPhase,
-          auto_gerada: true,
         }));
       if (!newTasks.length) return 0;
       const { error } = await sb.from('god_tasks').insert(newTasks);
@@ -1513,7 +1535,7 @@ function operon() {
               acompanhante: null, mentorado_nome: null,
               data_inicio: sub.data_inicio || null,
               data_fim: sub.data_fim || null, prazo: sub.data_fim || null,
-              tags: [], is_blocked: false, auto_gerada: false, recorrencia: 'nenhuma',
+              tags: [], is_blocked: false, recorrencia: 'nenhuma',
               _depth: 1, _childCount: 0, _isSubtask: true, _parentId: task.id, _subIdx: idx,
             });
           });
@@ -1527,7 +1549,7 @@ function operon() {
               responsavel: ci.assignee || '',
               acompanhante: null, mentorado_nome: null,
               data_inicio: null, data_fim: ci.due_date || null, prazo: ci.due_date || null,
-              tags: [], is_blocked: false, auto_gerada: false, recorrencia: 'nenhuma',
+              tags: [], is_blocked: false, recorrencia: 'nenhuma',
               _depth: 1, _childCount: 0, _isChecklist: true, _parentId: task.id, _checkIdx: idx,
             });
           });
@@ -1793,7 +1815,11 @@ function operon() {
         const pathname = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
         // Deep-link: /mentorado/:id — store for after auth
         const menteeDeepLink = pathname.match(/^mentorado\/(.+)$/);
-        if (menteeDeepLink) {
+        const taskDeepLink = new URLSearchParams(window.location.search).get('task');
+        if (taskDeepLink) {
+          this._pendingTaskId = taskDeepLink;
+          this.ui.page = 'tasks';
+        } else if (menteeDeepLink) {
           this._pendingMenteeId = menteeDeepLink[1];
         } else if (pathname && this._routeMap[pathname]) {
           this.ui.page = this._routeMap[pathname];
@@ -2015,10 +2041,16 @@ function operon() {
           this._pendingMenteeId = null;
         }
         // Deep-link task: /tasks?task=UUID
-        const taskParam = new URLSearchParams(window.location.search).get('task');
-        if (taskParam) {
+        if (this._pendingTaskId) {
           this.ui.page = 'tasks';
-          setTimeout(() => this.openTaskDetail(taskParam), 500);
+          const tid = this._pendingTaskId;
+          this._pendingTaskId = null;
+          // Wait for tasks to load before opening drawer
+          const waitForTasks = () => {
+            if (this.data.tasks.length) { this.openTaskDetail(tid); }
+            else { setTimeout(waitForTasks, 200); }
+          };
+          setTimeout(waitForTasks, 300);
         }
       } catch (e) {
         this.auth.error = 'Erro ao fazer login: ' + e.message;
@@ -3334,7 +3366,6 @@ function operon() {
         data_fim: dueDateStr,
         status: 'pendente',
         fonte: 'auto_followup',
-        auto_gerada: true,
         follow_up_group_jid: groupJid || null,
       };
 
@@ -3702,8 +3733,7 @@ function operon() {
               mentorado_id: opts.mentorado_id || null,
               status: 'pendente',
               fonte: 'mention',
-              auto_gerada: true,
-            };
+                };
             const { data: task } = await sb.from('god_tasks').insert(taskData).select().single();
             if (task) {
               this.data.tasks.push(task);
@@ -3813,7 +3843,6 @@ function operon() {
           data_fim: dueDate,
           status: 'pendente',
           fonte: 'audio_batch',
-          auto_gerada: true,
           descricao: t.descricao ? `${t.descricao}\n\n[Criada por áudio em ${new Date().toLocaleDateString('pt-BR')}]` : `Criada por áudio em ${new Date().toLocaleDateString('pt-BR')}`,
         };
         const { data: newTask, error } = await sb.from('god_tasks').insert(row).select().single();
@@ -4015,8 +4044,7 @@ function operon() {
               data_fim: dueDate.toISOString().split('T')[0],
               status: 'pendente',
               fonte: 'auto_followup_bulk',
-              auto_gerada: true,
-              follow_up_group_jid: m.jid,
+                  follow_up_group_jid: m.jid,
             });
           }
           success++;
@@ -4202,7 +4230,7 @@ function operon() {
       const tasks = this.data.tasks || [];
       const sel = this.ccSelectedSprint();
       // Filter to tasks belonging to the selected sprint
-      const sprintTasks = sel ? tasks.filter(t => t.list_id === sel.id) : tasks;
+      const sprintTasks = sel ? tasks.filter(t => t.sprint_id === sel.id) : tasks;
       return {
         backlog:    sprintTasks.filter(t => t.status === 'pendente'),
         inProgress: sprintTasks.filter(t => t.status === 'em_andamento'),
@@ -6365,6 +6393,16 @@ function operon() {
               is_blocked: t.is_blocked || false,
               attachments: [],
             }));
+            // Clear stale localStorage cache — Supabase is source of truth
+            try { localStorage.removeItem(CONFIG.TASKS_STORAGE_KEY); } catch (e) {}
+            // Merge sprint_id from god_tasks (not in view)
+            try {
+              const { data: sprintData } = await sb.from('god_tasks').select('id, sprint_id').not('sprint_id', 'is', null);
+              if (sprintData) {
+                const sprintMap = Object.fromEntries(sprintData.map(s => [s.id, s.sprint_id]));
+                this.data.tasks.forEach(t => { t.sprint_id = sprintMap[t.id] || ''; });
+              }
+            } catch (e) {}
             this._autoCategorize();
             this._cacheTasksLocal();
 this._buildNotifications(); // F2.5 — refresh notification bell after tasks load
@@ -6373,31 +6411,43 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           }
         } catch (e) { console.warn('[Spalla] Tasks fetch error, falling back:', e.message); }
       }
-      // Fallback: localStorage
-      try {
-        const raw = localStorage.getItem(CONFIG.TASKS_STORAGE_KEY);
-        if (raw) { const parsed = JSON.parse(raw); if (parsed.length > 0) { this.data.tasks = parsed; this._autoCategorize(); this._checkRecurringTasks(); return; } }
-      } catch (e) {}
-      this.data.tasks = DEMO_TASKS;
-      this._cacheTasksLocal();
+      // Fallback: localStorage (only if Supabase completely unavailable)
+      if (!sb) {
+        try {
+          const raw = localStorage.getItem(CONFIG.TASKS_STORAGE_KEY);
+          if (raw) { const parsed = JSON.parse(raw); if (parsed.length > 0) { this.data.tasks = parsed; this._autoCategorize(); this._checkRecurringTasks(); return; } }
+        } catch (e) {}
+        this.data.tasks = DEMO_TASKS;
+      }
     },
 
     _autoCategorize() {
+      const validSpaces = ['space_entregas', 'space_atendimento', 'space_mentorado', 'space_produto', 'space_tecnologia'];
       this.data.tasks.forEach(t => {
-        // Migrate old space IDs to new ones
-        const oldSpaces = ['space_mentorados', 'space_equipe', 'space_queila', 'space_jornada', 'space_gestao', 'space_ia', 'space_sistema'];
-        if (oldSpaces.includes(t.space_id)) {
+        // Skip tasks already in valid spaces
+        if (validSpaces.includes(t.space_id)) return;
+        // Migrate old space IDs
+        if (t.space_id) {
           t.space_id = null; t.list_id = null;
+        }
+        // Migrate dossiês from atendimento to entregas
+        if (t.space_id === 'space_atendimento' && t.list_id === 'list_dossies') {
+          t.space_id = 'space_entregas';
         }
         if (!t.space_id) {
           const titulo = (t.titulo || '').toLowerCase();
           const fonte = t.fonte || '';
           const resp = t.responsavel || '';
 
-          // Dossiê tasks → Atendimento / Dossiês
+          // Dossiê tasks → Entregas / Dossiês
           if (titulo.includes('dossie') || titulo.includes('dossiê') || titulo.startsWith('[ds]') || fonte === 'dossie') {
-            t.space_id = 'space_atendimento';
+            t.space_id = 'space_entregas';
             t.list_id = 'list_dossies';
+          }
+          // Mentorado-owned tasks → Mentorado / Tarefas
+          else if (resp === 'mentorado' || resp === 'Mentorado' || titulo.includes('checklist de ações')) {
+            t.space_id = 'space_mentorado';
+            t.list_id = 'list_tarefas_mentorado';
           }
           // Pós-call actions → Atendimento / Pós-call
           else if (fonte === 'tarefas_acordadas' || fonte === 'analise_call' || titulo.includes('pós-call') || titulo.includes('pos-call')) {
@@ -6676,6 +6726,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     closeTaskModal() {
       this.ui.taskModal = false;
       this.ui.taskEditId = null;
+      this.taskForm.mentorado_nome = '';
     },
 
     async saveTask() {
@@ -6817,12 +6868,14 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (!t) return;
       // Normalize responsavel to lowercase (prevent duplicates like "Kaique" vs "kaique")
       if (field === 'responsavel' && value) value = value.toLowerCase().trim();
+      // Normalize empty strings to null for DB (sprint_id, list_id)
+      const dbValue = (value === '' && ['sprint_id', 'list_id'].includes(field)) ? null : value;
       const old = t[field];
       t[field] = value;
       t.updated_at = new Date().toISOString();
       this._cacheTasksLocal();
       if (sb) {
-        const { error } = await sb.from('god_tasks').update({ [field]: value, updated_at: t.updated_at }).eq('id', taskId);
+        const { error } = await sb.from('god_tasks').update({ [field]: dbValue, updated_at: t.updated_at }).eq('id', taskId);
         if (error) { t[field] = old; this._cacheTasksLocal(); this.toast('Erro ao atualizar ' + field, 'error'); }
       }
     },
@@ -6942,11 +6995,15 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     // Task detail drawer
     openTaskDetail(taskId) {
+      // Navigate to tasks page if not already there
+      if (this.ui.page !== 'tasks') {
+        this.navigate('tasks');
+      }
       this.ui.taskDetailDrawer = taskId;
       this.ui.taskActivity = [];
       this._loadTaskActivity(taskId);
-      // Update URL for shareable link (without page reload) — only on tasks page
-      if (taskId && window.history.replaceState && this.ui.page === 'tasks') {
+      // Update URL for shareable link
+      if (taskId && window.history.replaceState) {
         window.history.replaceState(null, '', `/tasks?task=${taskId}`);
       }
     },
@@ -7043,6 +7100,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     // ===================== MENTIONS =====================
 
     // Detecta @ enquanto digita no textarea de comentário
+    handleMentionInput(e) { return this.onCommentKeyup(e); },
     onCommentKeyup(e) {
       const ta = e.target;
       const text = ta.value;
@@ -7077,8 +7135,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       );
     },
 
-    insertMention(name) {
-      const ta = this.$refs.commentTextarea;
+    insertMention(name, targetEl) {
+      const ta = targetEl || this.$refs.commentTextarea;
       if (!ta) return;
       const text = this.taskForm.newComment || '';
       const before = text.slice(0, this.ui.mentionStart);
@@ -9251,7 +9309,13 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           criado_por: this.auth.currentUser?.email || '',
         };
 
-        // Upload file if present
+        // Link tipo: store URL in link_url
+        if (this.ui.ctxTipo === 'link' && this.ui.ctxLinkUrl) {
+          record.link_url = this.ui.ctxLinkUrl;
+          if (!record.conteudo) record.conteudo = this.ui.ctxLinkUrl;
+        }
+
+        // Upload file if present (arquivo, audio or gravacao)
         if (this.ui.ctxArquivo) {
           const file = this.ui.ctxArquivo;
           const path = `context/${menteeId}/${Date.now()}_${file.name}`;
@@ -9266,15 +9330,21 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           record.arquivo_tamanho = file.size;
         }
 
-        const { error } = await sb.from('mentorado_context').insert(record);
+        const { data: inserted, error } = await sb.from('mentorado_context').insert(record).select('id').single();
         if (error) throw error;
 
         // Reset form
         this.ui.ctxTitulo = '';
         this.ui.ctxConteudo = '';
         this.ui.ctxArquivo = null;
+        this.ui.ctxLinkUrl = '';
         this.toast('Contexto adicionado', 'success');
         await this.loadMenteeContext(menteeId);
+
+        // Auto-transcribe after saving audio/gravacao
+        if (inserted?.id && ['audio', 'gravacao'].includes(record.tipo) && record.arquivo_url) {
+          this._autoTranscribeIfNeeded(inserted.id);
+        }
       } catch (e) {
         console.error('[Spalla] saveContext:', e);
         this.toast('Erro ao salvar: ' + e.message, 'error');
@@ -9298,6 +9368,84 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           .update({ ativo: false })
           .eq('mentorado_id', menteeId);
       } catch (e) { console.warn('[Spalla] archiveContext:', e); }
+    },
+
+    // Context Hub — filtered list (used in x-for)
+    get filteredMenteeContext() {
+      let items = this.data.menteeContext || [];
+      const f = this.ui.ctxFilter;
+      if (f.tipo !== 'all') items = items.filter(c => c.tipo === f.tipo);
+      if (f.fase !== 'all') items = items.filter(c => c.fase === f.fase);
+      return items;
+    },
+
+    // Context Hub — audio recording via MediaRecorder
+    async startRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        this.ui.ctxRecordingChunks = [];
+        this.ui.ctxRecordingSeconds = 0;
+        const mr = new MediaRecorder(stream);
+        this.ui.ctxMediaRecorder = mr;
+        mr.ondataavailable = (e) => { if (e.data.size > 0) this.ui.ctxRecordingChunks.push(e.data); };
+        mr.onstop = () => this._onRecordingStop(stream);
+        mr.start(200);
+        this.ui.ctxRecording = true;
+        this.ui.ctxRecordingTimer = setInterval(() => { this.ui.ctxRecordingSeconds++; }, 1000);
+      } catch (e) {
+        this.toast('Microfone não disponível: ' + e.message, 'error');
+      }
+    },
+
+    stopRecording() {
+      if (this.ui.ctxMediaRecorder && this.ui.ctxRecording) {
+        clearInterval(this.ui.ctxRecordingTimer);
+        this.ui.ctxMediaRecorder.stop();
+        this.ui.ctxRecording = false;
+      }
+    },
+
+    async _onRecordingStop(stream) {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(this.ui.ctxRecordingChunks, { type: 'audio/webm' });
+      const ts = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', '');
+      const file = new File([blob], `gravacao_${Date.now()}.webm`, { type: 'audio/webm' });
+      this.ui.ctxArquivo = file;
+      this.ui.ctxTipo = 'gravacao';
+      if (!this.ui.ctxTitulo) this.ui.ctxTitulo = `Gravação ${ts}`;
+      this.toast('Gravação pronta! Transcrição automática após salvar.', 'info');
+    },
+
+    // Context Hub — transcribe an existing audio context card
+    async transcribeContext(ctxId) {
+      const ctx = (this.data.menteeContext || []).find(c => c.id === ctxId);
+      if (!ctx?.arquivo_url) { this.toast('Sem arquivo de áudio para transcrever', 'warn'); return; }
+      this.ui.ctxTranscribing = { ...this.ui.ctxTranscribing, [ctxId]: true };
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/context/transcribe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.token || ''}` },
+          body: JSON.stringify({ arquivo_url: ctx.arquivo_url }),
+        });
+        const result = await resp.json();
+        if (result.error) throw new Error(result.error);
+        await sb.from('mentorado_context').update({ transcricao: result.transcricao }).eq('id', ctxId);
+        const idx = (this.data.menteeContext || []).findIndex(c => c.id === ctxId);
+        if (idx >= 0) this.data.menteeContext[idx] = { ...this.data.menteeContext[idx], transcricao: result.transcricao };
+        this.toast('Transcrição concluída!', 'success');
+      } catch (e) {
+        this.toast('Erro na transcrição: ' + e.message, 'error');
+      }
+      const t = { ...this.ui.ctxTranscribing };
+      delete t[ctxId];
+      this.ui.ctxTranscribing = t;
+    },
+
+    // Context Hub — auto-transcribe after saving a gravacao
+    async _autoTranscribeIfNeeded(ctxId) {
+      const ctx = (this.data.menteeContext || []).find(c => c.id === ctxId);
+      if (!ctx || !['audio', 'gravacao'].includes(ctx.tipo) || !ctx.arquivo_url || ctx.transcricao) return;
+      await this.transcribeContext(ctxId);
     },
 
     // ===== EPIC 1: Load Chatwoot messages for mentorado =====
@@ -9999,7 +10147,10 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     // ===================== MENTEE LIST (for dropdowns) =====================
 
     get menteeNames() {
-      return ALL_MENTEE_NAMES || this.data.mentees.map(m => m.nome).sort();
+      if (this.data.mentees && this.data.mentees.length > 0) {
+        return this.data.mentees.map(m => m.nome).sort();
+      }
+      return ALL_MENTEE_NAMES || [];
     },
 
     // ===================== AGENDA (calls globais) =====================
@@ -10828,14 +10979,13 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const curIdx = DS_ESTAGIOS.findIndex(e => e.id === doc.estagio_atual);
       if (curIdx < 0 || curIdx >= DS_ESTAGIOS.length - 1) return;
 
-      // Dependency check: enviado requires all 3 docs approved
+      // Dependency check: enviado requires all 3 docs approved (admin can override)
       const nextEstagio = DS_ESTAGIOS[curIdx + 1];
       if (nextEstagio.id === 'enviado') {
         const siblings = this.data.dsAllDocs.filter(d => d.producao_id === doc.producao_id && d.id !== docId);
         const allApproved = siblings.every(s => this.dsEstagioNum(s.estagio_atual) >= this.dsEstagioNum('aprovado'));
         if (!allApproved) {
-          this.toast('Todos os 3 documentos precisam estar aprovados antes de enviar', 'warning');
-          return;
+          if (!confirm('Os outros documentos do dossiê (oferta/funil/conteúdo) ainda não passaram por todas as revisões. Enviar este documento mesmo assim?')) return;
         }
       }
 
@@ -10920,26 +11070,18 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const estagio = this.dsEstagioConfig(doc.estagio_atual);
       const user = this.currentUserName;
 
-      const taskData = {
-        titulo: `Ajuste dossiê — ${mentoradoNome}${tipoLabel ? ' (' + tipoLabel + ')' : ''}`,
-        descricao: `Dossiê: ${tipoLabel} | Etapa: ${estagio?.label || doc.estagio_atual} | Solicitado por: ${user}`,
-        tipo: 'ajuste_dossie',
-        prioridade: 'alta',
-        responsavel: '',
-        mentorado_nome: mentoradoNome,
-        mentorado_id: doc.mentorado_id || prod?.mentorado_id || null,
-        tags: ['ajuste-dossie'],
-        doc_link: doc.link_doc || '',
-        status: 'pendente',
-        fonte: 'auto_dossie',
-        auto_gerada: true,
-      };
-
-      const { data: created, error } = await sb.from('god_tasks').insert(taskData).select().single();
-      if (error) { this.toast('Erro ao criar tarefa: ' + error.message, 'error'); return; }
-      this.data.tasks.push(created);
-      this._cacheTasksLocal();
-      this.toast(`Tarefa de ajuste criada: ${taskData.titulo}`, 'success');
+      // Pre-fill task form and open modal for user to complete
+      this.taskForm.titulo = `Ajuste dossiê — ${mentoradoNome}${tipoLabel ? ' (' + tipoLabel + ')' : ''}`;
+      this.taskForm.descricao = `Dossiê: ${tipoLabel} | Etapa: ${estagio?.label || doc.estagio_atual} | Solicitado por: ${user}\n\nO que precisa ajustar:\n`;
+      this.taskForm.tipo = 'ajuste_dossie';
+      this.taskForm.prioridade = 'alta';
+      this.taskForm.mentorado_nome = mentoradoNome;
+      this.taskForm.doc_link = doc.link_doc || '';
+      this.taskForm.space_id = 'space_entregas';
+      this.taskForm.list_id = 'list_dossies';
+      this.taskForm.tags = ['ajuste-dossie'];
+      this.ui.taskEditId = null;
+      this.ui.taskModal = true;
     },
 
     async updateDsStatus(producaoId, newStatus) {
@@ -11116,11 +11258,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (!doc) return false;
       const curIdx = DS_ESTAGIOS.findIndex(e => e.id === doc.estagio_atual);
       if (curIdx < 0 || curIdx >= DS_ESTAGIOS.length - 1) return false;
-      const next = DS_ESTAGIOS[curIdx + 1];
-      if (next.id === 'enviado') {
-        const siblings = this.data.dsAllDocs.filter(d => d.producao_id === doc.producao_id && d.id !== doc.id);
-        return siblings.every(s => this.dsEstagioNum(s.estagio_atual) >= this.dsEstagioNum('aprovado'));
-      }
+      // Admin can always advance — confirm dialog handles the warning
       return true;
     },
 
