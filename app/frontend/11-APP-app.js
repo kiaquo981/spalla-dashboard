@@ -6406,10 +6406,12 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     _autoCategorize() {
+      const validSpaces = ['space_entregas', 'space_atendimento', 'space_mentorado', 'space_produto', 'space_tecnologia'];
       this.data.tasks.forEach(t => {
-        // Migrate old space IDs to new ones
-        const oldSpaces = ['space_mentorados', 'space_equipe', 'space_queila', 'space_jornada', 'space_gestao', 'space_ia', 'space_sistema'];
-        if (oldSpaces.includes(t.space_id)) {
+        // Skip tasks already in valid spaces
+        if (validSpaces.includes(t.space_id)) return;
+        // Migrate old space IDs
+        if (t.space_id) {
           t.space_id = null; t.list_id = null;
         }
         // Migrate dossiês from atendimento to entregas
