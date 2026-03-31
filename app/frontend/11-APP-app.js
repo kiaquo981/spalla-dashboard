@@ -4479,23 +4479,14 @@ function operon() {
     // === CC V2: Mentorados sem call há X dias ===
     ccMentoradosSemCall() {
       const mentees = this.data.mentees || [];
-      const calls = this.data.scheduledCalls || [];
-      const now = new Date();
       const result = [];
       for (const m of mentees) {
         if (m.status === 'offboarded' || m.status === 'cancelado') continue;
-        // Find last call for this mentorado
-        const menteeCalls = calls.filter(c =>
-          c.mentorado_id === m.id ||
-          (c.mentorado_nome || '').toLowerCase() === (m.nome || '').toLowerCase()
-        );
-        const lastCall = menteeCalls
-          .map(c => new Date(c.data_call || c.dateStr || c.start))
-          .filter(d => !isNaN(d))
-          .sort((a, b) => b - a)[0];
-        const diasSemCall = lastCall ? Math.floor((now - lastCall) / (1000 * 60 * 60 * 24)) : 999;
+        // Use dias_desde_call from vw_god_overview (already computed correctly)
+        const diasSemCall = m.dias_desde_call ?? 999;
         if (diasSemCall >= 14) {
-          result.push({ id: m.id, nome: m.nome, diasSemCall, lastCall: lastCall?.toLocaleDateString('pt-BR') || 'Nunca' });
+          const lastCallDate = m.ultima_call_data ? new Date(m.ultima_call_data).toLocaleDateString('pt-BR') : 'Nunca';
+          result.push({ id: m.id, nome: m.nome, diasSemCall, lastCall: lastCallDate });
         }
       }
       return result.sort((a, b) => b.diasSemCall - a.diasSemCall).slice(0, 15);
