@@ -9318,12 +9318,13 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         // Upload file if present (arquivo, audio or gravacao)
         if (this.ui.ctxArquivo) {
           const file = this.ui.ctxArquivo;
+          const MAX_SIZE = 100 * 1024 * 1024; // 100 MB
+          if (file.size > MAX_SIZE) throw new Error('Arquivo muito grande (máx 100 MB)');
           const path = `context/${menteeId}/${Date.now()}_${file.name}`;
-          const { data: uploadData, error: uploadError } = await sb.storage
-            .from('uploads')
-            .upload(path, file);
+          const { error: uploadError } = await sb.storage.from('uploads').upload(path, file);
           if (uploadError) throw uploadError;
           const { data: urlData } = sb.storage.from('uploads').getPublicUrl(path);
+          if (!urlData?.publicUrl) throw new Error('Falha ao obter URL do arquivo');
           record.arquivo_url = urlData.publicUrl;
           record.arquivo_nome = file.name;
           record.arquivo_tipo = file.type;
@@ -9341,9 +9342,9 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         this.toast('Contexto adicionado', 'success');
         await this.loadMenteeContext(menteeId);
 
-        // Auto-transcribe after saving audio/gravacao
+        // Auto-transcribe — passa arquivo_url diretamente (não busca no array para evitar race)
         if (inserted?.id && ['audio', 'gravacao'].includes(record.tipo) && record.arquivo_url) {
-          this._autoTranscribeIfNeeded(inserted.id);
+          this._autoTranscribeWithUrl(inserted.id, record.arquivo_url);
         }
       } catch (e) {
         console.error('[Spalla] saveContext:', e);
@@ -9441,11 +9442,32 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.ui.ctxTranscribing = t;
     },
 
-    // Context Hub — auto-transcribe after saving a gravacao
+    // Context Hub — auto-transcribe after saving (usa URL direto, sem depender do array carregado)
+    async _autoTranscribeWithUrl(ctxId, arquivoUrl) {
+      this.ui.ctxTranscribing = { ...this.ui.ctxTranscribing, [ctxId]: true };
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/context/transcribe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.token || ''}` },
+          body: JSON.stringify({ arquivo_url: arquivoUrl }),
+        });
+        const result = await resp.json();
+        if (result.error) throw new Error(result.error);
+        await sb.from('mentorado_context').update({ transcricao: result.transcricao }).eq('id', ctxId);
+        const idx = (this.data.menteeContext || []).findIndex(c => c.id === ctxId);
+        if (idx >= 0) this.data.menteeContext[idx] = { ...this.data.menteeContext[idx], transcricao: result.transcricao };
+        this.toast('Transcrição concluída!', 'success');
+      } catch (e) {
+        this.toast('Transcrição automática falhou: ' + e.message, 'warn');
+      }
+      const t = { ...this.ui.ctxTranscribing }; delete t[ctxId]; this.ui.ctxTranscribing = t;
+    },
+
+    // Context Hub — auto-transcribe para itens já salvos (busca no array)
     async _autoTranscribeIfNeeded(ctxId) {
       const ctx = (this.data.menteeContext || []).find(c => c.id === ctxId);
       if (!ctx || !['audio', 'gravacao'].includes(ctx.tipo) || !ctx.arquivo_url || ctx.transcricao) return;
-      await this.transcribeContext(ctxId);
+      await this._autoTranscribeWithUrl(ctxId, ctx.arquivo_url);
     },
 
     // ===== EPIC 1: Load Chatwoot messages for mentorado =====

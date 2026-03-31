@@ -4500,8 +4500,12 @@ Transcrição:
                     self._send_json({'error': 'arquivo_url required'}, 400)
                     return
                 import urllib.request as _urlreq
-                with _urlreq.urlopen(arquivo_url) as r:
-                    audio_bytes = r.read()
+                MAX_AUDIO_BYTES = 50 * 1024 * 1024  # 50 MB limit
+                with _urlreq.urlopen(arquivo_url, timeout=30) as r:
+                    audio_bytes = r.read(MAX_AUDIO_BYTES + 1)
+                    if len(audio_bytes) > MAX_AUDIO_BYTES:
+                        self._send_json({'error': 'Arquivo muito grande (máx 50 MB)'}, 413)
+                        return
                     mime_type = r.headers.get('Content-Type', 'audio/mpeg')
                 import os
                 filename = os.path.basename(arquivo_url.split('?')[0]) or 'audio.mp3'
@@ -4511,8 +4515,9 @@ Transcrição:
                 return
 
             transcricao = openai_whisper(audio_bytes, filename, mime_type)
-            if not transcricao:
-                self._send_json({'error': 'Transcrição vazia'}, 400)
+            # Detect Whisper error returned as stringified dict
+            if not transcricao or (isinstance(transcricao, str) and transcricao.startswith("{'error")):
+                self._send_json({'error': 'Falha na transcrição (Whisper)'}, 500)
                 return
 
             self._send_json({'transcricao': transcricao.strip()})
