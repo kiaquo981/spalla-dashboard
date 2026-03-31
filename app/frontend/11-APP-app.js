@@ -6396,13 +6396,14 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           }
         } catch (e) { console.warn('[Spalla] Tasks fetch error, falling back:', e.message); }
       }
-      // Fallback: localStorage
-      try {
-        const raw = localStorage.getItem(CONFIG.TASKS_STORAGE_KEY);
-        if (raw) { const parsed = JSON.parse(raw); if (parsed.length > 0) { this.data.tasks = parsed; this._autoCategorize(); this._checkRecurringTasks(); return; } }
-      } catch (e) {}
-      this.data.tasks = DEMO_TASKS;
-      this._cacheTasksLocal();
+      // Fallback: localStorage (only if Supabase completely unavailable)
+      if (!sb) {
+        try {
+          const raw = localStorage.getItem(CONFIG.TASKS_STORAGE_KEY);
+          if (raw) { const parsed = JSON.parse(raw); if (parsed.length > 0) { this.data.tasks = parsed; this._autoCategorize(); this._checkRecurringTasks(); return; } }
+        } catch (e) {}
+        this.data.tasks = DEMO_TASKS;
+      }
     },
 
     _autoCategorize() {
