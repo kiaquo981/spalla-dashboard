@@ -3222,13 +3222,18 @@ function operon() {
             const senderLower = (msg.sender_name || '').toLowerCase();
             const isTeam = teamNames.has(senderLower) ||
               [...teamNames].some(tn => senderLower.includes(tn) || tn.includes(senderLower));
+            // Normalize content_type: Supabase stores WA types like 'conversation', 'extendedTextMessage'
+            // Template expects: text, audio, image, video, document
+            const MEDIA_TYPES = new Set(['audio', 'image', 'video', 'document', 'sticker']);
+            const rawType = (msg.type || '').toLowerCase();
+            const normalizedType = MEDIA_TYPES.has(rawType) ? rawType : 'text';
             return {
               sender: isTeam ? (msg.sender_name || 'Equipe CASE') : (msg.sender_name || nome),
-              conteudo: msg.content || `[${msg.type || 'mensagem'}]`,
+              conteudo: msg.content || (normalizedType !== 'text' ? `[${rawType}]` : ''),
               created_at: msg.timestamp,
               message_id: msg.message_id,
               is_from_team: isTeam,
-              content_type: msg.type || 'text',
+              content_type: normalizedType,
               media_url: msg.media_url,
             };
           });
@@ -9354,11 +9359,31 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     async deleteContext(ctxId) {
-      if (!confirm('Remover este contexto?')) return;
+      if (!confirm('Excluir este contexto permanentemente?')) return;
       try {
         await sb.from('mentorado_context').delete().eq('id', ctxId);
         this.data.menteeContext = this.data.menteeContext.filter(c => c.id !== ctxId);
-        this.toast('Contexto removido', 'success');
+        this.toast('Contexto excluido', 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    async archiveContext(ctxId) {
+      try {
+        await sb.from('mentorado_context').update({ ativo: false }).eq('id', ctxId);
+        this.data.menteeContext = this.data.menteeContext.filter(c => c.id !== ctxId);
+        this.toast('Contexto arquivado', 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    async archiveAllContext() {
+      const items = this.filteredMenteeContext;
+      if (!items.length) return;
+      if (!confirm(`Arquivar ${items.length} contexto(s)? Eles nao serao excluidos, apenas ocultados.`)) return;
+      try {
+        const ids = items.map(c => c.id);
+        await sb.from('mentorado_context').update({ ativo: false }).in('id', ids);
+        this.data.menteeContext = this.data.menteeContext.filter(c => !ids.includes(c.id));
+        this.toast(`${ids.length} contexto(s) arquivado(s)`, 'success');
       } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
     },
 
@@ -9413,8 +9438,10 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const file = new File([blob], `gravacao_${Date.now()}.webm`, { type: 'audio/webm' });
       this.ui.ctxArquivo = file;
       this.ui.ctxTipo = 'gravacao';
-      if (!this.ui.ctxTitulo) this.ui.ctxTitulo = `Gravação ${ts}`;
-      this.toast('Gravação pronta! Transcrição automática após salvar.', 'info');
+      if (!this.ui.ctxTitulo) this.ui.ctxTitulo = `Gravacao ${ts}`;
+      // Auto-save after recording stops (triggered by "Parar e salvar" button)
+      this.toast('Salvando gravacao...', 'info');
+      await this.saveContext();
     },
 
     // Context Hub — transcribe an existing audio context card
