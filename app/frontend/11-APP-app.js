@@ -10956,25 +10956,18 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const estagio = this.dsEstagioConfig(doc.estagio_atual);
       const user = this.currentUserName;
 
-      const taskData = {
-        titulo: `Ajuste dossiê — ${mentoradoNome}${tipoLabel ? ' (' + tipoLabel + ')' : ''}`,
-        descricao: `Dossiê: ${tipoLabel} | Etapa: ${estagio?.label || doc.estagio_atual} | Solicitado por: ${user}`,
-        tipo: 'ajuste_dossie',
-        prioridade: 'alta',
-        responsavel: '',
-        mentorado_nome: mentoradoNome,
-        mentorado_id: doc.mentorado_id || prod?.mentorado_id || null,
-        tags: ['ajuste-dossie'],
-        doc_link: doc.link_doc || '',
-        status: 'pendente',
-        fonte: 'auto_dossie',
-      };
-
-      const { data: created, error } = await sb.from('god_tasks').insert(taskData).select().single();
-      if (error) { this.toast('Erro ao criar tarefa: ' + error.message, 'error'); return; }
-      this.data.tasks.push(created);
-      this._cacheTasksLocal();
-      this.toast(`Tarefa de ajuste criada: ${taskData.titulo}`, 'success');
+      // Pre-fill task form and open modal for user to complete
+      this.taskForm.titulo = `Ajuste dossiê — ${mentoradoNome}${tipoLabel ? ' (' + tipoLabel + ')' : ''}`;
+      this.taskForm.descricao = `Dossiê: ${tipoLabel} | Etapa: ${estagio?.label || doc.estagio_atual} | Solicitado por: ${user}\n\nO que precisa ajustar:\n`;
+      this.taskForm.tipo = 'ajuste_dossie';
+      this.taskForm.prioridade = 'alta';
+      this.taskForm.mentorado_nome = mentoradoNome;
+      this.taskForm.doc_link = doc.link_doc || '';
+      this.taskForm.space_id = 'space_entregas';
+      this.taskForm.list_id = 'list_dossies';
+      this.taskForm.tags = ['ajuste-dossie'];
+      this.ui.taskEditId = null;
+      this.ui.taskModal = true;
     },
 
     async updateDsStatus(producaoId, newStatus) {
