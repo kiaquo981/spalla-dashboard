@@ -201,6 +201,7 @@ function operon() {
       taskGanttRange: 'month', // 'week' | 'month' | 'quarter'
       taskSpaceFilter: 'all', // space_id filter
       taskListFilter: 'all', // list_id filter
+      taskSprintFilter: 'all', // sprint_id filter
       ccWeekOffset: 0,       // Command Center week nav: 0=current, -1=prev, +1=next
       ccBoardFilter: 'priority', // 'all' | 'priority' (hide escala/validacao) | 'onboarding' | 'concepcao' | 'validacao' | 'escala'
       ccBoardExpanded: {},   // mentorado id → boolean
@@ -1193,6 +1194,9 @@ function operon() {
       }
       if (this.ui.taskListFilter !== 'all') {
         list = list.filter(t => t.list_id === this.ui.taskListFilter);
+      }
+      if (this.ui.taskSprintFilter !== 'all') {
+        list = list.filter(t => t.sprint_id === this.ui.taskSprintFilter);
       }
       if (this.ui.taskTagFilter.length) {
         list = list.filter(t => {
@@ -4213,7 +4217,7 @@ function operon() {
       const tasks = this.data.tasks || [];
       const sel = this.ccSelectedSprint();
       // Filter to tasks belonging to the selected sprint
-      const sprintTasks = sel ? tasks.filter(t => t.list_id === sel.id) : tasks;
+      const sprintTasks = sel ? tasks.filter(t => t.sprint_id === sel.id) : tasks;
       return {
         backlog:    sprintTasks.filter(t => t.status === 'pendente'),
         inProgress: sprintTasks.filter(t => t.status === 'em_andamento'),
