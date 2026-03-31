@@ -2317,23 +2317,27 @@ function operon() {
     // Convert whatsapp_messages row to Evolution API format (HTML compatible)
     _waDbToEvolutionFormat(row) {
       // whatsapp_messages schema: type, content, media_url, media_mime_type, quoted_message_id, group_id
-      const contentType = row.type || 'text';
+      // Normalize DB type: 'audioMessage' → 'audio', 'imageMessage' → 'image', etc
+      const rawType = (row.type || 'text').replace('Message', '').toLowerCase();
+      const contentType = rawType === 'chat' ? 'text' : rawType === 'conversation' ? 'text' : rawType === 'extendedtext' ? 'text' : rawType;
       const msgObj = {};
-      if (contentType === 'text' || contentType === 'chat' || !contentType) {
+      if (contentType === 'text' || !contentType) {
         msgObj.conversation = row.content || '';
       } else if (contentType === 'image') {
-        msgObj.imageMessage = { caption: row.caption || row.content || '', url: row.media_url };
+        msgObj.imageMessage = { caption: row.caption || '', url: row.media_url, mediaUrl: row.media_url };
       } else if (contentType === 'audio' || contentType === 'ptt') {
-        msgObj.audioMessage = { url: row.media_url, mimetype: row.media_mime_type || 'audio/ogg' };
+        msgObj.audioMessage = { url: row.media_url, mimetype: row.media_mime_type || 'audio/ogg', mediaUrl: row.media_url };
       } else if (contentType === 'video') {
-        msgObj.videoMessage = { caption: row.caption || row.content || '', url: row.media_url };
+        msgObj.videoMessage = { caption: row.caption || '', url: row.media_url, mediaUrl: row.media_url };
       } else if (contentType === 'document') {
-        msgObj.documentMessage = { fileName: row.file_name || row.content || 'Documento', url: row.media_url, mimetype: row.media_mime_type };
+        msgObj.documentMessage = { fileName: row.file_name || row.content || 'Documento', url: row.media_url, mimetype: row.media_mime_type, mediaUrl: row.media_url };
       } else if (contentType === 'sticker') {
         msgObj.conversation = '[Sticker]';
       } else {
-        msgObj.conversation = row.content || `[${contentType}]`;
+        msgObj.conversation = row.content || `[${rawType}]`;
       }
+      // Also set mediaUrl at message level for eagerlyLoadWaMediaUrls
+      if (row.media_url) msgObj.mediaUrl = row.media_url;
       // Detect forwarded messages (sender starts with ~)
       const senderRaw = row.sender_name || 'Desconhecido';
       const isForwarded = senderRaw.startsWith('~');
