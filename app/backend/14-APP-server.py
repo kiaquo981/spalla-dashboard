@@ -28,8 +28,11 @@ except ImportError:
 
 try:
     import bcrypt as _bcrypt
+    BCRYPT_AVAILABLE = True
 except ImportError:
-    _bcrypt = None  # Falls back to SHA-256 if not installed
+    _bcrypt = None
+    BCRYPT_AVAILABLE = False
+    print('[WARN] bcrypt not installed — password hashing will fail. Run: pip install bcrypt')
 
 PORT = int(os.environ.get('PORT', 8888))
 
@@ -105,7 +108,7 @@ if not JWT_SECRET:
     print(f'[WARNING] JWT_SECRET not set — generated ephemeral key (tokens will not survive restarts)')
 JWT_ALGORITHM = 'HS256'
 ACCESS_TOKEN_EXPIRY_MINUTES = 480  # 8 hours — avoids mid-day session drops
-REFRESH_TOKEN_EXPIRY_DAYS = 30
+REFRESH_TOKEN_EXPIRY_DAYS = 7
 
 # ===== API KEY CONFIG =====
 STATIC_API_KEYS = {}
@@ -121,10 +124,10 @@ if _raw_keys:
 
 # ===== AUTH FUNCTIONS (Supabase-backed) =====
 def hash_password(password):
-    """Hash password using bcrypt (falls back to SHA-256 if bcrypt unavailable)"""
-    if _bcrypt:
-        return _bcrypt.hashpw(password.encode(), _bcrypt.gensalt()).decode()
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash password using bcrypt — raises if bcrypt is not installed"""
+    if not BCRYPT_AVAILABLE:
+        raise RuntimeError('bcrypt is required for password hashing. Run: pip install bcrypt')
+    return _bcrypt.hashpw(password.encode(), _bcrypt.gensalt()).decode()
 
 def _is_legacy_sha256(stored_hash):
     """Check if hash is a legacy SHA-256 (64 hex chars)"""
@@ -136,12 +139,12 @@ def verify_password(password, stored_hash):
         if hashlib.sha256(password.encode()).hexdigest() == stored_hash:
             return 'migrate'  # Signal to upgrade hash
         return False
-    if _bcrypt:
-        try:
-            return _bcrypt.checkpw(password.encode(), stored_hash.encode())
-        except Exception:
-            return False
-    return hashlib.sha256(password.encode()).hexdigest() == stored_hash
+    if not BCRYPT_AVAILABLE:
+        raise RuntimeError('bcrypt is required for password verification. Run: pip install bcrypt')
+    try:
+        return _bcrypt.checkpw(password.encode(), stored_hash.encode())
+    except Exception:
+        return False
 
 def create_jwt_token(email, user_id, role='equipe', expiry_minutes=ACCESS_TOKEN_EXPIRY_MINUTES):
     """Create JWT access token"""
@@ -1606,11 +1609,23 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def _read_json_body(self):
         return json.loads(self._read_body())
 
+    def _get_cors_origin(self):
+        origin = self.headers.get('Origin', '')
+        allowed = [
+            'https://spalla-dashboard.vercel.app',
+            'https://spalla-dashboard-git-',  # Vercel preview URLs
+            'http://localhost:',
+            'http://127.0.0.1:',
+        ]
+        if any(origin.startswith(a) for a in allowed):
+            return origin
+        return 'https://spalla-dashboard.vercel.app'  # default
+
     def _send_json(self, data, status=200):
         body = json.dumps(data, ensure_ascii=False, default=str).encode()
         self.send_response(status)
         self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Origin', self._get_cors_origin())
         self.send_header('Content-Length', len(body))
         self.end_headers()
         self.wfile.write(body)
@@ -1899,9 +1914,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Origin', self._get_cors_origin())
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, apikey, Authorization')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, apikey, Authorization, X-API-Key')
         self.send_header('Access-Control-Max-Age', '86400')
         self.end_headers()
 
@@ -2273,6 +2288,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         Enriches system prompt with mentee context (fase, saúde, tópicos WA, notas recentes).
         Returns: { reply: str, context_used: bool }
         """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
         try:
             body = json.loads(self._read_body())
             mentee_id = body.get('mentee_id')
@@ -2593,6 +2612,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             else:
                 self._send_json({'error': 'Not found'}, 404)
     def _handle_delete_calendar_event(self):
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
         try:
             event_id = self.path.split('/')[-1]
             result = delete_calendar_event(event_id)
@@ -2607,6 +2630,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         2. Create Google Calendar event with Zoom link
         3. Store in Supabase calls_mentoria
         """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
         try:
             body = json.loads(self._read_body())
         except Exception:
@@ -2700,6 +2727,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     # ===== INDIVIDUAL ENDPOINTS =====
     def _handle_create_zoom_meeting(self):
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
         try:
             body = json.loads(self._read_body())
             result = create_zoom_meeting(
@@ -2713,6 +2744,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': str(e)}, 500)
 
     def _handle_create_calendar_event(self):
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
         try:
             body = json.loads(self._read_body())
             result = create_calendar_event(
@@ -2786,7 +2821,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             if content_length:
                 self.send_header('Content-Length', content_length)
             # Allow CORS from frontend
-            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Origin', self._get_cors_origin())
             self.send_header('Cache-Control', 'public, max-age=3600')
             self.end_headers()
 
@@ -2812,7 +2847,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     self.send_response(200)
                     self.send_header('Content-Type', ct)
                     if cl: self.send_header('Content-Length', cl)
-                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.send_header('Access-Control-Allow-Origin', self._get_cors_origin())
                     self.send_header('Cache-Control', 'public, max-age=3600')
                     self.end_headers()
                     while True:
@@ -2864,7 +2899,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             # For now, return hardcoded based on what we found
             # TODO: Implement actual bucket listing via S3 API
             self._send_json({
-                'instance': EVOLUTION_CONFIG['INSTANCE'],
+                'instance': os.getenv('EVOLUTION_INSTANCE', 'producao002'),
                 'note': 'UUID discovery not yet automated. Please check S3 bucket manually.',
                 's3_bucket': S3_BUCKET,
                 's3_endpoint': S3_ENDPOINT,
@@ -3343,7 +3378,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 resp_body = resp.read()
                 self.send_response(resp.status)
                 self.send_header('Content-Type', 'application/json')
-                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Access-Control-Allow-Origin', self._get_cors_origin())
                 self.send_header('Content-Length', len(resp_body))
                 self.end_headers()
                 self.wfile.write(resp_body)
@@ -3351,7 +3386,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             error_body = e.read()
             self.send_response(e.code)
             self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Origin', self._get_cors_origin())
             self.send_header('Content-Length', len(error_body))
             self.end_headers()
             self.wfile.write(error_body)
@@ -3359,7 +3394,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             error_msg = json.dumps({'error': str(e)}).encode()
             self.send_response(502)
             self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Origin', self._get_cors_origin())
             self.send_header('Content-Length', len(error_msg))
             self.end_headers()
             self.wfile.write(error_msg)
@@ -3802,6 +3837,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     def _handle_storage_process(self):
         """POST /api/storage/process — Trigger file processing pipeline."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
         try:
             body = json.loads(self._read_body())
         except Exception:
@@ -3917,6 +3956,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     def _handle_storage_reprocess(self):
         """POST /api/storage/reprocess — Reprocess all files with status 'pendente' or 'erro'."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
         try:
             body = json.loads(self._read_body()) if int(self.headers.get('Content-Length', 0)) > 0 else {}
         except Exception:

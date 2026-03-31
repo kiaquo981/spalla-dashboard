@@ -2358,7 +2358,7 @@ function operon() {
       const isForwarded = senderRaw.startsWith('~');
       const senderClean = isForwarded ? senderRaw.substring(1).trim() : senderRaw;
       return {
-        key: { id: row.message_id, fromMe: false, remoteJid: row.group_id || row.chat_id },
+        key: { id: row.message_id || row.id || ('db-' + Date.now()), fromMe: !!row.is_from_team, remoteJid: row.group_id || row.chat_id },
         message: msgObj,
         messageTimestamp: row.timestamp ? Math.floor(new Date(row.timestamp).getTime() / 1000) : Math.floor(Date.now() / 1000),
         pushName: senderClean,
@@ -7946,17 +7946,20 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.stopWhatsAppPolling(); // cleanup previous subscriptions + polling
 
       const groupJid = chat.remoteJid || chat.id;
+      this._loadingGroupJid = groupJid;
 
       // Strategy: try Supabase wa_messages first, fallback to Evolution API
       let usedRealtime = false;
       try {
         const { data: rawMsgs, error } = await sb.from('whatsapp_messages')
-          .select('id,message_id,group_id,sender_name,type,content,media_url,media_mime_type,quoted_message_id,timestamp')
+          .select('id,message_id,group_id,sender_name,type,content,media_url,media_mime_type,quoted_message_id,timestamp,is_from_team')
           .eq('group_id', groupJid)
           .order('timestamp', { ascending: false })
           .limit(100);
         // Reverse to chronological order (oldest first for display)
         const dbMsgs = rawMsgs ? rawMsgs.reverse() : [];
+
+        if (this._loadingGroupJid !== groupJid) return; // stale request — user switched chats
 
         if (!error && dbMsgs && dbMsgs.length > 0) {
           // Use Supabase data — convert to Evolution format for HTML compatibility
