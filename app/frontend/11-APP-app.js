@@ -2278,11 +2278,16 @@ function operon() {
           const newMsg = this._waDbToEvolutionFormat(payload.new);
           // Avoid duplicates (optimistic insert from send)
           if (!this.data.whatsappMessages.find(m => m.key?.id === newMsg.key?.id)) {
+            // Only auto-scroll if user is already near the bottom
+            const feed = document.querySelector('.wa-chat__messages');
+            const wasAtBottom = feed ? (feed.scrollHeight - feed.scrollTop - feed.clientHeight < 150) : true;
             this.data.whatsappMessages.push(newMsg);
-            this.$nextTick(() => {
-              const el = document.getElementById('wa-messages-end');
-              if (el) el.scrollIntoView({ behavior: 'smooth' });
-            });
+            if (wasAtBottom) {
+              this.$nextTick(() => {
+                const el = document.getElementById('wa-messages-end');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              });
+            }
           }
           // TASK-05: Check if this message resolves a pending follow-up
           if (!payload.new.is_from_team) {
@@ -2383,9 +2388,11 @@ function operon() {
             const localId = lastLocal?.key?.id || '';
             const remoteId = lastRemote?.key?.id || '';
             if (newMsgs.length !== this.data.whatsappMessages.length || localId !== remoteId) {
+              const feed = document.querySelector('.wa-chat__messages');
+              const wasAtBottom = feed ? (feed.scrollHeight - feed.scrollTop - feed.clientHeight < 150) : true;
               this.data.whatsappMessages = newMsgs;
               this.eagerlyLoadWaMediaUrls(this.data.whatsappMessages);
-              this.$nextTick(() => {
+              if (wasAtBottom) this.$nextTick(() => {
                 const el = document.getElementById('wa-messages-end');
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
               });
@@ -8302,6 +8309,15 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     getWaChatName(chat) {
       return chat?.name || chat?.subject || chat?.pushName || chat?.id?.split('@')[0] || 'Chat';
+    },
+
+    // Convert URLs in text to clickable links (safe — escapes HTML first)
+    linkifyText(text) {
+      if (!text) return '';
+      // Escape HTML to prevent XSS
+      const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      // Convert URLs to <a> tags
+      return escaped.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:#3b82f6;text-decoration:underline;word-break:break-all">$1</a>');
     },
 
     // ===== Reply-to helpers =====
