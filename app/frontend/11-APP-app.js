@@ -216,6 +216,15 @@ function operon() {
       dossieGenType: 'oferta',
       // Context Hub
       ctxTipo: 'texto', ctxTitulo: '', ctxConteudo: '', ctxArquivo: null, ctxFase: 'onboarding', ctxSaving: false,
+      ctxLinkUrl: '',
+      ctxFilter: { tipo: 'all', fase: 'all' },
+      ctxExpanded: {},
+      ctxTranscribing: {},
+      ctxRecording: false,
+      ctxMediaRecorder: null,
+      ctxRecordingChunks: [],
+      ctxRecordingSeconds: 0,
+      ctxRecordingTimer: null,
       taskTagFilter: [],       // tag ids for filtering
       taskDateFilter: 'all', // all | today | next7 | next30 | overdue | no_date
       taskTagsDropdown: false, // tags dropdown open in modal
@@ -9300,7 +9309,13 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           criado_por: this.auth.currentUser?.email || '',
         };
 
-        // Upload file if present
+        // Link tipo: store URL in link_url
+        if (this.ui.ctxTipo === 'link' && this.ui.ctxLinkUrl) {
+          record.link_url = this.ui.ctxLinkUrl;
+          if (!record.conteudo) record.conteudo = this.ui.ctxLinkUrl;
+        }
+
+        // Upload file if present (arquivo, audio or gravacao)
         if (this.ui.ctxArquivo) {
           const file = this.ui.ctxArquivo;
           const path = `context/${menteeId}/${Date.now()}_${file.name}`;
@@ -9315,15 +9330,21 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           record.arquivo_tamanho = file.size;
         }
 
-        const { error } = await sb.from('mentorado_context').insert(record);
+        const { data: inserted, error } = await sb.from('mentorado_context').insert(record).select('id').single();
         if (error) throw error;
 
         // Reset form
         this.ui.ctxTitulo = '';
         this.ui.ctxConteudo = '';
         this.ui.ctxArquivo = null;
+        this.ui.ctxLinkUrl = '';
         this.toast('Contexto adicionado', 'success');
         await this.loadMenteeContext(menteeId);
+
+        // Auto-transcribe after saving audio/gravacao
+        if (inserted?.id && ['audio', 'gravacao'].includes(record.tipo) && record.arquivo_url) {
+          this._autoTranscribeIfNeeded(inserted.id);
+        }
       } catch (e) {
         console.error('[Spalla] saveContext:', e);
         this.toast('Erro ao salvar: ' + e.message, 'error');
@@ -9347,6 +9368,84 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           .update({ ativo: false })
           .eq('mentorado_id', menteeId);
       } catch (e) { console.warn('[Spalla] archiveContext:', e); }
+    },
+
+    // Context Hub — filtered list (used in x-for)
+    get filteredMenteeContext() {
+      let items = this.data.menteeContext || [];
+      const f = this.ui.ctxFilter;
+      if (f.tipo !== 'all') items = items.filter(c => c.tipo === f.tipo);
+      if (f.fase !== 'all') items = items.filter(c => c.fase === f.fase);
+      return items;
+    },
+
+    // Context Hub — audio recording via MediaRecorder
+    async startRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        this.ui.ctxRecordingChunks = [];
+        this.ui.ctxRecordingSeconds = 0;
+        const mr = new MediaRecorder(stream);
+        this.ui.ctxMediaRecorder = mr;
+        mr.ondataavailable = (e) => { if (e.data.size > 0) this.ui.ctxRecordingChunks.push(e.data); };
+        mr.onstop = () => this._onRecordingStop(stream);
+        mr.start(200);
+        this.ui.ctxRecording = true;
+        this.ui.ctxRecordingTimer = setInterval(() => { this.ui.ctxRecordingSeconds++; }, 1000);
+      } catch (e) {
+        this.toast('Microfone não disponível: ' + e.message, 'error');
+      }
+    },
+
+    stopRecording() {
+      if (this.ui.ctxMediaRecorder && this.ui.ctxRecording) {
+        clearInterval(this.ui.ctxRecordingTimer);
+        this.ui.ctxMediaRecorder.stop();
+        this.ui.ctxRecording = false;
+      }
+    },
+
+    async _onRecordingStop(stream) {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(this.ui.ctxRecordingChunks, { type: 'audio/webm' });
+      const ts = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', '');
+      const file = new File([blob], `gravacao_${Date.now()}.webm`, { type: 'audio/webm' });
+      this.ui.ctxArquivo = file;
+      this.ui.ctxTipo = 'gravacao';
+      if (!this.ui.ctxTitulo) this.ui.ctxTitulo = `Gravação ${ts}`;
+      this.toast('Gravação pronta! Transcrição automática após salvar.', 'info');
+    },
+
+    // Context Hub — transcribe an existing audio context card
+    async transcribeContext(ctxId) {
+      const ctx = (this.data.menteeContext || []).find(c => c.id === ctxId);
+      if (!ctx?.arquivo_url) { this.toast('Sem arquivo de áudio para transcrever', 'warn'); return; }
+      this.ui.ctxTranscribing = { ...this.ui.ctxTranscribing, [ctxId]: true };
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/context/transcribe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.token || ''}` },
+          body: JSON.stringify({ arquivo_url: ctx.arquivo_url }),
+        });
+        const result = await resp.json();
+        if (result.error) throw new Error(result.error);
+        await sb.from('mentorado_context').update({ transcricao: result.transcricao }).eq('id', ctxId);
+        const idx = (this.data.menteeContext || []).findIndex(c => c.id === ctxId);
+        if (idx >= 0) this.data.menteeContext[idx] = { ...this.data.menteeContext[idx], transcricao: result.transcricao };
+        this.toast('Transcrição concluída!', 'success');
+      } catch (e) {
+        this.toast('Erro na transcrição: ' + e.message, 'error');
+      }
+      const t = { ...this.ui.ctxTranscribing };
+      delete t[ctxId];
+      this.ui.ctxTranscribing = t;
+    },
+
+    // Context Hub — auto-transcribe after saving a gravacao
+    async _autoTranscribeIfNeeded(ctxId) {
+      const ctx = (this.data.menteeContext || []).find(c => c.id === ctxId);
+      if (!ctx || !['audio', 'gravacao'].includes(ctx.tipo) || !ctx.arquivo_url || ctx.transcricao) return;
+      await this.transcribeContext(ctxId);
     },
 
     // ===== EPIC 1: Load Chatwoot messages for mentorado =====
