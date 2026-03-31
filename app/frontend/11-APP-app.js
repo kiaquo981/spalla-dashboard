@@ -6380,6 +6380,8 @@ function operon() {
               is_blocked: t.is_blocked || false,
               attachments: [],
             }));
+            // Clear stale localStorage cache — Supabase is source of truth
+            try { localStorage.removeItem(CONFIG.TASKS_STORAGE_KEY); } catch (e) {}
             // Merge sprint_id from god_tasks (not in view)
             try {
               const { data: sprintData } = await sb.from('god_tasks').select('id, sprint_id').not('sprint_id', 'is', null);
