@@ -6976,11 +6976,15 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     // Task detail drawer
     openTaskDetail(taskId) {
+      // Navigate to tasks page if not already there
+      if (this.ui.page !== 'tasks') {
+        this.navigate('tasks');
+      }
       this.ui.taskDetailDrawer = taskId;
       this.ui.taskActivity = [];
       this._loadTaskActivity(taskId);
-      // Update URL for shareable link (without page reload) — only on tasks page
-      if (taskId && window.history.replaceState && this.ui.page === 'tasks') {
+      // Update URL for shareable link
+      if (taskId && window.history.replaceState) {
         window.history.replaceState(null, '', `/tasks?task=${taskId}`);
       }
     },
