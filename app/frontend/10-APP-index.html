@@ -3258,9 +3258,13 @@
 
                         <!-- Título + meta -->
                         <div style="flex:1;min-width:0">
-                          <div style="font-size:13px;font-weight:600;margin-bottom:2px" x-text="ctx.titulo || ctx.tipo"></div>
+                          <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+                            <span x-show="ctx.ativo_codigo" style="font-size:10px;font-weight:700;color:var(--brand-500,#8a7d52);background:var(--brand-100,#f0ead6);padding:1px 6px;border-radius:3px;font-family:monospace" x-text="ctx.ativo_codigo"></span>
+                            <span style="font-size:13px;font-weight:600" x-text="ctx.titulo || ctx.tipo"></span>
+                          </div>
                           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                             <span style="font-size:10px;padding:1px 6px;border-radius:3px;background:var(--bg-subtle);color:var(--text-secondary)" x-text="ctx.fase?.replaceAll('_',' ')"></span>
+                            <span x-show="ctx.origem && ctx.origem !== 'manual'" style="font-size:10px;padding:1px 6px;border-radius:3px;background:#dbeafe;color:#1d4ed8" x-text="ctx.origem === 'whatsapp_ui' ? 'via WhatsApp' : ctx.origem"></span>
                             <span style="font-size:10px;color:var(--text-secondary)" x-text="ctx.criado_por?.split('@')[0] || 'sistema'"></span>
                             <span style="font-size:10px;color:var(--text-secondary)" x-text="new Date(ctx.created_at).toLocaleDateString('pt-BR', {day:'2-digit',month:'short',year:'numeric'})"></span>
                           </div>
@@ -3318,14 +3322,27 @@
                           🔗 <span x-text="ctx.link_url?.replace(/^https?:\/\//, '').substring(0, 50)"></span>
                         </a>
 
-                        <!-- Botão Transcrever (só p/ áudio/gravacao sem transcrição ainda) -->
+                        <!-- Botão Transcrever -->
                         <button x-show="['audio','gravacao'].includes(ctx.tipo) && ctx.arquivo_url && !ctx.transcricao"
                                 @click="transcribeContext(ctx.id)"
                                 :disabled="ui.ctxTranscribing[ctx.id]"
                                 style="display:flex;align-items:center;gap:4px;padding:3px 10px;border:1px solid #d97706;border-radius:4px;background:transparent;cursor:pointer;font-size:11px;color:#d97706"
                                 :style="ui.ctxTranscribing[ctx.id] ? 'opacity:0.6;cursor:not-allowed' : ''">
-                          <span x-show="!ui.ctxTranscribing[ctx.id]">🤖 Transcrever</span>
+                          <span x-show="!ui.ctxTranscribing[ctx.id]">Transcrever</span>
                           <span x-show="ui.ctxTranscribing[ctx.id]">Transcrevendo...</span>
+                        </button>
+                        <!-- Criar tarefa a partir deste ativo -->
+                        <button x-show="ctx.ativo_codigo" @click="taskForm.mentorado_nome = data.detail?.profile?.nome; taskForm.context_ativo_ids = [ctx.ativo_codigo]; taskForm.descricao = (ctx.titulo || ctx.tipo) + (ctx.conteudo ? '\n\n' + ctx.conteudo.substring(0,200) : ''); openTaskModal()"
+                                style="display:flex;align-items:center;gap:4px;padding:3px 10px;border:1px solid var(--brand-500,#8a7d52);border-radius:4px;background:transparent;cursor:pointer;font-size:11px;color:var(--brand-500,#8a7d52)">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                          Criar tarefa
+                        </button>
+                        <!-- Copiar código do ativo -->
+                        <button x-show="ctx.ativo_codigo" @click="navigator.clipboard.writeText(ctx.ativo_codigo); toast('Codigo copiado: ' + ctx.ativo_codigo, 'success')"
+                                style="display:flex;align-items:center;gap:4px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:transparent;cursor:pointer;font-size:11px;color:var(--text-secondary)"
+                                title="Copiar codigo do ativo">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                          <span x-text="ctx.ativo_codigo"></span>
                         </button>
                       </div>
                     </div>
