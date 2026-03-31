@@ -8172,13 +8172,14 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     getWaMessageType(msg) {
+      // Supabase-sourced messages have _contentType set during normalization
+      if (msg?._contentType) return msg._contentType;
       if (!msg?.message) return 'text';
       const m = msg.message;
       if (m.audioMessage) return 'audio';
       if (m.imageMessage) return 'image';
       if (m.videoMessage) return 'video';
       if (m.documentMessage) {
-        // Document messages with media MIME types render as that media
         if (m.documentMessage.mimetype?.includes('video')) return 'video';
         if (m.documentMessage.mimetype?.includes('audio')) return 'audio';
         if (m.documentMessage.mimetype?.includes('image')) return 'image';
@@ -8200,12 +8201,12 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         // Skip if already cached
         if (this.waMediaUrls[msgId]) continue;
 
-        // Check if Evolution API provided mediaUrl
+        // Check if Evolution API provided mediaUrl directly
         if (msg.message?.mediaUrl) {
           this.waMediaUrls[msgId] = msg.message.mediaUrl;
           updated = true;
         }
-        // Check if message came from Supabase with _mediaUrl (S3 key or full URL)
+        // Check if Supabase row has _mediaUrl (S3 key or full URL)
         else if (msg._mediaUrl) {
           const url = msg._mediaUrl;
           if (url.includes('mmg.whatsapp.net')) {
