@@ -2026,6 +2026,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         # ===== Task from Audio (TASK-07) =====
         elif self.path == '/api/tasks/from-audio':
             self._handle_tasks_from_audio()
+        # ===== Context Hub: Transcribe audio =====
+        elif self.path == '/api/context/transcribe':
+            self._handle_context_transcribe()
         # ===== Task Notifications =====
         elif self.path == '/api/tasks/notify':
             self._handle_task_notify()
@@ -4463,6 +4466,58 @@ Transcrição:
             })
         except Exception as e:
             logger.error(f'[tasks-from-audio] Error: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_context_transcribe(self):
+        """POST /api/context/transcribe — Transcribe audio URL or file via Whisper.
+        Accepts JSON { arquivo_url } or multipart with 'audio' field.
+        Returns { transcricao }.
+        """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
+        try:
+            content_type = self.headers.get('Content-Type', '')
+
+            if 'multipart/form-data' in content_type:
+                # Direct audio blob upload
+                import cgi
+                environ = {'REQUEST_METHOD': 'POST', 'CONTENT_TYPE': content_type}
+                form = cgi.FieldStorage(fp=self.rfile, headers=self.headers, environ=environ)
+                audio_field = form['audio']
+                audio_bytes = audio_field.file.read()
+                filename = audio_field.filename or 'audio.webm'
+                mime_type = audio_field.type or 'audio/webm'
+            else:
+                # JSON body with arquivo_url
+                length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(length)
+                import json as _json
+                payload = _json.loads(body)
+                arquivo_url = payload.get('arquivo_url')
+                if not arquivo_url:
+                    self._send_json({'error': 'arquivo_url required'}, 400)
+                    return
+                import urllib.request as _urlreq
+                with _urlreq.urlopen(arquivo_url) as r:
+                    audio_bytes = r.read()
+                    mime_type = r.headers.get('Content-Type', 'audio/mpeg')
+                import os
+                filename = os.path.basename(arquivo_url.split('?')[0]) or 'audio.mp3'
+
+            if not OPENAI_API_KEY:
+                self._send_json({'error': 'OPENAI_API_KEY not configured'}, 500)
+                return
+
+            transcricao = openai_whisper(audio_bytes, filename, mime_type)
+            if not transcricao:
+                self._send_json({'error': 'Transcrição vazia'}, 400)
+                return
+
+            self._send_json({'transcricao': transcricao.strip()})
+        except Exception as e:
+            logger.error(f'[context-transcribe] Error: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_task_notify(self):
