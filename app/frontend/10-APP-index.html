@@ -4321,14 +4321,14 @@
                           </template>
                         </div>
                         <div style="position:relative">
-                          <textarea x-model="taskForm.newComment" placeholder="Digite texto ou use '@' para mencionar alguém" rows="3"
-                                    @input="handleMentionInput($event, 'drawer')"
+                          <textarea x-ref="drawerComment" x-model="taskForm.newComment" placeholder="Digite texto ou use '@' para mencionar alguém" rows="3"
+                                    @input="handleMentionInput($event)"
                                     @keydown.escape="ui.mentionDropdown = false"
-                                    @keydown.enter="if(ui.mentionDropdown && mentionMembers().length) { $event.preventDefault(); insertMention(mentionMembers()[0].nome_curto, $event.target, 'drawer') }"
+                                    @keydown.enter="if(ui.mentionDropdown && mentionMembers().length) { $event.preventDefault(); insertMention(mentionMembers()[0].nome_curto, $refs.drawerComment) }"
                                     style="width:100%;border:1px solid var(--neutral-200, #e2e8f0);border-radius:8px;padding:8px 12px;font-size:13px;font-family:inherit;resize:vertical;background:#fafaf8"></textarea>
                           <div x-show="ui.mentionDropdown" x-transition style="position:absolute;bottom:100%;left:0;background:white;border:1px solid var(--neutral-200);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);max-height:160px;overflow-y:auto;z-index:50;min-width:180px;margin-bottom:4px">
                             <template x-for="m in mentionMembers()" :key="m.id || m.nome_curto">
-                              <div style="padding:6px 12px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:6px" @click="insertMention(m.nome_curto, $refs.drawerCommentArea, 'drawer')" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='white'">
+                              <div style="padding:6px 12px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:6px" @mousedown.prevent="insertMention(m.nome_curto, $refs.drawerComment)" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='white'">
                                 <span style="width:24px;height:24px;border-radius:50%;background:var(--brand-primary);color:white;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600" x-text="(m.nome_curto || m.nome || '?')[0].toUpperCase()"></span>
                                 <span x-text="m.nome_curto || m.nome"></span>
                                 <span style="color:#94a3b8;font-size:10px" x-text="m.cargo || ''"></span>
@@ -10311,7 +10311,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=126"></script>
+  <script src="11-APP-app.js?v=127"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">
