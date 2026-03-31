@@ -4501,14 +4501,22 @@ Transcrição:
                     return
                 import urllib.request as _urlreq
                 MAX_AUDIO_BYTES = 50 * 1024 * 1024  # 50 MB limit
-                with _urlreq.urlopen(arquivo_url, timeout=30) as r:
-                    audio_bytes = r.read(MAX_AUDIO_BYTES + 1)
-                    if len(audio_bytes) > MAX_AUDIO_BYTES:
-                        self._send_json({'error': 'Arquivo muito grande (máx 50 MB)'}, 413)
-                        return
-                    mime_type = r.headers.get('Content-Type', 'audio/mpeg')
+                logger.info(f'[context-transcribe] Downloading: {arquivo_url[:120]}')
+                try:
+                    req = _urlreq.Request(arquivo_url, headers={'User-Agent': 'Spalla/1.0'})
+                    with _urlreq.urlopen(req, timeout=60) as r:
+                        audio_bytes = r.read(MAX_AUDIO_BYTES + 1)
+                        if len(audio_bytes) > MAX_AUDIO_BYTES:
+                            self._send_json({'error': 'Arquivo muito grande (max 50 MB)'}, 413)
+                            return
+                        mime_type = r.headers.get('Content-Type', 'audio/mpeg')
+                except Exception as dl_err:
+                    logger.error(f'[context-transcribe] Download failed: {dl_err}')
+                    self._send_json({'error': f'Falha ao baixar audio: {dl_err}'}, 502)
+                    return
                 import os
-                filename = os.path.basename(arquivo_url.split('?')[0]) or 'audio.mp3'
+                filename = os.path.basename(arquivo_url.split('?')[0]) or 'audio.webm'
+                logger.info(f'[context-transcribe] Downloaded {len(audio_bytes)} bytes, sending to Whisper')
 
             if not OPENAI_API_KEY:
                 self._send_json({'error': 'OPENAI_API_KEY not configured'}, 500)
@@ -4517,7 +4525,7 @@ Transcrição:
             transcricao = openai_whisper(audio_bytes, filename, mime_type)
             # Detect Whisper error returned as stringified dict
             if not transcricao or (isinstance(transcricao, str) and transcricao.startswith("{'error")):
-                self._send_json({'error': 'Falha na transcrição (Whisper)'}, 500)
+                self._send_json({'error': 'Falha na transcricao (Whisper)'}, 500)
                 return
 
             self._send_json({'transcricao': transcricao.strip()})
