@@ -9498,6 +9498,141 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       await this._autoTranscribeWithUrl(ctxId, ctx.arquivo_url);
     },
 
+    // ===== S2: Save WA message as Context (ativo) =====
+
+    // From WA main page (Evolution API raw message format)
+    async saveWaMsgAsContext(msg) {
+      // Identify mentorado from current chat's linked group
+      const chatJid = ui.whatsappSelectedChat?.remoteJid || ui.whatsappSelectedChat?.id;
+      const group = (this.data.waGroups || []).find(g => g.group_jid === chatJid);
+      let menteeId = group?.mentorado_id;
+      let menteeName = '';
+
+      if (!menteeId) {
+        // Fallback: ask user to pick mentorado
+        const name = prompt('Mentorado nao detectado automaticamente.\nDigite o nome do mentorado:');
+        if (!name) return;
+        const match = this.data.mentees.find(m => m.nome.toLowerCase().includes(name.toLowerCase()));
+        if (!match) { this.toast('Mentorado nao encontrado: ' + name, 'error'); return; }
+        menteeId = match.id;
+        menteeName = match.nome;
+      } else {
+        menteeName = this.data.mentees.find(m => m.id == menteeId)?.nome || '';
+      }
+
+      const msgType = this.getWaMessageType(msg);
+      const msgText = this.getWaMessageText(msg);
+      const mediaUrl = this.waMediaUrls?.[msg.key?.id] || null;
+      const msgId = msg.key?.id || null;
+
+      // Map WA type to context tipo
+      const tipoMap = { text: 'texto', audio: 'audio', image: 'imagem', video: 'video', document: 'documento' };
+      const tipo = tipoMap[msgType] || 'texto';
+
+      const record = {
+        mentorado_id: menteeId,
+        tipo,
+        titulo: `WA: ${msg.pushName || 'mensagem'} — ${new Date().toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit'})}`,
+        conteudo: msgText || '',
+        fase: 'geral',
+        origem: 'whatsapp_ui',
+        wa_message_id: msgId,
+        wa_group_jid: chatJid,
+        criado_por: this.auth.currentUser?.email || '',
+      };
+
+      // If media, download and upload to storage
+      if (mediaUrl && tipo !== 'texto') {
+        try {
+          const resp = await fetch(mediaUrl);
+          const blob = await resp.blob();
+          const ext = tipo === 'imagem' ? 'jpg' : tipo === 'audio' ? 'ogg' : tipo === 'video' ? 'mp4' : 'bin';
+          const fileName = `wa_${msgId || Date.now()}.${ext}`;
+          const path = `context/${menteeId}/${Date.now()}_${fileName}`;
+          const { error: uploadErr } = await sb.storage.from('uploads').upload(path, blob);
+          if (uploadErr) throw uploadErr;
+          const { data: urlData } = sb.storage.from('uploads').getPublicUrl(path);
+          record.arquivo_url = urlData?.publicUrl;
+          record.arquivo_nome = fileName;
+          record.arquivo_tipo = blob.type;
+          record.arquivo_tamanho = blob.size;
+        } catch (e) {
+          console.warn('[S2] Media upload failed, saving text only:', e.message);
+        }
+      }
+
+      try {
+        const { data: inserted, error } = await sb.from('mentorado_context').insert(record).select('ativo_codigo').single();
+        if (error) throw error;
+        const code = inserted?.ativo_codigo || 'ATIVO';
+        this.toast(`${code} salvo na ficha de ${menteeName}`, 'success');
+        // Auto-transcribe if audio
+        if (inserted?.id && ['audio', 'gravacao'].includes(tipo) && record.arquivo_url) {
+          this._autoTranscribeWithUrl(inserted.id, record.arquivo_url);
+        }
+      } catch (e) {
+        this.toast('Erro ao salvar contexto: ' + e.message, 'error');
+      }
+    },
+
+    // From WA detail tab in ficha (normalized message format)
+    async saveDetailWaMsgAsContext(msg) {
+      const menteeId = this.data.detail?.profile?.id;
+      const menteeName = this.data.detail?.profile?.nome || '';
+      if (!menteeId) { this.toast('Mentorado nao identificado', 'error'); return; }
+
+      const tipoMap = { text: 'texto', audio: 'audio', image: 'imagem', video: 'video', document: 'documento' };
+      const tipo = tipoMap[msg.content_type] || 'texto';
+
+      const record = {
+        mentorado_id: menteeId,
+        tipo,
+        titulo: `WA: ${msg.sender || 'mensagem'} — ${new Date(msg.created_at).toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit'})}`,
+        conteudo: msg.conteudo || '',
+        fase: 'geral',
+        origem: 'whatsapp_ui',
+        wa_message_id: msg.message_id || null,
+        wa_group_jid: this.data.detail?._waGroupJid || null,
+        criado_por: this.auth.currentUser?.email || '',
+      };
+
+      // If has media URL, download and re-upload to context storage
+      if (msg.media_url && tipo !== 'texto') {
+        try {
+          const mediaUrl = this.waDetailMediaUrl(msg.media_url);
+          const resp = await fetch(mediaUrl);
+          const blob = await resp.blob();
+          const ext = tipo === 'imagem' ? 'jpg' : tipo === 'audio' ? 'ogg' : tipo === 'video' ? 'mp4' : 'bin';
+          const fileName = `wa_${msg.message_id || Date.now()}.${ext}`;
+          const path = `context/${menteeId}/${Date.now()}_${fileName}`;
+          const { error: uploadErr } = await sb.storage.from('uploads').upload(path, blob);
+          if (uploadErr) throw uploadErr;
+          const { data: urlData } = sb.storage.from('uploads').getPublicUrl(path);
+          record.arquivo_url = urlData?.publicUrl;
+          record.arquivo_nome = fileName;
+          record.arquivo_tipo = blob.type;
+          record.arquivo_tamanho = blob.size;
+        } catch (e) {
+          console.warn('[S2] Media upload failed, saving text only:', e.message);
+        }
+      }
+
+      try {
+        const { data: inserted, error } = await sb.from('mentorado_context').insert(record).select('ativo_codigo').single();
+        if (error) throw error;
+        const code = inserted?.ativo_codigo || 'ATIVO';
+        this.toast(`${code} salvo na ficha de ${menteeName}`, 'success');
+        // Reload context if on context tab
+        if (this.ui.activeDetailTab === 'contexto') await this.loadMenteeContext(menteeId);
+        // Auto-transcribe if audio
+        if (inserted?.id && ['audio'].includes(tipo) && record.arquivo_url) {
+          this._autoTranscribeWithUrl(inserted.id, record.arquivo_url);
+        }
+      } catch (e) {
+        this.toast('Erro ao salvar contexto: ' + e.message, 'error');
+      }
+    },
+
     // ===== EPIC 1: Load Chatwoot messages for mentorado =====
     async loadMenteeMessages(menteeId) {
       if (!menteeId) return;
