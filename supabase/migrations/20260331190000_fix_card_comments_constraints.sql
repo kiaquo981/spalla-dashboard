@@ -8,6 +8,7 @@ ALTER TABLE card_comments
   CHECK (num_nonnulls(producao_id, documento_id, mentorado_id) = 1);
 
 -- Add FK on mentorado_id (was missing — producao_id and documento_id had FKs)
+-- NOTE: mentorados is a VIEW over "case".mentorados — FK must reference the base table
 ALTER TABLE card_comments
   ADD CONSTRAINT card_comments_mentorado_id_fkey
-  FOREIGN KEY (mentorado_id) REFERENCES mentorados(id) ON DELETE CASCADE;
+  FOREIGN KEY (mentorado_id) REFERENCES "case".mentorados(id) ON DELETE CASCADE;
