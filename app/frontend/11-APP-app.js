@@ -2334,15 +2334,20 @@ function operon() {
       } else {
         msgObj.conversation = row.content || `[${contentType}]`;
       }
+      // Detect forwarded messages (sender starts with ~)
+      const senderRaw = row.sender_name || 'Desconhecido';
+      const isForwarded = senderRaw.startsWith('~');
+      const senderClean = isForwarded ? senderRaw.substring(1).trim() : senderRaw;
       return {
         key: { id: row.message_id, fromMe: false, remoteJid: row.group_id || row.chat_id },
         message: msgObj,
         messageTimestamp: row.timestamp ? Math.floor(new Date(row.timestamp).getTime() / 1000) : Math.floor(Date.now() / 1000),
-        pushName: row.sender_name || 'Desconhecido',
+        pushName: senderClean,
         _dbId: row.id,
         _replyToId: row.quoted_message_id,
         _contentType: contentType,
         _mediaUrl: row.media_url,
+        _isForwarded: isForwarded,
       };
     },
 
