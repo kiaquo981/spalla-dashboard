@@ -554,14 +554,25 @@ function operon() {
     // --- Media Cache ---
     waMediaUrls: {},  // messageId → presigned URL
 
-    // Task organization: 3 Spaces — Atendimento (mentorado) + Produto (interno) + Tecnologia
+    // Task organization: 5 Spaces — Entregas + Atendimento + Mentorado + Produto + Tecnologia
     spaces: [
-      { id: 'space_atendimento', name: 'Atendimento', icon: '◎', color: '#6366f1',
+      { id: 'space_entregas', name: 'Entregas', icon: '◇', color: '#8b5cf6',
         lists: [
           { id: 'list_dossies', name: 'Dossiês', icon: '◇' },
+          { id: 'list_materiais_mentorado', name: 'Materiais & Manuais', icon: '■' },
+        ]
+      },
+      { id: 'space_atendimento', name: 'Atendimento', icon: '◎', color: '#6366f1',
+        lists: [
           { id: 'list_analises', name: 'Análises & Revisões', icon: '◉' },
           { id: 'list_poscall', name: 'Pós-call', icon: '★' },
           { id: 'list_operacional', name: 'Operacional', icon: '✦' },
+        ]
+      },
+      { id: 'space_mentorado', name: 'Mentorado', icon: '●', color: '#10b981',
+        lists: [
+          { id: 'list_tarefas_mentorado', name: 'Tarefas do Mentorado', icon: '▸' },
+          { id: 'list_checklist_mentorado', name: 'Checklists', icon: '✓' },
         ]
       },
       { id: 'space_produto', name: 'Produto', icon: '◈', color: '#f59e0b',
@@ -6389,15 +6400,24 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         if (oldSpaces.includes(t.space_id)) {
           t.space_id = null; t.list_id = null;
         }
+        // Migrate dossiês from atendimento to entregas
+        if (t.space_id === 'space_atendimento' && t.list_id === 'list_dossies') {
+          t.space_id = 'space_entregas';
+        }
         if (!t.space_id) {
           const titulo = (t.titulo || '').toLowerCase();
           const fonte = t.fonte || '';
           const resp = t.responsavel || '';
 
-          // Dossiê tasks → Atendimento / Dossiês
+          // Dossiê tasks → Entregas / Dossiês
           if (titulo.includes('dossie') || titulo.includes('dossiê') || titulo.startsWith('[ds]') || fonte === 'dossie') {
-            t.space_id = 'space_atendimento';
+            t.space_id = 'space_entregas';
             t.list_id = 'list_dossies';
+          }
+          // Mentorado-owned tasks → Mentorado / Tarefas
+          else if (resp === 'mentorado' || resp === 'Mentorado' || titulo.includes('checklist de ações')) {
+            t.space_id = 'space_mentorado';
+            t.list_id = 'list_tarefas_mentorado';
           }
           // Pós-call actions → Atendimento / Pós-call
           else if (fonte === 'tarefas_acordadas' || fonte === 'analise_call' || titulo.includes('pós-call') || titulo.includes('pos-call')) {
