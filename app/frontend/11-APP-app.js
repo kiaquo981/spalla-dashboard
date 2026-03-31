@@ -184,9 +184,11 @@ function operon() {
       finDetailLoading: false,  // loading state for financial detail logs
       selectedMenteeId: null,
       activeDetailTab: 'resumo',
+      detailTaskFilter: 'pendentes',
       toasts: [],
       // Tasks
       taskFilter: 'all', // all | pendente | em_andamento | concluida | atrasada
+      taskTipoFilter: '', // '' = todos; 'dossie', 'follow_up', etc.
       taskAssignee: '', // '' = todos; '__mine__' = minhas tarefas
       taskModal: false,
       taskEditId: null,
@@ -200,6 +202,10 @@ function operon() {
       taskSpaceFilter: 'all', // space_id filter
       taskListFilter: 'all', // list_id filter
       ccWeekOffset: 0,       // Command Center week nav: 0=current, -1=prev, +1=next
+      ccBoardFilter: 'priority', // 'all' | 'priority' (hide escala/validacao) | 'onboarding' | 'concepcao' | 'validacao' | 'escala'
+      ccBoardExpanded: {},   // mentorado id → boolean
+      ccDailyExpanded: false,
+      ccActivityExpanded: false,
       spaceExpanded: null,   // which space has sub-lists visible
       docsTab: 'arquivos',   // 'arquivos' | 'biblioteca' | 'google_docs'
       taskGroupBy: 'status', // 'status' | 'assignee' | 'priority' | 'list'
@@ -237,6 +243,7 @@ function operon() {
       // Dossiê Production System
       dsFilter: 'all',
       dsCarteira: 'all',
+      dsTipoDoc: 'all',        // all | oferta | conteudo | funil
       dsView: 'painel',        // painel | pipeline | lista
       dsSearchQuery: '',
       dsExpandedDocs: {},       // { producaoId: true }
@@ -257,6 +264,28 @@ function operon() {
       // WhatsApp
       whatsappSelectedChat: null,
       whatsappMessage: '',
+      waReplyTo: null,
+      waLightboxUrl: null,
+      waRecording: false,
+      waRecorder: null,
+      waSearchQuery: '',
+      waSearchResults: [],
+      waSearchOpen: false,
+      waTypingIndicator: false,
+      waGroupsPanel: false,
+      waGroupsSyncing: false,
+      waGroupCreateModal: false,
+      waGroupForm: { subject: '', mentorado_id: '', participants: '' },
+      detailWaMessage: '',
+      waFollowupEnabled: false,
+      waFollowupDays: 2,
+      bulkFollowupModal: false,
+      feedbackFormOpen: false,
+      batchTaskModal: false,
+      feedbackCatFilter: '',
+      feedbackStatusFilter: '',
+      driveSyncing: false,
+      waFaseFilter: '',
       whatsappLoading: false,
       // WhatsApp Per-User Session
       waSessionLoading: false,
@@ -427,6 +456,7 @@ function operon() {
       // I-5: files for current notes drawer mentee
       menteeFiles: { docs: [], media: [], loading: false },
       groups: [],               // mentee_groups with member_ids
+      waGroups: [],             // wa_groups from Supabase (Story 8)
       // WA DM v2 (S9-B)
       waCannedAll: [],          // cache de canned responses
       // S9-C
@@ -437,6 +467,7 @@ function operon() {
       menteeMessages: [],  // EPIC 1: Chatwoot messages for current mentorado
       menteeContext: [],   // Context Hub: áudios, notas, arquivos para dossiê
       teamPerformance: [],
+      feedbackList: [],           // TASK-10: god_feedback entries
       // Command Center static data
       projects: [
         {
@@ -523,42 +554,41 @@ function operon() {
     // --- Media Cache ---
     waMediaUrls: {},  // messageId → presigned URL
 
-    // Task organization: 2 Spaces — Jornada (mentee-owned) + Gestão (team-owned)
+    // Task organization: 3 Spaces — Atendimento (mentorado) + Produto (interno) + Tecnologia
     spaces: [
-      { id: 'space_jornada', name: 'Jornada Mentorados', icon: '◎', color: '#6366f1',
+      { id: 'space_atendimento', name: 'Atendimento', icon: '◎', color: '#6366f1',
         lists: [
-          { id: 'list_onboarding', name: 'Onboarding', icon: '▸' },
-          { id: 'list_concepcao', name: 'Concepção', icon: '◇' },
-          { id: 'list_validacao', name: 'Validação', icon: '●' },
-          { id: 'list_otimizacao', name: 'Otimização', icon: '◆' },
-          { id: 'list_escala', name: 'Escala', icon: '▲' },
-        ]
-      },
-      { id: 'space_gestao', name: 'Gestão CASE', icon: '◈', color: '#f59e0b',
-        lists: [
-          { id: 'list_direcionamentos', name: 'Direcionamentos Queila', icon: '★' },
-          { id: 'list_operacional', name: 'Operacional', icon: '✦' },
-          { id: 'list_conteudo', name: 'Conteúdo & Marketing', icon: '◉' },
-          { id: 'list_vendas', name: 'Vendas & Comercial', icon: '◆' },
-          { id: 'list_playbooks', name: 'Playbooks & Materiais', icon: '■' },
           { id: 'list_dossies', name: 'Dossiês', icon: '◇' },
+          { id: 'list_analises', name: 'Análises & Revisões', icon: '◉' },
+          { id: 'list_poscall', name: 'Pós-call', icon: '★' },
+          { id: 'list_operacional', name: 'Operacional', icon: '✦' },
         ]
       },
-      { id: 'space_ia', name: 'IA & Automação', icon: '◈', color: '#f59e0b',
+      { id: 'space_produto', name: 'Produto', icon: '◈', color: '#f59e0b',
         lists: [
-          { id: 'list_agentes', name: 'Agentes', icon: '◉' },
-          { id: 'list_workflows', name: 'Workflows N8N', icon: '◆' },
+          { id: 'list_aulas', name: 'Aulas & Gravações', icon: '▸' },
+          { id: 'list_manuais', name: 'Manuais & Kits', icon: '■' },
+          { id: 'list_planejamento', name: 'Planejamento de Produto', icon: '●' },
         ]
       },
-      // Sistema & Dev — lists populadas dinamicamente por loadGodLists() com sprints reais
-      { id: 'space_sistema', name: 'Sistema & Dev', icon: '◈', color: '#0ea5e9',
+      // Tecnologia — sprints populados dinamicamente por loadGodLists()
+      { id: 'space_tecnologia', name: 'Tecnologia', icon: '◈', color: '#0ea5e9',
         lists: [
-          { id: '901113377455', name: 'Sprint 1 (3/16 - 3/22)', icon: '✓', isSprint: true, status: 'encerrado' },
-          { id: '901113377456', name: 'Sprint 2 (3/23 - 3/29)', icon: '⚡', isSprint: true, status: 'ativo' },
-          { id: '901113377457', name: 'Sprint 3 (3/30 - 4/5)',  icon: '○', isSprint: true, status: 'planejado' },
+          { id: 'list_maestro', name: 'Maestro', icon: '◆' },
+          { id: 'list_agentes', name: 'Agentes & Automações', icon: '◉' },
         ]
       },
     ],
+
+    // --- Task Type Icons ---
+    TASK_TIPO_MAP: {
+      geral:         { icon: '📋', label: 'Geral' },
+      dossie:        { icon: '📑', label: 'Dossiê' },
+      ajuste_dossie: { icon: '🔧', label: 'Ajuste dossiê' },
+      follow_up:     { icon: '🔄', label: 'Follow-up' },
+      rotina:        { icon: '📅', label: 'Rotina' },
+      bug_report:    { icon: '🐛', label: 'Bug report' },
+    },
 
     // --- Task Form ---
     taskForm: {
@@ -566,6 +596,8 @@ function operon() {
       descricao: '',
       responsavel: '',
       mentorado_nome: '',
+      tipo: 'geral',
+      notificarMentorado: false,
       prioridade: 'normal',
       prazo: '', // this becomes data_fim
       data_inicio: '',
@@ -578,7 +610,7 @@ function operon() {
       tags: [],
       parent_task_id: null,
       acompanhante: '',
-      space_id: 'space_jornada',
+      space_id: 'space_atendimento',
       list_id: '',
       newSubtask: '',
       newCheckItem: '',
@@ -1178,7 +1210,19 @@ function operon() {
           });
         }
       }
+      // Tipo filter
+      if (this.ui.taskTipoFilter) {
+        list = list.filter(t => (t.tipo || 'geral') === this.ui.taskTipoFilter);
+      }
       return list;
+    },
+
+    taskTipoIcon(tipo) {
+      return (this.TASK_TIPO_MAP[tipo] || this.TASK_TIPO_MAP.geral).icon;
+    },
+
+    taskTipoLabel(tipo) {
+      return (this.TASK_TIPO_MAP[tipo] || this.TASK_TIPO_MAP.geral).label;
     },
 
     _debounce(timerKey, fn, delay = 500) {
@@ -1747,13 +1791,23 @@ function operon() {
       try {
         // Deep-link: resolve URL pathname to page
         const pathname = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
-        if (pathname && this._routeMap[pathname]) {
+        // Deep-link: /mentorado/:id — store for after auth
+        const menteeDeepLink = pathname.match(/^mentorado\/(.+)$/);
+        if (menteeDeepLink) {
+          this._pendingMenteeId = menteeDeepLink[1];
+        } else if (pathname && this._routeMap[pathname]) {
           this.ui.page = this._routeMap[pathname];
           localStorage.setItem('spalla_page', this._routeMap[pathname]);
         }
         // Handle browser back/forward
         window.addEventListener('popstate', (e) => {
           const p = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
+          // Deep-link: /mentorado/:id
+          const menteeMatch = p.match(/^mentorado\/(.+)$/);
+          if (menteeMatch) {
+            this.loadMenteeDetail(menteeMatch[1]);
+            return;
+          }
           if (p && this._routeMap[p]) {
             this.ui.page = this._routeMap[p];
           } else if (!p || p === '') {
@@ -1842,6 +1896,8 @@ function operon() {
         this.loadGodLists();     // non-blocking: popula data.lists + data.sprints
 
         if (this.auth.authenticated) {
+          // Auto-refresh token before it expires (every 45 min)
+          this._startTokenAutoRefresh();
           await this.loadReminders(); // Load from Supabase
           await this.loadDashboard();
           this.loadCommandCenterData(); // non-blocking: populate CC from ClickUp
@@ -1953,6 +2009,11 @@ function operon() {
           localStorage.setItem('spalla_page', target);
           console.log('[Spalla] Deep-link restored to:', target);
         }
+        // Deep-link: /mentorado/:id
+        if (this._pendingMenteeId) {
+          setTimeout(() => this.loadMenteeDetail(this._pendingMenteeId), 300);
+          this._pendingMenteeId = null;
+        }
         // Deep-link task: /tasks?task=UUID
         const taskParam = new URLSearchParams(window.location.search).get('task');
         if (taskParam) {
@@ -2018,6 +2079,63 @@ function operon() {
         this.auth.error = 'Erro ao criar conta: ' + e.message;
         console.error('[Spalla] Register error:', e);
       }
+    },
+
+    _startTokenAutoRefresh() {
+      // Refresh token every 45 minutes to prevent session expiry
+      if (this._tokenRefreshTimer) clearInterval(this._tokenRefreshTimer);
+      this._tokenRefreshTimer = setInterval(async () => {
+        const refreshToken = localStorage.getItem('spalla_refresh_token');
+        if (!refreshToken || !this.auth.authenticated) return;
+        try {
+          const resp = await fetch(`${CONFIG.API_BASE}/api/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: refreshToken })
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            this.auth.accessToken = data.access_token;
+            this.auth.refreshToken = data.refresh_token;
+            localStorage.setItem('spalla_access_token', data.access_token);
+            localStorage.setItem('spalla_refresh_token', data.refresh_token);
+            if (data.user) localStorage.setItem('spalla_user', JSON.stringify(data.user));
+            console.log('[Spalla] Token auto-refreshed');
+          }
+        } catch (e) {
+          console.warn('[Spalla] Token auto-refresh failed (offline?):', e.message);
+        }
+      }, 45 * 60 * 1000); // 45 min
+      // Also refresh on tab visibility change (user returns after idle)
+      document.addEventListener('visibilitychange', async () => {
+        if (document.visibilityState === 'visible' && this.auth.authenticated) {
+          const token = localStorage.getItem('spalla_access_token');
+          if (!token) return;
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            const minutesLeft = (payload.exp - Math.floor(Date.now() / 1000)) / 60;
+            if (minutesLeft < 15) {
+              // Token expiring soon, refresh now
+              const refreshToken = localStorage.getItem('spalla_refresh_token');
+              if (refreshToken) {
+                const resp = await fetch(`${CONFIG.API_BASE}/api/auth/refresh`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ refresh_token: refreshToken })
+                });
+                if (resp.ok) {
+                  const data = await resp.json();
+                  this.auth.accessToken = data.access_token;
+                  this.auth.refreshToken = data.refresh_token;
+                  localStorage.setItem('spalla_access_token', data.access_token);
+                  localStorage.setItem('spalla_refresh_token', data.refresh_token);
+                  console.log('[Spalla] Token refreshed on tab return');
+                }
+              }
+            }
+          } catch (e) { /* ignore parse errors */ }
+        }
+      }, { once: false });
     },
 
     _clearAuthStorage() {
@@ -2109,7 +2227,93 @@ function operon() {
       }
     },
 
+    // ===== Supabase Realtime subscription for wa_messages =====
+    _subscribeWaRealtime(groupJid) {
+      this._unsubscribeWaRealtime(); // cleanup previous
+      if (!this.supabase || !groupJid) return;
+      this._waRealtimeChannel = this.supabase
+        .channel(`wa-chat-${groupJid.replace(/[^a-zA-Z0-9]/g, '_')}`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'whatsapp_messages',
+          filter: `group_id=eq.${groupJid}`,
+        }, (payload) => {
+          const newMsg = this._waDbToEvolutionFormat(payload.new);
+          // Avoid duplicates (optimistic insert from send)
+          if (!this.data.whatsappMessages.find(m => m.key?.id === newMsg.key?.id)) {
+            this.data.whatsappMessages.push(newMsg);
+            this.$nextTick(() => {
+              const el = document.getElementById('wa-messages-end');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            });
+          }
+          // TASK-05: Check if this message resolves a pending follow-up
+          if (!payload.new.is_from_team) {
+            this._checkFollowupResponse(groupJid, payload.new);
+          }
+        })
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'whatsapp_messages',
+          filter: `group_id=eq.${groupJid}`,
+        }, (payload) => {
+          // Update status of existing message
+          const updated = payload.new;
+          const idx = this.data.whatsappMessages.findIndex(m => m.key?.id === updated.message_id);
+          if (idx >= 0) {
+            this.data.whatsappMessages[idx]._status = updated.status;
+            this.data.whatsappMessages[idx]._statusUpdatedAt = updated.status_updated_at;
+          }
+        })
+        .subscribe();
+    },
+
+    _unsubscribeWaRealtime() {
+      if (this._waRealtimeChannel) {
+        this.supabase.removeChannel(this._waRealtimeChannel);
+        this._waRealtimeChannel = null;
+      }
+    },
+
+    // Convert wa_messages DB row to Evolution API format (compatible with existing HTML template)
+    // Convert whatsapp_messages row to Evolution API format (HTML compatible)
+    _waDbToEvolutionFormat(row) {
+      // whatsapp_messages schema: type, content, media_url, media_mime_type, quoted_message_id, group_id
+      const contentType = row.type || 'text';
+      const msgObj = {};
+      if (contentType === 'text' || contentType === 'chat' || !contentType) {
+        msgObj.conversation = row.content || '';
+      } else if (contentType === 'image') {
+        msgObj.imageMessage = { caption: row.caption || row.content || '', url: row.media_url };
+      } else if (contentType === 'audio' || contentType === 'ptt') {
+        msgObj.audioMessage = { url: row.media_url, mimetype: row.media_mime_type || 'audio/ogg' };
+      } else if (contentType === 'video') {
+        msgObj.videoMessage = { caption: row.caption || row.content || '', url: row.media_url };
+      } else if (contentType === 'document') {
+        msgObj.documentMessage = { fileName: row.file_name || row.content || 'Documento', url: row.media_url, mimetype: row.media_mime_type };
+      } else if (contentType === 'sticker') {
+        msgObj.conversation = '[Sticker]';
+      } else {
+        msgObj.conversation = row.content || `[${contentType}]`;
+      }
+      return {
+        key: { id: row.message_id, fromMe: false, remoteJid: row.group_id || row.chat_id },
+        message: msgObj,
+        messageTimestamp: row.timestamp ? Math.floor(new Date(row.timestamp).getTime() / 1000) : Math.floor(Date.now() / 1000),
+        pushName: row.sender_name || 'Desconhecido',
+        _dbId: row.id,
+        _replyToId: row.quoted_message_id,
+        _contentType: contentType,
+        _mediaUrl: row.media_url,
+      };
+    },
+
+    // Legacy polling — kept as fallback but deprecated
     startWhatsAppPolling() {
+      // DEPRECATED: Replaced by Supabase Realtime (_subscribeWaRealtime)
+      // Only used as fallback when wa_messages table is empty for this chat
       if (this._whatsappPollInterval) clearInterval(this._whatsappPollInterval);
       const { instance } = this._waActiveInstance();
       if (!this.ui.whatsappSelectedChat || !instance) return;
@@ -2123,14 +2327,12 @@ function operon() {
           if (res.status === 405 || res.status === 404) {
             console.warn('[Spalla] WhatsApp API not available (', res.status, '— stopping polling)');
             this.stopWhatsAppPolling();
-            this.toast('WhatsApp API indisponível', 'warning');
             return;
           }
           if (res.ok) {
             const data = await res.json();
             const msgs = data.messages?.records || data.messages || data || [];
             const newMsgs = (Array.isArray(msgs) ? msgs : []).reverse();
-            // Compare last message ID to detect changes (length alone is unreliable)
             const lastLocal = this.data.whatsappMessages[this.data.whatsappMessages.length - 1];
             const lastRemote = newMsgs[newMsgs.length - 1];
             const localId = lastLocal?.key?.id || '';
@@ -2155,6 +2357,8 @@ function operon() {
         clearInterval(this._whatsappPollInterval);
         this._whatsappPollInterval = null;
       }
+      this._unsubscribeWaRealtime();
+      this.cleanupWaReadReceipts();
     },
 
     // ===================== BIBLIOTECA =====================
@@ -2827,6 +3031,11 @@ function operon() {
       });
     },
 
+    openDetail(id) {
+      this.loadMenteeDetail(id);
+      history.pushState({ page: 'detail', menteeId: id }, '', '/mentorado/' + id);
+    },
+
     async loadMenteeDetail(id) {
       this.destroyPerfilCharts();
       this.data.perfilComportamental = null;
@@ -2897,11 +3106,12 @@ function operon() {
 
     async _loadDetailWaMessages() {
       const { instance: _waInst } = this._waActiveInstance();
-      if (!_waInst) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
       const nome = this.data.detail?.profile?.nome;
+      const menteeId = this.ui.selectedMenteeId;
       if (!nome) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
+
       // Enrich detail with overview WA metrics
-      const overviewMentee = this.data.mentees.find(m => m.id === this.ui.selectedMenteeId);
+      const overviewMentee = this.data.mentees.find(m => m.id === menteeId);
       if (this.data.detail && overviewMentee) {
         this.data.detail._waMetrics = {
           whatsapp_7d: overviewMentee.whatsapp_7d,
@@ -2909,17 +3119,35 @@ function operon() {
           whatsapp_total: overviewMentee.whatsapp_total,
         };
       }
+
       try {
-        // Strategy 1: Use grupo_whatsapp_id from mentorados table (reliable)
-        const grupoId = overviewMentee?.grupo_whatsapp_id;
+        // Strategy 0: Check wa_groups for linked group (most reliable — Story 8)
         let remoteJid = null;
         let chatObj = null;
+        let usedSupabase = false;
 
-        if (grupoId) {
-          remoteJid = grupoId;
-          chatObj = { remoteJid: grupoId, id: grupoId, name: nome, _fromGrupoId: true };
-        } else {
-          // Strategy 2: Fallback to name matching in Evolution chats
+        const { data: linkedGroups } = await sb.from('wa_groups')
+          .select('group_jid,name')
+          .eq('mentorado_id', menteeId)
+          .eq('is_active', true)
+          .limit(1);
+
+        if (linkedGroups?.length) {
+          remoteJid = linkedGroups[0].group_jid;
+          chatObj = { remoteJid, id: remoteJid, name: linkedGroups[0].name || nome };
+        }
+
+        // Strategy 1: Use grupo_whatsapp_id from mentorados table
+        if (!remoteJid) {
+          const grupoId = overviewMentee?.grupo_whatsapp_id;
+          if (grupoId) {
+            remoteJid = grupoId;
+            chatObj = { remoteJid: grupoId, id: grupoId, name: nome };
+          }
+        }
+
+        // Strategy 2: Fallback to name matching in Evolution chats
+        if (!remoteJid && _waInst) {
           const firstName = nome.split(' ')[0].toLowerCase();
           let chats = this.data.whatsappChats;
           if (!chats.length) {
@@ -2940,32 +3168,936 @@ function operon() {
 
         if (!remoteJid) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
 
-        // Fetch last 10 messages using remoteJid
-        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${_waInst}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ where: { key: { remoteJid } }, limit: 10 }),
+        // Try loading from Supabase wa_messages first (real data, with status)
+        const { data: dbMsgs } = await sb.from('whatsapp_messages')
+          .select('id,message_id,sender_name,type,content,media_url,media_mime_type,quoted_message_id,timestamp,is_group,group_id')
+          .eq('group_id', remoteJid)
+          .order('timestamp', { ascending: false })
+          .limit(30);
+
+        let interactions = [];
+        // Build team member name set for matching
+        const teamNames = new Set();
+        (this.data.members || []).forEach(m => {
+          if (m.nome_curto) teamNames.add(m.nome_curto.toLowerCase());
+          if (m.nome_completo) teamNames.add(m.nome_completo.toLowerCase());
         });
-        if (!res.ok) { if (this.data.detail) this.data.detail._waLoaded = true; return; }
-        const data = await res.json();
-        const msgs = data.messages?.records || data.messages || data || [];
-        const interactions = (Array.isArray(msgs) ? msgs : []).reverse().map(msg => ({
-          sender: msg.key?.fromMe ? 'Equipe CASE' : (msg.pushName || nome),
-          conteudo: this.getWaMessageText(msg),
-          created_at: msg.messageTimestamp ? new Date(msg.messageTimestamp * 1000).toISOString() : null,
-        })).filter(i => i.conteudo);
+
+        if (dbMsgs?.length) {
+          usedSupabase = true;
+          interactions = dbMsgs.reverse().map(msg => {
+            // Detect team: sender name matches a team member
+            const senderLower = (msg.sender_name || '').toLowerCase();
+            const isTeam = teamNames.has(senderLower) ||
+              [...teamNames].some(tn => senderLower.includes(tn) || tn.includes(senderLower));
+            return {
+              sender: isTeam ? (msg.sender_name || 'Equipe CASE') : (msg.sender_name || nome),
+              conteudo: msg.content || `[${msg.type || 'mensagem'}]`,
+              created_at: msg.timestamp,
+              message_id: msg.message_id,
+              is_from_team: isTeam,
+              content_type: msg.type || 'text',
+              media_url: msg.media_url,
+            };
+          });
+        }
+
+        // Fallback: Evolution API direct
+        if (!interactions.length && _waInst) {
+          const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${_waInst}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ where: { key: { remoteJid } }, limit: 30 }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const msgs = data.messages?.records || data.messages || data || [];
+            interactions = (Array.isArray(msgs) ? msgs : []).reverse().map(msg => {
+              const pushName = msg.pushName || '';
+              const pushLower = pushName.toLowerCase();
+              const isTeam = msg.key?.fromMe || teamNames.has(pushLower) ||
+                [...teamNames].some(tn => pushLower.includes(tn) || tn.includes(pushLower));
+              return {
+                sender: isTeam ? (pushName || 'Equipe CASE') : (pushName || nome),
+                conteudo: this.getWaMessageText(msg),
+                created_at: msg.messageTimestamp ? new Date(msg.messageTimestamp * 1000).toISOString() : null,
+                is_from_team: isTeam,
+              };
+            }).filter(i => i.conteudo);
+          }
+        }
 
         if (this.data.detail) {
-          if (interactions.length) {
-            this.data.detail.last_interactions = interactions;
-            this.data.detail._waChat = chatObj;
-          }
+          this.data.detail.last_interactions = interactions;
+          this.data.detail._waChat = chatObj;
+          this.data.detail._waGroupJid = remoteJid;
+          this.data.detail._waFromSupabase = usedSupabase;
           this.data.detail._waLoaded = true;
+
+          // Calculate response time and unread count
+          if (interactions.length) {
+            // Find last team message and last mentee message
+            let lastTeamIdx = -1, lastMenteeIdx = -1;
+            for (let i = interactions.length - 1; i >= 0; i--) {
+              if ((interactions[i].is_from_team || interactions[i].sender === 'Equipe CASE') && lastTeamIdx === -1) lastTeamIdx = i;
+              if (!interactions[i].is_from_team && interactions[i].sender !== 'Equipe CASE' && lastMenteeIdx === -1) lastMenteeIdx = i;
+              if (lastTeamIdx >= 0 && lastMenteeIdx >= 0) break;
+            }
+            // Unread = messages from mentee after last team response
+            let unread = 0;
+            if (lastTeamIdx >= 0) {
+              for (let i = lastTeamIdx + 1; i < interactions.length; i++) {
+                if (!interactions[i].is_from_team && interactions[i].sender !== 'Equipe CASE') unread++;
+              }
+            } else {
+              // Team never responded — all mentee msgs are "unread"
+              unread = interactions.filter(m => !m.is_from_team && m.sender !== 'Equipe CASE').length;
+            }
+            this.data.detail._waUnreadCount = unread;
+
+            // Response time: if last message is from mentee, how long ago?
+            if (lastMenteeIdx >= 0 && (lastTeamIdx < 0 || lastMenteeIdx > lastTeamIdx)) {
+              const lastMenteeTime = new Date(interactions[lastMenteeIdx].created_at);
+              const hours = Math.round((Date.now() - lastMenteeTime.getTime()) / (1000 * 60 * 60));
+              let label = '';
+              if (hours < 1) label = 'Respondido agora';
+              else if (hours < 24) label = `Sem resposta ha ${hours}h`;
+              else { const days = Math.round(hours / 24); label = `Sem resposta ha ${days} dia${days > 1 ? 's' : ''}`; }
+              this.data.detail._waResponseInfo = { hours, label };
+            } else {
+              this.data.detail._waResponseInfo = null;
+            }
+          }
         }
       } catch (e) {
         console.warn('[Spalla] Could not load detail WA messages:', e.message);
         if (this.data.detail) this.data.detail._waLoaded = true;
       }
+    },
+
+    // Send message from mentee detail WhatsApp tab
+    async sendDetailWaMessage() {
+      const text = this.ui.detailWaMessage?.trim();
+      if (!text) return;
+      const jid = this.data.detail?._waGroupJid;
+      if (!jid) { this.toast('Nenhum grupo vinculado a este mentorado', 'warning'); return; }
+      const { instance } = this._waActiveInstance();
+      if (!instance) { this.toast('WhatsApp nao conectado', 'warning'); return; }
+
+      this.ui.detailWaMessage = '';
+      // Optimistic insert
+      if (this.data.detail?.last_interactions) {
+        this.data.detail.last_interactions.push({
+          sender: 'Equipe CASE',
+          conteudo: text,
+          created_at: new Date().toISOString(),
+          status: 'pending',
+          is_from_team: true,
+        });
+      }
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/wa/send-text`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+          body: JSON.stringify({ number: jid, text, instance, group_jid: jid }),
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || `HTTP ${res.status}`); }
+        // TASK-04: Create follow-up task if enabled
+        if (this.ui.waFollowupEnabled && sb) {
+          await this._createFollowupTask(text, jid);
+          this.ui.waFollowupEnabled = false;
+        }
+        this.toast('Mensagem enviada', 'success');
+      } catch (e) {
+        this.toast('Erro ao enviar: ' + e.message, 'error');
+      }
+    },
+
+    async _createFollowupTask(msgText, groupJid) {
+      const mentoradoNome = this.data.detail?.nome || '';
+      const days = this.ui.waFollowupDays || 2;
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + days);
+      const dueDateStr = dueDate.toISOString().split('T')[0];
+      const responsavel = this.currentUserName || '';
+      const preview = msgText.length > 100 ? msgText.substring(0, 100) + '...' : msgText;
+
+      const taskData = {
+        titulo: `Follow-up — ${mentoradoNome}`,
+        descricao: `Mensagem enviada: "${preview}" em ${new Date().toLocaleDateString('pt-BR')}\nChecar se mentorado respondeu.`,
+        tipo: 'follow_up',
+        prioridade: 'normal',
+        responsavel,
+        mentorado_nome: mentoradoNome,
+        mentorado_id: this.data.detail?.id || null,
+        tags: ['follow-up'],
+        data_fim: dueDateStr,
+        status: 'pendente',
+        fonte: 'auto_followup',
+        auto_gerada: true,
+        follow_up_group_jid: groupJid || null,
+      };
+
+      const { data: created, error } = await sb.from('god_tasks').insert(taskData).select().single();
+      if (error) { console.warn('[follow-up] Error creating task:', error); return; }
+      this.data.tasks.push(created);
+      this._cacheTasksLocal();
+      this.toast(`Follow-up criado: checar em ${days} dias`, 'info');
+    },
+
+    // --- Google Drive Sync ---
+    driveFiles: { files: [], folder_url: '', created_folder: false },
+
+    async syncDriveFiles() {
+      if (!this.data.detail?.id || !this.data.detail?.nome) return;
+      this.ui.driveSyncing = true;
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/drive/sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+          body: JSON.stringify({
+            mentorado_id: this.data.detail.id,
+            mentorado_nome: this.data.detail.nome,
+            produto: 'mentory',
+          }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          this.driveFiles = data;
+        } else {
+          this.toast('Erro Drive: ' + (data.error || ''), 'error');
+        }
+      } catch (e) { this.toast('Erro de conexão com Drive', 'error'); }
+      this.ui.driveSyncing = false;
+    },
+
+    // --- Resumo Semanal ---
+    weeklySummary: { text: '', loading: false, stats: null },
+
+    async loadWeeklySummary(mentoradoId) {
+      if (!mentoradoId) return;
+      this.weeklySummary.loading = true;
+      this.weeklySummary.text = '';
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/mentee/weekly-summary`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+          body: JSON.stringify({ mentorado_id: mentoradoId }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          this.weeklySummary.text = data.summary || '';
+          this.weeklySummary.stats = data.stats || null;
+        } else {
+          this.weeklySummary.text = 'Erro: ' + (data.error || 'Falha ao gerar resumo');
+        }
+      } catch (e) {
+        this.weeklySummary.text = 'Erro de conexão';
+      }
+      this.weeklySummary.loading = false;
+    },
+
+    // --- Contexto Onboarding ---
+    obContext: { trilha: null, etapas: [], loading: false },
+
+    async loadObContext(mentoradoId) {
+      if (!sb || !mentoradoId) return;
+      this.obContext.loading = true;
+      try {
+        const { data: trilhas } = await sb.from('ob_trilhas')
+          .select('*')
+          .eq('mentorado_id', mentoradoId)
+          .limit(1);
+        this.obContext.trilha = trilhas?.[0] || null;
+
+        if (this.obContext.trilha) {
+          const { data: etapas } = await sb.from('ob_etapas')
+            .select('*, ob_tarefas(*)')
+            .eq('trilha_id', this.obContext.trilha.id)
+            .order('ordem');
+          this.obContext.etapas = etapas || [];
+        }
+      } catch (e) { console.warn('[ob-context]', e); }
+      this.obContext.loading = false;
+    },
+
+    // --- Alertas Etapa Atrasada (Onboarding) ---
+    ccAlertasEtapaAtrasada() {
+      const trilhas = this.data.obTrilhas || [];
+      const now = new Date();
+      const alertas = [];
+      for (const t of trilhas) {
+        if (t.status === 'concluido') continue;
+        const atrasadas = (t.tarefas_atrasadas || 0);
+        if (atrasadas > 0) {
+          alertas.push({
+            mentorado_id: t.mentorado_id,
+            mentorado_nome: t.mentorado_nome || 'Mentorado',
+            etapa: t.etapa_atual || 'Onboarding',
+            atrasadas,
+            progresso: t.progresso_pct || 0,
+          });
+        }
+      }
+      return alertas.sort((a, b) => b.atrasadas - a.atrasadas);
+    },
+
+    // === CC V2: Board do Consultor ("Tony Stark") ===
+    // Uses vw_god_overview which already has: consultor_responsavel, dias_desde_call, ultima_call_data, tarefas_pendentes, tarefas_atrasadas
+    ccConsultantBoard() {
+      const mentees = this.data.mentees || [];
+      const me = (this.auth.currentUser?.full_name || '').split(' ')[0]; // "Heitor", "Lara", "Kaique"
+      const dsProds = this.data.dsProducoes || [];
+      const dsDocs = this.data.dsAllDocs || [];
+      const now = new Date();
+
+      // Filter by consultant's portfolio (admin sees all)
+      const isAdmin = ['kaique', 'gobbi', 'queila'].includes(me.toLowerCase());
+      const myMentees = isAdmin ? mentees : mentees.filter(m =>
+        (m.consultor_responsavel || '').toLowerCase() === me.toLowerCase()
+      );
+
+      const board = [];
+      for (const m of myMentees) {
+        // Use data from vw_god_overview directly
+        // If no call ever, fallback to days since entry (not 999)
+        let diasSemCall = m.dias_desde_call;
+        if (diasSemCall == null && m.data_entrada) {
+          diasSemCall = Math.floor((now - new Date(m.data_entrada)) / 86400000);
+        }
+        if (diasSemCall == null) diasSemCall = 999;
+        const ultimaCallDate = m.ultima_call_data ? new Date(m.ultima_call_data).toLocaleDateString('pt-BR') : 'Nunca';
+
+        // Dossiê from ds_producoes (if loaded)
+        const prod = dsProds.find(p => p.mentorado_id === m.id);
+        const docs = dsDocs.filter(d => d.producao_id === prod?.producao_id);
+        const dossieEtapa = docs.length ? docs.map(d => (DS_ESTAGIOS.find(e => e.id === d.estagio_atual) || {}).label || d.estagio_atual).join(', ') : null;
+        const dossiePrazo = prod?.prazo_entrega || prod?.prazo_interno || null;
+        const dossieAtrasado = dossiePrazo && new Date(dossiePrazo) < now && prod?.status !== 'finalizado';
+
+        // Urgency score
+        let urgency = 0;
+        if (m.tarefas_atrasadas) urgency += m.tarefas_atrasadas * 10;
+        if (dossieAtrasado) urgency += 15;
+        if (diasSemCall >= 30) urgency += 10;
+        else if (diasSemCall >= 14) urgency += 5;
+        if (m.tarefas_pendentes) urgency += m.tarefas_pendentes;
+
+        board.push({
+          id: m.id,
+          nome: m.nome,
+          instagram: m.instagram,
+          dataEntrada: m.data_entrada || m.created_at || null,
+          consultor: m.consultor_responsavel || '',
+          fase: m.fase_jornada || 'ativo',
+          tarefasPendentes: m.tarefas_pendentes || 0,
+          tarefasAtrasadas: m.tarefas_atrasadas || 0,
+          diasSemCall,
+          ultimaCall: ultimaCallDate,
+          dossieEtapa,
+          dossieAtrasado,
+          statusFinanceiro: m.status_financeiro || 'em_dia',
+          contratoAssinado: m.contrato_assinado !== false,
+          urgency,
+        });
+      }
+
+      return board.sort((a, b) => b.urgency - a.urgency);
+    },
+
+    ccBoardFiltered() {
+      const board = this.ccConsultantBoard();
+      const f = this.ui.ccBoardFilter || 'priority';
+      if (f === 'all') return board;
+      if (f === 'priority') return board.filter(m => ['onboarding', 'concepcao'].includes(m.fase));
+      return board.filter(m => m.fase === f);
+    },
+
+    ccBoardGrouped() {
+      const board = this.ccBoardFiltered();
+      const PHASE_ORDER = ['onboarding', 'concepcao', 'validacao', 'escala'];
+      const PHASE_LABELS = { onboarding: 'Onboarding', concepcao: 'Concepção', validacao: 'Validação', escala: 'Escala' };
+      const groups = {};
+      for (const m of board) {
+        const phase = m.fase && PHASE_ORDER.includes(m.fase) ? m.fase : 'onboarding';
+        if (!groups[phase]) groups[phase] = [];
+        groups[phase].push(m);
+      }
+      return PHASE_ORDER.filter(p => groups[p]).map(p => ({ phase: p, label: PHASE_LABELS[p], items: groups[p] }));
+    },
+
+    ccBoardToggle(id) {
+      this.ui.ccBoardExpanded = { ...this.ui.ccBoardExpanded, [id]: !this.ui.ccBoardExpanded[id] };
+    },
+
+    // Dossiê status for a mentee (used in expanded card)
+    ccBoardDossie(mentoradoId) {
+      const prod = (this.data.dsProducoes || []).find(p => p.mentorado_id === mentoradoId);
+      if (!prod) return null;
+      const docs = (this.data.dsAllDocs || []).filter(d => d.producao_id === prod.producao_id);
+      const cfg = DS_STATUS_PRODUCAO.find(s => s.id === prod.status) || DS_STATUS_PRODUCAO[0];
+      return {
+        statusId: prod.status,
+        statusLabel: cfg.label,
+        statusColor: cfg.color,
+        docs: docs.map(d => {
+          const tipo = DS_DOC_TIPOS.find(t => t.id === d.tipo) || { label: d.tipo, color: '#6b7280' };
+          const estagio = DS_ESTAGIOS.find(e => e.id === d.estagio_atual) || DS_ESTAGIOS[0];
+          return { tipo: tipo.label, tipoColor: tipo.color, estagio: estagio.label, estagioColor: estagio.color };
+        }),
+      };
+    },
+
+    // Bifurcated tasks: team delivers vs mentee executes
+    ccBoardTasks(mentoradoId) {
+      const mentee = (this.data.mentees || []).find(x => x.id === mentoradoId);
+      if (!mentee) return { equipe: [], mentorado: [], total: 0 };
+      const firstName = (mentee.nome || '').split(' ')[0].toLowerCase();
+      const active = (this.data.tasks || []).filter(t =>
+        t.mentorado_id === mentoradoId &&
+        !['concluida', 'arquivada', 'cancelada'].includes(t.status)
+      );
+      const equipe = [];
+      const mentorado = [];
+      for (const t of active) {
+        const resp = (t.responsavel || '').toLowerCase();
+        if (firstName.length > 2 && resp.includes(firstName)) {
+          mentorado.push(t);
+        } else {
+          equipe.push(t);
+        }
+      }
+      return { equipe: equipe.slice(0, 4), mentorado: mentorado.slice(0, 4), total: active.length };
+    },
+
+    // Onboarding trilha for a mentee
+    ccBoardOb(mentoradoId) {
+      return (this.data.obTrilhas || []).find(t => t.mentorado_id === mentoradoId && t.status !== 'concluido') || null;
+    },
+
+    // --- Grupos WA por fase ---
+    get waGroupsByFase() {
+      const groups = this.data.waGroups || [];
+      const fases = {};
+      const faseOrder = ['interno', 'onboarding', 'acompanhamento', 'producao', 'entrega', 'pos_entrega', 'geral'];
+      const faseLabels = {
+        interno: 'Interno', onboarding: 'Onboarding', acompanhamento: 'Acompanhamento',
+        producao: 'Produção', entrega: 'Entrega', pos_entrega: 'Pós-entrega', geral: 'Geral',
+      };
+      for (const g of groups) {
+        const fase = g.fase || 'geral';
+        if (!fases[fase]) fases[fase] = { label: faseLabels[fase] || fase, groups: [] };
+        fases[fase].groups.push(g);
+      }
+      return faseOrder.filter(f => fases[f]).map(f => fases[f]);
+    },
+
+    async updateWaGroupFase(groupId, fase) {
+      if (!sb) return;
+      await sb.from('wa_groups').update({ fase }).eq('id', groupId);
+      const g = this.data.waGroups.find(gr => gr.id === groupId);
+      if (g) g.fase = fase;
+      this.toast('Grupo atualizado', 'success');
+    },
+
+    // --- WA Intelligence Layer ---
+    waIntel: { classifications: [], percepcoes: [], pendencias: [], loading: false },
+
+    async loadWaIntelligence(mentoradoId) {
+      if (!sb || !mentoradoId) return;
+      this.waIntel.loading = true;
+      try {
+        // Classifications summary (last 30 days)
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
+        const { data: interactions } = await sb.from('interacoes_mentoria')
+          .select('categoria,tipo_interacao,sentimento,score_engajamento,requer_resposta,respondido,conteudo,sender_name,created_at,urgencia_resposta,intencao_primaria')
+          .eq('mentorado_id', mentoradoId)
+          .gte('created_at', thirtyDaysAgo)
+          .order('created_at', { ascending: false })
+          .limit(100);
+
+        // Aggregate classifications
+        const catCounts = {};
+        const sentCounts = {};
+        let pendCount = 0;
+        for (const i of (interactions || [])) {
+          catCounts[i.categoria || 'OUTROS'] = (catCounts[i.categoria || 'OUTROS'] || 0) + 1;
+          sentCounts[i.sentimento || 'neutro'] = (sentCounts[i.sentimento || 'neutro'] || 0) + 1;
+          if (i.requer_resposta && !i.respondido) pendCount++;
+        }
+        this.waIntel.classifications = {
+          total: (interactions || []).length,
+          categorias: Object.entries(catCounts).sort((a, b) => b[1] - a[1]),
+          sentimentos: Object.entries(sentCounts).sort((a, b) => b[1] - a[1]),
+          pendencias: pendCount,
+          avgEngajamento: interactions?.length ? Math.round(interactions.reduce((s, i) => s + (i.score_engajamento || 0), 0) / interactions.length) : 0,
+        };
+
+        // Pendências (requer_resposta = true, respondido = false)
+        this.waIntel.pendencias = (interactions || []).filter(i => i.requer_resposta && !i.respondido);
+
+        // Percepções (all time, last 20)
+        const { data: percs } = await sb.from('percepcoes_mentorado')
+          .select('*')
+          .eq('mentorado_id', mentoradoId)
+          .order('created_at', { ascending: false })
+          .limit(20);
+        this.waIntel.percepcoes = percs || [];
+      } catch (e) {
+        console.warn('[wa-intel] Error:', e);
+      }
+      this.waIntel.loading = false;
+    },
+
+    // --- Card Comments (dossiê + mentorado) ---
+    cardComments: [],
+    cardCommentInput: '',
+    cardCommentsLoading: false,
+
+    async loadCardComments(opts = {}) {
+      if (!sb) return;
+      this.cardCommentsLoading = true;
+      let query = sb.from('card_comments').select('*').order('created_at', { ascending: true });
+      if (opts.producao_id) query = query.eq('producao_id', opts.producao_id);
+      else if (opts.documento_id) query = query.eq('documento_id', opts.documento_id);
+      else if (opts.mentorado_id) query = query.eq('mentorado_id', opts.mentorado_id);
+      else { this.cardCommentsLoading = false; return; }
+      const { data, error } = await query.limit(200);
+      this.cardComments = error ? [] : (data || []);
+      this.cardCommentsLoading = false;
+    },
+
+    async addCardComment(opts = {}) {
+      if (!sb || !this.cardCommentInput.trim()) return;
+      const row = {
+        content: this.cardCommentInput.trim(),
+        content_type: 'text',
+        author: this.currentUserName || 'Equipe',
+      };
+      if (opts.producao_id) row.producao_id = opts.producao_id;
+      if (opts.documento_id) row.documento_id = opts.documento_id;
+      if (opts.mentorado_id) row.mentorado_id = opts.mentorado_id;
+
+      const { data: created, error } = await sb.from('card_comments').insert(row).select().single();
+      if (error) { this.toast('Erro ao salvar comentário: ' + error.message, 'error'); return; }
+      this.cardComments.push(created);
+
+      // @mention detection → create task + notify
+      const mentions = this.cardCommentInput.match(/@(\w+)/g);
+      if (mentions?.length) {
+        for (const mention of mentions) {
+          const name = mention.slice(1); // remove @
+          const member = (this.data.members || []).find(m =>
+            m.nome_curto?.toLowerCase() === name.toLowerCase()
+          ) || TEAM_MEMBERS.find(m => m.name.toLowerCase() === name.toLowerCase());
+          if (member) {
+            const mentoradoNome = this.data.detail?.nome || '';
+            const taskData = {
+              titulo: `@${member.nome_curto || member.name}: ${this.cardCommentInput.substring(0, 60)}`,
+              descricao: `Menção em comentário por ${row.author}:\n"${this.cardCommentInput}"\n\nMentorado: ${mentoradoNome}`,
+              tipo: 'geral',
+              prioridade: 'normal',
+              responsavel: member.nome_curto || member.name,
+              mentorado_nome: mentoradoNome,
+              mentorado_id: opts.mentorado_id || null,
+              status: 'pendente',
+              fonte: 'mention',
+              auto_gerada: true,
+            };
+            const { data: task } = await sb.from('god_tasks').insert(taskData).select().single();
+            if (task) {
+              this.data.tasks.push(task);
+              this._notifyTaskViaWa(task).catch(() => {});
+              this.toast(`Tarefa criada para @${member.nome_curto || member.name}`, 'info');
+            }
+          }
+        }
+      }
+      this.cardCommentInput = '';
+    },
+
+    async deleteCardComment(commentId) {
+      if (!sb || !confirm('Excluir comentário?')) return;
+      await sb.from('card_comments').delete().eq('id', commentId);
+      this.cardComments = this.cardComments.filter(c => c.id !== commentId);
+    },
+
+    // --- Batch Task from Audio (TASK-07) ---
+    batchTask: {
+      recording: false,
+      recorder: null,
+      transcribing: false,
+      transcript: '',
+      extractedTasks: [],
+      saving: false,
+    },
+
+    async batchTaskStartRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+        const chunks = [];
+        recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+        recorder.onstop = () => {
+          stream.getTracks().forEach(t => t.stop());
+          const blob = new Blob(chunks, { type: 'audio/webm' });
+          this.batchTaskProcessAudio(blob);
+        };
+        recorder.start();
+        this.batchTask.recorder = recorder;
+        this.batchTask.recording = true;
+        this.batchTask.transcript = '';
+        this.batchTask.extractedTasks = [];
+      } catch (e) {
+        this.toast('Erro ao acessar microfone: ' + e.message, 'error');
+      }
+    },
+
+    batchTaskStopRecording() {
+      if (this.batchTask.recorder && this.batchTask.recording) {
+        this.batchTask.recorder.stop();
+        this.batchTask.recording = false;
+      }
+    },
+
+    async batchTaskProcessAudio(blob) {
+      this.batchTask.transcribing = true;
+      try {
+        const formData = new FormData();
+        formData.append('audio', blob, 'batch-tasks.webm');
+        const res = await fetch(`${CONFIG.API_BASE}/api/tasks/from-audio`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${this.auth.accessToken}` },
+          body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok) { this.toast('Erro: ' + (data.error || 'Falha na transcrição'), 'error'); return; }
+        this.batchTask.transcript = data.transcript || '';
+        this.batchTask.extractedTasks = (data.tasks || []).map((t, i) => ({
+          ...t,
+          _idx: i,
+          _selected: true,
+          titulo: t.titulo || '',
+          descricao: t.descricao || '',
+          responsavel: t.responsavel || '',
+          mentorado: t.mentorado || '',
+          prioridade: t.prioridade || 'normal',
+          tipo: t.tipo || 'geral',
+          prazo_dias: t.prazo_dias || null,
+          subtasks: (t.subtasks || []).map(s => typeof s === 'string' ? { text: s, done: false } : s),
+        }));
+        if (!this.batchTask.extractedTasks.length) {
+          this.toast('Nenhuma tarefa identificada no áudio', 'warning');
+        }
+      } catch (e) {
+        this.toast('Erro ao processar áudio: ' + e.message, 'error');
+      } finally {
+        this.batchTask.transcribing = false;
+      }
+    },
+
+    async batchTaskConfirmAll() {
+      if (!sb) return;
+      const selected = this.batchTask.extractedTasks.filter(t => t._selected);
+      if (!selected.length) return;
+      this.batchTask.saving = true;
+      let created = 0;
+      for (const t of selected) {
+        const dueDate = t.prazo_dias ? new Date(Date.now() + t.prazo_dias * 86400000).toISOString().split('T')[0] : null;
+        const row = {
+          titulo: t.titulo,
+          tipo: t.tipo,
+          prioridade: t.prioridade,
+          responsavel: t.responsavel || '',
+          mentorado_nome: t.mentorado || '',
+          data_fim: dueDate,
+          status: 'pendente',
+          fonte: 'audio_batch',
+          auto_gerada: true,
+          descricao: t.descricao ? `${t.descricao}\n\n[Criada por áudio em ${new Date().toLocaleDateString('pt-BR')}]` : `Criada por áudio em ${new Date().toLocaleDateString('pt-BR')}`,
+        };
+        const { data: newTask, error } = await sb.from('god_tasks').insert(row).select().single();
+        if (!error && newTask) {
+          this.data.tasks.push(newTask);
+          // Create subtasks if any
+          if (t.subtasks?.length && newTask.id) {
+            const subRows = t.subtasks.map((s, idx) => ({
+              task_id: newTask.id,
+              texto: s.text || s,
+              done: false,
+              sort_order: idx,
+            }));
+            await sb.from('god_task_subtasks').insert(subRows);
+          }
+          created++;
+        }
+      }
+      this._cacheTasksLocal();
+      this.batchTask.saving = false;
+      this.batchTask.extractedTasks = [];
+      this.batchTask.transcript = '';
+      this.ui.batchTaskModal = false;
+      this.toast(`${created} tarefas criadas a partir do áudio`, 'success');
+    },
+
+    // --- Feedback Form ---
+    feedbackForm: {
+      titulo: '',
+      descricao: '',
+      categoria: 'bug',
+      prioridade: 'normal',
+    },
+
+    get filteredFeedback() {
+      let list = [...this.data.feedbackList];
+      if (this.ui.feedbackCatFilter) list = list.filter(f => f.categoria === this.ui.feedbackCatFilter);
+      if (this.ui.feedbackStatusFilter) list = list.filter(f => f.status === this.ui.feedbackStatusFilter);
+      list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      return list;
+    },
+
+    async loadFeedback() {
+      if (!sb) return;
+      const { data, error } = await sb.from('god_feedback').select('*').order('created_at', { ascending: false }).limit(200);
+      if (!error && data) this.data.feedbackList = data;
+    },
+
+    async submitFeedback() {
+      if (!sb || !this.feedbackForm.titulo.trim()) return;
+      const row = {
+        titulo: this.feedbackForm.titulo.trim(),
+        descricao: this.feedbackForm.descricao.trim() || null,
+        categoria: this.feedbackForm.categoria,
+        prioridade: this.feedbackForm.prioridade,
+        created_by: this.currentUserName || 'equipe',
+      };
+      const { data: created, error } = await sb.from('god_feedback').insert(row).select().single();
+      if (error) { this.toast('Erro ao enviar feedback: ' + error.message, 'error'); return; }
+      this.data.feedbackList.unshift(created);
+      this.feedbackForm = { titulo: '', descricao: '', categoria: 'bug', prioridade: 'normal' };
+      this.ui.feedbackFormOpen = false;
+      this.toast('Feedback enviado', 'success');
+    },
+
+    async updateFeedbackStatus(fbId, newStatus) {
+      if (!sb) return;
+      const { error } = await sb.from('god_feedback').update({ status: newStatus }).eq('id', fbId);
+      if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      const fb = this.data.feedbackList.find(f => f.id === fbId);
+      if (fb) fb.status = newStatus;
+      this.toast('Status atualizado', 'success');
+    },
+
+    async convertFeedbackToTask(fb) {
+      if (!sb) return;
+      const taskData = {
+        titulo: fb.titulo,
+        descricao: `[Convertido de feedback]\n${fb.descricao || ''}\n\nCategoria: ${fb.categoria}\nPrioridade sentida: ${fb.prioridade}\nReportado por: ${fb.created_by}`,
+        tipo: 'bug_report',
+        prioridade: fb.prioridade,
+        status: 'pendente',
+        fonte: 'feedback',
+        tags: [fb.categoria],
+      };
+      const { data: created, error } = await sb.from('god_tasks').insert(taskData).select().single();
+      if (error) { this.toast('Erro ao criar tarefa: ' + error.message, 'error'); return; }
+      // Update feedback status
+      await sb.from('god_feedback').update({ status: 'convertido', converted_task_id: created.id }).eq('id', fb.id);
+      fb.status = 'convertido';
+      fb.converted_task_id = created.id;
+      this.data.tasks.push(created);
+      this._cacheTasksLocal();
+      this.toast('Tarefa criada a partir do feedback', 'success');
+    },
+
+    async discardFeedback(fbId, motivo) {
+      if (!sb) return;
+      const { error } = await sb.from('god_feedback').update({ status: 'descartado', descarte_motivo: motivo || null }).eq('id', fbId);
+      if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      const fb = this.data.feedbackList.find(f => f.id === fbId);
+      if (fb) { fb.status = 'descartado'; fb.descarte_motivo = motivo; }
+      this.toast('Feedback descartado', 'info');
+    },
+
+    // --- Bulk Follow-up State ---
+    bulkFollowup: {
+      template: 'Oi {nome}! Passando pra checar como estão as coisas. Precisa de algo?',
+      days: 2,
+      mentees: [],
+      sending: false,
+      sent: 0,
+    },
+
+    async openBulkFollowup() {
+      if (!sb) return;
+      this.bulkFollowup.mentees = [];
+      this.bulkFollowup.sending = false;
+      this.bulkFollowup.sent = 0;
+
+      // Load mentorados with their WA groups and last response info
+      const mentorados = this.data.mentorados || [];
+      const waGroups = await sb.from('wa_groups').select('group_jid,mentorado_id').then(r => r.data || []);
+      const groupMap = {};
+      for (const g of waGroups) { if (g.mentorado_id) groupMap[g.mentorado_id] = g.group_jid; }
+
+      const menteeList = [];
+      for (const m of mentorados) {
+        const jid = groupMap[m.id];
+        if (!jid) continue; // skip mentorados without WA group
+
+        // Get last team message and last mentorado message
+        const { data: lastTeam } = await sb.from('whatsapp_messages')
+          .select('created_at')
+          .eq('group_id', jid).eq('is_from_team', true)
+          .order('created_at', { ascending: false }).limit(1);
+
+        const { data: lastMentee } = await sb.from('whatsapp_messages')
+          .select('created_at,content')
+          .eq('group_id', jid).eq('is_from_team', false)
+          .order('created_at', { ascending: false }).limit(1);
+
+        const lastTeamDate = lastTeam?.[0]?.created_at ? new Date(lastTeam[0].created_at) : null;
+        const lastMenteeDate = lastMentee?.[0]?.created_at ? new Date(lastMentee[0].created_at) : null;
+
+        // Calculate days since last response from mentee (or since team's last msg)
+        let daysSinceResponse = null;
+        if (lastTeamDate && (!lastMenteeDate || lastMenteeDate < lastTeamDate)) {
+          daysSinceResponse = Math.floor((Date.now() - lastTeamDate) / (1000 * 60 * 60 * 24));
+        }
+
+        menteeList.push({
+          id: m.id,
+          nome: m.nome,
+          jid,
+          daysSinceResponse,
+          lastMsg: lastMentee?.[0]?.content?.substring(0, 60) || '',
+          selected: daysSinceResponse !== null && daysSinceResponse >= 3,
+        });
+      }
+
+      // Sort: most days without response first
+      menteeList.sort((a, b) => (b.daysSinceResponse || 0) - (a.daysSinceResponse || 0));
+      this.bulkFollowup.mentees = menteeList;
+      this.ui.bulkFollowupModal = true;
+    },
+
+    async executeBulkFollowup() {
+      const selected = this.bulkFollowup.mentees.filter(m => m.selected);
+      if (!selected.length || !this.bulkFollowup.template.trim()) return;
+
+      this.bulkFollowup.sending = true;
+      this.bulkFollowup.sent = 0;
+      const { instance } = this._waActiveInstance();
+      if (!instance) { this.toast('WhatsApp não conectado', 'warning'); this.bulkFollowup.sending = false; return; }
+
+      let success = 0;
+      for (const m of selected) {
+        const text = this.bulkFollowup.template.replace(/\{nome\}/gi, m.nome.split(' ')[0]);
+        try {
+          await fetch(`${CONFIG.API_BASE}/api/wa/send-text`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+            body: JSON.stringify({ number: m.jid, text, instance, group_jid: m.jid }),
+          });
+          // Create follow-up task
+          if (sb) {
+            const dueDate = new Date();
+            dueDate.setDate(dueDate.getDate() + this.bulkFollowup.days);
+            await sb.from('god_tasks').insert({
+              titulo: `Follow-up — ${m.nome}`,
+              descricao: `Follow-up em bloco enviado em ${new Date().toLocaleDateString('pt-BR')}`,
+              tipo: 'follow_up',
+              prioridade: 'normal',
+              responsavel: this.currentUserName || '',
+              mentorado_nome: m.nome,
+              mentorado_id: m.id,
+              tags: ['follow-up'],
+              data_fim: dueDate.toISOString().split('T')[0],
+              status: 'pendente',
+              fonte: 'auto_followup_bulk',
+              auto_gerada: true,
+              follow_up_group_jid: m.jid,
+            });
+          }
+          success++;
+        } catch (e) {
+          console.warn(`[bulk-followup] Failed for ${m.nome}:`, e);
+        }
+        this.bulkFollowup.sent = success;
+        // Small delay to respect rate limits
+        await new Promise(r => setTimeout(r, 500));
+      }
+
+      this.bulkFollowup.sending = false;
+      // Reload tasks
+      await this.loadTasks?.();
+      this.toast(`${success} follow-ups enviados, ${success} tarefas criadas`, 'success');
+      this.ui.bulkFollowupModal = false;
+    },
+
+    // TASK-05: Check if incoming message resolves pending follow-up tasks
+    async _checkFollowupResponse(groupJid, msg) {
+      if (!sb || !groupJid) return;
+      // Find pending follow-up tasks for this group
+      const pendingFollowups = this.data.tasks.filter(t =>
+        t.tipo === 'follow_up' &&
+        t.status === 'pendente' &&
+        t.follow_up_group_jid === groupJid &&
+        !t.follow_up_responded_at
+      );
+      if (!pendingFollowups.length) return;
+
+      const now = new Date().toISOString();
+      const preview = (msg.content || '').substring(0, 80);
+      for (const task of pendingFollowups) {
+        // Mark as responded (but don't close — consultant decides)
+        task.follow_up_responded_at = now;
+        await sb.from('god_tasks').update({ follow_up_responded_at: now }).eq('id', task.id);
+        // Add auto-comment
+        await sb.from('god_task_comments').insert({
+          task_id: task.id,
+          author: 'Sistema',
+          texto: `Mentorado respondeu em ${new Date().toLocaleDateString('pt-BR')}: "${preview}..."`,
+        });
+      }
+      if (pendingFollowups.length) {
+        this.toast(`${pendingFollowups.length} follow-up(s) sinalizados como respondidos`, 'info');
+      }
+    },
+
+    // Date label for day separators in chat
+    waDateLabel(dateStr) {
+      if (!dateStr) return '';
+      const d = new Date(dateStr);
+      const today = new Date();
+      const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+      if (d.toDateString() === today.toDateString()) return 'Hoje';
+      if (d.toDateString() === yesterday.toDateString()) return 'Ontem';
+      const dias = ['Domingo','Segunda','Terca','Quarta','Quinta','Sexta','Sabado'];
+      const diff = Math.floor((today - d) / (1000*60*60*24));
+      if (diff < 7) return dias[d.getDay()];
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    },
+
+    // Clean sender name — replace raw JID numbers with readable format
+    waCleanSenderName(name) {
+      if (!name) return 'Desconhecido';
+      // If it's a pure number (JID), format as phone
+      if (/^\d{10,15}$/.test(name)) {
+        // Format: 5511999887766 → (55) 11 99988-7766
+        if (name.length >= 12) return `+${name.slice(0,2)} ${name.slice(2,4)} ${name.slice(4,9)}-${name.slice(9)}`;
+        return name;
+      }
+      // Remove @s.whatsapp.net or @lid suffix
+      return name.replace(/@s\.whatsapp\.net$/, '').replace(/@lid$/, '');
+    },
+
+    // Resolve media URL for detail tab — S3 key → stream proxy, full URL → passthrough
+    waDetailMediaUrl(url) {
+      if (!url) return '';
+      if (url.startsWith('http')) return url;
+      // S3 key → stream proxy
+      return `${CONFIG.API_BASE}/api/media/stream?key=${encodeURIComponent(url)}`;
     },
 
     openDetailWhatsApp() {
@@ -3317,6 +4449,144 @@ function operon() {
         .sort((a, b) => (b.hoje.length + b.bloqueios.length) - (a.hoje.length + a.bloqueios.length));
     },
 
+    // === CC V2: Dossiês Gargalados ===
+    ccDossiesGargalados() {
+      const docs = this.data.dsAllDocs || [];
+      const prods = this.data.dsProducoes || [];
+      const now = new Date();
+      const gargalados = [];
+      for (const doc of docs) {
+        if (doc.estagio_atual === 'finalizado' || doc.estagio_atual === 'pendente') continue;
+        const updatedAt = doc.updated_at ? new Date(doc.updated_at) : null;
+        const diasParado = updatedAt ? Math.floor((now - updatedAt) / (1000 * 60 * 60 * 24)) : null;
+        if (diasParado !== null && diasParado >= 3) {
+          const prod = prods.find(p => p.producao_id === doc.producao_id);
+          gargalados.push({
+            ...doc,
+            mentorado_nome: prod?.mentorado_nome || doc.mentorado_nome || '?',
+            diasParado,
+            estagio_label: (this.dsEstagioConfig?.(doc.estagio_atual) || {}).label || doc.estagio_atual,
+          });
+        }
+      }
+      return gargalados.sort((a, b) => b.diasParado - a.diasParado).slice(0, 10);
+    },
+
+    // === CC V2: Mentorados sem call há X dias ===
+    ccMentoradosSemCall() {
+      const mentees = this.data.mentees || [];
+      const now = new Date();
+      const result = [];
+      for (const m of mentees) {
+        if (m.status === 'offboarded' || m.status === 'cancelado') continue;
+        let diasSemCall = m.dias_desde_call;
+        if (diasSemCall == null && m.data_entrada) {
+          diasSemCall = Math.floor((now - new Date(m.data_entrada)) / 86400000);
+        }
+        if (diasSemCall == null) diasSemCall = 999;
+        if (diasSemCall >= 14) {
+          const lastCallDate = m.ultima_call_data ? new Date(m.ultima_call_data).toLocaleDateString('pt-BR') : 'Nunca';
+          result.push({ id: m.id, nome: m.nome, diasSemCall, lastCall: lastCallDate });
+        }
+      }
+      return result.sort((a, b) => b.diasSemCall - a.diasSemCall).slice(0, 15);
+    },
+
+    // === CC V2: Download da Semana (sexta — consolidado semanal) ===
+    ccDownloadSemana() {
+      const now = new Date();
+      const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay() + 1); weekStart.setHours(0, 0, 0, 0); // segunda
+      const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6); weekEnd.setHours(23, 59, 59, 999); // domingo
+      const tasks = this.data.tasks || [];
+      const mentees = this.data.mentees || [];
+
+      // Tarefas concluídas esta semana
+      const concluidas = tasks.filter(t => {
+        const updated = new Date(t.updated_at);
+        return t.status === 'concluida' && updated >= weekStart && updated <= weekEnd;
+      });
+
+      // Tarefas criadas esta semana
+      const criadas = tasks.filter(t => {
+        const created = new Date(t.created_at);
+        return created >= weekStart && created <= weekEnd;
+      });
+
+      // Pendentes ainda abertas
+      const pendentes = tasks.filter(t => t.status === 'pendente' || t.status === 'em_andamento');
+
+      // Atrasadas
+      const atrasadas = tasks.filter(t => {
+        const due = t.data_fim || t.prazo;
+        return due && new Date(due) < now && t.status !== 'concluida';
+      });
+
+      // Mentorados ativos
+      const ativos = mentees.filter(m => m.status !== 'offboarded' && m.status !== 'cancelado');
+
+      // Dossiês entregues esta semana
+      const entregues = (this.data.dsAllDocs || []).filter(d => {
+        if (d.estagio_atual !== 'finalizado') return false;
+        const updated = new Date(d.updated_at);
+        return updated >= weekStart && updated <= weekEnd;
+      });
+
+      return {
+        periodo: `${weekStart.toLocaleDateString('pt-BR')} — ${weekEnd.toLocaleDateString('pt-BR')}`,
+        tarefasConcluidas: concluidas.length,
+        tarefasCriadas: criadas.length,
+        tarefasPendentes: pendentes.length,
+        tarefasAtrasadas: atrasadas.length,
+        mentoradosAtivos: ativos.length,
+        dossiesEntregues: entregues.length,
+        dossiesGargalados: this.ccDossiesGargalados().length,
+        topConcluidas: concluidas.slice(0, 5),
+        topPendentes: pendentes.filter(t => t.prioridade === 'alta' || t.prioridade === 'urgente').slice(0, 5),
+        topAtrasadas: atrasadas.slice(0, 5),
+      };
+    },
+
+    // === CC V2: Planejamento da Semana (segunda — o que priorizar) ===
+    ccPlanejamentoSemana() {
+      const now = new Date();
+      const tasks = this.data.tasks || [];
+
+      // Próximos 7 dias
+      const in7days = new Date(now); in7days.setDate(in7days.getDate() + 7);
+
+      // Tarefas com prazo nos próximos 7 dias
+      const comPrazo = tasks.filter(t => {
+        const due = t.data_fim || t.prazo;
+        if (!due || t.status === 'concluida') return false;
+        const d = new Date(due);
+        return d >= now && d <= in7days;
+      }).sort((a, b) => new Date(a.data_fim || a.prazo) - new Date(b.data_fim || b.prazo));
+
+      // Atrasadas (prioridade máxima)
+      const atrasadas = tasks.filter(t => {
+        const due = t.data_fim || t.prazo;
+        return due && new Date(due) < now && t.status !== 'concluida';
+      }).sort((a, b) => new Date(a.data_fim || a.prazo) - new Date(b.data_fim || b.prazo));
+
+      // Follow-ups pendentes
+      const followups = tasks.filter(t => t.tipo === 'follow_up' && t.status === 'pendente');
+
+      // Dossiês com prazo crítico
+      const dossiesCriticos = this.dsNewsCriticos?.() || [];
+
+      // Sem call há muito tempo
+      const semCall = this.ccMentoradosSemCall();
+
+      return {
+        atrasadas: atrasadas.slice(0, 10),
+        comPrazo: comPrazo.slice(0, 10),
+        followups: followups.slice(0, 10),
+        dossiesCriticos: dossiesCriticos.slice(0, 5),
+        semCall: semCall.slice(0, 5),
+        totalAcoes: atrasadas.length + comPrazo.length + followups.length,
+      };
+    },
+
     async loadCommandCenterData() {
       try {
         const res = await fetch(`${CONFIG.API_BASE}/api/clickup/command-center`);
@@ -3415,11 +4685,11 @@ function operon() {
             this.data.sprints = sprints;
           }
 
-          // Popula space_sistema.lists com sprints como items navegáveis
+          // Popula space_tecnologia.lists com sprints como items navegáveis
           // Usa map() no array inteiro para garantir reatividade Alpine.js
           if (sprints.length) {
             this.spaces = this.spaces.map(s => {
-              if (s.id !== 'space_sistema') return s;
+              if (s.id !== 'space_tecnologia') return s;
               return {
                 ...s,
                 lists: sprints.map(sp => ({
@@ -3515,6 +4785,7 @@ function operon() {
       'wa-topics': 'wa_topics',
       'wa-management': 'wa_management',
       'reminders': 'reminders',
+      'feedback': 'feedback',
       'dossies': 'dossies',
       'planos-acao': 'planos_acao',
       'onboarding': 'onboarding',
@@ -4554,6 +5825,7 @@ function operon() {
       localStorage.setItem('spalla_page', 'dashboard');
       this.data.detail = null;
       this.ui.selectedMenteeId = null;
+      history.pushState({ page: 'dashboard' }, '', '/dashboard');
     },
 
     // ===================== PLANO DE AÇÃO (PA) =====================
@@ -5111,61 +6383,65 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     _autoCategorize() {
-      const phaseList = (fase) => {
-        if (fase === 'onboarding') return 'list_onboarding';
-        if (fase === 'concepcao') return 'list_concepcao';
-        if (fase === 'validacao') return 'list_validacao';
-        if (fase === 'otimizacao') return 'list_otimizacao';
-        if (fase === 'escala') return 'list_escala';
-        return 'list_concepcao';
-      };
       this.data.tasks.forEach(t => {
         // Migrate old space IDs to new ones
-        if (t.space_id === 'space_mentorados' || t.space_id === 'space_equipe' || t.space_id === 'space_queila') {
+        const oldSpaces = ['space_mentorados', 'space_equipe', 'space_queila', 'space_jornada', 'space_gestao', 'space_ia', 'space_sistema'];
+        if (oldSpaces.includes(t.space_id)) {
           t.space_id = null; t.list_id = null;
         }
         if (!t.space_id) {
           const titulo = (t.titulo || '').toLowerCase();
           const fonte = t.fonte || '';
           const resp = t.responsavel || '';
-          const mentee = this.data.mentees.find(m => m.nome === t.mentorado_nome);
-          const fase = mentee?.fase_jornada || '';
 
-          // Mentee-owned tasks → Jornada, list by phase
-          if (resp === 'mentorado' || fonte === 'tarefas_acordadas' || fonte === 'analise_call') {
-            t.space_id = 'space_jornada';
-            t.list_id = phaseList(fase);
-            if (!t.acompanhante) t.acompanhante = 'Kaique';
-          }
-          // Queila directions → Gestão
-          else if (resp === 'Queila' || fonte === 'direcionamento') {
-            t.space_id = 'space_gestao';
-            t.list_id = titulo.includes('playbook') || titulo.includes('material') ? 'list_playbooks' : 'list_direcionamentos';
-          }
-          // Dossiê tasks → Gestão / Dossiês
-          else if (titulo.includes('dossie') || titulo.includes('dossiê') || fonte === 'dossie') {
-            t.space_id = 'space_gestao';
+          // Dossiê tasks → Atendimento / Dossiês
+          if (titulo.includes('dossie') || titulo.includes('dossiê') || titulo.startsWith('[ds]') || fonte === 'dossie') {
+            t.space_id = 'space_atendimento';
             t.list_id = 'list_dossies';
           }
-          // Content/Marketing → Gestão
-          else if (titulo.includes('conteudo') || titulo.includes('conteúdo') || titulo.includes('video') || titulo.includes('post') || titulo.includes('campanha') || titulo.includes('trafego') || titulo.includes('tráfego')) {
-            t.space_id = 'space_gestao';
-            t.list_id = 'list_conteudo';
+          // Pós-call actions → Atendimento / Pós-call
+          else if (fonte === 'tarefas_acordadas' || fonte === 'analise_call' || titulo.includes('pós-call') || titulo.includes('pos-call')) {
+            t.space_id = 'space_atendimento';
+            t.list_id = 'list_poscall';
           }
-          // Sales → Gestão
-          else if (titulo.includes('venda') || titulo.includes('funil') || titulo.includes('oferta') || titulo.includes('comercial')) {
-            t.space_id = 'space_gestao';
-            t.list_id = 'list_vendas';
+          // Análises & revisões do mentorado → Atendimento / Análises
+          else if (titulo.includes('revisão') || titulo.includes('revisao') || titulo.includes('análise') || titulo.includes('analise') || titulo.includes('lapidação') || titulo.includes('lapidacao') || titulo.includes('linha editorial') || titulo.includes('evento presencial')) {
+            t.space_id = 'space_atendimento';
+            t.list_id = 'list_analises';
           }
-          // Has mentee associated → Jornada, by phase
+          // Aulas & gravações → Produto / Aulas
+          else if (titulo.includes('aula') || titulo.includes('gravação') || titulo.includes('gravacao') || titulo.includes('roteiro') || titulo.includes('gravar') || titulo.includes('área de membros')) {
+            t.space_id = 'space_produto';
+            t.list_id = 'list_aulas';
+          }
+          // Manuais, kits, processos → Produto / Manuais & Kits
+          else if (titulo.includes('manual') || titulo.includes('kit') || titulo.includes('playbook') || titulo.includes('processo') || titulo.includes('classificação') || titulo.includes('c1/c2/c3') || titulo.includes('template') || titulo.includes('protocolo')) {
+            t.space_id = 'space_produto';
+            t.list_id = 'list_manuais';
+          }
+          // Planejamento de produto → Produto / Planejamento
+          else if (titulo.includes('oferta') || titulo.includes('funil') || titulo.includes('produto') || titulo.includes('formato') || titulo.includes('precificação') || titulo.includes('precificacao') || fonte === 'direcionamento') {
+            t.space_id = 'space_produto';
+            t.list_id = 'list_planejamento';
+          }
+          // Spalla / sistema → Tecnologia / Maestro
+          else if (titulo.includes('spalla') || titulo.includes('maestro') || titulo.includes('dashboard') || titulo.includes('painel') || titulo.includes('wireframe')) {
+            t.space_id = 'space_tecnologia';
+            t.list_id = 'list_maestro';
+          }
+          // Agentes & automações → Tecnologia
+          else if (titulo.includes('agente') || titulo.includes('n8n') || titulo.includes('workflow') || titulo.includes('automação') || titulo.includes('automacao') || titulo.includes('manychat') || titulo.includes('webhook')) {
+            t.space_id = 'space_tecnologia';
+            t.list_id = 'list_agentes';
+          }
+          // Has mentorado associated → Atendimento / Operacional
           else if (t.mentorado_nome) {
-            t.space_id = 'space_jornada';
-            t.list_id = phaseList(fase);
-            if (!t.acompanhante && resp && resp !== 'mentorado') t.acompanhante = resp;
+            t.space_id = 'space_atendimento';
+            t.list_id = 'list_operacional';
           }
-          // Everything else → Gestão / Operacional
+          // Everything else → Atendimento / Operacional
           else {
-            t.space_id = 'space_gestao';
+            t.space_id = 'space_atendimento';
             t.list_id = 'list_operacional';
           }
         }
@@ -5355,6 +6631,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           responsavel: (TEAM_MEMBERS.find(m => m.name.toLowerCase() === (task.responsavel||'').toLowerCase())?.name) || task.responsavel || '',
           acompanhante: (TEAM_MEMBERS.find(m => m.name.toLowerCase() === (task.acompanhante||'').toLowerCase())?.name) || task.acompanhante || '',
           mentorado_nome: task.mentorado_nome || '',
+          tipo: task.tipo || 'geral',
           prioridade: task.prioridade || 'normal',
           prazo: task.data_fim || task.prazo || '',
           data_inicio: task.data_inicio || '',
@@ -5367,7 +6644,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           tags: task.tags ? [...task.tags] : [],
           dependencies: task.dependencies ? [...task.dependencies] : [],
           parent_task_id: task.parent_task_id || null,
-          space_id: task.space_id || 'space_jornada',
+          space_id: task.space_id || 'space_atendimento',
           list_id: task.list_id || '',
           recorrencia: task.recorrencia || 'nenhuma',
           dia_recorrencia: task.dia_recorrencia || null,
@@ -5385,9 +6662,12 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         this.ui.taskEditId = task.id;
         this.loadFieldDefs(task.space_id, task.list_id, task.id);
       } else {
-        this.taskForm = { titulo: '', descricao: '', responsavel: '', acompanhante: '', mentorado_nome: '', prioridade: 'normal', prazo: '', data_inicio: '', data_fim: '', doc_link: '', subtasks: [], checklist: [], comments: [], attachments: [], tags: [], dependencies: [], parent_task_id: null, space_id: 'space_jornada', list_id: '', recorrencia: 'nenhuma', dia_recorrencia: null, recorrencia_ativa: true, bloqueio_motivo: '', bloqueio_responsavel: '', newSubtask: '', newCheckItem: '', newComment: '', newTag: '', newDependsOn: '', newDependsOnType: 'finish_to_start', fieldValues: {} };
+        // Preserve mentorado_nome if it was pre-set (e.g. from mentee detail view)
+        const presetMentorado = this.taskForm?.mentorado_nome || '';
+        const presetTipo = this.taskForm?.tipo || 'geral';
+        this.taskForm = { titulo: '', descricao: '', responsavel: '', acompanhante: '', mentorado_nome: presetMentorado, tipo: presetTipo, prioridade: 'normal', prazo: '', data_inicio: '', data_fim: '', doc_link: '', subtasks: [], checklist: [], comments: [], attachments: [], tags: [], dependencies: [], parent_task_id: null, space_id: 'space_atendimento', list_id: '', recorrencia: 'nenhuma', dia_recorrencia: null, recorrencia_ativa: true, bloqueio_motivo: '', bloqueio_responsavel: '', newSubtask: '', newCheckItem: '', newComment: '', newTag: '', newDependsOn: '', newDependsOnType: 'finish_to_start', fieldValues: {} };
         this.ui.taskEditId = null;
-        this.loadFieldDefs('space_jornada', null, null);
+        this.loadFieldDefs('space_atendimento', null, null);
       }
       this.ui.taskModal = true;
       this.ui.taskTagsDropdown = false;
@@ -5449,10 +6729,87 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         if (newTask.checklist?.length) await this._sbSyncChecklist(newId, newTask.checklist);
         if (tagsObjects.length) await this._sbSyncTagRelations(newId, tagsObjects);
         await this.saveFieldValues(newId);
+        // TASK-03/09: Notify responsavel via WhatsApp (only on creation, not edit)
+        if (newTask.responsavel) {
+          newTask._notifyMentorado = this.taskForm.notificarMentorado || false;
+          this._notifyTaskViaWa(newTask).catch(e => console.warn('[task-notify]', e));
+        }
       }
       this._cacheTasksLocal();
       this.closeTaskModal();
       this.toast('Tarefa salva', 'success');
+    },
+
+    async _notifyTaskViaWa(task) {
+      if (!task.responsavel || !sb) return;
+      const baseUrl = window.location.origin;
+      const link = `${baseUrl}/tasks?detail=${task.id}`;
+      const prazo = task.data_fim || task.prazo || '';
+      const criador = this.currentUserName || '';
+
+      // Lookup responsavel's whatsapp_jid from spalla_members (via Supabase, no backend needed)
+      try {
+        const { data: members } = await sb.from('spalla_members')
+          .select('nome_curto,whatsapp_jid')
+          .eq('ativo', true);
+
+        const member = (members || []).find(m => m.nome_curto?.toLowerCase() === task.responsavel.toLowerCase());
+        if (!member?.whatsapp_jid) {
+          console.warn('[task-notify] No whatsapp_jid for', task.responsavel);
+          return;
+        }
+
+        // Build message
+        const tipoInfo = this.TASK_TIPO_MAP[task.tipo] || this.TASK_TIPO_MAP.geral;
+        const now = new Date();
+        const dataHora = now.toLocaleDateString('pt-BR') + ' às ' + now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const lines = [`📋 *Nova tarefa:* ${task.titulo}`];
+        if (task.descricao) lines.push(`📝 ${task.descricao.substring(0, 150)}${task.descricao.length > 150 ? '...' : ''}`);
+        lines.push(`${tipoInfo.icon} Tipo: ${tipoInfo.label}`);
+        if (criador) lines.push(`👤 Criada por: ${criador}`);
+        if (task.mentorado_nome) lines.push(`🧑 Mentorado: ${task.mentorado_nome}`);
+        if (prazo) lines.push(`📅 Prazo: ${new Date(prazo + 'T12:00:00').toLocaleDateString('pt-BR')}`);
+        lines.push(`🕐 Cadastrada em: ${dataHora}`);
+        if (link) lines.push(`🔗 ${link}`);
+        const text = lines.join('\n');
+
+        // Send via backend proxy (same endpoint as WA chat — already works)
+        const { instance } = this._waActiveInstance();
+        if (!instance) return;
+        const number = member.whatsapp_jid.split('@')[0];
+        await fetch(`${CONFIG.API_BASE}/api/wa/send-text`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+          body: JSON.stringify({ number, text, instance }),
+        });
+      } catch (e) { console.warn('[task-notify]', e); }
+
+      // TASK-09: Notify mentorado if opted in and tipo is dossie/ajuste
+      if (task._notifyMentorado && task.mentorado_nome) {
+        const tipo = task.tipo || 'geral';
+        if (['dossie', 'ajuste_dossie'].includes(tipo)) {
+          this._notifyMentoradoViaWa(task).catch(e => console.warn('[task-notify-mentee]', e));
+        }
+      }
+    },
+
+    async _notifyMentoradoViaWa(task) {
+      if (!sb || !task.mentorado_nome) return;
+      const mentoradoId = task.mentorado_id;
+      if (!mentoradoId) return;
+      const { data: groups } = await sb.from('wa_groups').select('group_jid').eq('mentorado_id', mentoradoId).limit(1);
+      if (!groups?.length) return;
+      const jid = groups[0].group_jid;
+
+      const text = `Olá! Uma nova ação foi registrada para você:\n\n📋 *${task.titulo}*\n${task.data_fim ? '📅 Prazo: ' + new Date(task.data_fim + 'T12:00:00').toLocaleDateString('pt-BR') : ''}\n\nSe tiver dúvidas, é só mandar aqui!`;
+
+      const { instance } = this._waActiveInstance();
+      if (!instance) return;
+      await fetch(`${CONFIG.API_BASE}/api/wa/send-text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+        body: JSON.stringify({ number: jid, text, instance, group_jid: jid }),
+      });
     },
 
     async updateTaskField(taskId, field, value) {
@@ -5588,8 +6945,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.ui.taskDetailDrawer = taskId;
       this.ui.taskActivity = [];
       this._loadTaskActivity(taskId);
-      // Update URL for shareable link (without page reload)
-      if (taskId && window.history.replaceState) {
+      // Update URL for shareable link (without page reload) — only on tasks page
+      if (taskId && window.history.replaceState && this.ui.page === 'tasks') {
         window.history.replaceState(null, '', `/tasks?task=${taskId}`);
       }
     },
@@ -5626,8 +6983,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     closeTaskDetail() {
       this.ui.taskDetailDrawer = null;
-      // Reset URL (remove ?task= param)
-      if (window.history.replaceState) {
+      // Reset URL (remove ?task= param) — only on tasks page
+      if (window.history.replaceState && this.ui.page === 'tasks') {
         window.history.replaceState(null, '', '/tasks');
       }
     },
@@ -6486,34 +7843,63 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (!instance) return;
       this.ui.whatsappSelectedChat = chat;
       this.ui.whatsappLoading = true;
-      this.stopWhatsAppPolling(); // Stop previous polling
+      this.stopWhatsAppPolling(); // cleanup previous subscriptions + polling
+
+      const groupJid = chat.remoteJid || chat.id;
+
+      // Strategy: try Supabase wa_messages first, fallback to Evolution API
+      let usedRealtime = false;
       try {
-        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${instance}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ where: { key: { remoteJid: chat.remoteJid || chat.id } }, limit: 50 }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          // Evolution API v2 can return { messages: { records: [...] } } or just an array
-          const msgs = data.messages?.records || data.messages || data || [];
-          this.data.whatsappMessages = (Array.isArray(msgs) ? msgs : []).reverse();
-          // Eagerly load media URLs for all messages
-          this.eagerlyLoadWaMediaUrls(this.data.whatsappMessages);
+        const { data: dbMsgs, error } = await sb.from('whatsapp_messages')
+          .select('id,message_id,group_id,sender_name,type,content,media_url,media_mime_type,quoted_message_id,timestamp')
+          .eq('group_id', groupJid)
+          .order('timestamp', { ascending: true })
+          .limit(100);
+
+        if (!error && dbMsgs && dbMsgs.length > 0) {
+          // Use Supabase data — convert to Evolution format for HTML compatibility
+          this.data.whatsappMessages = dbMsgs.map(row => this._waDbToEvolutionFormat(row));
+          // Subscribe to Realtime for live updates
+          this._subscribeWaRealtime(groupJid);
+          usedRealtime = true;
+          console.log(`[Spalla] WA chat loaded from Supabase: ${dbMsgs.length} msgs (Realtime active)`);
         } else {
-          throw new Error(`HTTP ${res.status}`);
+          throw new Error('No messages in Supabase — fallback to Evolution API');
         }
-      } catch (e) {
-        console.error('[Spalla] WA messages fetch error:', e);
-        this.data.whatsappMessages = DEMO_WA_MESSAGES;
+      } catch (sbErr) {
+        // Fallback: load from Evolution API directly (legacy path)
+        console.warn('[Spalla] Supabase WA fallback:', sbErr.message);
+        try {
+          const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/findMessages/${instance}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ where: { key: { remoteJid: groupJid } }, limit: 50 }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const msgs = data.messages?.records || data.messages || data || [];
+            this.data.whatsappMessages = (Array.isArray(msgs) ? msgs : []).reverse();
+            this.eagerlyLoadWaMediaUrls(this.data.whatsappMessages);
+          } else {
+            throw new Error(`HTTP ${res.status}`);
+          }
+        } catch (evoErr) {
+          console.error('[Spalla] WA messages fetch error:', evoErr);
+          this.data.whatsappMessages = DEMO_WA_MESSAGES;
+        }
+        // Legacy polling as fallback when not using Realtime
+        this.startWhatsAppPolling();
       }
+
       this.ui.whatsappLoading = false;
       this.$nextTick(() => {
         const el = document.getElementById('wa-messages-end');
         if (el) el.scrollIntoView({ behavior: 'smooth' });
+        // Setup read receipts observer for visible messages
+        this.setupWaReadReceipts();
+        // Eagerly load media URLs for Supabase messages
+        this.eagerlyLoadWaMediaUrls(this.data.whatsappMessages);
       });
-      // Start polling for new messages
-      this.startWhatsAppPolling();
     },
 
     // Story 3.1: Dynamic send routing — uses user's instance if connected, fallback to producao002
@@ -6535,34 +7921,68 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const { instance, isPersonal } = this._waActiveInstance();
       if (!instance) { this.toast('WhatsApp nao configurado', 'info'); return; }
       const msg = this.ui.whatsappMessage.trim();
+      const replyTo = this.ui.waReplyTo;
+      const replyToId = replyTo?.key?.id || null;
       this.ui.whatsappMessage = '';
+      this.clearWaReply();
       if (!isPersonal) {
         this.toast('Enviando pelo numero central (conecte seu WhatsApp em Configuracoes)', 'warning');
       }
+
+      const number = this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id;
+      const groupJid = number;
+
+      // Optimistic insert (will be deduplicated by Realtime if using Supabase)
+      const optimisticMsg = {
+        key: { id: 'pending-' + Date.now(), fromMe: true, remoteJid: groupJid },
+        message: { conversation: msg },
+        messageTimestamp: Math.floor(Date.now() / 1000),
+        pushName: isPersonal ? (this.auth.currentUser?.full_name || 'Voce') : 'Equipe CASE',
+        _status: 'pending',
+        _replyToId: replyToId,
+      };
+      this.data.whatsappMessages.push(optimisticMsg);
+      this.$nextTick(() => {
+        const el = document.getElementById('wa-messages-end');
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      });
+
       try {
-        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/message/sendText/${instance}`, {
+        // Use new authenticated endpoint (with reply support)
+        const endpoint = replyToId ? '/api/wa/reply' : '/api/wa/send-text';
+        const payload = { number, text: msg, instance, group_jid: groupJid };
+        if (replyToId) payload.quoted_message_id = replyToId;
+
+        const res = await fetch(`${CONFIG.API_BASE}${endpoint}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ number: this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id, text: msg }),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.auth.accessToken}`,
+          },
+          body: JSON.stringify(payload),
         });
+
         if (res.ok) {
-          this.data.whatsappMessages.push({
-            key: { fromMe: true },
-            message: { conversation: msg },
-            messageTimestamp: Math.floor(Date.now() / 1000),
-            pushName: isPersonal ? (this.auth.currentUser?.full_name || 'Voce') : 'Equipe CASE',
-          });
-          this.$nextTick(() => {
-            const el = document.getElementById('wa-messages-end');
-            if (el) el.scrollIntoView({ behavior: 'smooth' });
-          });
+          const result = await res.json();
+          // Update optimistic message with real ID
+          const optIdx = this.data.whatsappMessages.indexOf(optimisticMsg);
+          if (optIdx >= 0 && result.message_id) {
+            this.data.whatsappMessages[optIdx].key.id = result.message_id;
+            this.data.whatsappMessages[optIdx]._status = 'sent';
+          }
         } else {
-          throw new Error(`HTTP ${res.status}`);
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `HTTP ${res.status}`);
         }
       } catch (e) {
         console.error('[Spalla] WA send error:', e);
         this.toast('Erro ao enviar: ' + e.message, 'error');
-        this.ui.whatsappMessage = msg; // restore on error
+        // Mark optimistic message as failed
+        const optIdx = this.data.whatsappMessages.indexOf(optimisticMsg);
+        if (optIdx >= 0) {
+          this.data.whatsappMessages[optIdx]._status = 'failed';
+        }
+        this.ui.whatsappMessage = msg; // restore text on error
       }
     },
 
@@ -6581,29 +8001,46 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (file.type.startsWith('image/')) mediatype = 'image';
       else if (file.type.startsWith('video/')) mediatype = 'video';
       else if (file.type.startsWith('audio/')) mediatype = 'audio';
-      // Convert to base64
+      // Convert to base64 data URL
       const base64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onload = () => resolve(reader.result);
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
+
+      const number = this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id;
+      const groupJid = number;
+
       this.ui.waSendingMedia = true;
       try {
-        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/message/sendMedia/${instance}`, {
+        // Use new authenticated endpoint
+        const res = await fetch(`${CONFIG.API_BASE}/api/wa/send-media`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.auth.accessToken}`,
+          },
           body: JSON.stringify({
-            number: this.ui.whatsappSelectedChat.remoteJid || this.ui.whatsappSelectedChat.id,
-            mediatype,
-            media: base64,
-            fileName: file.name,
+            number,
+            instance,
+            group_jid: groupJid,
+            media_url: base64,
+            media_type: mediatype,
+            media_name: file.name,
+            media_mime: file.type,
             caption: '',
           }),
         });
         if (res.ok) {
+          const result = await res.json();
           // Optimistic message in thread
-          const msgObj = { key: { fromMe: true }, messageTimestamp: Math.floor(Date.now() / 1000), pushName: 'Voce' };
+          const msgObj = {
+            key: { id: result.message_id || ('pending-' + Date.now()), fromMe: true, remoteJid: groupJid },
+            messageTimestamp: Math.floor(Date.now() / 1000),
+            pushName: this.auth.currentUser?.full_name || 'Voce',
+            _status: 'sent',
+          };
           if (mediatype === 'image') msgObj.message = { imageMessage: { caption: file.name } };
           else if (mediatype === 'audio') msgObj.message = { audioMessage: {} };
           else if (mediatype === 'video') msgObj.message = { videoMessage: { caption: file.name } };
@@ -6615,7 +8052,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
             if (el) el.scrollIntoView({ behavior: 'smooth' });
           });
         } else {
-          throw new Error(`HTTP ${res.status}`);
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `HTTP ${res.status}`);
         }
       } catch (e) {
         console.error('[Spalla] WA media send error:', e);
@@ -6669,10 +8107,13 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (m.audioMessage) return 'audio';
       if (m.imageMessage) return 'image';
       if (m.videoMessage) return 'video';
-      // Document messages with video MIME types
-      if (m.documentMessage?.mimetype?.includes('video')) return 'video';
-      if (m.documentMessage?.mimetype?.includes('audio')) return 'audio';
-      if (m.documentMessage?.mimetype?.includes('image')) return 'image';
+      if (m.documentMessage) {
+        // Document messages with media MIME types render as that media
+        if (m.documentMessage.mimetype?.includes('video')) return 'video';
+        if (m.documentMessage.mimetype?.includes('audio')) return 'audio';
+        if (m.documentMessage.mimetype?.includes('image')) return 'image';
+        return 'document';
+      }
       return 'text';
     },
 
@@ -6692,6 +8133,28 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         // Check if Evolution API provided mediaUrl
         if (msg.message?.mediaUrl) {
           this.waMediaUrls[msgId] = msg.message.mediaUrl;
+          updated = true;
+        }
+        // Check if message came from Supabase with _mediaUrl (S3 key or full URL)
+        else if (msg._mediaUrl) {
+          const url = msg._mediaUrl;
+          if (url.includes('mmg.whatsapp.net')) {
+            // Temporary WhatsApp URL — construct S3 fallback key
+            // S3 path: evolution-api/{INSTANCE_UUID}/{chatId}/{messageType}/{timestamp}_{msgId}.{ext}
+            const instanceUuid = (typeof EVOLUTION_CONFIG !== 'undefined' ? EVOLUTION_CONFIG?.INSTANCE_UUID : null) || 'default';
+            const chatId = msg.key?.remoteJid || this.ui.whatsappSelectedChat?.remoteJid || 'unknown';
+            const mediaType = msg._contentType === 'image' ? 'imageMessage' : msg._contentType === 'video' ? 'videoMessage' : msg._contentType === 'document' ? 'documentMessage' : 'audioMessage';
+            const ts = msg.messageTimestamp ? Math.floor(msg.messageTimestamp * 1000) : Date.now();
+            const ext = mediaType === 'audioMessage' ? 'oga' : mediaType === 'imageMessage' ? 'jpg' : mediaType === 'videoMessage' ? 'mp4' : 'bin';
+            const s3Key = `evolution-api/${instanceUuid}/${chatId}/${mediaType}/${ts}_${msgId}.${ext}`;
+            // Try S3 first (more reliable), fallback to WA URL
+            this.waMediaUrls[msgId] = `${CONFIG.API_BASE}/api/media/stream?key=${encodeURIComponent(s3Key)}&fallback=${encodeURIComponent(url)}`;
+          } else if (url.startsWith('http')) {
+            this.waMediaUrls[msgId] = url;
+          } else {
+            // S3 key — use stream proxy
+            this.waMediaUrls[msgId] = `${CONFIG.API_BASE}/api/media/stream?key=${encodeURIComponent(url)}`;
+          }
           updated = true;
         }
       }
@@ -6759,6 +8222,255 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     getWaChatName(chat) {
       return chat?.name || chat?.subject || chat?.pushName || chat?.id?.split('@')[0] || 'Chat';
+    },
+
+    // ===== Reply-to helpers =====
+    setWaReply(msg) {
+      this.ui.waReplyTo = msg;
+      // Focus the input
+      this.$nextTick(() => {
+        const input = document.querySelector('.wa-chat__input input[type="text"]');
+        if (input) input.focus();
+      });
+    },
+
+    clearWaReply() {
+      this.ui.waReplyTo = null;
+    },
+
+    getReplyPreviewText(messageId) {
+      if (!messageId) return '';
+      const msg = this.data.whatsappMessages.find(m => m.key?.id === messageId);
+      if (!msg) return '[mensagem]';
+      const text = this.getWaMessageText(msg);
+      return text.length > 60 ? text.substring(0, 60) + '...' : text;
+    },
+
+    scrollToWaMessage(messageId) {
+      if (!messageId) return;
+      const el = document.getElementById('wa-msg-' + messageId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.style.background = 'rgba(107, 154, 70, 0.15)';
+        setTimeout(() => { el.style.background = ''; }, 2000);
+      }
+    },
+
+    // ===== Audio Recording (Story 6) =====
+    async waStartRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+        const chunks = [];
+        recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+        recorder.onstop = async () => {
+          stream.getTracks().forEach(t => t.stop());
+          const blob = new Blob(chunks, { type: 'audio/ogg' });
+          if (blob.size < 1000) { this.toast('Audio muito curto', 'warning'); return; }
+          const file = new File([blob], `audio_${Date.now()}.ogg`, { type: 'audio/ogg' });
+          this.waSendMedia(file);
+        };
+        recorder.start();
+        this.ui.waRecording = true;
+        this.ui.waRecorder = recorder;
+        this.toast('Gravando audio...', 'info');
+      } catch (e) {
+        console.error('[Spalla] Mic access denied:', e);
+        this.toast('Acesso ao microfone negado', 'error');
+      }
+    },
+
+    waStopRecording() {
+      if (this.ui.waRecorder && this.ui.waRecorder.state === 'recording') {
+        this.ui.waRecorder.stop();
+      }
+      this.ui.waRecording = false;
+      this.ui.waRecorder = null;
+    },
+
+    // ===== Paste + Drag & Drop (Story 7) =====
+    waHandlePaste(e) {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (file) {
+            this.toast('Imagem colada — enviando...', 'info');
+            this.waSendMedia(file);
+          }
+          return;
+        }
+      }
+    },
+
+    waHandleDrop(e) {
+      const files = e.dataTransfer?.files;
+      if (!files || files.length === 0) return;
+      const file = files[0];
+      if (file.size > 16 * 1024 * 1024) {
+        this.toast('Arquivo muito grande (maximo 16MB)', 'error');
+        return;
+      }
+      this.toast(`Arquivo "${file.name}" — enviando...`, 'info');
+      this.waSendMedia(file);
+    },
+
+    // ===== Typing Indicator (Story 9) =====
+    _waTypingTimeout: null,
+    waHandleTyping() {
+      if (this._waTypingTimeout) return; // Already sent recently
+      const { instance } = this._waActiveInstance();
+      const chat = this.ui.whatsappSelectedChat;
+      if (!instance || !chat) return;
+      // Send composing presence via Evolution API
+      fetch(`${CONFIG.API_BASE}/api/evolution/chat/presence/${instance}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: chat.remoteJid || chat.id, presence: 'composing' }),
+      }).catch(() => {}); // fire and forget
+      this._waTypingTimeout = setTimeout(() => { this._waTypingTimeout = null; }, 3000); // debounce 3s
+    },
+
+    // ===== Message Search (Story 11) =====
+    async waSearchMessages() {
+      const q = this.ui.waSearchQuery?.trim();
+      if (!q || q.length < 3) { this.ui.waSearchResults = []; return; }
+      const chat = this.ui.whatsappSelectedChat;
+      if (!chat) return;
+      const groupJid = chat.remoteJid || chat.id;
+      try {
+        const { data, error } = await sb.from('whatsapp_messages')
+          .select('id,message_id,sender_name,content,timestamp')
+          .eq('group_id', groupJid)
+          .ilike('content', `%${q}%`)
+          .order('timestamp', { ascending: false })
+          .limit(20);
+        if (error) throw error;
+        this.ui.waSearchResults = data || [];
+      } catch (e) {
+        console.error('[Spalla] WA search error:', e);
+        this.ui.waSearchResults = [];
+      }
+    },
+
+    // ===== Read Receipts (Story 10) =====
+    _waReadObserver: null,
+    _waReadSent: new Set(),
+    setupWaReadReceipts() {
+      if (this._waReadObserver) this._waReadObserver.disconnect();
+      const container = document.querySelector('.wa-chat__messages');
+      if (!container) return;
+      this._waReadObserver = new IntersectionObserver((entries) => {
+        const { instance } = this._waActiveInstance();
+        if (!instance) return;
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const msgId = entry.target.id?.replace('wa-msg-', '');
+          if (!msgId || msgId.startsWith('pending-') || this._waReadSent.has(msgId)) continue;
+          // Find the message — only mark incoming (not fromMe) as read
+          const msg = this.data.whatsappMessages.find(m => m.key?.id === msgId);
+          if (!msg || msg.key?.fromMe) continue;
+          this._waReadSent.add(msgId);
+          // Send read receipt via Evolution API
+          const chat = this.ui.whatsappSelectedChat;
+          fetch(`${CONFIG.API_BASE}/api/evolution/chat/markMessageAsRead/${instance}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ readMessages: [{ id: msgId, remoteJid: chat?.remoteJid || chat?.id }] }),
+          }).catch(() => {});
+        }
+      }, { root: container, threshold: 0.5 });
+      // Observe all message bubbles
+      container.querySelectorAll('.wa-bubble').forEach(el => this._waReadObserver.observe(el));
+    },
+
+    cleanupWaReadReceipts() {
+      if (this._waReadObserver) {
+        this._waReadObserver.disconnect();
+        this._waReadObserver = null;
+      }
+      this._waReadSent.clear();
+    },
+
+    // ===== WA Group Management (Story 8) =====
+    async loadWaGroups() {
+      try {
+        const { data, error } = await sb.from('wa_groups')
+          .select('*')
+          .eq('is_active', true)
+          .order('last_activity', { ascending: false, nullsFirst: false });
+        if (error) throw error;
+        this.data.waGroups = data || [];
+      } catch (e) {
+        console.error('[Spalla] loadWaGroups error:', e);
+        this.data.waGroups = [];
+      }
+    },
+
+    async waGroupsSync() {
+      const { instance } = this._waActiveInstance();
+      if (!instance) { this.toast('WhatsApp nao conectado', 'warning'); return; }
+      this.ui.waGroupsSyncing = true;
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/wa/groups/sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+          body: JSON.stringify({ instance }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const result = await res.json();
+        this.toast(`${result.synced} grupos sincronizados`, 'success');
+        await this.loadWaGroups();
+      } catch (e) {
+        console.error('[Spalla] WA groups sync error:', e);
+        this.toast('Erro ao sincronizar grupos: ' + e.message, 'error');
+      } finally {
+        this.ui.waGroupsSyncing = false;
+      }
+    },
+
+    async waGroupCreate() {
+      const { instance } = this._waActiveInstance();
+      if (!instance) { this.toast('WhatsApp nao conectado', 'warning'); return; }
+      const { subject, mentorado_id, participants } = this.ui.waGroupForm;
+      if (!subject.trim()) { this.toast('Nome do grupo obrigatorio', 'warning'); return; }
+      const phones = participants.split('\n').map(p => p.trim()).filter(p => p.length >= 10);
+      if (phones.length === 0) { this.toast('Adicione pelo menos 1 telefone', 'warning'); return; }
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/wa/groups/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+          body: JSON.stringify({ instance, subject: subject.trim(), participants: phones, mentorado_id: mentorado_id || null }),
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || `HTTP ${res.status}`); }
+        this.toast(`Grupo "${subject}" criado!`, 'success');
+        this.ui.waGroupCreateModal = false;
+        this.ui.waGroupForm = { subject: '', mentorado_id: '', participants: '' };
+        await this.loadWaGroups();
+      } catch (e) {
+        console.error('[Spalla] WA group create error:', e);
+        this.toast('Erro ao criar grupo: ' + e.message, 'error');
+      }
+    },
+
+    async waGroupLink(groupId, mentoradoId) {
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/wa/groups/${groupId}/link`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+          body: JSON.stringify({ mentorado_id: mentoradoId ? parseInt(mentoradoId) : null }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        // Update local
+        const g = this.data.waGroups.find(g => g.id === groupId);
+        if (g) g.mentorado_id = mentoradoId ? parseInt(mentoradoId) : null;
+        this.toast(mentoradoId ? 'Grupo vinculado ao mentorado' : 'Vinculo removido', 'success');
+      } catch (e) {
+        console.error('[Spalla] WA group link error:', e);
+        this.toast('Erro ao vincular: ' + e.message, 'error');
+      }
     },
 
     // ===================== WA TOPICS BOARD =====================
@@ -7216,8 +8928,9 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     async loadInboxMessages(menteeId) {
       this.ui.waInbox.loading = true;
       try {
-        const { data, error } = await sb.from('wa_messages')
-          .select('id,sender_name,is_from_team,content_type,content_text,timestamp,topic_id')
+        // Use interacoes_mentoria (has mentorado_id + enriched data)
+        const { data, error } = await sb.from('interacoes_mentoria')
+          .select('id,sender_name,eh_equipe,tipo_interacao,conteudo,timestamp,topic_id')
           .eq('mentorado_id', menteeId)
           .order('timestamp', { ascending: false })
           .order('id', { ascending: false })
@@ -7242,10 +8955,9 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (!mentoradoId || !cursor || loading || !hasMore) return;
       this.ui.waInbox.loading = true;
       try {
-        const { data, error } = await sb.from('wa_messages')
-          .select('id,sender_name,is_from_team,content_type,content_text,timestamp,topic_id')
+        const { data, error } = await sb.from('interacoes_mentoria')
+          .select('id,sender_name,eh_equipe,tipo_interacao,conteudo,timestamp,topic_id')
           .eq('mentorado_id', mentoradoId)
-          // composite cursor: (ts < cur.ts) OR (ts = cur.ts AND id < cur.id)
           .or(`timestamp.lt.${cursor.timestamp},and(timestamp.eq.${cursor.timestamp},id.lt.${cursor.id})`)
           .order('timestamp', { ascending: false })
           .order('id', { ascending: false })
@@ -8105,8 +9817,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.ui.waTopicDetail = topic;
       this.ui.waTopicMessages = [];
       try {
-        const { data, error } = await sb.from('wa_messages')
-          .select('id,sender_name,is_from_team,content_type,content_text,timestamp')
+        const { data, error } = await sb.from('interacoes_mentoria')
+          .select('id,sender_name,eh_equipe,tipo_interacao,conteudo,timestamp')
           .eq('topic_id', topic.id)
           .order('timestamp', { ascending: true })
           .limit(100);
@@ -8194,11 +9906,28 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       'juliene cristina': 'drajulienefrighetto.jpg',
       'julienne frighetto': 'drajulienefrighetto.jpg',
       'danyellatruiz': 'danyellatruiz.jpg',
-      'dradanyellatruiz': 'danyellatruiz.jpg',
-      'danyella truiz': 'danyellatruiz.jpg',
-      'dr.rafaelcastro': 'drrafaelcastro.jpg',
-      'doctraction': 'drrafaelcastro.jpg',
-      'rafael castro': 'drrafaelcastro.jpg',
+      'dradanyellatruiz': 'dradanyellatruiz.jpg',
+      'danyella truiz': 'dradanyellatruiz.jpg',
+      'dr.rafaelcastro': 'dr.rafaelcastro.jpg',
+      'doctraction': 'dr.rafaelcastro.jpg',
+      'rafael castro': 'dr.rafaelcastro.jpg',
+      'dra.deboracadore': 'dra.deboracadore.jpg',
+      'debora cadore': 'dra.deboracadore.jpg',
+      'dentineodonto': 'dentineodonto.jpg',
+      'dentine': 'dentineodonto.jpg',
+      'lediane': 'dentineodonto.jpg',
+      'elinarocha': 'elinarocha.jpg',
+      'elina rocha': 'elinarocha.jpg',
+      'dra.jessicacrespi': 'dra.jessicacrespi.jpg',
+      'jessica crespi': 'dra.jessicacrespi.jpg',
+      'drajosianebarcelos': 'drajosianebarcelos.jpg',
+      'josiane barcelos': 'drajosianebarcelos.jpg',
+      'lucienetamaki': 'lucienetamaki.jpg',
+      'luciene tamaki': 'lucienetamaki.jpg',
+      'odontokerr': 'odontokerr.jpg',
+      'sidney kerr': 'odontokerr.jpg',
+      'dravaniadepaula': 'dravaniadepaula.jpg',
+      'vania de paula': 'dravaniadepaula.jpg',
     },
 
     igPhoto(handleOrName) {
@@ -8206,7 +9935,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       void this.photoTick;
 
       const isHandle = !handleOrName.includes(' ');
-      const clean = handleOrName.replace('@','').toLowerCase();
+      const clean = handleOrName.replace('@','').trim().toLowerCase();
 
       // First: try embedded data URLs (PHOTO_DATA_URLS — base64, never expire)
       if (typeof PHOTO_DATA_URLS !== 'undefined' && PHOTO_DATA_URLS[clean]) {
@@ -8295,7 +10024,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
      * - Google Docs → abre em nova aba
      * - Zoom download → converte para share link (player em vez de download)
      */
-    openMedia(url, label) {
+    openMedia(url, label, password) {
       if (!url) return;
       // Google Drive file → modal preview
       const driveMatch = url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
@@ -8307,10 +10036,20 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         };
         return;
       }
-      // Zoom download link → convert to share link (opens player instead of downloading)
-      if (/zoom\.us\/rec\/download/i.test(url)) {
-        const shareUrl = url.replace('/rec/download/', '/rec/share/');
-        window.open(shareUrl, '_blank', 'noopener');
+      // Zoom recording → append password if available
+      if (/zoom\.us\/rec\//i.test(url)) {
+        let finalUrl = url;
+        // Convert download → share link
+        if (/\/rec\/download\//i.test(finalUrl)) {
+          finalUrl = finalUrl.replace('/rec/download/', '/rec/share/');
+        }
+        // Append password parameter if available (filter out "undefined" string)
+        const cleanPwd = password && password !== 'undefined' && password !== 'null' ? password : null;
+        if (cleanPwd && !finalUrl.includes('pwd=')) {
+          const separator = finalUrl.includes('?') ? '&' : '?';
+          finalUrl += `${separator}pwd=${encodeURIComponent(cleanPwd)}`;
+        }
+        window.open(finalUrl, '_blank');
         return;
       }
       // Everything else → open in new tab
@@ -8558,17 +10297,27 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         }
 
         try {
-          const startDt = new Date(`${f.data}T${f.horario}:00`);
-          const endDt = new Date(startDt.getTime() + (parseInt(f.duracao) || 60) * 60000);
+          // Use local datetime string (not UTC) to avoid timezone offset
+          const startLocal = `${f.data}T${f.horario}:00`;
+          const durMinutes = parseInt(f.duracao) || 60;
+          const endDt = new Date(new Date(`${startLocal}`).getTime() + durMinutes * 60000);
+          const endLocal = `${endDt.getFullYear()}-${String(endDt.getMonth()+1).padStart(2,'0')}-${String(endDt.getDate()).padStart(2,'0')}T${String(endDt.getHours()).padStart(2,'0')}:${String(endDt.getMinutes()).padStart(2,'0')}:00`;
+
+          // Build attendees: mentorado + consultant (logged-in user)
+          const attendees = [];
+          if (f.email) attendees.push(f.email); // mentorado
+          const consultantEmail = this.auth.currentUser?.email;
+          if (consultantEmail && consultantEmail !== f.email) attendees.push(consultantEmail);
+
           const calRes = await fetch(`${CONFIG.API_BASE}/api/calendar/create-event`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               summary: titulo,
-              start_iso: startDt.toISOString(),
-              end_iso: endDt.toISOString(),
-              description: f.notas || '',
-              attendees: f.email ? [f.email] : [],
+              start_iso: startLocal,
+              end_iso: endLocal,
+              description: `${f.notas || ''}\n\nTipo: ${f.tipo}\nMentorado: ${f.mentorado}\nZoom: ${zoomUrl || 'N/A'}`,
+              attendees,
               location: zoomUrl || '',
             }),
           });
@@ -8621,6 +10370,26 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         this.ui.gcalConflict = null;
         this.ui._conflictConfirmed = false;
         this.scheduleForm = { mentorado: '', mentorado_id: '', tipo: 'acompanhamento', data: '', horario: '10:00', duracao: 60, email: '', notas: '' };
+
+        // Send WhatsApp invite to mentorado
+        if (menteeId && sb) {
+          try {
+            const { data: groups } = await sb.from('wa_groups').select('group_jid').eq('mentorado_id', menteeId).limit(1);
+            if (groups?.length) {
+              const jid = groups[0].group_jid;
+              const dataFormatada = new Date(`${f.data}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+              const text = `📞 *Call agendada!*\n\n📅 ${dataFormatada} às ${f.horario}\n⏱ ${f.duracao} minutos\n🎯 Tipo: ${f.tipo}\n${zoomUrl ? '🔗 Link: ' + zoomUrl : ''}\n\nTe espero lá!`;
+              const { instance } = this._waActiveInstance();
+              if (instance) {
+                await fetch(`${CONFIG.API_BASE}/api/wa/send-text`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+                  body: JSON.stringify({ number: jid, text, instance, group_jid: jid }),
+                });
+              }
+            }
+          } catch (e) { console.warn('[Schedule] WA invite failed:', e); }
+        }
 
         // Refresh upcoming calls + gcal events
         this.fetchUpcomingCalls();
@@ -8816,6 +10585,10 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     dsStatusConfig(status) {
       return DS_STATUS_PRODUCAO.find(s => s.id === status) || DS_STATUS_PRODUCAO[0];
+    },
+
+    dsAllStatuses() {
+      return DS_STATUS_PRODUCAO;
     },
 
     dsEstagioNum(estagio) {
@@ -9016,11 +10789,22 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (this.ui.dsCarteira && this.ui.dsCarteira !== 'all') {
         list = list.filter(p => (p.carteira || '').toLowerCase() === this.ui.dsCarteira.toLowerCase());
       }
+      // Tipo doc filter (filter by which doc types have non-finalized stages)
+      if (this.ui.dsTipoDoc && this.ui.dsTipoDoc !== 'all') {
+        const tipo = this.ui.dsTipoDoc;
+        list = list.filter(p => {
+          const docs = this.data.dsAllDocs.filter(d => d.producao_id === p.producao_id && d.tipo === tipo);
+          return docs.length > 0;
+        });
+      }
       // Search filter
       if (this.ui.dsSearchQuery) {
         const q = this.ui.dsSearchQuery.toLowerCase();
         list = list.filter(p => (p.mentorado_nome || '').toLowerCase().includes(q) || (p.responsavel_atual || '').toLowerCase().includes(q));
       }
+      // Sort: active first (producao, revisao, aprovado, enviado), then nao_iniciado, then finalizado last
+      const statusOrder = { producao: 0, revisao: 1, aprovado: 2, enviado: 3, apresentado: 4, call_estrategia: 5, nao_iniciado: 6, finalizado: 9 };
+      list = [...list].sort((a, b) => (statusOrder[a.status] ?? 7) - (statusOrder[b.status] ?? 7));
       return list;
     },
 
@@ -9126,6 +10910,48 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (motivo === null) return; // cancelled
       if (!motivo.trim()) { this.toast('Informe o motivo para voltar o estagio', 'warning'); return; }
       this.regressDocStage(docId, motivo.trim());
+    },
+
+    async createAdjustmentTask(doc) {
+      if (!doc || !sb) return;
+      const prod = this.data.dsProducoes.find(p => p.producao_id === doc.producao_id);
+      const mentoradoNome = prod?.mentorado_nome || doc.mentorado_nome || '';
+      const tipoLabel = { oferta: 'Oferta', posicionamento: 'Posicionamento', funil: 'Funil' }[doc.tipo] || doc.tipo || '';
+      const estagio = this.dsEstagioConfig(doc.estagio_atual);
+      const user = this.currentUserName;
+
+      const taskData = {
+        titulo: `Ajuste dossiê — ${mentoradoNome}${tipoLabel ? ' (' + tipoLabel + ')' : ''}`,
+        descricao: `Dossiê: ${tipoLabel} | Etapa: ${estagio?.label || doc.estagio_atual} | Solicitado por: ${user}`,
+        tipo: 'ajuste_dossie',
+        prioridade: 'alta',
+        responsavel: '',
+        mentorado_nome: mentoradoNome,
+        mentorado_id: doc.mentorado_id || prod?.mentorado_id || null,
+        tags: ['ajuste-dossie'],
+        doc_link: doc.link_doc || '',
+        status: 'pendente',
+        fonte: 'auto_dossie',
+        auto_gerada: true,
+      };
+
+      const { data: created, error } = await sb.from('god_tasks').insert(taskData).select().single();
+      if (error) { this.toast('Erro ao criar tarefa: ' + error.message, 'error'); return; }
+      this.data.tasks.push(created);
+      this._cacheTasksLocal();
+      this.toast(`Tarefa de ajuste criada: ${taskData.titulo}`, 'success');
+    },
+
+    async updateDsStatus(producaoId, newStatus) {
+      if (!sb || !newStatus) return;
+      const oldStatus = this.data.dsMenteeDetail?.status;
+      const { error } = await sb.from('ds_producoes').update({ status: newStatus }).eq('id', producaoId);
+      if (error) { this.toast('Erro ao atualizar status: ' + error.message, 'error'); return; }
+      const user = this.currentUserName;
+      await this._logDsEvento(producaoId, null, 'status_change', oldStatus, newStatus, user, `Status: ${oldStatus} → ${newStatus}`);
+      await this.loadDsData();
+      if (this.data.dsMenteeDetail) this.data.dsMenteeDetail.status = newStatus;
+      this.toast('Status atualizado', 'success');
     },
 
     async saveDsNotas(producaoId, notas) {

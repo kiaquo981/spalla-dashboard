@@ -45,6 +45,13 @@ ZOOM_CLIENT_SECRET = os.environ.get('ZOOM_CLIENT_SECRET', '')
 # Google Service Account
 GOOGLE_SA_PATH = os.environ.get('GOOGLE_SA_PATH', os.path.expanduser('~/.config/google/credentials.json'))
 
+# YouTube API
+YOUTUBE_API_KEY = os.environ.get('YOUTUBE_API_KEY', '')
+
+# Google Drive (2 produtos)
+GOOGLE_DRIVE_FOLDER_MENTORY = os.environ.get('GOOGLE_DRIVE_FOLDER_MENTORY', '')
+GOOGLE_DRIVE_FOLDER_CLINIC = os.environ.get('GOOGLE_DRIVE_FOLDER_CLINIC', '')
+
 # Supabase
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
 SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', '')
@@ -85,6 +92,8 @@ CHATWOOT_BASE_URL = os.environ.get('CHATWOOT_BASE_URL', '')  # e.g. https://chat
 CHATWOOT_API_TOKEN = os.environ.get('CHATWOOT_API_TOKEN', '')  # user or bot token
 CHATWOOT_ACCOUNT_ID = os.environ.get('CHATWOOT_ACCOUNT_ID', '1')
 CHATWOOT_WEBHOOK_SECRET = os.environ.get('CHATWOOT_WEBHOOK_SECRET', '')  # HMAC verification
+EVOLUTION_WEBHOOK_SECRET = os.environ.get('EVOLUTION_WEBHOOK_SECRET', '')  # Evolution API webhook apikey
+WA_RATE_LIMIT_PER_MINUTE = int(os.environ.get('WA_RATE_LIMIT_PER_MINUTE', '30'))
 
 # ===== JWT AUTH CONFIG =====
 JWT_SECRET = os.environ.get('JWT_SECRET')
@@ -1859,6 +1868,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_instance_uuid()
         elif self.path == '/api/sheets/status':
             self._handle_sheets_status()
+        elif self.path == '/api/wa/groups':
+            self._handle_wa_groups_list()
         elif self.path.startswith('/api/storage/files'):
             self._handle_storage_list_files()
         elif self.path.startswith('/api/storage/status'):
@@ -1985,6 +1996,39 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         # ===== API Keys Management =====
         elif self.path == '/api/keys/generate':
             self._handle_generate_api_key()
+        # ===== Evolution Webhook (Status Updates) =====
+        elif self.path == '/api/webhooks/evolution':
+            self._handle_evolution_webhook()
+        # ===== WhatsApp Send Endpoints =====
+        elif self.path == '/api/wa/send-text':
+            self._handle_wa_send_text()
+        elif self.path == '/api/wa/send-media':
+            self._handle_wa_send_media()
+        elif self.path == '/api/wa/reply':
+            self._handle_wa_reply()
+        # ===== WhatsApp Group Management =====
+        elif self.path == '/api/wa/groups/sync':
+            self._handle_wa_groups_sync()
+        elif self.path == '/api/wa/groups/create':
+            self._handle_wa_groups_create()
+        elif re.match(r'^/api/wa/groups/([^/]+)/link$', self.path):
+            _gm = re.match(r'^/api/wa/groups/([^/]+)/link$', self.path)
+            self._handle_wa_group_link(_gm.group(1))
+        # ===== YouTube Upload =====
+        elif self.path == '/api/youtube/upload':
+            self._handle_youtube_upload()
+        # ===== Google Drive Sync =====
+        elif self.path == '/api/drive/sync':
+            self._handle_drive_sync()
+        # ===== Resumo Semanal =====
+        elif self.path == '/api/mentee/weekly-summary':
+            self._handle_weekly_summary()
+        # ===== Task from Audio (TASK-07) =====
+        elif self.path == '/api/tasks/from-audio':
+            self._handle_tasks_from_audio()
+        # ===== Task Notifications =====
+        elif self.path == '/api/tasks/notify':
+            self._handle_task_notify()
         # ===== Chatwoot Webhook =====
         elif self.path == '/api/webhooks/chatwoot':
             self._handle_chatwoot_webhook()
@@ -2641,9 +2685,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': str(e)}, 500)
 
     def _handle_media_stream(self):
-        """Stream media directly from Hetzner S3 (proxy to avoid CORS)"""
+        """Stream media directly from Hetzner S3 (proxy to avoid CORS). Supports fallback URL."""
         params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
         key = params.get('key', [''])[0]
+        fallback_url = params.get('fallback', [''])[0]
 
         if not key:
             self._send_json({'error': 'key parameter required'}, 400)
@@ -2682,7 +2727,29 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             print(f'[Stream] Successfully streamed {key}')
 
         except urllib.error.HTTPError as he:
-            # If 403/404, try to find the correct instanceId
+            # If 403/404, try fallback URL (temporary WhatsApp URL)
+            if he.code in [403, 404] and fallback_url:
+                print(f'[Stream] S3 key not found: {key}. Trying fallback URL...')
+                try:
+                    fb_req = urllib.request.Request(fallback_url)
+                    fb_resp = urllib.request.urlopen(fb_req, timeout=30)
+                    ct = fb_resp.headers.get('Content-Type', 'application/octet-stream')
+                    cl = fb_resp.headers.get('Content-Length')
+                    self.send_response(200)
+                    self.send_header('Content-Type', ct)
+                    if cl: self.send_header('Content-Length', cl)
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.send_header('Cache-Control', 'public, max-age=3600')
+                    self.end_headers()
+                    while True:
+                        chunk = fb_resp.read(8192)
+                        if not chunk: break
+                        self.wfile.write(chunk)
+                    print(f'[Stream] Fallback URL worked for {key}')
+                    return
+                except Exception as fb_err:
+                    print(f'[Stream] Fallback URL also failed: {fb_err}')
+
             if he.code in [403, 404]:
                 print(f'[Stream] Key not found: {key}, status {he.code}. Attempting to discover correct UUID...')
                 try:
@@ -3959,6 +4026,864 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             log_error('APIKeys', f'revoke failed: {e}')
             self._send_json({'error': str(e)}, 500)
 
+    # ===== WHATSAPP GROUP MANAGEMENT (Story 8) =====
+
+    def _handle_wa_groups_list(self):
+        """GET /api/wa/groups — List all tracked WA groups from Supabase."""
+        try:
+            result = supabase_request('GET', 'wa_groups?select=*&order=last_activity.desc.nullsfirst&is_active=eq.true')
+            self._send_json(result if isinstance(result, list) else [])
+        except Exception as e:
+            log_error('WA-Groups', f'list failed: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_wa_groups_sync(self):
+        """POST /api/wa/groups/sync — Sync groups from Evolution API to Supabase."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
+        try:
+            body = json.loads(self._read_body())
+            instance = body.get('instance', '').strip()
+            if not instance:
+                self._send_json({'error': 'instance is required'}, 400)
+                return
+
+            # Fetch groups from Evolution API
+            url = f'{EVOLUTION_BASE}/group/fetchAllGroups/{instance}?getParticipants=true'
+            req = urllib.request.Request(url, method='GET')
+            req.add_header('apikey', EVOLUTION_API_KEY)
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                groups = json.loads(resp.read())
+
+            if not isinstance(groups, list):
+                groups = groups.get('groups', groups.get('data', []))
+
+            synced = 0
+            for g in groups:
+                jid = g.get('id') or g.get('jid', '')
+                if not jid or not jid.endswith('@g.us'):
+                    continue
+                name = g.get('subject') or g.get('name') or jid
+                participants = g.get('participants', [])
+                row = {
+                    'group_jid': jid,
+                    'name': name,
+                    'description': g.get('desc', g.get('description', '')),
+                    'participant_count': len(participants),
+                    'participants': json.dumps(participants),
+                    'photo_url': g.get('profilePictureUrl', g.get('imgUrl', '')),
+                    'instance_name': instance,
+                    'is_active': True,
+                    'synced_at': datetime.now(timezone.utc).isoformat(),
+                    'updated_at': datetime.now(timezone.utc).isoformat(),
+                }
+                # Upsert by group_jid
+                supabase_request('POST',
+                    'wa_groups?on_conflict=group_jid',
+                    row)
+                synced += 1
+
+            log_info('WA-Groups', f'Synced {synced} groups from {instance}')
+            self._send_json({'ok': True, 'synced': synced})
+
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode()
+            log_error('WA-Groups', f'Evolution API error: {e.code} {error_body}')
+            self._send_json({'error': f'Evolution API: {e.code}', 'detail': error_body}, e.code)
+        except Exception as e:
+            log_error('WA-Groups', f'sync failed: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_youtube_upload(self):
+        """POST /api/youtube/upload — Upload Zoom recording to YouTube."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
+        try:
+            if not YOUTUBE_API_KEY:
+                self._send_json({'error': 'YOUTUBE_API_KEY not configured. Set it in Railway env vars.'}, 501)
+                return
+            body = self._read_json_body()
+            zoom_recording_url = body.get('recording_url', '')
+            title = body.get('title', 'Call de Mentoria')
+            description = body.get('description', '')
+            mentorado_nome = body.get('mentorado_nome', '')
+            privacy = body.get('privacy', 'unlisted')  # unlisted | private | public
+
+            if not zoom_recording_url:
+                self._send_json({'error': 'recording_url required'}, 400)
+                return
+
+            # Step 1: Download Zoom recording
+            zoom_token = get_zoom_token()
+            req = urllib.request.Request(zoom_recording_url)
+            req.add_header('Authorization', f'Bearer {zoom_token}')
+            with urllib.request.urlopen(req, timeout=300) as resp:
+                video_bytes = resp.read()
+
+            # Step 2: Upload to YouTube via resumable upload
+            # First, get upload URL
+            metadata = json.dumps({
+                'snippet': {
+                    'title': f'{title} — {mentorado_nome}' if mentorado_nome else title,
+                    'description': description or f'Gravação de call de mentoria. Mentorado: {mentorado_nome}',
+                    'tags': ['mentoria', 'case', mentorado_nome] if mentorado_nome else ['mentoria', 'case'],
+                    'categoryId': '27',  # Education
+                },
+                'status': {'privacyStatus': privacy, 'selfDeclaredMadeForKids': False},
+            }).encode()
+
+            init_req = urllib.request.Request(
+                f'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status&key={YOUTUBE_API_KEY}',
+                data=metadata, method='POST')
+            init_req.add_header('Content-Type', 'application/json; charset=UTF-8')
+            init_req.add_header('X-Upload-Content-Length', str(len(video_bytes)))
+            init_req.add_header('X-Upload-Content-Type', 'video/mp4')
+
+            with urllib.request.urlopen(init_req, timeout=30) as init_resp:
+                upload_url = init_resp.headers.get('Location')
+
+            if not upload_url:
+                self._send_json({'error': 'Failed to get YouTube upload URL'}, 500)
+                return
+
+            # Step 3: Upload video bytes
+            up_req = urllib.request.Request(upload_url, data=video_bytes, method='PUT')
+            up_req.add_header('Content-Type', 'video/mp4')
+            up_req.add_header('Content-Length', str(len(video_bytes)))
+            with urllib.request.urlopen(up_req, timeout=600) as up_resp:
+                result = json.loads(up_resp.read())
+
+            video_id = result.get('id', '')
+            self._send_json({
+                'success': True,
+                'video_id': video_id,
+                'url': f'https://youtu.be/{video_id}',
+                'title': result.get('snippet', {}).get('title', ''),
+            })
+        except Exception as e:
+            logger.error(f'[youtube-upload] Error: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_drive_sync(self):
+        """POST /api/drive/sync — List Google Drive files for a mentorado folder."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
+        try:
+            folder_mentory = os.environ.get('GOOGLE_DRIVE_FOLDER_MENTORY', '')
+            folder_clinic = os.environ.get('GOOGLE_DRIVE_FOLDER_CLINIC', '')
+            if not folder_mentory and not folder_clinic:
+                self._send_json({'error': 'GOOGLE_DRIVE_FOLDER_MENTORY/CLINIC not configured'}, 501)
+                return
+
+            body = self._read_json_body()
+            mentorado_id = body.get('mentorado_id')
+            mentorado_nome = body.get('mentorado_nome', '')
+            produto = body.get('produto', 'mentory')  # mentory | clinic
+
+            if not mentorado_id or not mentorado_nome:
+                self._send_json({'error': 'mentorado_id and mentorado_nome required'}, 400)
+                return
+
+            parent_folder = folder_mentory if produto == 'mentory' else folder_clinic
+            if not parent_folder:
+                self._send_json({'error': f'GOOGLE_DRIVE_FOLDER_{produto.upper()} not configured'}, 501)
+                return
+
+            # Use same SA auth as Calendar (google-auth library)
+            from google.oauth2 import service_account as sa_module
+            from googleapiclient.discovery import build as gbuild
+
+            sa_json = os.environ.get('GOOGLE_SA_JSON', '') or os.environ.get('GOOGLE_SA_CREDENTIALS_B64', '')
+            if sa_json:
+                sa_info = json.loads(base64.b64decode(sa_json))
+                credentials = sa_module.Credentials.from_service_account_info(
+                    sa_info, scopes=['https://www.googleapis.com/auth/drive']
+                )
+            elif os.path.exists(GOOGLE_SA_PATH):
+                credentials = sa_module.Credentials.from_service_account_file(
+                    GOOGLE_SA_PATH, scopes=['https://www.googleapis.com/auth/drive']
+                )
+            else:
+                self._send_json({'error': 'Google SA credentials not found'}, 501)
+                return
+
+            drive = gbuild('drive', 'v3', credentials=credentials)
+
+            # Step 1: Find or create mentee's folder inside parent
+            query = f"name='{mentorado_nome}' and '{parent_folder}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+            results = drive.files().list(q=query, fields='files(id,name)').execute()
+            mentee_folders = results.get('files', [])
+
+            if mentee_folders:
+                mentee_folder_id = mentee_folders[0]['id']
+                created_folder = False
+            else:
+                # Create folder for this mentee
+                folder_meta = {
+                    'name': mentorado_nome,
+                    'mimeType': 'application/vnd.google-apps.folder',
+                    'parents': [parent_folder],
+                }
+                folder = drive.files().create(body=folder_meta, fields='id').execute()
+                mentee_folder_id = folder['id']
+                created_folder = True
+
+            # Step 2: List files in mentee's folder
+            file_query = f"'{mentee_folder_id}' in parents and trashed=false"
+            file_results = drive.files().list(
+                q=file_query,
+                fields='files(id,name,mimeType,size,modifiedTime,webViewLink)',
+                orderBy='modifiedTime desc',
+                pageSize=50,
+            ).execute()
+            files = file_results.get('files', [])
+
+            self._send_json({
+                'folder_id': mentee_folder_id,
+                'folder_url': f'https://drive.google.com/drive/folders/{mentee_folder_id}',
+                'created_folder': created_folder,
+                'files': [{
+                    'id': f['id'],
+                    'name': f['name'],
+                    'type': f.get('mimeType', ''),
+                    'size': int(f.get('size', 0)) if f.get('size') else None,
+                    'modified': f.get('modifiedTime', ''),
+                    'url': f.get('webViewLink', ''),
+                } for f in files],
+                'count': len(files),
+            })
+        except ImportError:
+            self._send_json({'error': 'google-auth/google-api-python-client not installed. pip install google-auth google-api-python-client'}, 501)
+        except Exception as e:
+            logger.error(f'[drive-sync] Error: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_weekly_summary(self):
+        """POST /api/mentee/weekly-summary — Generate AI weekly summary for a mentorado."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
+        try:
+            body = self._read_json_body()
+            mentorado_id = body.get('mentorado_id')
+            if not mentorado_id:
+                self._send_json({'error': 'mentorado_id required'}, 400)
+                return
+
+            # Gather data from last 7 days
+            seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+
+            # 1. Messages
+            messages = supabase_request('GET',
+                f'interacoes_mentoria?mentorado_id=eq.{mentorado_id}&created_at=gte.{seven_days_ago}'
+                f'&select=conteudo,categoria,sentimento,tipo_interacao,requer_resposta,respondido,sender_name,created_at'
+                f'&order=created_at.asc&limit=50')
+
+            # 2. Tasks
+            tasks = supabase_request('GET',
+                f'god_tasks?mentorado_id=eq.{mentorado_id}&updated_at=gte.{seven_days_ago}'
+                f'&select=titulo,status,tipo,responsavel,updated_at&limit=30')
+
+            # 3. Percepcoes
+            percs = supabase_request('GET',
+                f'percepcoes_mentorado?mentorado_id=eq.{mentorado_id}&created_at=gte.{seven_days_ago}'
+                f'&select=conteudo,tipo,autor,created_at&limit=10')
+
+            if not GEMINI_API_KEY:
+                self._send_json({'error': 'GEMINI_API_KEY not configured'}, 501)
+                return
+
+            # Build context
+            msg_texts = [f"[{m.get('categoria','?')}] {m.get('sender_name','?')}: {(m.get('conteudo',''))[:200]}" for m in (messages or [])]
+            task_texts = [f"[{t.get('status','')}] {t.get('titulo','')}" for t in (tasks or [])]
+            perc_texts = [f"[{p.get('tipo','')}] {p.get('conteudo','')}" for p in (percs or [])]
+
+            prompt = f"""Gere um resumo semanal para o consultor sobre este mentorado.
+Seja direto, prático, em português. Máximo 300 palavras.
+
+Estrutura:
+1. **Resumo geral** (1-2 frases)
+2. **Pontos positivos** (o que avançou)
+3. **Pontos de atenção** (o que precisa de ação)
+4. **Próximos passos sugeridos** (2-3 ações concretas)
+
+Dados da semana:
+--- MENSAGENS ({len(messages or [])}) ---
+{chr(10).join(msg_texts[:20])}
+
+--- TAREFAS ({len(tasks or [])}) ---
+{chr(10).join(task_texts[:15])}
+
+--- PERCEPÇÕES ({len(percs or [])}) ---
+{chr(10).join(perc_texts[:5])}
+"""
+
+            gemini_body = {
+                'contents': [{'parts': [{'text': prompt}]}],
+                'generationConfig': {'temperature': 0.3, 'maxOutputTokens': 800}
+            }
+            conn = http.client.HTTPSConnection('generativelanguage.googleapis.com', timeout=30)
+            conn.request('POST',
+                         f'/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}',
+                         body=json.dumps(gemini_body).encode(),
+                         headers={'Content-Type': 'application/json'})
+            resp = conn.getresponse()
+            resp_data = resp.read()
+            conn.close()
+
+            if resp.status >= 400:
+                self._send_json({'error': f'Gemini error {resp.status}'}, 500)
+                return
+
+            result = json.loads(resp_data)
+            summary = result['candidates'][0]['content']['parts'][0]['text']
+
+            self._send_json({
+                'summary': summary,
+                'stats': {
+                    'messages': len(messages or []),
+                    'tasks': len(tasks or []),
+                    'percepcoes': len(percs or []),
+                },
+            })
+        except Exception as e:
+            logger.error(f'[weekly-summary] Error: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_tasks_from_audio(self):
+        """POST /api/tasks/from-audio — Transcribe audio, extract N tasks via Gemini."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
+        try:
+            content_type = self.headers.get('Content-Type', '')
+            if 'multipart/form-data' not in content_type:
+                self._send_json({'error': 'Expected multipart/form-data'}, 400)
+                return
+
+            # Parse multipart
+            import cgi
+            environ = {'REQUEST_METHOD': 'POST', 'CONTENT_TYPE': content_type}
+            form = cgi.FieldStorage(fp=self.rfile, headers=self.headers, environ=environ)
+            audio_field = form['audio']
+            audio_bytes = audio_field.file.read()
+            filename = audio_field.filename or 'audio.webm'
+            mime_type = audio_field.type or 'audio/webm'
+
+            # Step 1: Transcribe via Whisper
+            transcript = openai_whisper(audio_bytes, filename, mime_type)
+            if not transcript or len(transcript.strip()) < 10:
+                self._send_json({'error': 'Transcrição vazia ou muito curta', 'transcript': transcript}, 400)
+                return
+
+            # Step 2: Extract tasks via Gemini Flash
+            extraction_prompt = f"""Você é um assistente especializado em extrair tarefas de áudio transcrito.
+O contexto é uma consultoria de mentoria (CASE), onde a equipe descarrega demandas por áudio.
+
+REGRAS DE EXTRAÇÃO:
+1. Cada AÇÃO DISTINTA é uma tarefa separada. Se o falante diz "precisa fazer X e Y", são 2 tarefas.
+2. Se uma tarefa tem SUB-ITENS (checklist), agrupe como subtasks dentro da tarefa pai.
+3. DETECTE o tipo correto:
+   - "dossie": produção, revisão, ajuste de dossiê
+   - "ajuste_dossie": correção específica de dossiê já feito
+   - "follow_up": checar com mentorado, cobrar resposta, fazer acompanhamento
+   - "rotina": algo recorrente (toda semana, todo dia, etc.)
+   - "geral": qualquer outra coisa
+4. DETECTE responsável pelo NOME se mencionado (Heitor, Lara, Mariza, Kaique, Queila, Hugo, Gobbi).
+5. DETECTE mentorado pelo NOME se mencionado.
+6. DETECTE prazo: "amanhã"=1, "essa semana"=5, "semana que vem"=10, "urgente"=1, "até sexta"=calcule dias.
+7. DETECTE prioridade: "urgente"/"agora"→urgente, "importante"→alta, default→normal.
+8. Se o falante menciona DATAS ESPECÍFICAS (dia X, segunda, etc.), converta em prazo_dias relativo a hoje.
+9. Subtasks são itens dentro de uma tarefa maior. Ex: "precisa revisar o dossiê: checar oferta, ajustar funil, validar copy" = 1 tarefa com 3 subtasks.
+
+FORMATO DE SAÍDA (JSON array):
+[{{
+  "titulo": "string (imperativo, max 80 chars, ex: 'Revisar dossiê da Betina')",
+  "descricao": "string ou null (contexto adicional extraído do áudio)",
+  "responsavel": "string ou null (primeiro nome)",
+  "mentorado": "string ou null (nome do mentorado)",
+  "prioridade": "baixa" | "normal" | "alta" | "urgente",
+  "tipo": "geral" | "dossie" | "ajuste_dossie" | "follow_up" | "rotina",
+  "prazo_dias": number ou null,
+  "subtasks": ["string", "string"] ou []
+}}]
+
+Retorne APENAS o JSON array. Sem markdown, sem explicação, sem comentários.
+Se não houver tarefas claras, retorne [].
+
+Transcrição:
+---
+{transcript}
+---"""
+
+            if not GEMINI_API_KEY:
+                self._send_json({'error': 'GEMINI_API_KEY not configured'}, 500)
+                return
+
+            gemini_body = {
+                'contents': [{'parts': [{'text': extraction_prompt}]}],
+                'generationConfig': {'temperature': 0.1, 'responseMimeType': 'application/json'}
+            }
+            conn = http.client.HTTPSConnection('generativelanguage.googleapis.com', timeout=30)
+            conn.request('POST',
+                         f'/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}',
+                         body=json.dumps(gemini_body).encode(),
+                         headers={'Content-Type': 'application/json'})
+            resp = conn.getresponse()
+            resp_data = resp.read()
+            conn.close()
+
+            if resp.status >= 400:
+                self._send_json({'error': f'Gemini error {resp.status}', 'detail': resp_data.decode()[:300]}, 500)
+                return
+
+            gemini_result = json.loads(resp_data)
+            raw_text = gemini_result['candidates'][0]['content']['parts'][0]['text']
+
+            # Parse JSON from response (handle markdown code blocks)
+            clean = raw_text.strip()
+            if clean.startswith('```'):
+                clean = clean.split('\n', 1)[1] if '\n' in clean else clean[3:]
+                if clean.endswith('```'):
+                    clean = clean[:-3]
+            tasks = json.loads(clean.strip())
+
+            self._send_json({
+                'transcript': transcript,
+                'tasks': tasks,
+                'count': len(tasks),
+            })
+        except Exception as e:
+            logger.error(f'[tasks-from-audio] Error: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_task_notify(self):
+        """POST /api/tasks/notify — Send WhatsApp notification when a task is created."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
+        try:
+            body = self._read_json_body()
+            task_titulo = body.get('titulo', '')
+            responsavel = body.get('responsavel', '')
+            criador = body.get('criador', '')
+            prazo = body.get('prazo', '')
+            task_link = body.get('link', '')
+
+            if not responsavel:
+                self._send_json({'error': 'responsavel required'}, 400)
+                return
+
+            # Lookup whatsapp_jid from spalla_members
+            members = supabase_request('GET', f'spalla_members?select=nome_curto,whatsapp_jid&ativo=eq.true')
+            if not members:
+                self._send_json({'sent': False, 'reason': 'no members found'})
+                return
+
+            jid = None
+            for m in members:
+                if m.get('nome_curto', '').lower() == responsavel.lower():
+                    jid = m.get('whatsapp_jid')
+                    break
+
+            if not jid:
+                self._send_json({'sent': False, 'reason': f'no whatsapp_jid for {responsavel}'})
+                return
+
+            # Format message
+            lines = [f'📋 *Nova tarefa:* {task_titulo}']
+            if criador:
+                lines.append(f'👤 De: {criador}')
+            if prazo:
+                lines.append(f'📅 Prazo: {prazo}')
+            if task_link:
+                lines.append(f'🔗 {task_link}')
+            text = '\n'.join(lines)
+
+            # Extract phone number from JID (55XXXXXXXXXXX@s.whatsapp.net → 55XXXXXXXXXXX)
+            number = jid.split('@')[0] if '@' in jid else jid
+            instance = os.getenv('EVOLUTION_INSTANCE', 'producao002')
+            result = self._wa_send_via_evolution(instance, number, text)
+            self._send_json({'sent': True, 'result': result})
+        except Exception as e:
+            logger.error(f'[task-notify] Error: {e}')
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_wa_groups_create(self):
+        """POST /api/wa/groups/create — Create a new WA group via Evolution API."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
+        try:
+            body = json.loads(self._read_body())
+            instance = body.get('instance', '').strip()
+            subject = body.get('subject', '').strip()
+            participants = body.get('participants', [])  # list of phone numbers
+            mentorado_id = body.get('mentorado_id')
+
+            if not instance or not subject or not participants:
+                self._send_json({'error': 'instance, subject, and participants are required'}, 400)
+                return
+
+            # Create group via Evolution API
+            payload = json.dumps({'subject': subject, 'participants': participants}).encode()
+            url = f'{EVOLUTION_BASE}/group/create/{instance}'
+            req = urllib.request.Request(url, data=payload, method='POST')
+            req.add_header('Content-Type', 'application/json')
+            req.add_header('apikey', EVOLUTION_API_KEY)
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                result = json.loads(resp.read())
+
+            group_jid = result.get('id') or result.get('jid', '')
+
+            # Save to Supabase
+            if group_jid:
+                row = {
+                    'group_jid': group_jid,
+                    'name': subject,
+                    'participant_count': len(participants),
+                    'instance_name': instance,
+                    'is_active': True,
+                    'synced_at': datetime.now(timezone.utc).isoformat(),
+                }
+                if mentorado_id:
+                    row['mentorado_id'] = mentorado_id
+                supabase_request('POST', 'wa_groups', row)
+
+            log_info('WA-Groups', f'Created group "{subject}" ({group_jid}) by {auth.get("email", "?")}')
+            self._send_json({'ok': True, 'group_jid': group_jid, 'result': result})
+
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode()
+            log_error('WA-Groups', f'Create error: {e.code} {error_body}')
+            self._send_json({'error': f'Evolution API: {e.code}', 'detail': error_body}, e.code)
+        except Exception as e:
+            log_error('WA-Groups', f'create failed: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_wa_group_link(self, group_id):
+        """POST /api/wa/groups/{id}/link — Link a WA group to a mentorado."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
+        try:
+            body = json.loads(self._read_body())
+            mentorado_id = body.get('mentorado_id')
+            if mentorado_id is None:
+                self._send_json({'error': 'mentorado_id is required'}, 400)
+                return
+            result = supabase_request('PATCH',
+                f'wa_groups?id=eq.{group_id}',
+                {'mentorado_id': mentorado_id, 'updated_at': datetime.now(timezone.utc).isoformat()})
+            log_info('WA-Groups', f'Linked group {group_id} to mentorado {mentorado_id}')
+            self._send_json({'ok': True})
+        except Exception as e:
+            log_error('WA-Groups', f'link failed: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ===== WHATSAPP SEND + WEBHOOK (EPIC WA) =====
+
+    # Rate limiting: { user_email: [timestamp, ...] }
+    _wa_rate_limits = {}
+
+    def _wa_check_rate_limit(self, user_email):
+        """Check rate limit for WA sends. Returns True if allowed."""
+        now = time.time()
+        window = 60  # 1 minute
+        if user_email not in self._wa_rate_limits:
+            self._wa_rate_limits[user_email] = []
+        # Clean old entries
+        self._wa_rate_limits[user_email] = [
+            t for t in self._wa_rate_limits[user_email] if now - t < window
+        ]
+        if len(self._wa_rate_limits[user_email]) >= WA_RATE_LIMIT_PER_MINUTE:
+            return False
+        self._wa_rate_limits[user_email].append(now)
+        return True
+
+    def _wa_require_auth(self):
+        """Require JWT auth for WA endpoints. Returns auth dict or None (sends 401)."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Authentication required'}, 401)
+            return None
+        return auth
+
+    def _wa_send_via_evolution(self, instance, number, text, quoted_msg_id=None):
+        """Send text message via Evolution API. Returns response dict."""
+        payload = {'number': number, 'text': text}
+        if quoted_msg_id:
+            payload['quoted'] = {'key': {'id': quoted_msg_id}}
+        body = json.dumps(payload).encode()
+        url = f'{EVOLUTION_BASE}/message/sendText/{instance}'
+        req = urllib.request.Request(url, data=body, method='POST')
+        req.add_header('Content-Type', 'application/json')
+        req.add_header('apikey', EVOLUTION_API_KEY)
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read())
+
+    def _wa_send_media_via_evolution(self, instance, number, media_type, media_url, caption='', media_name=''):
+        """Send media message via Evolution API."""
+        endpoint_map = {
+            'image': 'sendMedia', 'video': 'sendMedia', 'audio': 'sendWhatsAppAudio',
+            'document': 'sendMedia',
+        }
+        endpoint = endpoint_map.get(media_type, 'sendMedia')
+        payload = {'number': number, 'media': media_url, 'caption': caption}
+        if media_type == 'document':
+            payload['fileName'] = media_name or 'document'
+        if media_type in ('image', 'video'):
+            payload['mediatype'] = media_type
+        body = json.dumps(payload).encode()
+        url = f'{EVOLUTION_BASE}/message/{endpoint}/{instance}'
+        req = urllib.request.Request(url, data=body, method='POST')
+        req.add_header('Content-Type', 'application/json')
+        req.add_header('apikey', EVOLUTION_API_KEY)
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read())
+
+    def _wa_insert_message(self, message_id, group_jid, sender_name, content_type, content_text,
+                           media_url=None, media_mime=None, reply_to_id=None, status='pending'):
+        """Insert a sent message into wa_messages via Supabase."""
+        row = {
+            'message_id': message_id,
+            'group_jid': group_jid,
+            'sender_name': sender_name,
+            'is_from_team': True,
+            'content_type': content_type,
+            'content_text': content_text,
+            'media_url': media_url,
+            'media_mime': media_mime,
+            'reply_to_id': reply_to_id,
+            'status': status,
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+        }
+        # Remove None values
+        row = {k: v for k, v in row.items() if v is not None}
+        return supabase_request('POST', 'wa_messages', row)
+
+    def _handle_evolution_webhook(self):
+        """POST /api/webhooks/evolution — Receive Evolution API webhook events (status updates)."""
+        try:
+            raw = self._read_body()
+            # Verify apikey header
+            incoming_key = self.headers.get('apikey', '')
+            if EVOLUTION_WEBHOOK_SECRET and incoming_key != EVOLUTION_WEBHOOK_SECRET:
+                self._send_json({'error': 'Invalid apikey'}, 401)
+                return
+
+            event = json.loads(raw)
+            event_type = event.get('event', '')
+            log_info('Evolution', f'Webhook: {event_type}')
+
+            if event_type == 'messages.update':
+                # Status update: sent → delivered → read
+                updates = event.get('data', [])
+                if isinstance(updates, dict):
+                    updates = [updates]
+                for upd in updates:
+                    msg_key = upd.get('keyId') or upd.get('key', {}).get('id', '')
+                    if not msg_key:
+                        continue
+                    raw_status = str(upd.get('status', '')).upper()
+                    # Evolution status codes: 1=PENDING, 2=SERVER_ACK(sent), 3=DELIVERY_ACK(delivered), 4=READ, 5=PLAYED
+                    status_map = {
+                        '1': 'pending', 'PENDING': 'pending',
+                        '2': 'sent', 'SERVER_ACK': 'sent',
+                        '3': 'delivered', 'DELIVERY_ACK': 'delivered',
+                        '4': 'read', 'READ': 'read',
+                        '5': 'read', 'PLAYED': 'read',
+                        'ERROR': 'failed', 'FAILED': 'failed',
+                    }
+                    new_status = status_map.get(raw_status, None)
+                    if not new_status:
+                        continue
+                    supabase_request('PATCH',
+                        f'wa_messages?message_id=eq.{msg_key}',
+                        {'status': new_status, 'status_updated_at': datetime.now(timezone.utc).isoformat()})
+                    log_info('Evolution', f'Status update: {msg_key} → {new_status}')
+
+            elif event_type == 'messages.upsert':
+                # New incoming message — n8n handles the main pipeline,
+                # but we can update status of our sent messages here
+                data = event.get('data', {})
+                msgs = data if isinstance(data, list) else [data]
+                for msg in msgs:
+                    key = msg.get('key', {})
+                    if key.get('fromMe'):
+                        msg_id = key.get('id', '')
+                        if msg_id:
+                            supabase_request('PATCH',
+                                f'wa_messages?message_id=eq.{msg_id}',
+                                {'status': 'sent', 'status_updated_at': datetime.now(timezone.utc).isoformat()})
+
+            self._send_json({'ok': True})
+        except Exception as e:
+            log_error('Evolution', f'Webhook error: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_wa_send_text(self):
+        """POST /api/wa/send-text — Send text message with audit trail."""
+        auth = self._wa_require_auth()
+        if not auth:
+            return
+        try:
+            body = json.loads(self._read_body())
+            number = body.get('number', '').strip()
+            text = body.get('text', '').strip()
+            instance = body.get('instance', '').strip()
+            group_jid = body.get('group_jid', '').strip()
+
+            if not number or not text:
+                self._send_json({'error': 'number and text are required'}, 400)
+                return
+            if not instance:
+                self._send_json({'error': 'instance is required'}, 400)
+                return
+
+            # Rate limit check
+            user_email = auth.get('email', auth.get('label', 'unknown'))
+            if not self._wa_check_rate_limit(user_email):
+                self._send_json({'error': f'Rate limit exceeded ({WA_RATE_LIMIT_PER_MINUTE}/min)'}, 429)
+                return
+
+            # Send via Evolution API
+            result = self._wa_send_via_evolution(instance, number, text)
+            msg_key = result.get('key', {}).get('id', '') if isinstance(result, dict) else ''
+
+            # Insert into wa_messages for Realtime + audit
+            if msg_key and group_jid:
+                self._wa_insert_message(
+                    message_id=msg_key,
+                    group_jid=group_jid,
+                    sender_name=auth.get('email', 'Equipe CASE'),
+                    content_type='text',
+                    content_text=text,
+                    status='sent',
+                )
+
+            log_info('WA-Send', f'Text sent by {user_email} to {number} (key={msg_key})')
+            self._send_json({'ok': True, 'message_id': msg_key, 'result': result})
+
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode()
+            log_error('WA-Send', f'Evolution API error: {e.code} {error_body}')
+            self._send_json({'error': f'Evolution API error: {e.code}', 'detail': error_body}, e.code)
+        except Exception as e:
+            log_error('WA-Send', f'send-text failed: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_wa_send_media(self):
+        """POST /api/wa/send-media — Send media message with audit trail."""
+        auth = self._wa_require_auth()
+        if not auth:
+            return
+        try:
+            body = json.loads(self._read_body())
+            number = body.get('number', '').strip()
+            instance = body.get('instance', '').strip()
+            group_jid = body.get('group_jid', '').strip()
+            media_url = body.get('media_url', '').strip()
+            media_type = body.get('media_type', 'document').strip()
+            caption = body.get('caption', '').strip()
+            media_name = body.get('media_name', '').strip()
+
+            if not number or not media_url or not instance:
+                self._send_json({'error': 'number, instance, and media_url are required'}, 400)
+                return
+
+            user_email = auth.get('email', auth.get('label', 'unknown'))
+            if not self._wa_check_rate_limit(user_email):
+                self._send_json({'error': f'Rate limit exceeded ({WA_RATE_LIMIT_PER_MINUTE}/min)'}, 429)
+                return
+
+            result = self._wa_send_media_via_evolution(instance, number, media_type, media_url, caption, media_name)
+            msg_key = result.get('key', {}).get('id', '') if isinstance(result, dict) else ''
+
+            if msg_key and group_jid:
+                self._wa_insert_message(
+                    message_id=msg_key,
+                    group_jid=group_jid,
+                    sender_name=auth.get('email', 'Equipe CASE'),
+                    content_type=media_type,
+                    content_text=caption or None,
+                    media_url=media_url,
+                    media_mime=body.get('media_mime'),
+                    status='sent',
+                )
+
+            log_info('WA-Send', f'Media ({media_type}) sent by {user_email} to {number}')
+            self._send_json({'ok': True, 'message_id': msg_key, 'result': result})
+
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode()
+            log_error('WA-Send', f'Evolution API error: {e.code} {error_body}')
+            self._send_json({'error': f'Evolution API error: {e.code}', 'detail': error_body}, e.code)
+        except Exception as e:
+            log_error('WA-Send', f'send-media failed: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_wa_reply(self):
+        """POST /api/wa/reply — Reply to a specific message (quoted)."""
+        auth = self._wa_require_auth()
+        if not auth:
+            return
+        try:
+            body = json.loads(self._read_body())
+            number = body.get('number', '').strip()
+            text = body.get('text', '').strip()
+            instance = body.get('instance', '').strip()
+            group_jid = body.get('group_jid', '').strip()
+            quoted_message_id = body.get('quoted_message_id', '').strip()
+
+            if not number or not text or not quoted_message_id:
+                self._send_json({'error': 'number, text, and quoted_message_id are required'}, 400)
+                return
+            if not instance:
+                self._send_json({'error': 'instance is required'}, 400)
+                return
+
+            user_email = auth.get('email', auth.get('label', 'unknown'))
+            if not self._wa_check_rate_limit(user_email):
+                self._send_json({'error': f'Rate limit exceeded ({WA_RATE_LIMIT_PER_MINUTE}/min)'}, 429)
+                return
+
+            result = self._wa_send_via_evolution(instance, number, text, quoted_msg_id=quoted_message_id)
+            msg_key = result.get('key', {}).get('id', '') if isinstance(result, dict) else ''
+
+            if msg_key and group_jid:
+                self._wa_insert_message(
+                    message_id=msg_key,
+                    group_jid=group_jid,
+                    sender_name=auth.get('email', 'Equipe CASE'),
+                    content_type='text',
+                    content_text=text,
+                    reply_to_id=quoted_message_id,
+                    status='sent',
+                )
+
+            log_info('WA-Reply', f'Reply by {user_email} to msg {quoted_message_id}')
+            self._send_json({'ok': True, 'message_id': msg_key, 'result': result})
+
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode()
+            log_error('WA-Reply', f'Evolution API error: {e.code} {error_body}')
+            self._send_json({'error': f'Evolution API error: {e.code}', 'detail': error_body}, e.code)
+        except Exception as e:
+            log_error('WA-Reply', f'reply failed: {e}', e)
+            self._send_json({'error': str(e)}, 500)
+
     # ===== CHATWOOT INTEGRATION (EPIC 1) =====
 
     def _verify_chatwoot_signature(self, raw_body):
@@ -3979,7 +4904,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         return hmac.compare_digest(sig_header, expected)
 
     def _handle_chatwoot_webhook(self):
-        """POST /api/webhooks/chatwoot — Receive Chatwoot webhook events"""
+        """POST /api/webhooks/chatwoot — DEPRECATED: Chatwoot replaced by Evolution API direct integration.
+        Kept for backwards compatibility — logs event and returns OK without processing."""
+        log_info('Chatwoot', 'DEPRECATED: webhook received but Chatwoot is being phased out. Use Evolution API.')
+        # Still process to avoid breaking existing integrations during transition
         try:
             raw = self._read_body()
             if not self._verify_chatwoot_signature(raw):
@@ -4391,7 +5319,11 @@ if __name__ == '__main__':
     print(f'  GET  /api/storage/files     — List files by entity')
     print(f'  GET  /api/storage/status    — Storage overview & queue')
     print(f'  POST /api/storage/reprocess — Reprocess pending/failed files')
-    print(f'  POST /api/webhooks/chatwoot — Chatwoot webhook receiver')
+    print(f'  POST /api/webhooks/chatwoot  — Chatwoot webhook receiver')
+    print(f'  POST /api/webhooks/evolution — Evolution API status webhook')
+    print(f'  POST /api/wa/send-text       — Send WA text (JWT, rate-limited)')
+    print(f'  POST /api/wa/send-media      — Send WA media (JWT, rate-limited)')
+    print(f'  POST /api/wa/reply           — Reply to WA message (JWT, quoted)')
     print(f'  POST /api/fabric/run       — Run Fabric AI pattern')
     print(f'  GET  /api/health')
 
