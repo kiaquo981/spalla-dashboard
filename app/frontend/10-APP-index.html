@@ -3416,7 +3416,7 @@
 
               <!-- Spaces -->
               <div class="tasks-sidebar__section-label" style="margin-top:8px">SPACES</div>
-              <template x-for="space in spaces.filter(s => s.id !== 'space_sistema')" :key="space.id">
+              <template x-for="space in spaces" :key="space.id">
                 <div class="tasks-sidebar__space">
                   <div class="tasks-sidebar__item tasks-sidebar__item--space" :class="{ active: ui.taskSpaceFilter === space.id && ui.taskListFilter === 'all' }" @click="ui.taskSpaceFilter = space.id; ui.taskListFilter = 'all'">
                     <span class="tasks-sidebar__space-dot" :style="'background:' + space.color"></span>
@@ -10302,7 +10302,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=109"></script>
+  <script src="11-APP-app.js?v=110"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">
