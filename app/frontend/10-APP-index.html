@@ -281,6 +281,67 @@
     .bib-shimmer__line--h { height:22px;width:60%; }
     .bib-shimmer__line--sm { width:40%; }
     @keyframes bib-shimmer { 0%{background-position:200% 0}100%{background-position:-200% 0} }
+
+    /* ===== DESCARREGO PAGE ===== */
+    .dcg-layout{display:flex;height:100%;overflow:hidden;background:var(--op-bg)}
+    .dcg-left{width:240px;min-width:240px;border-right:1px solid var(--op-border);display:flex;flex-direction:column;overflow:hidden;background:var(--op-bg-1)}
+    .dcg-left__header{padding:20px 16px 12px;border-bottom:1px solid var(--op-border)}
+    .dcg-left__title{font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--op-text-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px}
+    .dcg-search{width:100%;padding:7px 10px;border:1px solid var(--op-border);border-radius:6px;background:var(--op-bg);color:var(--op-text);font-size:13px;outline:none;transition:border-color .15s}
+    .dcg-search:focus{border-color:#7c7556}
+    .dcg-mentee-list{flex:1;overflow-y:auto;padding:8px}
+    .dcg-mentee-item{padding:9px 10px;border-radius:7px;cursor:pointer;transition:background .12s;border:1px solid transparent;margin-bottom:2px}
+    .dcg-mentee-item:hover{background:var(--op-bg)}
+    .dcg-mentee-item.active{background:var(--op-bg);border-color:var(--op-border);box-shadow:0 1px 3px rgba(0,0,0,.06)}
+    .dcg-mentee-item__name{font-size:13px;font-weight:500;color:var(--op-text);line-height:1.3}
+    .dcg-mentee-item__meta{font-size:11px;color:var(--op-text-muted);margin-top:1px}
+    .dcg-center{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+    .dcg-center__header{padding:14px 20px;border-bottom:1px solid var(--op-border);display:flex;align-items:center;gap:12px;min-height:53px}
+    .dcg-center__mentee-name{font-family:var(--font-display);font-size:15px;font-weight:600;color:var(--op-text)}
+    .dcg-center__placeholder-header{font-size:13px;color:var(--op-text-muted);font-style:italic}
+    .dcg-center__body{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:14px}
+    .dcg-dropzone{border:2px dashed var(--op-border);border-radius:12px;padding:36px 24px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;background:var(--op-bg-1)}
+    .dcg-dropzone:hover,.dcg-dropzone.dragging{border-color:#7c7556;background:rgba(107,100,70,.05)}
+    .dcg-dropzone__icon{font-size:28px;margin-bottom:8px}
+    .dcg-dropzone__text{font-size:13px;color:var(--op-text-muted)}
+    .dcg-dropzone__text strong{color:var(--op-text)}
+    .dcg-tipo-tabs{display:flex;gap:6px;flex-wrap:wrap}
+    .dcg-tipo-tab{padding:5px 12px;border-radius:20px;border:1px solid var(--op-border);background:var(--op-bg-1);color:var(--op-text-muted);font-size:12px;cursor:pointer;transition:all .12s;display:flex;align-items:center;gap:5px}
+    .dcg-tipo-tab:hover{border-color:#7c7556;color:var(--op-text)}
+    .dcg-tipo-tab.active{background:#35301d;border-color:#35301d;color:#e6e3da}
+    .dcg-input-area{border:1px solid var(--op-border);border-radius:10px;overflow:hidden;background:var(--op-bg)}
+    .dcg-input-title{width:100%;padding:11px 16px;border:none;border-bottom:1px solid var(--op-border);background:transparent;color:var(--op-text);font-size:14px;font-weight:500;outline:none}
+    .dcg-input-title::placeholder{color:var(--op-text-muted)}
+    .dcg-input-content{width:100%;padding:11px 16px;border:none;background:transparent;color:var(--op-text);font-size:14px;line-height:1.6;resize:none;outline:none;min-height:100px;max-height:220px;display:block}
+    .dcg-input-content::placeholder{color:var(--op-text-muted)}
+    .dcg-input-link{width:100%;padding:11px 16px;border:none;background:transparent;color:var(--op-text);font-size:14px;outline:none;display:block}
+    .dcg-input-link::placeholder{color:var(--op-text-muted)}
+    .dcg-input-footer{display:flex;align-items:center;justify-content:space-between;padding:9px 16px;border-top:1px solid var(--op-border);background:var(--op-bg-1)}
+    .dcg-rec-btn{display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:8px;border:1px solid var(--op-border);background:var(--op-bg);cursor:pointer;font-size:13px;color:var(--op-text-muted);transition:all .15s}
+    .dcg-rec-btn:hover{border-color:#c0392b;color:#c0392b}
+    .dcg-rec-btn.recording{background:#fef2f2;border-color:#ef4444;color:#ef4444}
+    .dcg-rec-dot{width:8px;height:8px;border-radius:50%;background:currentColor;animation:dcg-pulse 1s infinite}
+    @keyframes dcg-pulse{0%,100%{opacity:1}50%{opacity:.3}}
+    .dcg-file-preview{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--op-bg-1);border:1px solid var(--op-border);border-radius:8px;font-size:13px}
+    .dcg-file-preview__name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--op-text)}
+    .dcg-file-preview__size{color:var(--op-text-muted);font-size:12px}
+    .dcg-right{width:320px;min-width:320px;border-left:1px solid var(--op-border);display:flex;flex-direction:column;overflow:hidden;background:var(--op-bg-1)}
+    .dcg-right__header{padding:14px 16px;border-bottom:1px solid var(--op-border);display:flex;align-items:center;justify-content:space-between}
+    .dcg-right__title{font-size:11px;font-weight:700;color:var(--op-text-muted);text-transform:uppercase;letter-spacing:.06em}
+    .dcg-feed{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+    .dcg-feed-item{background:var(--op-bg);border:1px solid var(--op-border);border-radius:8px;padding:10px 12px;transition:border-color .12s}
+    .dcg-feed-item:hover{border-color:#7c7556}
+    .dcg-feed-item__header{display:flex;align-items:flex-start;gap:8px;margin-bottom:4px}
+    .dcg-feed-item__tipo{font-size:10px;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:10px;flex-shrink:0;line-height:1.6}
+    .dcg-feed-item__title{font-size:13px;font-weight:500;color:var(--op-text);line-height:1.3;flex:1}
+    .dcg-feed-item__body{font-size:12px;color:var(--op-text-muted);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:2px}
+    .dcg-feed-item__actions{display:flex;gap:6px;margin-top:8px}
+    .dcg-feed-item__action{font-size:11px;color:var(--op-text-muted);cursor:pointer;padding:2px 6px;border-radius:4px;transition:background .12s,color .12s}
+    .dcg-feed-item__action:hover{background:var(--op-bg-1);color:var(--op-text)}
+    .dcg-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;color:var(--op-text-muted);text-align:center;gap:8px}
+    .dcg-empty__icon{font-size:28px;opacity:.35}
+    .dcg-empty__text{font-size:13px;line-height:1.5}
+    .dcg-fase-sel{padding:5px 10px;border:1px solid var(--op-border);border-radius:6px;background:var(--op-bg);color:var(--op-text);font-size:13px;outline:none;cursor:pointer}
   </style>
 </head>
 <body>
@@ -423,6 +484,10 @@
           <a class="op-nav-item" :class="{ active: ui.page === 'onboarding' }" @click="navigate('onboarding'); loadObData()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
             <span x-show="ui.sidebarOpen">Onboarding</span>
+          </a>
+          <a class="op-nav-item" :class="{ active: ui.page === 'descarrego' }" @click="navigate('descarrego')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span x-show="ui.sidebarOpen">Descarrego</span>
           </a>
 
           <div class="op-sidebar__section" x-show="ui.sidebarOpen && isCfoUser">Gestao</div>
@@ -2547,6 +2612,15 @@
                         </button>
                         <a x-show="c.transcricao" :href="c.transcricao" target="_blank" rel="noopener" class="badge badge--sm badge--purple" style="text-decoration:none;cursor:pointer">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:3px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Transcricao
+                        </a>
+                        <a x-show="c.link_youtube" :href="c.link_youtube" target="_blank" rel="noopener" class="badge badge--sm" style="text-decoration:none;cursor:pointer;background:#ff0000;color:#fff;display:inline-flex;align-items:center;gap:3px">
+                          <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M23.5 6.2c-.3-1-1-1.8-2-2.1C19.6 3.5 12 3.5 12 3.5s-7.6 0-9.5.6c-1 .3-1.8 1-2.1 2.1C0 8.1 0 12 0 12s0 3.9.4 5.8c.3 1 1 1.8 2.1 2.1 1.9.6 9.5.6 9.5.6s7.6 0 9.5-.6c1-.3 1.8-1 2-2.1.5-1.9.5-5.8.5-5.8s0-3.9-.5-5.8zM9.5 15.5V8.5l6.5 3.5-6.5 3.5z"/></svg> YouTube
+                        </a>
+                        <button x-show="c.senha_call && (c.gravacao || c.transcricao)" @click.stop="navigator.clipboard.writeText(c.senha_call); $el.title='Copiado!'; setTimeout(()=>$el.title='Copiar senha',1500)" class="badge badge--sm" style="border:none;cursor:pointer;background:#f59e0b;color:#fff;display:inline-flex;align-items:center;gap:3px" :title="'Copiar senha'">
+                          <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Senha
+                        </button>
+                        <a x-show="c.plano_acao" :href="c.plano_acao" target="_blank" rel="noopener" class="badge badge--sm" style="text-decoration:none;cursor:pointer;background:#10b981;color:#fff;display:inline-flex;align-items:center;gap:3px" title="Plano de Ação">
+                          <span style="font-weight:700;font-size:11px">PA</span>
                         </a>
                       </div>
                       <div class="call-card__decisions" x-show="(c.decisoes_tomadas || []).length"><strong>Decisoes:</strong>
@@ -9293,6 +9367,155 @@
           </div>
         </div>
 
+        <!-- ===== DESCARREGO PAGE ===== -->
+        <div class="page-content page-content--full" x-show="ui.page === 'descarrego'" x-transition>
+          <div class="dcg-layout">
+            <!-- LEFT: Mentee selector -->
+            <div class="dcg-left">
+              <div class="dcg-left__header">
+                <div class="dcg-left__title">Mentorados</div>
+                <input class="dcg-search" type="text" placeholder="Buscar..." x-model="descarrego.search">
+              </div>
+              <div class="dcg-mentee-list">
+                <template x-for="m in descarregoMenteeList" :key="m.id">
+                  <div class="dcg-mentee-item" :class="{ active: descarrego.menteeId === m.id }" @click="selectDescarregoMentee(m)">
+                    <div class="dcg-mentee-item__name" x-text="m.nome"></div>
+                    <div class="dcg-mentee-item__meta" x-text="m.produto_nome || m.plano || m.instagram || ''"></div>
+                  </div>
+                </template>
+                <div x-show="!descarregoMenteeList.length" class="dcg-empty">
+                  <div class="dcg-empty__icon">🔍</div>
+                  <div class="dcg-empty__text">Nenhum mentorado encontrado</div>
+                </div>
+              </div>
+            </div>
+            <!-- CENTER: Input area -->
+            <div class="dcg-center">
+              <div class="dcg-center__header">
+                <template x-if="descarrego.menteeId">
+                  <div style="display:flex;align-items:center;gap:10px;width:100%">
+                    <div class="dcg-center__mentee-name" x-text="descarrego.menteeName"></div>
+                    <div style="flex:1"></div>
+                    <select class="dcg-fase-sel" x-model="ui.ctxFase">
+                      <option value="onboarding">Onboarding</option>
+                      <option value="execucao">Execução</option>
+                      <option value="otimizacao">Otimização</option>
+                      <option value="manutencao">Manutenção</option>
+                    </select>
+                  </div>
+                </template>
+                <template x-if="!descarrego.menteeId">
+                  <span class="dcg-center__placeholder-header">Selecione um mentorado para começar</span>
+                </template>
+              </div>
+              <div class="dcg-center__body" x-show="descarrego.menteeId">
+                <!-- Tipo pills -->
+                <div class="dcg-tipo-tabs">
+                  <template x-for="t in [{v:'texto',label:'Texto',icon:'📝'},{v:'gravacao',label:'Gravação',icon:'🎙'},{v:'audio',label:'Áudio',icon:'🎵'},{v:'link',label:'Link',icon:'🔗'},{v:'arquivo',label:'Arquivo',icon:'📎'},{v:'imagem',label:'Imagem',icon:'🖼'},{v:'video',label:'Vídeo',icon:'🎬'}]" :key="t.v">
+                    <button class="dcg-tipo-tab" :class="{ active: ui.ctxTipo === t.v }" @click="ui.ctxTipo = t.v; ui.ctxArquivo = null">
+                      <span x-text="t.icon"></span><span x-text="t.label"></span>
+                    </button>
+                  </template>
+                </div>
+                <!-- File drop zone -->
+                <div x-show="['arquivo','imagem','video','audio'].includes(ui.ctxTipo)"
+                  class="dcg-dropzone"
+                  :class="{ dragging: descarrego.dragging }"
+                  @dragover.prevent="descarrego.dragging = true"
+                  @dragleave.prevent="descarrego.dragging = false"
+                  @drop.prevent="handleDescarregoDrop($event)"
+                  @click="$refs.dcgFileInput.click()">
+                  <input type="file" x-ref="dcgFileInput" style="display:none"
+                    @change="ui.ctxArquivo = $event.target.files[0]; $event.target.value = ''"
+                    :accept="ui.ctxTipo === 'imagem' ? 'image/*' : ui.ctxTipo === 'video' ? 'video/*' : ui.ctxTipo === 'audio' ? 'audio/*' : '*/*'">
+                  <template x-if="!ui.ctxArquivo">
+                    <div>
+                      <div class="dcg-dropzone__icon">📂</div>
+                      <div class="dcg-dropzone__text"><strong>Arraste e solte</strong> ou clique para selecionar</div>
+                    </div>
+                  </template>
+                  <template x-if="ui.ctxArquivo">
+                    <div class="dcg-file-preview" @click.stop>
+                      <span>📎</span>
+                      <span class="dcg-file-preview__name" x-text="ui.ctxArquivo.name"></span>
+                      <span class="dcg-file-preview__size" x-text="(ui.ctxArquivo.size/1024).toFixed(0)+'KB'"></span>
+                      <button style="color:var(--op-text-muted);cursor:pointer;background:none;border:none" @click.stop="ui.ctxArquivo = null">✕</button>
+                    </div>
+                  </template>
+                </div>
+                <!-- Recording UI -->
+                <div x-show="ui.ctxTipo === 'gravacao'" style="display:flex;align-items:center;gap:12px">
+                  <button class="dcg-rec-btn" :class="{ recording: ui.ctxRecording }"
+                    @click="ui.ctxRecording ? stopRecording() : startRecording()">
+                    <span class="dcg-rec-dot" x-show="ui.ctxRecording"></span>
+                    <span x-text="ui.ctxRecording ? '⬛ Parar · ' + _formatRecSeconds(ui.ctxRecordingSeconds) : '🎙 Iniciar gravação'"></span>
+                  </button>
+                  <span x-show="ui.ctxRecording" style="font-size:13px;color:var(--op-text-muted)">Gravando ao vivo…</span>
+                </div>
+                <!-- Text / link input area -->
+                <div class="dcg-input-area">
+                  <input class="dcg-input-title" type="text" placeholder="Título (opcional)" x-model="ui.ctxTitulo">
+                  <textarea class="dcg-input-content"
+                    x-show="ui.ctxTipo === 'texto'"
+                    placeholder="Cole ou escreva o conteúdo aqui…"
+                    x-model="ui.ctxConteudo"
+                    rows="5"></textarea>
+                  <input class="dcg-input-link"
+                    x-show="ui.ctxTipo === 'link'"
+                    type="url" placeholder="https://…" x-model="ui.ctxLinkUrl">
+                  <div class="dcg-input-footer">
+                    <span style="font-size:12px;color:var(--op-text-muted)" x-text="ui.ctxTipo === 'texto' && ui.ctxConteudo ? ui.ctxConteudo.length + ' chars' : ''"></span>
+                    <button class="btn btn--sm btn--brand" :disabled="ui.ctxSaving" @click="saveContext()">
+                      <span x-show="!ui.ctxSaving">Salvar</span>
+                      <span x-show="ui.ctxSaving">Salvando…</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <!-- No mentee selected state -->
+              <div x-show="!descarrego.menteeId" class="dcg-empty" style="flex:1">
+                <div class="dcg-empty__icon">👈</div>
+                <div class="dcg-empty__text">Escolha um mentorado<br>na lista à esquerda</div>
+              </div>
+            </div>
+            <!-- RIGHT: Live feed -->
+            <div class="dcg-right">
+              <div class="dcg-right__header">
+                <span class="dcg-right__title">Contexto salvo</span>
+                <span x-show="descarrego.menteeId" style="font-size:12px;color:var(--op-text-muted)" x-text="filteredMenteeContext.length + ' itens'"></span>
+              </div>
+              <div class="dcg-feed" x-show="descarrego.menteeId">
+                <div x-show="!filteredMenteeContext.length" class="dcg-empty">
+                  <div class="dcg-empty__icon">📭</div>
+                  <div class="dcg-empty__text">Nenhum contexto ainda.<br>Adicione acima!</div>
+                </div>
+                <template x-for="ctx in filteredMenteeContext" :key="ctx.id">
+                  <div class="dcg-feed-item">
+                    <div class="dcg-feed-item__header">
+                      <span class="dcg-feed-item__tipo" :style="_ctxTipoStyle(ctx.tipo)" x-text="_ctxTipoLabel(ctx.tipo)"></span>
+                      <span class="dcg-feed-item__title" x-text="ctx.titulo || '(sem título)'"></span>
+                    </div>
+                    <div class="dcg-feed-item__body" x-show="ctx.conteudo || ctx.transcricao"
+                      x-text="ctx.transcricao || ctx.conteudo"></div>
+                    <div class="dcg-feed-item__actions">
+                      <span class="dcg-feed-item__action"
+                        x-show="['audio','gravacao'].includes(ctx.tipo) && ctx.arquivo_url && !ctx.transcricao && !ui.ctxTranscribing[ctx.id]"
+                        @click="transcribeContext(ctx.id)">✨ Transcrever</span>
+                      <span x-show="ui.ctxTranscribing[ctx.id]" style="font-size:11px;color:var(--op-text-muted);padding:2px 6px">Transcrevendo…</span>
+                      <span style="flex:1"></span>
+                      <span class="dcg-feed-item__action" style="color:#ef4444" @click="archiveContext(ctx.id)">✕</span>
+                    </div>
+                  </div>
+                </template>
+              </div>
+              <div x-show="!descarrego.menteeId" class="dcg-empty" style="flex:1">
+                <div class="dcg-empty__icon">📋</div>
+                <div class="dcg-empty__text">O contexto salvo<br>aparecerá aqui</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </main>
 
       <!-- ===== S9-B: WA Inbox Drawer — Global ===== -->
@@ -10483,7 +10706,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=133"></script>
+  <script src="11-APP-app.js?v=135"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">

@@ -426,6 +426,9 @@ function operon() {
       gcalConflict: null,
       checkingConflict: false,    },
 
+    // --- Descarrego page state ---
+    descarrego: { menteeId: null, menteeName: '', search: '', dragging: false },
+
     // --- Data ---
     data: {
       mentees: [],
@@ -3133,6 +3136,9 @@ function operon() {
                 resumo: c.resumo || c.zoom_topic || 'Call de acompanhamento',
                 gravacao: c.link_gravacao || null,
                 transcricao: c.link_transcricao || null,
+                senha_call: c['senha_Call'] || c.senha_call || null,
+                link_youtube: c.link_youtube || null,
+                plano_acao: c.link_plano_acao || null,
                 decisoes_tomadas: c.decisoes_tomadas || [],
                 feedbacks_queila: c.feedbacks_consultora || c.proximos_passos || [],
               }));
@@ -4857,6 +4863,7 @@ function operon() {
       'documentos': 'documentos',
       'arquivos': 'arquivos',
       'settings': 'settings',
+      'descarrego': 'descarrego',
       'jornada': 'kanban',
     },
 
@@ -5875,6 +5882,7 @@ function operon() {
       if (page === 'financeiro') this.loadFinanceiro();
       if (page === 'command_center' && !this.data.dsProducoes.length) this.loadDsData();
       if (page === 'carteira') this.initWaKeyboardShortcuts();
+      if (page === 'descarrego') { this.ui.ctxFilter.tipo = 'all'; this.ui.ctxFilter.fase = 'all'; }
       localStorage.setItem('spalla_page', page);
       // Update URL without reload
       const route = this._pageToRoute(page);
@@ -9351,7 +9359,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     async saveContext() {
-      const menteeId = this.data.detail?.profile?.id;
+      const menteeId = this.data.detail?.profile?.id || this.descarrego?.menteeId;
       if (!menteeId) return;
       this.ui.ctxSaving = true;
       try {
@@ -9545,6 +9553,58 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const ctx = (this.data.menteeContext || []).find(c => c.id === ctxId);
       if (!ctx || !['audio', 'gravacao'].includes(ctx.tipo) || !ctx.arquivo_url || ctx.transcricao) return;
       await this._autoTranscribeWithUrl(ctxId, ctx.arquivo_url);
+    },
+
+    // ===== DESCARREGO PAGE helpers =====
+
+    get descarregoMenteeList() {
+      const q = (this.descarrego.search || '').toLowerCase().trim();
+      const list = this.data.mentees || [];
+      if (!q) return list;
+      return list.filter(m => (m.nome || '').toLowerCase().includes(q) || (m.instagram || '').toLowerCase().includes(q));
+    },
+
+    async selectDescarregoMentee(m) {
+      this.descarrego.menteeId = m.id;
+      this.descarrego.menteeName = m.nome;
+      this.ui.ctxTipo = 'texto';
+      this.ui.ctxTitulo = '';
+      this.ui.ctxConteudo = '';
+      this.ui.ctxLinkUrl = '';
+      this.ui.ctxArquivo = null;
+      this.ui.ctxFase = 'onboarding';
+      await this.loadMenteeContext(m.id);
+    },
+
+    handleDescarregoDrop(event) {
+      this.descarrego.dragging = false;
+      const file = event.dataTransfer?.files?.[0];
+      if (file) this.ui.ctxArquivo = file;
+    },
+
+    _ctxTipoStyle(tipo) {
+      const map = {
+        texto:    'background:#e8f4f0;color:#1a6b5a',
+        audio:    'background:#fef3e2;color:#9a6400',
+        gravacao: 'background:#fce8e8;color:#c0392b',
+        link:     'background:#e8eeff;color:#2a4fba',
+        arquivo:  'background:#f0ece8;color:#5a4a3a',
+        imagem:   'background:#f4e8f4;color:#7a2a8a',
+        video:    'background:#e8f0f4;color:#1a5a8a',
+        documento:'background:#f0ece8;color:#5a4a3a',
+      };
+      return map[tipo] || 'background:var(--op-bg-1);color:var(--op-text-muted)';
+    },
+
+    _ctxTipoLabel(tipo) {
+      const map = { texto:'TEXTO', audio:'ÁUDIO', gravacao:'GRAV.', link:'LINK', arquivo:'ARQ.', imagem:'IMG', video:'VÍDEO', documento:'DOC' };
+      return map[tipo] || (tipo || '').toUpperCase();
+    },
+
+    _formatRecSeconds(s) {
+      const m = Math.floor(s / 60);
+      const sec = s % 60;
+      return String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
     },
 
     // ===== S2: Save WA message as Context (ativo) =====
