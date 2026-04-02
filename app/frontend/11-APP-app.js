@@ -225,6 +225,14 @@ function operon() {
       ctxRecordingChunks: [],
       ctxRecordingSeconds: 0,
       ctxRecordingTimer: null,
+      ativoSearch: '',
+      ativoResults: [],
+      // Save-to-context modal state
+      ctxSaveModal: false,
+      ctxSaveData: null, // { menteeId, menteeName, msg, tipo, chatJid, mediaUrl, msgText, msgId }
+      ctxSaveDesc: '',
+      ctxSavePasta: '',
+      ctxSaveSaving: false,
       taskTagFilter: [],       // tag ids for filtering
       taskDateFilter: 'all', // all | today | next7 | next30 | overdue | no_date
       taskTagsDropdown: false, // tags dropdown open in modal
@@ -417,6 +425,9 @@ function operon() {
       teamView: 'cards', // 'cards' | 'ranking'
       gcalConflict: null,
       checkingConflict: false,    },
+
+    // --- Descarrego page state ---
+    descarrego: { menteeId: null, menteeName: '', search: '', dragging: false },
 
     // --- Data ---
     data: {
@@ -642,6 +653,7 @@ function operon() {
       recorrencia_ativa: true,
       bloqueio_motivo: '',
       bloqueio_responsavel: '',
+      context_ativo_ids: [],
       fieldValues: {},         // { fieldId: <value> } for custom fields
     },
 
@@ -2138,35 +2150,36 @@ function operon() {
           console.warn('[Spalla] Token auto-refresh failed (offline?):', e.message);
         }
       }, 45 * 60 * 1000); // 45 min
-      // Also refresh on tab visibility change (user returns after idle)
+      // Refresh on tab visibility change (user returns after idle)
       document.addEventListener('visibilitychange', async () => {
-        if (document.visibilityState === 'visible' && this.auth.authenticated) {
-          const token = localStorage.getItem('spalla_access_token');
-          if (!token) return;
-          try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            const minutesLeft = (payload.exp - Math.floor(Date.now() / 1000)) / 60;
-            if (minutesLeft < 15) {
-              // Token expiring soon, refresh now
-              const refreshToken = localStorage.getItem('spalla_refresh_token');
-              if (refreshToken) {
-                const resp = await fetch(`${CONFIG.API_BASE}/api/auth/refresh`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ refresh_token: refreshToken })
-                });
-                if (resp.ok) {
-                  const data = await resp.json();
-                  this.auth.accessToken = data.access_token;
-                  this.auth.refreshToken = data.refresh_token;
-                  localStorage.setItem('spalla_access_token', data.access_token);
-                  localStorage.setItem('spalla_refresh_token', data.refresh_token);
-                  console.log('[Spalla] Token refreshed on tab return');
-                }
-              }
+        if (document.visibilityState !== 'visible' || !this.auth.authenticated) return;
+        const token = localStorage.getItem('spalla_access_token');
+        if (!token) return;
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          const minutesLeft = (payload.exp - Math.floor(Date.now() / 1000)) / 60;
+          // If token expired or expiring within 60min, refresh immediately
+          if (minutesLeft < 60) {
+            const refreshToken = localStorage.getItem('spalla_refresh_token');
+            if (!refreshToken) { this.logout(); return; }
+            const resp = await fetch(`${CONFIG.API_BASE}/api/auth/refresh`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ refresh_token: refreshToken })
+            });
+            if (resp.ok) {
+              const data = await resp.json();
+              this.auth.accessToken = data.access_token;
+              this.auth.refreshToken = data.refresh_token;
+              localStorage.setItem('spalla_access_token', data.access_token);
+              localStorage.setItem('spalla_refresh_token', data.refresh_token);
+              console.log('[Spalla] Token refreshed on tab return (' + Math.round(minutesLeft) + 'min left)');
+            } else if (resp.status === 401) {
+              console.warn('[Spalla] Refresh token expired, logging out');
+              this.logout();
             }
-          } catch (e) { /* ignore parse errors */ }
-        }
+          }
+        } catch (e) { console.warn('[Spalla] visibilitychange refresh error:', e.message); }
       }, { once: false });
     },
 
@@ -2271,18 +2284,27 @@ function operon() {
           table: 'whatsapp_messages',
           filter: `group_id=eq.${groupJid}`,
         }, (payload) => {
-          const newMsg = this._waDbToEvolutionFormat(payload.new);
-          // Avoid duplicates (optimistic insert from send)
-          if (!this.data.whatsappMessages.find(m => m.key?.id === newMsg.key?.id)) {
-            this.data.whatsappMessages.push(newMsg);
-            this.$nextTick(() => {
-              const el = document.getElementById('wa-messages-end');
-              if (el) el.scrollIntoView({ behavior: 'smooth' });
-            });
-          }
-          // TASK-05: Check if this message resolves a pending follow-up
-          if (!payload.new.is_from_team) {
-            this._checkFollowupResponse(groupJid, payload.new);
+          try {
+            const newMsg = this._waDbToEvolutionFormat(payload.new);
+            // Avoid duplicates (optimistic insert from send)
+            if (!this.data.whatsappMessages.find(m => m.key?.id === newMsg.key?.id)) {
+              // Only auto-scroll if user is already near the bottom
+              const feed = document.querySelector('.wa-chat__messages');
+              const wasAtBottom = feed ? (feed.scrollHeight - feed.scrollTop - feed.clientHeight < 150) : true;
+              this.data.whatsappMessages.push(newMsg);
+              if (wasAtBottom) {
+                this.$nextTick(() => {
+                  const el = document.getElementById('wa-messages-end');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                });
+              }
+            }
+            // TASK-05: Check if this message resolves a pending follow-up
+            if (!payload.new.is_from_team) {
+              this._checkFollowupResponse(groupJid, payload.new);
+            }
+          } catch (e) {
+            console.error('[Spalla] Realtime INSERT handler error:', e);
           }
         })
         .on('postgres_changes', {
@@ -2313,32 +2335,41 @@ function operon() {
     // Convert whatsapp_messages row to Evolution API format (HTML compatible)
     _waDbToEvolutionFormat(row) {
       // whatsapp_messages schema: type, content, media_url, media_mime_type, quoted_message_id, group_id
-      const contentType = row.type || 'text';
+      // Normalize DB type: 'audioMessage' → 'audio', 'imageMessage' → 'image', etc
+      const rawType = (row.type || 'text').replace('Message', '').toLowerCase();
+      const contentType = rawType === 'chat' ? 'text' : rawType === 'conversation' ? 'text' : rawType === 'extendedtext' ? 'text' : rawType;
       const msgObj = {};
-      if (contentType === 'text' || contentType === 'chat' || !contentType) {
+      if (contentType === 'text' || !contentType) {
         msgObj.conversation = row.content || '';
       } else if (contentType === 'image') {
-        msgObj.imageMessage = { caption: row.caption || row.content || '', url: row.media_url };
+        msgObj.imageMessage = { caption: row.caption || '', url: row.media_url, mediaUrl: row.media_url };
       } else if (contentType === 'audio' || contentType === 'ptt') {
-        msgObj.audioMessage = { url: row.media_url, mimetype: row.media_mime_type || 'audio/ogg' };
+        msgObj.audioMessage = { url: row.media_url, mimetype: row.media_mime_type || 'audio/ogg', mediaUrl: row.media_url };
       } else if (contentType === 'video') {
-        msgObj.videoMessage = { caption: row.caption || row.content || '', url: row.media_url };
+        msgObj.videoMessage = { caption: row.caption || '', url: row.media_url, mediaUrl: row.media_url };
       } else if (contentType === 'document') {
-        msgObj.documentMessage = { fileName: row.file_name || row.content || 'Documento', url: row.media_url, mimetype: row.media_mime_type };
+        msgObj.documentMessage = { fileName: row.file_name || row.content || 'Documento', url: row.media_url, mimetype: row.media_mime_type, mediaUrl: row.media_url };
       } else if (contentType === 'sticker') {
         msgObj.conversation = '[Sticker]';
       } else {
-        msgObj.conversation = row.content || `[${contentType}]`;
+        msgObj.conversation = row.content || `[${rawType}]`;
       }
+      // Also set mediaUrl at message level for eagerlyLoadWaMediaUrls
+      if (row.media_url) msgObj.mediaUrl = row.media_url;
+      // Detect forwarded messages (sender starts with ~)
+      const senderRaw = row.sender_name || 'Desconhecido';
+      const isForwarded = senderRaw.startsWith('~');
+      const senderClean = isForwarded ? senderRaw.substring(1).trim() : senderRaw;
       return {
-        key: { id: row.message_id, fromMe: false, remoteJid: row.group_id || row.chat_id },
+        key: { id: row.message_id || row.id || ('db-' + Date.now()), fromMe: !!row.is_from_team, remoteJid: row.group_id || row.chat_id },
         message: msgObj,
         messageTimestamp: row.timestamp ? Math.floor(new Date(row.timestamp).getTime() / 1000) : Math.floor(Date.now() / 1000),
-        pushName: row.sender_name || 'Desconhecido',
+        pushName: senderClean,
         _dbId: row.id,
         _replyToId: row.quoted_message_id,
         _contentType: contentType,
         _mediaUrl: row.media_url,
+        _isForwarded: isForwarded,
       };
     },
 
@@ -2370,9 +2401,11 @@ function operon() {
             const localId = lastLocal?.key?.id || '';
             const remoteId = lastRemote?.key?.id || '';
             if (newMsgs.length !== this.data.whatsappMessages.length || localId !== remoteId) {
+              const feed = document.querySelector('.wa-chat__messages');
+              const wasAtBottom = feed ? (feed.scrollHeight - feed.scrollTop - feed.clientHeight < 150) : true;
               this.data.whatsappMessages = newMsgs;
               this.eagerlyLoadWaMediaUrls(this.data.whatsappMessages);
-              this.$nextTick(() => {
+              if (wasAtBottom) this.$nextTick(() => {
                 const el = document.getElementById('wa-messages-end');
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
               });
@@ -2446,7 +2479,7 @@ function operon() {
         const doc = await resp.json();
         this.bib.activeDoc = doc;
         this.bib.renderedHtml = (typeof marked !== 'undefined')
-          ? marked.parse(doc.conteudo_md || '')
+          ? (typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(marked.parse(doc.conteudo_md || '')) : marked.parse(doc.conteudo_md || ''))
           : '<pre>' + (doc.conteudo_md || '').replace(/</g, '&lt;') + '</pre>';
         this.$nextTick(() => {
           const body = document.querySelector('.bib__reader-body');
@@ -2541,7 +2574,8 @@ function operon() {
         if (error) throw error;
         // Re-render preview
         this.bib.renderedHtml = (typeof marked !== 'undefined')
-          ? marked.parse(doc.conteudo_md || '') : doc.conteudo_md;
+          ? (typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(marked.parse(doc.conteudo_md || '')) : marked.parse(doc.conteudo_md || ''))
+          : (doc.conteudo_md || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         this.bib.editMode = false;
         // Unmount editor
         const editorEl = this.$refs.bibEditor;
@@ -3102,6 +3136,9 @@ function operon() {
                 resumo: c.resumo || c.zoom_topic || 'Call de acompanhamento',
                 gravacao: c.link_gravacao || null,
                 transcricao: c.link_transcricao || null,
+                senha_call: c['senha_Call'] || c.senha_call || null,
+                link_youtube: c.link_youtube || null,
+                plano_acao: c.link_plano_acao || null,
                 decisoes_tomadas: c.decisoes_tomadas || [],
                 feedbacks_queila: c.feedbacks_consultora || c.proximos_passos || [],
               }));
@@ -3205,7 +3242,7 @@ function operon() {
           .select('id,message_id,sender_name,type,content,media_url,media_mime_type,quoted_message_id,timestamp,is_group,group_id')
           .eq('group_id', remoteJid)
           .order('timestamp', { ascending: false })
-          .limit(30);
+          .limit(100);
 
         let interactions = [];
         // Build team member name set for matching
@@ -3222,13 +3259,18 @@ function operon() {
             const senderLower = (msg.sender_name || '').toLowerCase();
             const isTeam = teamNames.has(senderLower) ||
               [...teamNames].some(tn => senderLower.includes(tn) || tn.includes(senderLower));
+            // Normalize content_type: Supabase stores WA types like 'conversation', 'extendedTextMessage'
+            // Template expects: text, audio, image, video, document
+            const MEDIA_TYPES = new Set(['audio', 'image', 'video', 'document', 'sticker']);
+            const rawType = (msg.type || '').toLowerCase();
+            const normalizedType = MEDIA_TYPES.has(rawType) ? rawType : 'text';
             return {
               sender: isTeam ? (msg.sender_name || 'Equipe CASE') : (msg.sender_name || nome),
-              conteudo: msg.content || `[${msg.type || 'mensagem'}]`,
+              conteudo: msg.content || (normalizedType !== 'text' ? `[${rawType}]` : ''),
               created_at: msg.timestamp,
               message_id: msg.message_id,
               is_from_team: isTeam,
-              content_type: msg.type || 'text',
+              content_type: normalizedType,
               media_url: msg.media_url,
             };
           });
@@ -4821,6 +4863,7 @@ function operon() {
       'documentos': 'documentos',
       'arquivos': 'arquivos',
       'settings': 'settings',
+      'descarrego': 'descarrego',
       'jornada': 'kanban',
     },
 
@@ -5839,6 +5882,7 @@ function operon() {
       if (page === 'financeiro') this.loadFinanceiro();
       if (page === 'command_center' && !this.data.dsProducoes.length) this.loadDsData();
       if (page === 'carteira') this.initWaKeyboardShortcuts();
+      if (page === 'descarrego') { this.ui.ctxFilter.tipo = 'all'; this.ui.ctxFilter.fase = 'all'; }
       localStorage.setItem('spalla_page', page);
       // Update URL without reload
       const route = this._pageToRoute(page);
@@ -6504,7 +6548,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     async _sbUpsertTask(task, isNew = false) {
       if (!sb) return { ok: false };
-      const VALID_COLS = ['id','titulo','descricao','status','prioridade','responsavel','acompanhante','mentorado_id','mentorado_nome','data_inicio','data_fim','space_id','list_id','parent_task_id','tags','fonte','doc_link','created_at','updated_at','created_by','recorrencia','dia_recorrencia','recorrencia_ativa','recorrencia_origem_id','bloqueio_motivo','bloqueio_responsavel'];
+      const VALID_COLS = ['id','titulo','descricao','status','prioridade','responsavel','acompanhante','mentorado_id','mentorado_nome','data_inicio','data_fim','space_id','list_id','parent_task_id','tags','fonte','doc_link','created_at','updated_at','created_by','recorrencia','dia_recorrencia','recorrencia_ativa','recorrencia_origem_id','bloqueio_motivo','bloqueio_responsavel','tipo','context_ativo_ids'];
       const DATE_COLS = ['data_inicio', 'data_fim'];
       const row = {};
       for (const k of VALID_COLS) { if (task[k] !== undefined) row[k] = task[k]; }
@@ -6707,15 +6751,18 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           newDependsOnType: 'finish_to_start',
           bloqueio_motivo: task.bloqueio_motivo || '',
           bloqueio_responsavel: task.bloqueio_responsavel || '',
+          context_ativo_ids: task.context_ativo_ids || [],
           fieldValues: {},
         };
         this.ui.taskEditId = task.id;
         this.loadFieldDefs(task.space_id, task.list_id, task.id);
+        // Load mentee context for ativo autocomplete
+        if (task.mentorado_id) this.loadMenteeContext(task.mentorado_id);
       } else {
         // Preserve mentorado_nome if it was pre-set (e.g. from mentee detail view)
         const presetMentorado = this.taskForm?.mentorado_nome || '';
         const presetTipo = this.taskForm?.tipo || 'geral';
-        this.taskForm = { titulo: '', descricao: '', responsavel: '', acompanhante: '', mentorado_nome: presetMentorado, tipo: presetTipo, prioridade: 'normal', prazo: '', data_inicio: '', data_fim: '', doc_link: '', subtasks: [], checklist: [], comments: [], attachments: [], tags: [], dependencies: [], parent_task_id: null, space_id: 'space_atendimento', list_id: '', recorrencia: 'nenhuma', dia_recorrencia: null, recorrencia_ativa: true, bloqueio_motivo: '', bloqueio_responsavel: '', newSubtask: '', newCheckItem: '', newComment: '', newTag: '', newDependsOn: '', newDependsOnType: 'finish_to_start', fieldValues: {} };
+        this.taskForm = { titulo: '', descricao: '', responsavel: '', acompanhante: '', mentorado_nome: presetMentorado, tipo: presetTipo, prioridade: 'normal', prazo: '', data_inicio: '', data_fim: '', doc_link: '', subtasks: [], checklist: [], comments: [], attachments: [], tags: [], dependencies: [], parent_task_id: null, space_id: 'space_atendimento', list_id: '', recorrencia: 'nenhuma', dia_recorrencia: null, recorrencia_ativa: true, bloqueio_motivo: '', bloqueio_responsavel: '', context_ativo_ids: [], newSubtask: '', newCheckItem: '', newComment: '', newTag: '', newDependsOn: '', newDependsOnType: 'finish_to_start', fieldValues: {} };
         this.ui.taskEditId = null;
         this.loadFieldDefs('space_atendimento', null, null);
       }
@@ -7158,7 +7205,10 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       // Render markdown if marked is available, otherwise fallback
       let html = '';
       if (typeof marked !== 'undefined') {
-        try { html = marked.parse(text); } catch (e) { html = text.replace(/\n/g, '<br>'); }
+        try {
+          html = marked.parse(text);
+          if (typeof DOMPurify !== 'undefined') html = DOMPurify.sanitize(html);
+        } catch (e) { html = text.replace(/\n/g, '<br>'); }
       } else {
         html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
       }
@@ -7904,15 +7954,20 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.stopWhatsAppPolling(); // cleanup previous subscriptions + polling
 
       const groupJid = chat.remoteJid || chat.id;
+      this._loadingGroupJid = groupJid;
 
       // Strategy: try Supabase wa_messages first, fallback to Evolution API
       let usedRealtime = false;
       try {
-        const { data: dbMsgs, error } = await sb.from('whatsapp_messages')
-          .select('id,message_id,group_id,sender_name,type,content,media_url,media_mime_type,quoted_message_id,timestamp')
+        const { data: rawMsgs, error } = await sb.from('whatsapp_messages')
+          .select('id,message_id,group_id,sender_name,type,content,media_url,media_mime_type,quoted_message_id,timestamp,is_from_team')
           .eq('group_id', groupJid)
-          .order('timestamp', { ascending: true })
+          .order('timestamp', { ascending: false })
           .limit(100);
+        // Reverse to chronological order (oldest first for display)
+        const dbMsgs = rawMsgs ? rawMsgs.reverse() : [];
+
+        if (this._loadingGroupJid !== groupJid) return; // stale request — user switched chats
 
         if (!error && dbMsgs && dbMsgs.length > 0) {
           // Use Supabase data — convert to Evolution format for HTML compatibility
@@ -8166,7 +8221,6 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (m.imageMessage) return 'image';
       if (m.videoMessage) return 'video';
       if (m.documentMessage) {
-        // Document messages with media MIME types render as that media
         if (m.documentMessage.mimetype?.includes('video')) return 'video';
         if (m.documentMessage.mimetype?.includes('audio')) return 'audio';
         if (m.documentMessage.mimetype?.includes('image')) return 'image';
@@ -8188,12 +8242,12 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         // Skip if already cached
         if (this.waMediaUrls[msgId]) continue;
 
-        // Check if Evolution API provided mediaUrl
+        // Check if Evolution API provided mediaUrl directly
         if (msg.message?.mediaUrl) {
           this.waMediaUrls[msgId] = msg.message.mediaUrl;
           updated = true;
         }
-        // Check if message came from Supabase with _mediaUrl (S3 key or full URL)
+        // Check if Supabase row has _mediaUrl (S3 key or full URL)
         else if (msg._mediaUrl) {
           const url = msg._mediaUrl;
           if (url.includes('mmg.whatsapp.net')) {
@@ -8280,6 +8334,15 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     getWaChatName(chat) {
       return chat?.name || chat?.subject || chat?.pushName || chat?.id?.split('@')[0] || 'Chat';
+    },
+
+    // Convert URLs in text to clickable links (safe — escapes HTML first)
+    linkifyText(text) {
+      if (!text) return '';
+      // Escape HTML to prevent XSS
+      const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      // Convert URLs to <a> tags
+      return escaped.replace(/(https?:\/\/[^\s<"']+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:#3b82f6;text-decoration:underline;word-break:break-all">$1</a>');
     },
 
     // ===== Reply-to helpers =====
@@ -9296,7 +9359,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     async saveContext() {
-      const menteeId = this.data.detail?.profile?.id;
+      const menteeId = this.data.detail?.profile?.id || this.descarrego?.menteeId;
       if (!menteeId) return;
       this.ui.ctxSaving = true;
       try {
@@ -9318,12 +9381,13 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         // Upload file if present (arquivo, audio or gravacao)
         if (this.ui.ctxArquivo) {
           const file = this.ui.ctxArquivo;
+          const MAX_SIZE = 100 * 1024 * 1024; // 100 MB
+          if (file.size > MAX_SIZE) throw new Error('Arquivo muito grande (máx 100 MB)');
           const path = `context/${menteeId}/${Date.now()}_${file.name}`;
-          const { data: uploadData, error: uploadError } = await sb.storage
-            .from('uploads')
-            .upload(path, file);
+          const { error: uploadError } = await sb.storage.from('uploads').upload(path, file);
           if (uploadError) throw uploadError;
           const { data: urlData } = sb.storage.from('uploads').getPublicUrl(path);
+          if (!urlData?.publicUrl) throw new Error('Falha ao obter URL do arquivo');
           record.arquivo_url = urlData.publicUrl;
           record.arquivo_nome = file.name;
           record.arquivo_tipo = file.type;
@@ -9341,9 +9405,9 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         this.toast('Contexto adicionado', 'success');
         await this.loadMenteeContext(menteeId);
 
-        // Auto-transcribe after saving audio/gravacao
+        // Auto-transcribe — passa arquivo_url diretamente (não busca no array para evitar race)
         if (inserted?.id && ['audio', 'gravacao'].includes(record.tipo) && record.arquivo_url) {
-          this._autoTranscribeIfNeeded(inserted.id);
+          this._autoTranscribeWithUrl(inserted.id, record.arquivo_url);
         }
       } catch (e) {
         console.error('[Spalla] saveContext:', e);
@@ -9353,11 +9417,31 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     async deleteContext(ctxId) {
-      if (!confirm('Remover este contexto?')) return;
+      if (!confirm('Excluir este contexto permanentemente?')) return;
       try {
         await sb.from('mentorado_context').delete().eq('id', ctxId);
         this.data.menteeContext = this.data.menteeContext.filter(c => c.id !== ctxId);
-        this.toast('Contexto removido', 'success');
+        this.toast('Contexto excluido', 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    async archiveContext(ctxId) {
+      try {
+        await sb.from('mentorado_context').update({ ativo: false }).eq('id', ctxId);
+        this.data.menteeContext = this.data.menteeContext.filter(c => c.id !== ctxId);
+        this.toast('Contexto arquivado', 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    async archiveAllContext() {
+      const items = this.filteredMenteeContext;
+      if (!items.length) return;
+      if (!confirm(`Arquivar ${items.length} contexto(s)? Eles nao serao excluidos, apenas ocultados.`)) return;
+      try {
+        const ids = items.map(c => c.id);
+        await sb.from('mentorado_context').update({ ativo: false }).in('id', ids);
+        this.data.menteeContext = this.data.menteeContext.filter(c => !ids.includes(c.id));
+        this.toast(`${ids.length} contexto(s) arquivado(s)`, 'success');
       } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
     },
 
@@ -9412,8 +9496,10 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const file = new File([blob], `gravacao_${Date.now()}.webm`, { type: 'audio/webm' });
       this.ui.ctxArquivo = file;
       this.ui.ctxTipo = 'gravacao';
-      if (!this.ui.ctxTitulo) this.ui.ctxTitulo = `Gravação ${ts}`;
-      this.toast('Gravação pronta! Transcrição automática após salvar.', 'info');
+      if (!this.ui.ctxTitulo) this.ui.ctxTitulo = `Gravacao ${ts}`;
+      // Auto-save after recording stops (triggered by "Parar e salvar" button)
+      this.toast('Salvando gravacao...', 'info');
+      await this.saveContext();
     },
 
     // Context Hub — transcribe an existing audio context card
@@ -9424,7 +9510,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       try {
         const resp = await fetch(`${CONFIG.API_BASE}/api/context/transcribe`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.token || ''}` },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken || localStorage.getItem('spalla_access_token') || ''}` },
           body: JSON.stringify({ arquivo_url: ctx.arquivo_url }),
         });
         const result = await resp.json();
@@ -9441,11 +9527,215 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.ui.ctxTranscribing = t;
     },
 
-    // Context Hub — auto-transcribe after saving a gravacao
+    // Context Hub — auto-transcribe after saving (usa URL direto, sem depender do array carregado)
+    async _autoTranscribeWithUrl(ctxId, arquivoUrl) {
+      this.ui.ctxTranscribing = { ...this.ui.ctxTranscribing, [ctxId]: true };
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/context/transcribe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken || localStorage.getItem('spalla_access_token') || ''}` },
+          body: JSON.stringify({ arquivo_url: arquivoUrl }),
+        });
+        const result = await resp.json();
+        if (result.error) throw new Error(result.error);
+        await sb.from('mentorado_context').update({ transcricao: result.transcricao }).eq('id', ctxId);
+        const idx = (this.data.menteeContext || []).findIndex(c => c.id === ctxId);
+        if (idx >= 0) this.data.menteeContext[idx] = { ...this.data.menteeContext[idx], transcricao: result.transcricao };
+        this.toast('Transcrição concluída!', 'success');
+      } catch (e) {
+        this.toast('Transcrição automática falhou: ' + e.message, 'warn');
+      }
+      const t = { ...this.ui.ctxTranscribing }; delete t[ctxId]; this.ui.ctxTranscribing = t;
+    },
+
+    // Context Hub — auto-transcribe para itens já salvos (busca no array)
     async _autoTranscribeIfNeeded(ctxId) {
       const ctx = (this.data.menteeContext || []).find(c => c.id === ctxId);
       if (!ctx || !['audio', 'gravacao'].includes(ctx.tipo) || !ctx.arquivo_url || ctx.transcricao) return;
-      await this.transcribeContext(ctxId);
+      await this._autoTranscribeWithUrl(ctxId, ctx.arquivo_url);
+    },
+
+    // ===== DESCARREGO PAGE helpers =====
+
+    get descarregoMenteeList() {
+      const q = (this.descarrego.search || '').toLowerCase().trim();
+      const list = this.data.mentees || [];
+      if (!q) return list;
+      return list.filter(m => (m.nome || '').toLowerCase().includes(q) || (m.instagram || '').toLowerCase().includes(q));
+    },
+
+    async selectDescarregoMentee(m) {
+      this.descarrego.menteeId = m.id;
+      this.descarrego.menteeName = m.nome;
+      this.ui.ctxTipo = 'texto';
+      this.ui.ctxTitulo = '';
+      this.ui.ctxConteudo = '';
+      this.ui.ctxLinkUrl = '';
+      this.ui.ctxArquivo = null;
+      this.ui.ctxFase = 'onboarding';
+      await this.loadMenteeContext(m.id);
+    },
+
+    handleDescarregoDrop(event) {
+      this.descarrego.dragging = false;
+      const file = event.dataTransfer?.files?.[0];
+      if (file) this.ui.ctxArquivo = file;
+    },
+
+    _ctxTipoStyle(tipo) {
+      const map = {
+        texto:    'background:#e8f4f0;color:#1a6b5a',
+        audio:    'background:#fef3e2;color:#9a6400',
+        gravacao: 'background:#fce8e8;color:#c0392b',
+        link:     'background:#e8eeff;color:#2a4fba',
+        arquivo:  'background:#f0ece8;color:#5a4a3a',
+        imagem:   'background:#f4e8f4;color:#7a2a8a',
+        video:    'background:#e8f0f4;color:#1a5a8a',
+        documento:'background:#f0ece8;color:#5a4a3a',
+      };
+      return map[tipo] || 'background:var(--op-bg-1);color:var(--op-text-muted)';
+    },
+
+    _ctxTipoLabel(tipo) {
+      const map = { texto:'TEXTO', audio:'ÁUDIO', gravacao:'GRAV.', link:'LINK', arquivo:'ARQ.', imagem:'IMG', video:'VÍDEO', documento:'DOC' };
+      return map[tipo] || (tipo || '').toUpperCase();
+    },
+
+    _formatRecSeconds(s) {
+      const m = Math.floor(s / 60);
+      const sec = s % 60;
+      return String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
+    },
+
+    // ===== S2: Save WA message as Context (ativo) =====
+
+    // Resolve mentorado from chat context (reused by both save functions)
+    _resolveWaMentee(chatJid, chatName) {
+      let menteeId = null, menteeName = '';
+      // Strategy 1: wa_groups linked
+      const group = (this.data.waGroups || []).find(g => g.group_jid === chatJid);
+      if (group?.mentorado_id) {
+        menteeId = group.mentorado_id;
+        menteeName = this.data.mentees.find(m => m.id == menteeId)?.nome || '';
+      }
+      // Strategy 2: fuzzy match chat name
+      if (!menteeId && chatName) {
+        const cn = chatName.toLowerCase();
+        for (const m of this.data.mentees) {
+          const nome = m.nome.toLowerCase();
+          const first = nome.split(' ')[0];
+          if (cn.includes(nome) || (first.length > 3 && cn.includes(first) && (cn.includes('case') || cn.includes('mentory') || cn.includes('clinic')))) {
+            menteeId = m.id; menteeName = m.nome; break;
+          }
+        }
+      }
+      // Strategy 3: grupo_whatsapp_id
+      if (!menteeId) {
+        const m = this.data.mentees.find(m => m.grupo_whatsapp_id === chatJid);
+        if (m) { menteeId = m.id; menteeName = m.nome; }
+      }
+      return { menteeId, menteeName };
+    },
+
+    // Open save-to-context modal (WA main page)
+    saveWaMsgAsContext(msg) {
+      const chat = this.ui.whatsappSelectedChat;
+      const chatJid = chat?.remoteJid || chat?.id;
+      const { menteeId, menteeName } = this._resolveWaMentee(chatJid, this.getWaChatName(chat));
+      if (!menteeId) { this.toast('Mentorado nao detectado pra este grupo', 'error'); return; }
+      const msgType = this.getWaMessageType(msg);
+      const tipoMap = { text: 'texto', audio: 'audio', image: 'imagem', video: 'video', document: 'documento' };
+      this.ui.ctxSaveData = {
+        menteeId, menteeName,
+        tipo: tipoMap[msgType] || 'texto',
+        msgText: this.getWaMessageText(msg),
+        mediaUrl: this.waMediaUrls?.[msg.key?.id] || null,
+        msgId: msg.key?.id || null,
+        chatJid,
+        sender: msg.pushName || '',
+        source: 'wa_main',
+      };
+      this.ui.ctxSaveDesc = this.getWaMessageText(msg)?.substring(0, 200) || '';
+      this.ui.ctxSavePasta = '';
+      this.ui.ctxSaveModal = true;
+    },
+
+    // Open save-to-context modal (WA detail tab in ficha)
+    saveDetailWaMsgAsContext(msg) {
+      const menteeId = this.data.detail?.profile?.id;
+      const menteeName = this.data.detail?.profile?.nome || '';
+      if (!menteeId) { this.toast('Mentorado nao identificado', 'error'); return; }
+      const tipoMap = { text: 'texto', audio: 'audio', image: 'imagem', video: 'video', document: 'documento' };
+      this.ui.ctxSaveData = {
+        menteeId, menteeName,
+        tipo: tipoMap[msg.content_type] || 'texto',
+        msgText: msg.conteudo || '',
+        mediaUrl: msg.media_url ? this.waDetailMediaUrl(msg.media_url) : null,
+        msgId: msg.message_id || null,
+        chatJid: this.data.detail?._waGroupJid || null,
+        sender: msg.sender || '',
+        source: 'wa_detail',
+      };
+      this.ui.ctxSaveDesc = (msg.conteudo || '')?.substring(0, 200);
+      this.ui.ctxSavePasta = '';
+      this.ui.ctxSaveModal = true;
+    },
+
+    // Confirm save from modal
+    async confirmSaveContext() {
+      const d = this.ui.ctxSaveData;
+      if (!d) return;
+      this.ui.ctxSaveSaving = true;
+
+      const record = {
+        mentorado_id: d.menteeId,
+        tipo: d.tipo,
+        titulo: this.ui.ctxSaveDesc?.substring(0, 100) || `WA: ${d.sender} — ${new Date().toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit'})}`,
+        conteudo: this.ui.ctxSaveDesc || d.msgText || '',
+        fase: this.ui.ctxSavePasta || 'geral',
+        origem: 'whatsapp_ui',
+        wa_message_id: d.msgId,
+        wa_group_jid: d.chatJid,
+        criado_por: this.auth.currentUser?.email || '',
+      };
+
+      // Upload media if exists
+      if (d.mediaUrl && d.tipo !== 'texto') {
+        try {
+          const resp = await fetch(d.mediaUrl);
+          const blob = await resp.blob();
+          const ext = d.tipo === 'imagem' ? 'jpg' : d.tipo === 'audio' ? 'ogg' : d.tipo === 'video' ? 'mp4' : 'bin';
+          const fileName = `wa_${d.msgId || Date.now()}.${ext}`;
+          const path = `context/${d.menteeId}/${Date.now()}_${fileName}`;
+          const { error: uploadErr } = await sb.storage.from('uploads').upload(path, blob);
+          if (!uploadErr) {
+            const { data: urlData } = sb.storage.from('uploads').getPublicUrl(path);
+            record.arquivo_url = urlData?.publicUrl;
+            record.arquivo_nome = fileName;
+            record.arquivo_tipo = blob.type;
+            record.arquivo_tamanho = blob.size;
+          }
+        } catch (e) { console.warn('[S2] Media upload failed:', e.message); }
+      }
+
+      try {
+        const { data: inserted, error } = await sb.from('mentorado_context').insert(record).select('id,ativo_codigo').single();
+        if (error) throw error;
+        this.toast(`${inserted?.ativo_codigo || 'ATIVO'} salvo na ficha de ${d.menteeName}`, 'success');
+        // Auto-transcribe audio
+        if (inserted?.id && ['audio'].includes(d.tipo) && record.arquivo_url) {
+          this._autoTranscribeWithUrl(inserted.id, record.arquivo_url);
+        }
+        // Reload context if on context tab
+        if (d.source === 'wa_detail' && this.ui.activeDetailTab === 'contexto') {
+          await this.loadMenteeContext(d.menteeId);
+        }
+      } catch (e) {
+        this.toast('Erro: ' + e.message, 'error');
+      }
+      this.ui.ctxSaveSaving = false;
+      this.ui.ctxSaveModal = false;
+      this.ui.ctxSaveData = null;
     },
 
     // ===== EPIC 1: Load Chatwoot messages for mentorado =====
