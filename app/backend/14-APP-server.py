@@ -1959,6 +1959,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'sheets_configured': get_sheets_service() is not None,
                 'openai_configured': bool(OPENAI_API_KEY),
                 'storage_search': bool(OPENAI_API_KEY),
+                'evolution_configured': bool(EVOLUTION_API_KEY),
+                'evolution_base': EVOLUTION_BASE,
+                'evolution_key_prefix': EVOLUTION_API_KEY[:8] + '...' if EVOLUTION_API_KEY else 'EMPTY',
             })
         # ===== WA DM v2 (S9-A) =====
         elif self.path == '/api/mentees/triage':
@@ -3366,6 +3369,23 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         self._send_json(result if isinstance(result, list) else [result] if result else [])
 
     # ===== EVOLUTION PROXY =====
+    def _resolve_evolution_apikey(self, target_path):
+        """Resolve the correct API key for an Evolution instance.
+        Instance-specific keys are stored in wa_sessions.instance_api_key.
+        Falls back to the global EVOLUTION_API_KEY."""
+        import re
+        # Extract instance name from path (e.g., /instance/connect/spalla_u5)
+        match = re.search(r'/(?:connect|connectionState|logout|delete|restart|fetchInstances)/([^/?]+)', target_path)
+        if match:
+            instance_name = match.group(1)
+            try:
+                result = supabase_request('GET', f'wa_sessions?instance_name=eq.{instance_name}&select=instance_api_key&limit=1')
+                if isinstance(result, list) and result and result[0].get('instance_api_key'):
+                    return result[0]['instance_api_key']
+            except Exception:
+                pass
+        return EVOLUTION_API_KEY
+
     def _proxy_evolution(self, method):
         target_path = self.path[len('/api/evolution'):]
         if '..' in target_path:
@@ -3374,9 +3394,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         url = f'{EVOLUTION_BASE}{target_path}'
         body = self._read_body() if method in ('POST', 'PUT') else None
 
+        apikey = self._resolve_evolution_apikey(target_path)
         req = urllib.request.Request(url, data=body, method=method)
         req.add_header('Content-Type', 'application/json')
-        req.add_header('apikey', EVOLUTION_API_KEY)
+        req.add_header('apikey', apikey)
 
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
