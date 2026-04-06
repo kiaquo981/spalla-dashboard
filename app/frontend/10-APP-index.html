@@ -5995,7 +5995,7 @@
 
                         <!-- Actions -->
                         <div class="ds-doc-actions">
-                          <button class="btn btn--sm" style="background:#2d4a3e;color:#fff;display:flex;align-items:center;gap:4px"
+                          <button x-show="hasBibDoc(doc.mentorado_id, doc.tipo)" class="btn btn--sm" style="background:#2d4a3e;color:#fff;display:flex;align-items:center;gap:4px"
                             @click="navigateToDossieDoc(doc.mentorado_id, doc.tipo)"
                             aria-label="Ver dossiê na Biblioteca">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -6350,6 +6350,32 @@
                           </div>
                           <span class="ds-prod-card__doc-stage" :style="'color:' + dsEstagioConfig(p[dt.id + '_estagio'] || 'pendente').color" x-text="dsEstagioConfig(p[dt.id + '_estagio'] || 'pendente').label" style="min-width:70px;font-size:10px;font-weight:600"></span>
                           <span x-show="p[dt.id + '_prazo']" class="ds-deadline-badge ds-deadline-badge--sm" :class="dsPrazoClass(p[dt.id + '_prazo'])" x-text="dsFormatDate(p[dt.id + '_prazo'])" style="font-size:10px"></span>
+                        </div>
+                      </template>
+                    </div>
+
+                    <!-- Quick Access Buttons -->
+                    <div style="display:flex;flex-wrap:wrap;gap:4px;padding:6px 0 2px;border-top:1px solid var(--neutral-100)" @click.stop>
+                      <template x-for="doc in getDsDocs(p.producao_id)" :key="doc.id">
+                        <div style="display:flex;gap:3px;align-items:center">
+                          <span style="font-size:9px;font-weight:600;color:#64748b;min-width:14px" x-text="DS_DOC_TIPOS.find(t => t.id === doc.tipo)?.icon || '·'"></span>
+                          <button x-show="hasBibDoc(doc.mentorado_id, doc.tipo)" class="btn btn--sm" style="background:#2d4a3e;color:#fff;font-size:9px;padding:2px 6px;display:flex;align-items:center;gap:3px;border-radius:4px"
+                            @click="navigateToDossieDoc(doc.mentorado_id, doc.tipo)" title="Ver dossiê no Operon">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            Operon
+                          </button>
+                          <a x-show="doc.link_doc" :href="doc.link_doc" target="_blank" rel="noopener"
+                            class="btn btn--sm" style="background:#4285f4;color:#fff;font-size:9px;padding:2px 6px;text-decoration:none;display:flex;align-items:center;gap:3px;border-radius:4px"
+                            title="Abrir no Google Docs">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                            Docs
+                          </a>
+                          <button x-show="!doc.link_doc && !hasBibDoc(doc.mentorado_id, doc.tipo)" class="btn btn--sm" style="border:1px dashed #94a3b8;color:#94a3b8;font-size:9px;padding:2px 6px;display:flex;align-items:center;gap:3px;border-radius:4px"
+                            @click="let url = prompt('Cole o link do Google Docs para ' + (DS_DOC_TIPOS.find(t => t.id === doc.tipo)?.label || doc.tipo) + ':'); if(url && url.startsWith('https://')) { updateDocLink(doc.id, url); doc.link_doc = url; }"
+                            title="Vincular Google Docs">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                            Vincular
+                          </button>
                         </div>
                       </template>
                     </div>
