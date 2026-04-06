@@ -6431,7 +6431,7 @@
             <!-- VIEW: Pipeline Kanban (drag & drop) -->
             <div x-show="ui.dsView === 'pipeline' && !ui.dsLoading" class="ds-pipeline-wrapper" role="tabpanel">
               <div class="op-kanban ds-pipeline" role="list" aria-label="Pipeline de producao">
-                <template x-for="stage in DS_ESTAGIOS" :key="stage.id">
+                <template x-for="stage in DS_ESTAGIOS.filter(s => (dsPipelineColumns()[s.id] || []).length > 0 || ['pendente','producao_ia','revisao_mariza','enviado','finalizado'].includes(s.id))" :key="stage.id">
                   <div class="op-kanban__column ds-pipeline__col" role="listitem"
                     @dragover.prevent="dsDragOver($event, stage.id)"
                     @dragleave="dsDragLeave($event, stage.id)"
