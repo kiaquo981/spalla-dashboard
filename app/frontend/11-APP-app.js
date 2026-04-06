@@ -7736,8 +7736,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
         if (!createRes.ok) {
           const errBody = await createRes.json().catch(() => ({}));
-          if (createRes.status === 403 || createRes.status === 409 || errBody.error?.includes('already') || errBody.message?.includes('already')) {
-            console.log('[WA Session] Instance exists, reconnecting...');
+          if ([401, 403, 409].includes(createRes.status) || errBody.error?.includes('already') || errBody.message?.includes('already')) {
+            console.log('[WA Session] Instance may exist or creation restricted, trying reconnect...');
           } else {
             throw new Error(errBody.message || errBody.error || `HTTP ${createRes.status}`);
           }
