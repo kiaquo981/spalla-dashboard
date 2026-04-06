@@ -11925,10 +11925,16 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     async updateMentoradoTrilha(mentoradoId, trilha) {
-      if (!sb || !mentoradoId) return;
-      const { error } = await sb.from('mentorados').update({ trilha }).eq('id', mentoradoId);
-      if (error) {
-        this.toast('Erro ao atualizar trilha: ' + error.message, 'error');
+      if (!mentoradoId) return;
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/mentees/${mentoradoId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+          body: JSON.stringify({ trilha }),
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.error || resp.statusText); }
+      } catch (e) {
+        this.toast('Erro ao atualizar trilha: ' + e.message, 'error');
         return;
       }
       // Update local detail

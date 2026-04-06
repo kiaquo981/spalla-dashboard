@@ -3051,7 +3051,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': 'Invalid JSON'}, 400)
                 return
 
-            ALLOWED_FIELDS = {'fase_jornada', 'snoozed_until', 'wa_status'}
+            ALLOWED_FIELDS = {'fase_jornada', 'snoozed_until', 'wa_status', 'trilha'}
             updates = {k: v for k, v in body.items() if k in ALLOWED_FIELDS}
             if not updates:
                 self._send_json({'error': 'No allowed fields provided'}, 400)
@@ -3062,6 +3062,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             }
             if 'fase_jornada' in updates and updates['fase_jornada'] not in valid_fases:
                 self._send_json({'error': f'Invalid fase_jornada: {updates["fase_jornada"]}'}, 400)
+                return
+
+            valid_trilha = {'scale', 'clinic'}
+            if 'trilha' in updates and updates['trilha'] not in valid_trilha:
+                self._send_json({'error': f'Invalid trilha: {updates["trilha"]}'}, 400)
                 return
 
             valid_wa_status = {'aguardando', 'em_andamento', 'bloqueado', 'resolvido'}
