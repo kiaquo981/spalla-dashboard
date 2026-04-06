@@ -11,7 +11,10 @@ SET search_path = "case", public;
 ALTER TABLE "case".mentorados ADD COLUMN IF NOT EXISTS trilha TEXT DEFAULT 'scale';
 UPDATE "case".mentorados SET trilha = 'scale' WHERE trilha IS NULL;
 ALTER TABLE "case".mentorados ALTER COLUMN trilha SET NOT NULL;
-ALTER TABLE "case".mentorados ADD CONSTRAINT mentorados_trilha_check CHECK (trilha IN ('scale', 'clinic'));
+DO $$ BEGIN
+  ALTER TABLE "case".mentorados ADD CONSTRAINT mentorados_trilha_check CHECK (trilha IN ('scale', 'clinic'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- 2. Index for filtering
 CREATE INDEX IF NOT EXISTS idx_mentorados_trilha ON "case".mentorados(trilha);
@@ -192,7 +195,11 @@ ORDER BY
 
 GRANT SELECT ON vw_god_overview TO authenticated, anon;
 
--- 6. Patch fn_god_mentorado_deep to include trilha in profile
+-- 6. Add parallel review flags to ds_documentos (CLINIC only)
+ALTER TABLE ds_documentos ADD COLUMN IF NOT EXISTS rev_paralela_gobbi BOOLEAN DEFAULT FALSE;
+ALTER TABLE ds_documentos ADD COLUMN IF NOT EXISTS rev_paralela_kaique BOOLEAN DEFAULT FALSE;
+
+-- 7. Patch fn_god_mentorado_deep to include trilha in profile
 -- We replace the function, adding 'trilha' to the profile jsonb_build_object.
 -- Full function body from migration 08, with trilha added.
 CREATE OR REPLACE FUNCTION fn_god_mentorado_deep(p_id INTEGER)

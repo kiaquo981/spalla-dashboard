@@ -5966,7 +5966,7 @@
                       <div class="ds-doc-accordion__body" x-show="ui.dsExpandedDocs[doc.id]" x-transition>
                         <!-- Timeline visual -->
                         <div class="ds-timeline" role="list" aria-label="Etapas do documento">
-                          <template x-for="(stage, si) in DS_ESTAGIOS" :key="stage.id">
+                          <template x-for="(stage, si) in dsEstagiosForTrilha(_docTrilha(doc))" :key="stage.id">
                             <div class="ds-timeline__step" role="listitem" :class="{
                               'ds-timeline__step--done': dsEstagioNum(doc.estagio_atual) > si + 1,
                               'ds-timeline__step--active': dsEstagioNum(doc.estagio_atual) === si + 1,
@@ -5977,6 +5977,17 @@
                               <span x-show="getStagePrazo(doc, stage.id)" class="ds-timeline__prazo" :class="dsPrazoClass(getStagePrazo(doc, stage.id))" x-text="dsFormatDate(getStagePrazo(doc, stage.id))"></span>
                             </div>
                           </template>
+                          <!-- Parallel review controls (CLINIC only) -->
+                          <div x-show="doc.estagio_atual === 'revisao_paralela'" style="display:flex;gap:8px;margin-top:8px;padding:8px;background:#f5f3ff;border-radius:6px">
+                            <button class="btn btn--sm" :style="doc.rev_paralela_gobbi ? 'background:#10b981;color:#fff' : 'border:1px solid #a855f7;color:#a855f7'"
+                              @click="dsToggleParalelaReview(doc.id, 'gobbi')">
+                              <span x-text="doc.rev_paralela_gobbi ? '✓ Gobbi aprovou' : '○ Gobbi'"></span>
+                            </button>
+                            <button class="btn btn--sm" :style="doc.rev_paralela_kaique ? 'background:#10b981;color:#fff' : 'border:1px solid #3b82f6;color:#3b82f6'"
+                              @click="dsToggleParalelaReview(doc.id, 'kaique')">
+                              <span x-text="doc.rev_paralela_kaique ? '✓ Kaique aprovou' : '○ Kaique'"></span>
+                            </button>
+                          </div>
                         </div>
 
                         <!-- Doc info -->
@@ -5992,7 +6003,7 @@
                         <div class="ds-stage-prazos">
                           <span class="ds-stage-prazos__title">Prazos por etapa</span>
                           <div class="ds-stage-prazos__grid">
-                            <template x-for="(stage, si) in DS_ESTAGIOS.filter(s => s.id !== 'pendente' && s.id !== 'finalizado')" :key="stage.id">
+                            <template x-for="(stage, si) in dsEstagiosForTrilha(_docTrilha(doc)).filter(s => s.id !== 'pendente' && s.id !== 'finalizado')" :key="stage.id">
                               <div class="ds-stage-prazos__item" :class="{ 'ds-stage-prazos__item--active': doc.estagio_atual === stage.id }">
                                 <label class="ds-stage-prazos__label" :class="dsPrazoClass(getStagePrazo(doc, stage.id))" x-text="stage.icon + ' ' + stage.label" :style="'border-left: 2px solid ' + stage.color"></label>
                                 <input type="date" class="ds-input ds-input--xs" :class="{ 'ds-input--danger': dsPrazoClass(getStagePrazo(doc, stage.id)) === 'ds-deadline--overdue', 'ds-input--warning': dsPrazoClass(getStagePrazo(doc, stage.id)) === 'ds-deadline--soon' }" :value="getStagePrazo(doc, stage.id)" @change="setStagePrazo(doc.id, doc.producao_id, stage.id, $event.target.value)">

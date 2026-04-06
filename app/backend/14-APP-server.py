@@ -3431,13 +3431,15 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             return None
         return payload
 
-    # CR-M1: State machine — valid stage transitions
+    # CR-M1: State machine — valid stage transitions (merged for both trilhas)
     DS_VALID_TRANSITIONS = {
         'pendente': ('producao_ia',),
         'producao_ia': ('revisao_mariza',),
-        'revisao_mariza': ('revisao_kaique', 'producao_ia'),  # can send back
-        'revisao_kaique': ('revisao_queila', 'revisao_mariza'),  # can send back
-        'revisao_queila': ('aprovado', 'revisao_kaique'),  # can send back
+        'revisao_mariza': ('revisao_kaique', 'revisao_paralela', 'producao_ia'),  # kaique=scale, paralela=clinic, back
+        'revisao_kaique': ('revisao_queila', 'revisao_gobbi', 'revisao_mariza'),  # queila=clinic(via paralela), gobbi=scale, back
+        'revisao_gobbi': ('enviado', 'revisao_kaique'),  # scale final review, can send back
+        'revisao_paralela': ('revisao_queila',),  # clinic: auto-advance when both approve
+        'revisao_queila': ('enviado', 'revisao_paralela', 'aprovado', 'revisao_kaique'),  # clinic final review
         'aprovado': ('enviado',),
         'enviado': ('finalizado', 'ajustes'),
         'finalizado': (),
@@ -3531,6 +3533,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             'revisao_mariza': 'Mariza',
             'revisao_kaique': 'Kaique',
             'revisao_queila': 'Queila',
+            'revisao_gobbi': 'Gobbi',
+            'revisao_paralela': 'Gobbi + Kaique',
         }
         responsavel = responsavel_map.get(estagio)
 

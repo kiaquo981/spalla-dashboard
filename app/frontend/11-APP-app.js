@@ -11056,9 +11056,11 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       return 'ds-aging--red';
     },
 
-    dsProgressPercent(estagio) {
-      const num = this.dsEstagioNum(estagio);
-      return Math.round((num / DS_ESTAGIOS.length) * 100);
+    dsProgressPercent(estagio, trilha) {
+      const stages = trilha ? this.dsEstagiosForTrilha(trilha) : DS_ESTAGIOS;
+      const idx = stages.findIndex(e => e.id === estagio);
+      const num = idx >= 0 ? idx + 1 : 0;
+      return Math.round((num / stages.length) * 100);
     },
 
     // --- DS Data Loading ---
@@ -11068,7 +11070,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       try {
         const [prodRes, docsRes] = await Promise.all([
           sb.from('vw_ds_pipeline').select('*').order('mentorado_nome'),
-          sb.from('ds_documentos').select('id, producao_id, mentorado_id, tipo, titulo, estagio_atual, responsavel_atual, estagio_desde, link_doc, ordem, prazo_entrega, prazos_etapas').order('ordem'),
+          sb.from('ds_documentos').select('id, producao_id, mentorado_id, tipo, titulo, estagio_atual, responsavel_atual, estagio_desde, link_doc, ordem, prazo_entrega, prazos_etapas, rev_paralela_gobbi, rev_paralela_kaique').order('ordem'),
         ]);
         if (prodRes.data) this.data.dsProducoes = prodRes.data;
         if (docsRes.data) this.data.dsAllDocs = docsRes.data;
@@ -11275,15 +11277,22 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     // --- DS CRUD + Handoff ---
+    _docTrilha(doc) {
+      const prod = this.data.dsProducoes.find(p => p.producao_id === doc.producao_id);
+      return prod?.trilha || 'scale';
+    },
+
     async advanceDocStage(docId, notas) {
       if (!sb) return;
       const doc = this.data.dsAllDocs.find(d => d.id === docId);
       if (!doc) return;
-      const curIdx = DS_ESTAGIOS.findIndex(e => e.id === doc.estagio_atual);
-      if (curIdx < 0 || curIdx >= DS_ESTAGIOS.length - 1) return;
+      const trilha = this._docTrilha(doc);
+      const stages = this.dsEstagiosForTrilha(trilha);
+      const curIdx = stages.findIndex(e => e.id === doc.estagio_atual);
+      if (curIdx < 0 || curIdx >= stages.length - 1) return;
 
-      // Dependency check: enviado requires all 3 docs approved (admin can override)
-      const nextEstagio = DS_ESTAGIOS[curIdx + 1];
+      // Dependency check: enviado requires all docs approved (admin can override)
+      const nextEstagio = stages[curIdx + 1];
       if (nextEstagio.id === 'enviado') {
         const siblings = this.data.dsAllDocs.filter(d => d.producao_id === doc.producao_id && d.id !== docId);
         const allApproved = siblings.every(s => this.dsEstagioNum(s.estagio_atual) >= this.dsEstagioNum('aprovado'));
@@ -11559,9 +11568,14 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     dsCanAdvance(doc) {
       if (!doc) return false;
-      const curIdx = DS_ESTAGIOS.findIndex(e => e.id === doc.estagio_atual);
-      if (curIdx < 0 || curIdx >= DS_ESTAGIOS.length - 1) return false;
-      // Admin can always advance — confirm dialog handles the warning
+      const trilha = this._docTrilha(doc);
+      const stages = this.dsEstagiosForTrilha(trilha);
+      const curIdx = stages.findIndex(e => e.id === doc.estagio_atual);
+      if (curIdx < 0 || curIdx >= stages.length - 1) return false;
+      // Parallel review: block advance until both reviewers approved
+      if (doc.estagio_atual === 'revisao_paralela') {
+        return doc.rev_paralela_gobbi && doc.rev_paralela_kaique;
+      }
       return true;
     },
 
@@ -11914,6 +11928,27 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     dsDocTiposForTrilha(trilha) {
       const t = DS_TRILHAS.find(x => x.id === trilha);
       return t ? DS_DOC_TIPOS.filter(d => t.docs.includes(d.id)) : DS_DOC_TIPOS.slice(0, 3);
+    },
+
+    dsEstagiosForTrilha(trilha) {
+      const ids = trilha === 'clinic' ? DS_ESTAGIOS_CLINIC : DS_ESTAGIOS_SCALE;
+      return DS_ESTAGIOS.filter(s => ids.includes(s.id));
+    },
+
+    async dsToggleParalelaReview(docId, reviewer) {
+      if (!sb) return;
+      const field = reviewer === 'gobbi' ? 'rev_paralela_gobbi' : 'rev_paralela_kaique';
+      const doc = this.data.dsAllDocs.find(d => d.id === docId);
+      if (!doc) return;
+      const newVal = !doc[field];
+      const { error } = await sb.from('ds_documentos').update({ [field]: newVal }).eq('id', docId);
+      if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      doc[field] = newVal;
+      // Auto-advance if both done
+      if (doc.rev_paralela_gobbi && doc.rev_paralela_kaique && doc.estagio_atual === 'revisao_paralela') {
+        await this.advanceDocStage(docId);
+      }
+      this.toast(reviewer.charAt(0).toUpperCase() + reviewer.slice(1) + (newVal ? ' aprovou' : ' desfez aprovação'), newVal ? 'success' : 'info');
     },
 
     // ===================== ONBOARDING CS =====================
