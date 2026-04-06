@@ -3530,13 +3530,14 @@ function operon() {
     // Uses vw_god_overview which already has: consultor_responsavel, dias_desde_call, ultima_call_data, tarefas_pendentes, tarefas_atrasadas
     ccConsultantBoard() {
       const mentees = this.data.mentees || [];
-      const me = (this.auth.currentUser?.full_name || '').split(' ')[0]; // "Heitor", "Lara", "Kaique"
+      const fullName = (this.auth.currentUser?.full_name || '').toLowerCase();
+      const me = fullName.split(' ')[0]; // "Heitor", "Lara", "Kaique"
       const dsProds = this.data.dsProducoes || [];
       const dsDocs = this.data.dsAllDocs || [];
       const now = new Date();
 
       // Filter by consultant's portfolio (admin sees all)
-      const isAdmin = ['kaique', 'gobbi', 'queila'].includes(me.toLowerCase());
+      const isAdmin = ['kaique', 'gobbi', 'queila', 'felipe'].some(n => fullName.includes(n));
       const myMentees = isAdmin ? mentees : mentees.filter(m =>
         (m.consultor_responsavel || '').toLowerCase() === me.toLowerCase()
       );
