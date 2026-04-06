@@ -6355,10 +6355,10 @@
                     </div>
 
                     <!-- Quick Access Buttons -->
-                    <div style="display:flex;flex-wrap:wrap;gap:4px;padding:6px 0 2px;border-top:1px solid var(--neutral-100)" @click.stop>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 0 2px;border-top:1px solid var(--neutral-100)" @click.stop>
                       <template x-for="doc in getDsDocs(p.producao_id)" :key="doc.id">
                         <div style="display:flex;gap:3px;align-items:center">
-                          <span style="font-size:9px;font-weight:600;color:#64748b;min-width:14px" x-text="DS_DOC_TIPOS.find(t => t.id === doc.tipo)?.icon || '·'"></span>
+                          <span style="font-size:10px;font-weight:600;color:#475569;white-space:nowrap" x-text="({oferta:'Oferta',funil:'Funil',conteudo:'Posicion.'}[doc.tipo] || doc.tipo) + ':'"></span>
                           <button x-show="hasBibDoc(doc.mentorado_id, doc.tipo)" class="btn btn--sm" style="background:#2d4a3e;color:#fff;font-size:9px;padding:2px 6px;display:flex;align-items:center;gap:3px;border-radius:4px"
                             @click="navigateToDossieDoc(doc.mentorado_id, doc.tipo)" title="Ver dossiê no Operon">
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
