@@ -2598,6 +2598,17 @@ function operon() {
       });
     },
 
+    hasBibDoc(mentoradoId, tipo) {
+      if (!this.bib.docs.length) return false;
+      const mid = typeof mentoradoId === 'string' ? parseInt(mentoradoId) : mentoradoId;
+      const tipoKeywords = { oferta: 'oferta', funil: 'funil', conteudo: 'posicionamento' };
+      const keyword = tipoKeywords[tipo] || tipo;
+      return this.bib.docs.some(d =>
+        (d.mentee_id === mid || d.mentee_id === String(mid)) &&
+        ((d.titulo || '').toLowerCase().includes(keyword) || (d.deep_link_slug || '').includes(keyword))
+      );
+    },
+
     bibMenteeOptions() {
       const seen = new Set();
       return this.bib.docs
@@ -11061,6 +11072,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         ]);
         if (prodRes.data) this.data.dsProducoes = prodRes.data;
         if (docsRes.data) this.data.dsAllDocs = docsRes.data;
+        // Pre-load Biblioteca so hasBibDoc() works on first render
+        if (!this.bib.docs.length) this.loadBiblioteca();
         // Auto-sync status for all non-paused/cancelled productions
         this._autoSyncDsStatuses();
       } catch (e) {
