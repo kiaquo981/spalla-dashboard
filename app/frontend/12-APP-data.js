@@ -803,6 +803,12 @@ const DS_DOC_TIPOS = [
   { id: 'oferta', label: 'Oferta e Produto', icon: '◆', color: '#8b5cf6' },
   { id: 'funil', label: 'Funil de Vendas', icon: '▽', color: '#3b82f6' },
   { id: 'conteudo', label: 'Posicionamento e Conteúdo', icon: '◈', color: '#f97316' },
+  { id: 'clinic', label: 'Dossiê Clínica', icon: '✚', color: '#14b8a6' },
+];
+
+const DS_TRILHAS = [
+  { id: 'scale', label: 'Scale', color: '#8b5cf6', docs: ['oferta', 'funil', 'conteudo'] },
+  { id: 'clinic', label: 'Clinic', color: '#14b8a6', docs: ['clinic'] },
 ];
 
 const DS_STATUS_PRODUCAO = [

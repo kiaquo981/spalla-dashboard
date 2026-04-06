@@ -11640,12 +11640,16 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         }).select().single();
         if (prodErr) throw prodErr;
 
-        // 2. Create documents
+        // 2. Create documents (respects trilha)
+        const tituloMap = {
+          oferta: 'Dossiê de Oferta', funil: 'Dossiê de Funil',
+          conteudo: 'Dossiê de Posicionamento', clinic: 'Dossiê Clínica',
+        };
         const docs = f.docs.map((tipo, i) => ({
           producao_id: prod.id,
           mentorado_id: parseInt(f.mentorado_id),
           tipo,
-          titulo: tipo === 'oferta' ? 'Dossiê de Oferta' : tipo === 'funil' ? 'Dossiê de Funil' : 'Dossiê de Posicionamento',
+          titulo: tituloMap[tipo] || 'Dossiê',
           estagio_atual: 'pendente',
           responsavel_atual: f.responsavel || null,
           ordem: i + 1,
@@ -11887,6 +11891,29 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const { error } = await sb.from('ds_documentos').update({ link_doc: link }).eq('id', docId);
       if (error) this.toast('Erro ao salvar link: ' + error.message, 'error');
       else this.toast('Link salvo', 'success');
+    },
+
+    async updateMentoradoTrilha(mentoradoId, trilha) {
+      if (!sb || !mentoradoId) return;
+      const { error } = await sb.from('mentorados').update({ trilha }).eq('id', mentoradoId);
+      if (error) {
+        this.toast('Erro ao atualizar trilha: ' + error.message, 'error');
+        return;
+      }
+      // Update local detail
+      if (this.data.detail?.profile) this.data.detail.profile.trilha = trilha;
+      // Update mentorados list
+      const m = this.data.mentees.find(x => x.id === mentoradoId);
+      if (m) m.trilha = trilha;
+      // Update pipeline view
+      const prod = this.data.dsProducoes.find(x => x.mentorado_id === mentoradoId);
+      if (prod) prod.trilha = trilha;
+      this.toast('Trilha atualizada para ' + trilha.toUpperCase(), 'success');
+    },
+
+    dsDocTiposForTrilha(trilha) {
+      const t = DS_TRILHAS.find(x => x.id === trilha);
+      return t ? DS_DOC_TIPOS.filter(d => t.docs.includes(d.id)) : DS_DOC_TIPOS.slice(0, 3);
     },
 
     // ===================== ONBOARDING CS =====================

@@ -1848,6 +1848,14 @@
                   <span class="badge badge--neutral" x-text="data.detail?.profile?.cohort"></span>
                   <span class="badge badge--neutral" x-text="data.detail?.phase?.marco_atual"></span>
                   <span class="badge badge--info" x-text="'Consultor: ' + data.detail?.profile?.consultor_responsavel" x-show="data.detail?.profile?.consultor_responsavel" style="font-size:11px"></span>
+                  <select style="font-size:11px;font-weight:600;padding:2px 6px;border-radius:4px;border:1px solid;cursor:pointer"
+                    :style="(data.detail?.profile?.trilha || 'scale') === 'clinic' ? 'background:#ccfbf1;color:#0d9488;border-color:#5eead4' : 'background:#ede9fe;color:#7c3aed;border-color:#c4b5fd'"
+                    :value="data.detail?.profile?.trilha || 'scale'"
+                    @change="updateMentoradoTrilha(data.detail.profile.id, $event.target.value)"
+                    title="Trilha do mentorado">
+                    <option value="scale">Scale</option>
+                    <option value="clinic">Clinic</option>
+                  </select>
                 </div>
                 <div class="detail-hero__meta" x-show="data.detail?.profile?.instagram">
                   <a :href="'https://instagram.com/' + (data.detail?.profile?.instagram || '').replace(/^@/, '')" target="_blank" rel="noopener noreferrer" style="text-decoration:none;color:inherit" @click.stop>
@@ -6191,11 +6199,11 @@
                       </div>
                     </div>
 
-                    <!-- Dossiês -->
+                    <!-- Dossiês (filtered by mentorado trilha) -->
                     <div class="ds-create-modal__field">
                       <label class="ds-create-modal__label">Quais dossiês entregar?</label>
                       <div class="ds-create-modal__checks">
-                        <template x-for="dt in DS_DOC_TIPOS" :key="dt.id">
+                        <template x-for="dt in dsDocTiposForTrilha((data.mentees.find(m => String(m.id) === String(ui.dsCreateForm.mentorado_id))?.trilha) || 'scale')" :key="dt.id">
                           <button type="button" class="ds-create-modal__check" :class="ui.dsCreateForm.docs.includes(dt.id) ? 'ds-create-modal__check--on' : ''" :style="ui.dsCreateForm.docs.includes(dt.id) ? '--check-color:' + dt.color : ''" @click="dsToggleDocType(dt.id)">
                             <span class="ds-create-modal__check-box" x-text="ui.dsCreateForm.docs.includes(dt.id) ? '✓' : ''"></span>
                             <span x-text="dt.icon"></span>
@@ -6340,15 +6348,18 @@
                         <div style="display:flex;align-items:center;gap:4px">
                           <span class="ds-prod-card__name" x-text="p.mentorado_nome"></span>
                           <span x-show="p.carteira" style="font-size:9px;font-weight:600;padding:1px 4px;border-radius:3px;background:#f1f5f9;color:#64748b" x-text="p.carteira"></span>
+                          <span style="font-size:8px;font-weight:700;padding:1px 4px;border-radius:3px;letter-spacing:0.5px"
+                            :style="(p.trilha || 'scale') === 'clinic' ? 'background:#ccfbf1;color:#0d9488' : 'background:#ede9fe;color:#7c3aed'"
+                            x-text="(p.trilha || 'scale').toUpperCase()"></span>
                         </div>
                         <span class="ds-prod-card__resp" x-text="'Resp: ' + (p.responsavel_atual || '-')"></span>
                       </div>
                       <span class="ds-status-badge" :style="'background:' + dsStatusConfig(p.status).color + '20; color:' + dsStatusConfig(p.status).color" x-text="dsStatusConfig(p.status).label"></span>
                     </div>
 
-                    <!-- 3 Doc Bars -->
+                    <!-- Doc Bars (filtered by trilha) -->
                     <div class="ds-prod-card__docs">
-                      <template x-for="dt in DS_DOC_TIPOS" :key="dt.id">
+                      <template x-for="dt in dsDocTiposForTrilha(p.trilha || 'scale')" :key="dt.id">
                         <div class="ds-prod-card__doc-row" style="display:flex;align-items:center;gap:6px;font-size:11px;padding:2px 0">
                           <span class="ds-prod-card__doc-icon" x-text="dt.icon" :title="dt.label" style="min-width:14px"></span>
                           <div class="ds-doc-bar" role="progressbar" :aria-valuenow="dsProgressPercent(p[dt.id + '_estagio'] || 'pendente')" aria-valuemin="0" aria-valuemax="100" :aria-label="dt.label" style="flex:1">
