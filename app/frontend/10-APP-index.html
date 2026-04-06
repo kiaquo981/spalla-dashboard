@@ -789,7 +789,7 @@
                             <!-- Meta row -->
                             <div style="display:flex;gap:12px;font-size:11px;color:var(--neutral-500);border-top:1px solid var(--neutral-100);padding-top:8px">
                               <span x-text="'Call: ' + m.ultimaCall"></span>
-                              <span x-show="['kaique','gobbi','queila'].includes((auth.currentUser?.full_name || '').split(' ')[0].toLowerCase()) && m.consultor" x-text="'Consultor: ' + m.consultor"></span>
+                              <span x-show="['kaique','gobbi','queila'].some(n => (auth.currentUser?.full_name || '').toLowerCase().includes(n)) && m.consultor" x-text="'Consultor: ' + m.consultor"></span>
                             </div>
 
                             <!-- Action buttons -->

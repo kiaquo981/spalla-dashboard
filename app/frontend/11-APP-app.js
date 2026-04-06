@@ -1034,7 +1034,7 @@ function operon() {
     get isCfoUser() {
       const email = (this.auth.currentUser?.email || '').toLowerCase();
       const name = (this.auth.currentUser?.full_name || '').toLowerCase();
-      return email.includes('cfo') || name.includes('cfo') || email.includes('financeiro') || name.includes('kaique');
+      return email.includes('cfo') || name.includes('cfo') || email.includes('financeiro') || name.includes('kaique') || name.includes('gobbi');
     },
 
     get filteredFinanceiro() {
@@ -3537,7 +3537,7 @@ function operon() {
       const now = new Date();
 
       // Filter by consultant's portfolio (admin sees all)
-      const isAdmin = ['kaique', 'gobbi', 'queila', 'felipe'].some(n => fullName.includes(n));
+      const isAdmin = ['kaique', 'gobbi', 'queila'].some(n => fullName.includes(n));
       const myMentees = isAdmin ? mentees : mentees.filter(m =>
         (m.consultor_responsavel || '').toLowerCase() === me.toLowerCase()
       );
