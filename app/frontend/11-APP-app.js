@@ -11268,10 +11268,19 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const cols = {};
       DS_ESTAGIOS.forEach(e => { cols[e.id] = []; });
       this.filteredDsProducoes.forEach(p => {
-        // Use estagio_min_num to determine which column
-        const minNum = p.estagio_min_num || 1;
-        const estagio = DS_ESTAGIOS[Math.min(minNum - 1, DS_ESTAGIOS.length - 1)];
+        // Determine column by the most-behind doc's actual stage
+        const docs = this.data.dsAllDocs.filter(d => d.producao_id === p.producao_id);
+        if (!docs.length) { cols['pendente'].push(p); return; }
+        const trilha = p.trilha || 'scale';
+        const stages = this.dsEstagiosForTrilha(trilha);
+        let minIdx = stages.length - 1;
+        docs.forEach(d => {
+          const idx = stages.findIndex(s => s.id === d.estagio_atual);
+          if (idx >= 0 && idx < minIdx) minIdx = idx;
+        });
+        const estagio = stages[minIdx];
         if (estagio && cols[estagio.id]) cols[estagio.id].push(p);
+        else cols['pendente'].push(p);
       });
       return cols;
     },
@@ -11318,6 +11327,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         revisao_mariza: 'data_revisao_mariza',
         revisao_kaique: 'data_revisao_kaique',
         revisao_queila: 'data_revisao_queila',
+        revisao_gobbi: 'data_revisao_queila',
+        revisao_paralela: 'data_revisao_queila',
         enviado: 'data_envio',
         feedback_mentorado: 'data_feedback_mentorado',
         finalizado: 'data_finalizado',
@@ -11886,6 +11897,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
             const tsMap = {
               producao_ia: 'data_producao_ia', revisao_mariza: 'data_revisao_mariza',
               revisao_kaique: 'data_revisao_kaique', revisao_queila: 'data_revisao_queila',
+              revisao_gobbi: 'data_revisao_queila', revisao_paralela: 'data_revisao_queila',
               enviado: 'data_envio', feedback_mentorado: 'data_feedback_mentorado',
               finalizado: 'data_finalizado',
             };
