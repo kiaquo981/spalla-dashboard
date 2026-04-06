@@ -206,6 +206,7 @@ CREATE OR REPLACE FUNCTION fn_god_mentorado_deep(p_id INTEGER)
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = "case", public
 AS $$
 DECLARE
   result JSONB;

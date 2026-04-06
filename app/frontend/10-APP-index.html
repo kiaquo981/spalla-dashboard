@@ -6026,13 +6026,13 @@
                             Google Docs ↗
                           </a>
                           <button x-show="doc.link_doc" class="btn btn--sm" style="border:1px solid #4285f4;color:#4285f4;display:flex;align-items:center;gap:3px;font-size:11px;padding:4px 8px"
-                            @click="let url = prompt('Editar link do Google Docs:', doc.link_doc); if(url && url.startsWith('https://')) { updateDocLink(doc.id, url); doc.link_doc = url; }"
+                            @click="let url = prompt('Editar link do Google Docs:', doc.link_doc); if(url && isValidGoogleDocsUrl(url)) { updateDocLink(doc.id, url); doc.link_doc = url; } else if(url) { toast('Link inválido — use um link do Google Docs', 'warning'); }"
                             title="Editar link do Google Docs">
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
                             Editar link
                           </button>
                           <button x-show="!doc.link_doc" class="btn btn--sm" style="border:1px dashed #4285f4;color:#4285f4;display:flex;align-items:center;gap:4px;font-size:11px"
-                            @click="let url = prompt('Cole o link do Google Docs:'); if(url && url.startsWith('https://')) { updateDocLink(doc.id, url); doc.link_doc = url; }">
+                            @click="let url = prompt('Cole o link do Google Docs:'); if(url && isValidGoogleDocsUrl(url)) { updateDocLink(doc.id, url); doc.link_doc = url; } else if(url) { toast('Link inválido — use um link do Google Docs', 'warning'); }">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                             Vincular Google Doc
                           </button>
@@ -6399,7 +6399,7 @@
                             Docs
                           </a>
                           <button x-show="!doc.link_doc && !hasBibDoc(doc.mentorado_id, doc.tipo)" class="btn btn--sm" style="border:1px dashed #94a3b8;color:#94a3b8;font-size:9px;padding:2px 6px;display:flex;align-items:center;gap:3px;border-radius:4px"
-                            @click="let url = prompt('Cole o link do Google Docs para ' + (DS_DOC_TIPOS.find(t => t.id === doc.tipo)?.label || doc.tipo) + ':'); if(url && url.startsWith('https://')) { updateDocLink(doc.id, url); doc.link_doc = url; }"
+                            @click="let url = prompt('Cole o link do Google Docs para ' + (DS_DOC_TIPOS.find(t => t.id === doc.tipo)?.label || doc.tipo) + ':'); if(url && isValidGoogleDocsUrl(url)) { updateDocLink(doc.id, url); doc.link_doc = url; } else if(url) { toast('Link inválido — use um link do Google Docs', 'warning'); }"
                             title="Vincular Google Docs">
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                             Vincular

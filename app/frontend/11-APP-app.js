@@ -11900,6 +11900,11 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       };
     },
 
+    isValidGoogleDocsUrl(url) {
+      try { new URL(url); } catch { return false; }
+      return url.startsWith('https://') && (url.includes('docs.google.com') || url.includes('drive.google.com'));
+    },
+
     async updateDocLink(docId, link) {
       if (!sb) return;
       const { error } = await sb.from('ds_documentos').update({ link_doc: link }).eq('id', docId);
