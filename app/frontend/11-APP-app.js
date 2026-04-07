@@ -1489,6 +1489,17 @@ function operon() {
         }
       }
       list = this._filterTasks(list);
+      // Quick filter (Dragon 39)
+      if (this.quickFilter) {
+        const me = (this.auth?.currentUser?.user_metadata?.full_name || this.auth?.currentUser?.full_name || this.auth?.currentUser?.email || '').toLowerCase().split(' ')[0];
+        const now = new Date();
+        const weekEnd = new Date(now); weekEnd.setDate(now.getDate() + 7);
+        if (this.quickFilter === 'mine') list = list.filter(t => t.responsavel && me && t.responsavel.toLowerCase().includes(me));
+        else if (this.quickFilter === 'overdue') list = list.filter(t => t.data_fim && new Date(t.data_fim) < now && t.status !== 'concluida');
+        else if (this.quickFilter === 'unassigned') list = list.filter(t => !t.responsavel);
+        else if (this.quickFilter === 'thisWeek') list = list.filter(t => t.data_fim && new Date(t.data_fim) >= now && new Date(t.data_fim) <= weekEnd);
+        else if (this.quickFilter === 'favorites') list = list.filter(t => this.favorites.includes(t.id));
+      }
       if (this.ui.search && this.ui.page === 'tasks') {
         const q = this.ui.search.toLowerCase();
         list = list.filter(t => t.titulo?.toLowerCase().includes(q) || t.mentorado_nome?.toLowerCase().includes(q) || t.responsavel?.toLowerCase().includes(q));
@@ -7532,9 +7543,17 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     // Gantt helpers
     // ── Bulk Actions ──
     get bulkCount() { return Object.values(this.ui.bulkSelected).filter(Boolean).length; },
+    _isRealTaskId(id) {
+      // Reject synthetic IDs from tasksTree (subtask/checklist rows have prefixes)
+      if (!id || typeof id !== 'string') return false;
+      if (id.startsWith('sub_') || id.startsWith('check_')) return false;
+      return true;
+    },
     _lastBulkIdx: -1,
     bulkToggle(taskId, event) {
-      const tree = this.tasksTree.filter(t => !t._isGroupHeader);
+      if (!this._isRealTaskId(taskId)) return;
+      // Only consider real (non-synthetic) tasks for range selection
+      const tree = this.tasksTree.filter(t => !t._isGroupHeader && this._isRealTaskId(t.id));
       const idx = tree.findIndex(t => t.id === taskId);
       // Shift+Click range selection
       if (event?.shiftKey && this._lastBulkIdx >= 0 && idx >= 0) {
@@ -7557,7 +7576,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
     bulkClear() { this.ui.bulkSelected = {}; this.ui.bulkMode = false; },
     async bulkUpdateField(field, value) {
-      const ids = Object.entries(this.ui.bulkSelected).filter(([,v]) => v).map(([id]) => id);
+      const ids = Object.entries(this.ui.bulkSelected).filter(([,v]) => v).map(([id]) => id).filter(id => this._isRealTaskId(id));
       if (!ids.length) return;
       if (!confirm(`Atualizar ${ids.length} tarefa(s)?`)) return;
       try {
@@ -7569,7 +7588,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
     },
     async bulkDelete() {
-      const ids = Object.entries(this.ui.bulkSelected).filter(([,v]) => v).map(([id]) => id);
+      const ids = Object.entries(this.ui.bulkSelected).filter(([,v]) => v).map(([id]) => id).filter(id => this._isRealTaskId(id));
       if (!ids.length) return;
       if (!confirm(`Excluir ${ids.length} tarefa(s) permanentemente?`)) return;
       try {
@@ -7593,20 +7612,23 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.data.tasks.filter(t => t.titulo?.toLowerCase().includes(q)).slice(0, 8).forEach(t => {
         results.push({ type: 'task', icon: '📋', label: t.titulo, sublabel: t.responsavel || '', action: () => { this.openTaskDetail(t.id); this.cmdPalette = false; } });
       });
-      // Search pages
+      // Search pages — use real ui.page keys (matching navigate())
       const pages = [
         { key: 'dashboard', label: 'Dashboard', icon: '📊' },
         { key: 'tasks', label: 'Tarefas', icon: '✅' },
-        { key: 'mentorados', label: 'Mentorados', icon: '👥' },
-        { key: 'calls', label: 'Calls', icon: '📞' },
-        { key: 'docs', label: 'Documentos', icon: '📁' },
+        { key: 'kanban', label: 'Mentorados', icon: '👥' },
+        { key: 'agenda', label: 'Agenda', icon: '📞' },
+        { key: 'documentos', label: 'Documentos', icon: '📁' },
+        { key: 'whatsapp', label: 'WhatsApp', icon: '💬' },
+        { key: 'equipe', label: 'Equipe', icon: '👤' },
       ];
       pages.filter(p => p.label.toLowerCase().includes(q)).forEach(p => {
-        results.push({ type: 'nav', icon: p.icon, label: 'Ir para ' + p.label, sublabel: '', action: () => { this.goToPage(p.key); this.cmdPalette = false; } });
+        results.push({ type: 'nav', icon: p.icon, label: 'Ir para ' + p.label, sublabel: '', action: () => { this.navigate(p.key); this.cmdPalette = false; } });
       });
-      // Search members
+      // Search members — filter tasks by responsavel via search input
       (this.data.members || []).filter(m => (m.nome_curto || m.name || '').toLowerCase().includes(q)).slice(0, 4).forEach(m => {
-        results.push({ type: 'member', icon: '👤', label: m.nome_curto || m.name, sublabel: 'Membro', action: () => { this.ui.taskAssigneeFilter = m.nome_curto || m.name; this.goToPage('tasks'); this.cmdPalette = false; } });
+        const memberName = m.nome_curto || m.name;
+        results.push({ type: 'member', icon: '👤', label: memberName, sublabel: 'Filtrar tarefas', action: () => { this.ui.search = memberName; this.navigate('tasks'); this.cmdPalette = false; } });
       });
       // Actions
       if ('nova tarefa'.includes(q) || 'criar'.includes(q) || 'new task'.includes(q)) {
@@ -7620,11 +7642,11 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     _cmdDefaultActions() {
       return [
         { type: 'action', icon: '➕', label: 'Criar nova tarefa', sublabel: 'N', action: () => { this.openTaskModal(); this.cmdPalette = false; } },
-        { type: 'nav', icon: '✅', label: 'Ir para Tarefas', sublabel: '', action: () => { this.goToPage('tasks'); this.cmdPalette = false; } },
-        { type: 'nav', icon: '👥', label: 'Ir para Mentorados', sublabel: '', action: () => { this.goToPage('mentorados'); this.cmdPalette = false; } },
-        { type: 'nav', icon: '📞', label: 'Ir para Calls', sublabel: '', action: () => { this.goToPage('calls'); this.cmdPalette = false; } },
+        { type: 'nav', icon: '✅', label: 'Ir para Tarefas', sublabel: '', action: () => { this.navigate('tasks'); this.cmdPalette = false; } },
+        { type: 'nav', icon: '👥', label: 'Ir para Mentorados', sublabel: '', action: () => { this.navigate('kanban'); this.cmdPalette = false; } },
+        { type: 'nav', icon: '📞', label: 'Ir para Agenda', sublabel: '', action: () => { this.navigate('agenda'); this.cmdPalette = false; } },
         { type: 'action', icon: '🌙', label: this.darkMode ? 'Modo claro' : 'Modo escuro', sublabel: '', action: () => { this.toggleDarkMode(); this.cmdPalette = false; } },
-        { type: 'action', icon: '🔍', label: 'Buscar tarefa...', sublabel: '/', action: () => { this.goToPage('tasks'); this.cmdPalette = false; setTimeout(() => document.querySelector('.tasks-main input[type="text"]')?.focus(), 200); } },
+        { type: 'action', icon: '🔍', label: 'Buscar tarefa...', sublabel: '/', action: () => { this.navigate('tasks'); this.cmdPalette = false; setTimeout(() => document.querySelector('.tasks-main input[type="text"]')?.focus(), 200); } },
       ];
     },
     cmdExec(idx) {
@@ -7645,11 +7667,11 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
     get quickFilterCounts() {
       const tasks = this.data.tasks;
-      const me = this.auth?.currentUser?.user_metadata?.full_name || '';
+      const me = (this.auth?.currentUser?.user_metadata?.full_name || this.auth?.currentUser?.full_name || this.auth?.currentUser?.email || '').toLowerCase().split(' ')[0];
       const now = new Date();
       const weekEnd = new Date(now); weekEnd.setDate(now.getDate() + 7);
       return {
-        mine: tasks.filter(t => t.responsavel && me && t.responsavel.toLowerCase().includes(me.toLowerCase().split(' ')[0])).length,
+        mine: tasks.filter(t => t.responsavel && me && t.responsavel.toLowerCase().includes(me)).length,
         overdue: tasks.filter(t => t.data_fim && new Date(t.data_fim) < now && t.status !== 'concluida').length,
         unassigned: tasks.filter(t => !t.responsavel).length,
         thisWeek: tasks.filter(t => t.data_fim && new Date(t.data_fim) >= now && new Date(t.data_fim) <= weekEnd).length,
@@ -7689,7 +7711,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         case 'open': this.openTaskDetail(id); break;
         case 'duplicate': this.duplicateTask(id); break;
         case 'favorite': this.toggleFavorite(id); break;
-        case 'complete': this.updateTaskStatus(id, true); break;
+        case 'complete': this.updateTaskStatus(id, 'concluida'); break;
         case 'delete': if (confirm('Excluir?')) this.deleteTask(id); break;
         case 'timer': this.startTimeTracker(id); break;
         case 'copy': navigator.clipboard.writeText(window.location.origin + '/tasks?task=' + id); this.toast('Link copiado', 'success'); break;
@@ -7821,8 +7843,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (!q || q.length < 2) return { tasks: [], mentorados: [], calls: [] };
       return {
         tasks: this.data.tasks.filter(t => t.titulo?.toLowerCase().includes(q)).slice(0, 10),
-        mentorados: (this.data.mentorados || []).filter(m => (m.nome || '').toLowerCase().includes(q)).slice(0, 5),
-        calls: (this.data.calls || []).filter(c => (c.titulo || c.assunto || '').toLowerCase().includes(q)).slice(0, 5),
+        mentorados: (this.data.mentees || []).filter(m => (m.nome || '').toLowerCase().includes(q)).slice(0, 5),
+        calls: (this._supabaseCalls || []).filter(c => (c.titulo || c.assunto || '').toLowerCase().includes(q)).slice(0, 5),
       };
     },
 
@@ -7946,9 +7968,14 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const task = this.data.tasks.find(t => t.id === taskId);
       if (!task) return [];
       const parts = [];
-      // Find space
-      const list = (this.data.lists || []).find(l => l.id === task.list_id);
-      const space = list ? (this.data.spaces || []).find(s => s.id === list.space_id) : null;
+      // spaces lives at root (this.spaces), each space contains its own .lists array
+      const spaces = this.spaces || [];
+      let space = null, list = null;
+      for (const sp of spaces) {
+        const li = (sp.lists || []).find(l => l.id === task.list_id);
+        if (li) { space = sp; list = li; break; }
+      }
+      if (!space && task.space_id) space = spaces.find(s => s.id === task.space_id);
       if (space) parts.push({ label: space.name || space.nome, type: 'space' });
       if (list) parts.push({ label: list.name || list.nome, type: 'list' });
       parts.push({ label: task.titulo, type: 'task' });
@@ -7959,11 +7986,11 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     async duplicateTask(taskId) {
       const orig = this.data.tasks.find(t => t.id === taskId);
       if (!orig || !sb) return;
-      const copy = { ...orig };
-      delete copy.id;
-      delete copy.created_at;
-      delete copy.updated_at;
-      copy.titulo = orig.titulo + ' (copia)';
+      // Whitelist only persisted DB columns (avoid view-derived fields like subtasks/comments/_source)
+      const VALID_COLS = ['titulo','descricao','status','prioridade','responsavel','acompanhante','mentorado_id','mentorado_nome','data_inicio','data_fim','space_id','list_id','parent_task_id','tags','fonte','doc_link','recorrencia','dia_recorrencia','recorrencia_ativa','tipo','points','time_estimate','sprint_id','recurrence_rule'];
+      const copy = {};
+      for (const k of VALID_COLS) { if (orig[k] !== undefined && orig[k] !== null) copy[k] = orig[k]; }
+      copy.titulo = (orig.titulo || 'Tarefa') + ' (copia)';
       copy.status = 'pendente';
       try {
         const { data, error } = await sb.from('god_tasks').insert(copy).select().single();

@@ -1791,7 +1791,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     # ===== CLICKUP IMPORT ALL TASKS =====
     def _handle_clickup_import_all(self):
-        """POST /api/clickup/import-all — Full import of tasks from ClickUp lists"""
+        """POST /api/clickup/import-all — Full import of tasks from ClickUp lists (auth required)"""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Authentication required'}, 401)
+            return
         token = os.environ.get('CLICKUP_API_TOKEN', '')
         if not token:
             self._send_json({'error': 'CLICKUP_API_TOKEN not configured'}, 500)
@@ -1835,7 +1839,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 return None
 
         try:
-            body = self._read_body_json()
+            body = self._read_json_body()
             list_ids = body.get('list_ids', [])
             if not list_ids:
                 # Fetch all lists from god_lists
@@ -1927,7 +1931,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def _handle_clickup_webhook(self):
         """POST /api/clickup/webhook — Receive ClickUp webhook events"""
         try:
-            body = self._read_body_json()
+            body = self._read_json_body()
             event = body.get('event', '')
             task_data = body.get('task_data') or body.get('task') or {}
             task_id = body.get('task_id') or task_data.get('id', '')
@@ -1983,7 +1987,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     # ===== CLICKUP PUSH TASK =====
     def _handle_clickup_push(self, task_uuid):
-        """POST /api/clickup/push/<task_uuid> — Push a Spalla task to ClickUp"""
+        """POST /api/clickup/push/<task_uuid> — Push a Spalla task to ClickUp (auth required)"""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Authentication required'}, 401)
+            return
         token = os.environ.get('CLICKUP_API_TOKEN', '')
         if not token:
             self._send_json({'error': 'CLICKUP_API_TOKEN not configured'}, 500)
@@ -2034,7 +2042,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'ok': True, 'action': 'updated', 'clickup_id': task['operon_id']})
             else:
                 # Create new ClickUp task — need a list_id
-                body = self._read_body_json() or {}
+                body = self._read_json_body() or {}
                 cu_list_id = body.get('clickup_list_id', '901113377457')  # default: latest sprint
                 req = urllib.request.Request(
                     f"https://api.clickup.com/api/v2/list/{cu_list_id}/task",
@@ -5727,6 +5735,10 @@ Transcrição:
     # ===== AUTOMATIONS EVALUATE (Dragon 16) =====
     def _handle_automations_evaluate(self):
         """POST /api/automations/evaluate — Trigger manual evaluation of all automations"""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Authentication required'}, 401)
+            return
         try:
             self._send_json({'ok': True, 'message': 'Automations evaluation triggered. Check server logs.'})
         except Exception as e:
@@ -5734,27 +5746,81 @@ Transcrição:
 
     # ===== WEBHOOK OUTGOING TEST (Dragon 17) =====
     def _handle_webhook_outgoing_test(self):
-        """POST /api/webhooks/outgoing/test — Test outgoing webhook delivery"""
+        """POST /api/webhooks/outgoing/test — Test outgoing webhook delivery (auth + SSRF guard)"""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Authentication required'}, 401)
+            return
+        # Decode + parse body safely
         try:
-            body = self._read_body()
-            url = body.get('url', '')
-            payload = body.get('payload', {})
-            if not url:
-                self._send_json({'error': 'url required'}, 400)
-                return
-            data = json.dumps(payload).encode()
-            req = urllib.request.Request(url, data=data, method='POST',
-                                         headers={'Content-Type': 'application/json', 'User-Agent': 'Spalla-Webhook/1.0'})
-            req.add_header('X-Spalla-Event', payload.get('event', 'test'))
+            raw = self._read_body()
+            body = json.loads(raw.decode('utf-8')) if raw else {}
+        except (UnicodeDecodeError, json.JSONDecodeError) as e:
+            self._send_json({'error': f'Invalid JSON body: {e}'}, 400)
+            return
+        url = (body.get('url') or '').strip()
+        payload = body.get('payload') or {}
+        if not url:
+            self._send_json({'error': 'url required'}, 400)
+            return
+        # SSRF guard: validate URL scheme and block private/internal hosts
+        try:
+            parsed = urllib.parse.urlparse(url)
+        except Exception as e:
+            self._send_json({'error': f'Invalid URL: {e}'}, 400)
+            return
+        if parsed.scheme not in ('http', 'https'):
+            self._send_json({'error': 'Only http/https schemes allowed'}, 400)
+            return
+        host = (parsed.hostname or '').lower()
+        if not host:
+            self._send_json({'error': 'URL missing hostname'}, 400)
+            return
+        # Block obvious private/local addresses by name
+        blocked_hosts = {'localhost', '127.0.0.1', '0.0.0.0', '::1', 'metadata.google.internal'}
+        if host in blocked_hosts:
+            self._send_json({'error': 'Host not allowed (private/internal)'}, 403)
+            return
+        # Resolve and check for RFC1918/loopback/link-local
+        try:
+            import socket as _socket
+            import ipaddress as _ipaddress
+            for family, _stype, _proto, _canon, sockaddr in _socket.getaddrinfo(host, None):
+                ip_str = sockaddr[0]
+                try:
+                    ip = _ipaddress.ip_address(ip_str)
+                    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified:
+                        self._send_json({'error': f'Host resolves to a non-public address ({ip_str})'}, 403)
+                        return
+                except ValueError:
+                    pass
+        except Exception as e:
+            self._send_json({'error': f'DNS resolution failed: {e}'}, 400)
+            return
+        # All checks passed — perform the POST
+        try:
+            data = json.dumps(payload).encode('utf-8')
+            req = urllib.request.Request(
+                url, data=data, method='POST',
+                headers={
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Spalla-Webhook/1.0',
+                    'X-Spalla-Event': str(payload.get('event', 'test')),
+                }
+            )
             with urllib.request.urlopen(req, timeout=10) as resp:
                 status = resp.status
             self._send_json({'ok': True, 'status': status})
         except Exception as e:
-            self._send_json({'error': str(e)}, 500)
+            self._send_json({'error': str(e)}, 502)
 
     # ===== RECURRING TASKS PROCESS (Dragon 18) =====
     def _handle_process_recurring(self):
         """POST /api/tasks/process-recurring — Manually trigger recurring task creation"""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Authentication required'}, 401)
+            return
         try:
             self._send_json({'ok': True, 'message': 'Recurring tasks processing triggered. Check server logs.'})
         except Exception as e:
@@ -5865,7 +5931,7 @@ if __name__ == '__main__':
 
     # ── Dragon 16: Automation cron background thread ──
     def _automations_cron():
-        """Evaluate time-based automations every 5 minutes"""
+        """Evaluate time-based automations every 5 minutes (idempotent + per-automation scope)"""
         import time as _t
         _t.sleep(60)  # wait 1 min after start
         while True:
@@ -5881,31 +5947,64 @@ if __name__ == '__main__':
                     with urllib.request.urlopen(req) as resp:
                         automations = json.loads(resp.read())
                     now = datetime.now(timezone.utc).isoformat()
+                    affected_this_run = set()  # Dedupe across multiple automations in same run
                     for auto in automations:
-                        # Find overdue tasks
+                        action_type = auto.get('action_type', '')
+                        action_config = auto.get('action_config', {}) or {}
+                        trigger_config = auto.get('trigger_config', {}) or {}
+                        # Build per-automation scope filter
+                        select_cols = 'id,titulo,status,space_id,list_id,responsavel'
+                        scope_parts = [f'data_fim=lt.{now}', 'status=neq.concluida', 'status=neq.cancelada']
+                        if trigger_config.get('space_id'):
+                            scope_parts.append(f'space_id=eq.{trigger_config["space_id"]}')
+                        if trigger_config.get('list_id'):
+                            scope_parts.append(f'list_id=eq.{trigger_config["list_id"]}')
+                        if trigger_config.get('responsavel'):
+                            scope_parts.append(f'responsavel=eq.{urllib.parse.quote(trigger_config["responsavel"])}')
                         task_req = urllib.request.Request(
-                            f'{sb_url}/rest/v1/god_tasks?data_fim=lt.{now}&status=neq.concluida&select=id,titulo',
+                            f'{sb_url}/rest/v1/god_tasks?' + '&'.join(scope_parts) + f'&select={select_cols}',
                             headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}'}
                         )
                         with urllib.request.urlopen(task_req) as resp2:
                             overdue = json.loads(resp2.read())
-                        action_type = auto.get('action_type', '')
-                        action_config = auto.get('action_config', {})
+                        applied = 0
                         for task in overdue:
+                            tid = task['id']
+                            if tid in affected_this_run:
+                                continue  # Skip — already touched by another automation this run
                             if action_type == 'change_status':
                                 new_status = action_config.get('status', 'em_andamento')
+                                # Idempotency: skip if already in target status
+                                if task.get('status') == new_status:
+                                    continue
                                 data = json.dumps({'status': new_status}).encode()
                                 upd = urllib.request.Request(
-                                    f'{sb_url}/rest/v1/god_tasks?id=eq.{task["id"]}',
+                                    f'{sb_url}/rest/v1/god_tasks?id=eq.{tid}',
                                     data=data, method='PATCH',
                                     headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
                                              'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
                                 )
                                 urllib.request.urlopen(upd)
+                                affected_this_run.add(tid)
+                                applied += 1
+                            elif action_type == 'change_assignee':
+                                new_assignee = action_config.get('responsavel')
+                                if not new_assignee or task.get('responsavel') == new_assignee:
+                                    continue
+                                data = json.dumps({'responsavel': new_assignee}).encode()
+                                upd = urllib.request.Request(
+                                    f'{sb_url}/rest/v1/god_tasks?id=eq.{tid}',
+                                    data=data, method='PATCH',
+                                    headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                             'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
+                                )
+                                urllib.request.urlopen(upd)
+                                affected_this_run.add(tid)
+                                applied += 1
                         # Log execution
                         log_data = json.dumps({
                             'automation_id': auto['id'],
-                            'trigger_data': {'evaluated_at': now, 'tasks_affected': len(overdue)},
+                            'trigger_data': {'evaluated_at': now, 'tasks_in_scope': len(overdue), 'tasks_affected': applied},
                             'result': 'success'
                         }).encode()
                         log_req = urllib.request.Request(
@@ -5916,7 +6015,7 @@ if __name__ == '__main__':
                         )
                         urllib.request.urlopen(log_req)
                     if automations:
-                        print(f'[Cron] Evaluated {len(automations)} time-based automations')
+                        print(f'[Cron] Evaluated {len(automations)} automations, touched {len(affected_this_run)} tasks')
             except Exception as e:
                 print(f'[Cron] Automation error: {e}')
             _t.sleep(300)  # every 5 min
@@ -5945,43 +6044,69 @@ if __name__ == '__main__':
                     for task in completed_recurring:
                         rule = task.get('recurrence_rule', '')
                         # Simple rules: daily, weekly, monthly
-                        if rule in ('daily', 'weekly', 'monthly'):
-                            now = datetime.now(timezone.utc)
-                            if rule == 'daily':
-                                new_due = (now + timedelta(days=1)).strftime('%Y-%m-%d')
-                            elif rule == 'weekly':
-                                new_due = (now + timedelta(weeks=1)).strftime('%Y-%m-%d')
-                            else:
-                                new_due = (now + timedelta(days=30)).strftime('%Y-%m-%d')
-                            new_task = json.dumps({
-                                'titulo': task['titulo'],
-                                'responsavel': task.get('responsavel'),
-                                'prioridade': task.get('prioridade', 'normal'),
-                                'tipo': task.get('tipo', 'geral'),
-                                'list_id': task.get('list_id'),
-                                'space_id': task.get('space_id'),
-                                'status': 'pendente',
-                                'data_fim': new_due,
-                                'recurrence_rule': rule,
-                                'fonte': 'recurring'
-                            }).encode()
-                            create_req = urllib.request.Request(
-                                f'{sb_url}/rest/v1/god_tasks',
-                                data=new_task, method='POST',
-                                headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
-                                         'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
-                            )
+                        if rule not in ('daily', 'weekly', 'monthly'):
+                            continue
+                        # 1) Clear recurrence FIRST so retries don't duplicate.
+                        # If clear fails we skip — next pass will retry.
+                        clear = json.dumps({'recurrence_rule': None}).encode()
+                        clear_req = urllib.request.Request(
+                            f'{sb_url}/rest/v1/god_tasks?id=eq.{task["id"]}&recurrence_rule=eq.{rule}',
+                            data=clear, method='PATCH',
+                            headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                     'Content-Type': 'application/json', 'Prefer': 'return=representation'}
+                        )
+                        try:
+                            with urllib.request.urlopen(clear_req) as cr:
+                                cleared = json.loads(cr.read())
+                                if not cleared:
+                                    # Already cleared by another worker — skip create
+                                    continue
+                        except Exception as ce:
+                            print(f'[Cron] Recurring clear failed for {task["id"]}: {ce}')
+                            continue
+                        # 2) Now create the new occurrence (clear succeeded)
+                        now = datetime.now(timezone.utc)
+                        if rule == 'daily':
+                            new_due = (now + timedelta(days=1)).strftime('%Y-%m-%d')
+                        elif rule == 'weekly':
+                            new_due = (now + timedelta(weeks=1)).strftime('%Y-%m-%d')
+                        else:
+                            new_due = (now + timedelta(days=30)).strftime('%Y-%m-%d')
+                        new_task = json.dumps({
+                            'titulo': task['titulo'],
+                            'responsavel': task.get('responsavel'),
+                            'prioridade': task.get('prioridade', 'normal'),
+                            'tipo': task.get('tipo', 'geral'),
+                            'list_id': task.get('list_id'),
+                            'space_id': task.get('space_id'),
+                            'status': 'pendente',
+                            'data_fim': new_due,
+                            'recurrence_rule': rule,
+                            'fonte': 'recurring'
+                        }).encode()
+                        create_req = urllib.request.Request(
+                            f'{sb_url}/rest/v1/god_tasks',
+                            data=new_task, method='POST',
+                            headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                     'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
+                        )
+                        try:
                             urllib.request.urlopen(create_req)
-                            # Remove recurrence from completed original
-                            clear = json.dumps({'recurrence_rule': None}).encode()
-                            clear_req = urllib.request.Request(
+                            created += 1
+                        except Exception as ee:
+                            # Restore the recurrence_rule so next run retries
+                            print(f'[Cron] Recurring create failed for {task["id"]}: {ee}')
+                            restore = json.dumps({'recurrence_rule': rule}).encode()
+                            restore_req = urllib.request.Request(
                                 f'{sb_url}/rest/v1/god_tasks?id=eq.{task["id"]}',
-                                data=clear, method='PATCH',
+                                data=restore, method='PATCH',
                                 headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
                                          'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
                             )
-                            urllib.request.urlopen(clear_req)
-                            created += 1
+                            try:
+                                urllib.request.urlopen(restore_req)
+                            except Exception:
+                                pass
                     if created:
                         print(f'[Cron] Created {created} recurring tasks')
             except Exception as e:

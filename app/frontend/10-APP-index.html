@@ -4349,7 +4349,7 @@
                                   @blur="inlineEditTitle(t.id, $el.innerText)" @keydown.enter.prevent="$el.blur()"></span>
                           </td>
                           <td class="cu-table__td" @click.stop>
-                            <select :value="t.status" @change="updateTaskStatus(t.id, $event.target.value === 'true')" class="cu-table__select cu-table__select--status"
+                            <select :value="t.status" @change="updateTaskStatus(t.id, $event.target.value)" class="cu-table__select cu-table__select--status"
                                     :style="'color:' + (t.status==='concluida' ? '#22c55e' : t.status==='em_andamento' ? '#3b82f6' : '#94a3b8')">
                               <option value="pendente">Pendente</option>
                               <option value="em_andamento">Em andamento</option>
