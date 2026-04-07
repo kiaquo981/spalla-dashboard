@@ -5086,6 +5086,8 @@
                     <button class="wa-bubble__reply-btn" @click="setWaReply(msg)" title="Responder">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
                     </button>
+                    <!-- Save to context -->
+                    <button class="wa-bubble__reply-btn" @click="saveWaMsgAsContext(msg)" title="Salvar na ficha" style="right:32px;color:#10b981">📌</button>
                     <div class="wa-bubble__sender" x-show="!msg.key?.fromMe" x-text="msg.pushName || 'Desconhecido'"></div>
                     <template x-if="getWaMessageType(msg) === 'text'">
                       <div class="wa-bubble__text" x-text="getWaMessageText(msg)"></div>
