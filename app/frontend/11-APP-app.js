@@ -8754,12 +8754,14 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     get ganttTasks() {
-      let tasks = this._filterTasks([...this.data.tasks].filter(t => t.status !== 'concluida'));
+      let tasks = this._filterTasks([...this.data.tasks].filter(t =>
+        t.status !== 'arquivada' && t.status !== 'cancelada'
+      ));
       return tasks.filter(t => t.data_inicio || t.data_fim || t.prazo).sort((a, b) => {
         const da = a.data_inicio || a.prazo || a.created_at || '';
         const db = b.data_inicio || b.prazo || b.created_at || '';
         return da.localeCompare(db);
-      }).slice(0, 50);
+      }).slice(0, 80);
     },
 
     ganttBarStyle(task) {
