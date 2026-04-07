@@ -3655,15 +3655,15 @@
           </div>
 
           <div x-show="(meuTrabalho||[]).length" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
-            <template x-for="(group, status) in meuTrabalhoGroupedByStatus" :key="status">
-              <div x-show="group.length" style="border:1px solid var(--border);border-radius:10px;background:var(--bg-card);overflow:hidden">
+            <template x-for="col in meuTrabalhoGroupedByStatus" :key="col.status">
+              <div style="border:1px solid var(--border);border-radius:10px;background:var(--bg-card);overflow:hidden">
                 <div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between"
-                     :style="{'pendente':'background:#f3f4f6','em_andamento':'background:#dbeafe','em_revisao':'background:#fef3c7','bloqueada':'background:#fee2e2','pausada':'background:#ede9fe'}[status]">
-                  <span style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px" x-text="status.replace('_',' ')"></span>
-                  <span style="font-size:11px;background:rgba(0,0,0,0.1);padding:2px 8px;border-radius:10px" x-text="group.length"></span>
+                     :style="'background:' + col.color">
+                  <span style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px" x-text="col.label"></span>
+                  <span style="font-size:11px;background:rgba(0,0,0,0.1);padding:2px 8px;border-radius:10px" x-text="col.tasks.length"></span>
                 </div>
                 <div style="padding:8px;display:flex;flex-direction:column;gap:6px;max-height:600px;overflow-y:auto">
-                  <template x-for="t in group" :key="t.id">
+                  <template x-for="t in col.tasks" :key="t.id">
                     <div @click="openTaskDetail(t.id)" style="padding:10px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;transition:box-shadow .15s"
                          :style="t.bloqueada_por_dependencia ? 'border-color:#dc2626;background:#fef2f2' : (t.atrasada ? 'border-color:#d97706' : '')">
                       <div style="display:flex;align-items:flex-start;gap:8px">
