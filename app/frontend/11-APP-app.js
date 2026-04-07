@@ -209,6 +209,7 @@ function operon() {
       newFieldName: '',
       newFieldType: 'text',
       visibleFieldIds: {}, // { fieldId: true } — which custom fields show as columns
+      collapsedSpaces: {}, // { spaceId: true }
       taskSpaceFilter: 'all', // space_id filter
       taskListFilter: 'all', // list_id filter
       taskSprintFilter: 'all', // sprint_id filter
@@ -4824,6 +4825,30 @@ function operon() {
     },
 
     // Legacy alias — kept for any callers
+    // Sidebar CRUD
+    async sidebarAddSpace() {
+      const name = prompt('Nome do novo espaco');
+      if (!name?.trim()) return;
+      const slug = 'space_' + name.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
+      try {
+        const { error } = await sb.from('god_spaces').insert({ id: slug, nome: name, cor: '#6366f1', icone: '◇', ordem: this.spaces.length + 1 });
+        if (error) throw error;
+        await this.loadSpacesAndStatuses();
+        this.toast('Espaco criado: ' + name, 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+    async sidebarAddList(spaceId) {
+      const name = prompt('Nome da nova lista');
+      if (!name?.trim()) return;
+      const slug = 'list_' + name.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
+      try {
+        const { error } = await sb.from('god_lists').insert({ id: slug, nome: name, space_id: spaceId, tipo: 'list', ordem: 99 });
+        if (error) throw error;
+        await this.loadSpacesAndStatuses();
+        this.toast('Lista criada: ' + name, 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
     async loadGodLists() {
       return this.loadSpacesAndStatuses();
     },

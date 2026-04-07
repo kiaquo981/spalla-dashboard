@@ -3613,52 +3613,73 @@
 
               <button @click="sprintCreate()" style="font-size:10px;padding:2px 8px;margin:4px 8px;border:1px dashed var(--border);border-radius:4px;background:none;cursor:pointer;color:var(--text-secondary);display:flex;align-items:center;gap:4px" @mouseover="$el.style.color='var(--brand)';$el.style.borderColor='var(--brand)'" @mouseout="$el.style.color='var(--text-secondary)';$el.style.borderColor='var(--border)'">+ Sprint</button>
 
-              <!-- Spaces -->
+              <!-- Spaces (v2 — collapsible with CRUD) -->
               <div class="tasks-sidebar__section-label" style="margin-top:8px">SPACES</div>
               <template x-for="space in spaces" :key="space.id">
                 <div class="tasks-sidebar__space">
-                  <div class="tasks-sidebar__item tasks-sidebar__item--space" :class="{ active: ui.taskSpaceFilter === space.id && ui.taskListFilter === 'all' }" @click="ui.taskSpaceFilter = space.id; ui.taskListFilter = 'all'; ui.taskSprintFilter = 'all'">
+                  <div class="tasks-sidebar__item tasks-sidebar__item--space"
+                       :class="{ active: ui.taskSpaceFilter === space.id && ui.taskListFilter === 'all' }"
+                       @click="ui.taskSpaceFilter = space.id; ui.taskListFilter = 'all'; ui.taskSprintFilter = 'all'">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;transition:transform .15s;cursor:pointer"
+                         :style="ui.collapsedSpaces?.[space.id] ? '' : 'transform:rotate(90deg)'"
+                         @click.stop="ui.collapsedSpaces = {...(ui.collapsedSpaces||{}), [space.id]: !ui.collapsedSpaces?.[space.id]}"><polyline points="9 18 15 12 9 6"/></svg>
                     <span class="tasks-sidebar__space-dot" :style="'background:' + space.color"></span>
-                    <span x-text="space.name"></span>
+                    <span x-text="space.name" style="flex:1"></span>
                     <span class="tasks-sidebar__count" x-text="data.tasks.filter(t => t.space_id === space.id).length"></span>
+                    <button @click.stop="sidebarAddList(space.id)" style="background:none;border:none;cursor:pointer;color:#d1d5db;padding:0 2px;font-size:14px;line-height:1;display:none" :style="ui.taskSpaceFilter === space.id ? 'display:inline' : ''" title="Adicionar lista">+</button>
                   </div>
                   <template x-for="list in space.lists" :key="list.id">
-                    <div class="tasks-sidebar__item tasks-sidebar__item--list"
+                    <div x-show="!ui.collapsedSpaces?.[space.id]"
+                         class="tasks-sidebar__item tasks-sidebar__item--list"
                          :class="{ active: ui.taskListFilter === list.id }"
                          @click="ui.taskSpaceFilter = space.id; ui.taskListFilter = list.id; ui.taskSprintFilter = 'all'">
                       <span class="tasks-sidebar__list-dot" :style="'background:' + space.color"></span>
-                      <span x-text="list.name"></span>
+                      <span x-text="list.name" style="flex:1"></span>
                       <span class="tasks-sidebar__count" x-text="data.tasks.filter(t => t.list_id === list.id).length"></span>
                     </div>
                   </template>
                 </div>
               </template>
+              <!-- + Novo Espaco -->
+              <button @click="sidebarAddSpace()" style="font-size:11px;padding:6px 12px;margin:8px 8px 4px;border:none;background:none;cursor:pointer;color:#94a3b8;display:flex;align-items:center;gap:4px;width:calc(100% - 16px);border-radius:6px"
+                      @mouseenter="$el.style.background='#f8f7f4';$el.style.color='var(--brand)'" @mouseleave="$el.style.background='none';$el.style.color='#94a3b8'">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Novo Espaco
+              </button>
             </div>
 
             <!-- Main Tasks Content -->
             <div class="tasks-main">
+              <!-- ClickUp-style view tabs -->
+              <div class="cu-view-tabs">
+                <button class="cu-view-tab" :class="{ 'cu-view-tab--active': ui.taskView === 'list' }" @click="ui.taskView = 'list'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                  Lista
+                </button>
+                <button class="cu-view-tab" :class="{ 'cu-view-tab--active': ui.taskView === 'calendar' }" @click="ui.taskView = 'calendar'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  Calendario
+                </button>
+                <button class="cu-view-tab" :class="{ 'cu-view-tab--active': ui.taskView === 'board' }" @click="ui.taskView = 'board'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+                  Quadro
+                </button>
+                <button class="cu-view-tab" :class="{ 'cu-view-tab--active': ui.taskView === 'gantt' }" @click="ui.taskView = 'gantt'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="7" y="10" width="14" height="4" rx="1"/><rect x="5" y="16" width="10" height="4" rx="1"/></svg>
+                  Gantt
+                </button>
+              </div>
+
               <div class="page-header">
                 <div>
-                  <h2 style="margin:0;font-size:18px;font-weight:700">Gerenciamento de Tarefas</h2>
-                  <div style="display:flex;align-items:center;gap:12px;margin-top:4px;font-size:12px;color:var(--text-secondary)">
-                    <span style="display:flex;align-items:center;gap:4px"><span style="width:7px;height:7px;border-radius:50%;background:#3b82f6"></span> <span>Em progresso</span> <span style="font-weight:600;color:#3b82f6" x-text="taskBoardStats.em_andamento"></span></span>
+                  <div style="display:flex;align-items:center;gap:12px;font-size:12px;color:var(--text-secondary)">
+                    <span style="display:flex;align-items:center;gap:4px"><span style="width:7px;height:7px;border-radius:50%;background:#3b82f6"></span> Em progresso <strong style="color:#3b82f6" x-text="taskBoardStats.em_andamento"></strong></span>
                     <span style="display:flex;align-items:center;gap:4px"><span style="width:7px;height:7px;border-radius:50%;background:#94a3b8"></span> <span x-text="taskBoardStats.pendente + ' a fazer'"></span></span>
                     <span style="display:flex;align-items:center;gap:4px"><span style="width:7px;height:7px;border-radius:50%;background:#22c55e"></span> <span x-text="taskBoardStats.concluida + ' concluidas'"></span></span>
-                    <span x-show="taskBoardStats.atrasada" style="display:flex;align-items:center;gap:4px;color:#dc2626;font-weight:600"><span x-text="taskBoardStats.atrasada + ' atrasadas'"></span></span>
+                    <span x-show="taskBoardStats.atrasada" style="color:#dc2626;font-weight:600" x-text="taskBoardStats.atrasada + ' atrasadas'"></span>
                   </div>
                 </div>
                 <div class="page-header__actions">
-                  <div class="view-toggle">
-                    <button class="view-toggle__btn" :class="{ active: ui.taskView === 'board' }" @click="ui.taskView = 'board'" title="Quadro">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
-                    </button>
-                    <button class="view-toggle__btn" :class="{ active: ui.taskView === 'list' }" @click="ui.taskView = 'list'" title="Lista">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-                    </button>
-                    <button class="view-toggle__btn" :class="{ active: ui.taskView === 'calendar' }" @click="ui.taskView = 'calendar'" title="Calendario">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                    </button>
-                  </div>
                   <button class="btn btn--sm" style="display:flex;align-items:center;gap:4px;border-color:var(--brand);color:var(--brand)" @click="ui.batchTaskModal = true" title="Criar tarefas por áudio">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
                     Por áudio
@@ -3968,7 +3989,7 @@
 
                     <!-- Task Row -->
                     <table x-show="!t._isGroupHeader && !ui.collapsedGroups?.[t._currentGroup]" style="width:100%;border-collapse:collapse;table-layout:fixed"
-                           @click="openTaskDetail(t.id)">
+                           @click="openTaskDetail(t._parentId || t.id)">
                       <colgroup class="cu-list__colgroup"><col><col><col><col><col><col></colgroup>
                       <tr class="cu-list__row" :class="{ 'cu-list__row--done': t.status === 'concluida' }">
                         <td class="cu-list__td" @click.stop>
