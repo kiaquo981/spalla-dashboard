@@ -457,6 +457,13 @@ function operon() {
     meuTrabalho: [],
     meuTrabalhoLoading: false,
 
+    // --- Sprints (root-level) ---
+    sprintDashboard: [],
+    sprintActive: null,
+    sprintTasks: [],
+    sprintLoading: false,
+    sprintGroupBy: 'status',
+
     // --- Data ---
     data: {
       mentees: [],
@@ -4975,6 +4982,7 @@ function operon() {
       'kanban': 'kanban',
       'tasks': 'tasks',
       'meu-trabalho': 'meu_trabalho',
+      'sprints': 'sprints',
       'agenda': 'agenda',
       'equipe': 'equipe',
       'whatsapp': 'whatsapp',
@@ -10703,6 +10711,86 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         { status: 'bloqueada',    label: 'Bloqueada',     color: '#fee2e2', tasks: map.bloqueada },
         { status: 'pausada',      label: 'Pausada',       color: '#ede9fe', tasks: map.pausada },
       ].filter(g => g.tasks.length > 0);
+    },
+
+    // ===== SPRINT DASHBOARD =====
+    async loadSprintDashboard() {
+      this.sprintLoading = true;
+      try {
+        if (!this.supabase) sb = await initSupabase();
+        const { data, error } = await this.supabase
+          .from('vw_sprint_dashboard')
+          .select('*')
+          .order('sprint_inicio', { ascending: false })
+          .limit(20);
+        if (error) throw error;
+        this.sprintDashboard = data || [];
+        // Auto-select active sprint
+        const active = (data || []).find(s => s.sprint_status === 'ativo');
+        if (active) this.selectSprint(active.sprint_id);
+      } catch (e) {
+        console.warn('[Spalla] loadSprintDashboard:', e);
+      } finally {
+        this.sprintLoading = false;
+      }
+    },
+
+    async selectSprint(sprintId) {
+      this.sprintActive = this.sprintDashboard.find(s => s.sprint_id === sprintId) || null;
+      try {
+        if (!this.supabase) sb = await initSupabase();
+        const { data, error } = await this.supabase
+          .from('god_tasks')
+          .select('*')
+          .eq('sprint_id', sprintId)
+          .order('prioridade', { ascending: true })
+          .order('data_fim', { ascending: true, nullsFirst: false })
+          .limit(500);
+        if (error) throw error;
+        this.sprintTasks = data || [];
+      } catch (e) {
+        console.warn('[Spalla] selectSprint:', e);
+        this.sprintTasks = [];
+      }
+    },
+
+    get sprintTasksGrouped() {
+      const tasks = this.sprintTasks || [];
+      const by = this.sprintGroupBy;
+      const groups = {};
+      const order = [];
+      for (const t of tasks) {
+        let key;
+        if (by === 'status') key = t.status || 'pendente';
+        else if (by === 'responsavel') key = t.responsavel || 'sem responsavel';
+        else if (by === 'prioridade') key = t.prioridade || 'normal';
+        else if (by === 'mentorado') key = t.mentorado_nome || 'Interno';
+        else key = t.status || 'pendente';
+        if (!groups[key]) { groups[key] = []; order.push(key); }
+        groups[key].push(t);
+      }
+      return order.map(key => ({ key, tasks: groups[key] }));
+    },
+
+    async addTaskToSprint(taskId) {
+      if (!this.sprintActive) return;
+      try {
+        await this.supabase.from('god_tasks').update({ sprint_id: this.sprintActive.sprint_id }).eq('id', taskId);
+        this.selectSprint(this.sprintActive.sprint_id);
+        this.toast?.('Task adicionada ao sprint');
+      } catch (e) {
+        this.toast?.('Erro: ' + e.message, 'error');
+      }
+    },
+
+    async removeTaskFromSprint(taskId) {
+      try {
+        await this.supabase.from('god_tasks').update({ sprint_id: null }).eq('id', taskId);
+        this.sprintTasks = this.sprintTasks.filter(t => t.id !== taskId);
+        this.toast?.('Task removida do sprint');
+      } catch (e) {
+        this.toast?.('Erro: ' + e.message, 'error');
+      }
     },
 
     // ===== LF-FASE3: Criar descarrego direto pelo frontend =====
