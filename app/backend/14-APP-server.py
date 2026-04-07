@@ -1959,6 +1959,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'sheets_configured': get_sheets_service() is not None,
                 'openai_configured': bool(OPENAI_API_KEY),
                 'storage_search': bool(OPENAI_API_KEY),
+                'evolution_configured': bool(EVOLUTION_API_KEY),
+                'evolution_base': EVOLUTION_BASE,
+                'evolution_key_prefix': EVOLUTION_API_KEY[:8] + '...' if EVOLUTION_API_KEY else 'EMPTY',
             })
         # ===== WA DM v2 (S9-A) =====
         elif self.path == '/api/mentees/triage':
@@ -3051,7 +3054,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': 'Invalid JSON'}, 400)
                 return
 
-            ALLOWED_FIELDS = {'fase_jornada', 'snoozed_until', 'wa_status'}
+            ALLOWED_FIELDS = {'fase_jornada', 'snoozed_until', 'wa_status', 'trilha'}
             updates = {k: v for k, v in body.items() if k in ALLOWED_FIELDS}
             if not updates:
                 self._send_json({'error': 'No allowed fields provided'}, 400)
@@ -3062,6 +3065,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             }
             if 'fase_jornada' in updates and updates['fase_jornada'] not in valid_fases:
                 self._send_json({'error': f'Invalid fase_jornada: {updates["fase_jornada"]}'}, 400)
+                return
+
+            valid_trilha = {'scale', 'clinic'}
+            if 'trilha' in updates and updates['trilha'] not in valid_trilha:
+                self._send_json({'error': f'Invalid trilha: {updates["trilha"]}'}, 400)
                 return
 
             valid_wa_status = {'aguardando', 'em_andamento', 'bloqueado', 'resolvido'}
@@ -3361,6 +3369,23 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         self._send_json(result if isinstance(result, list) else [result] if result else [])
 
     # ===== EVOLUTION PROXY =====
+    def _resolve_evolution_apikey(self, target_path):
+        """Resolve the correct API key for an Evolution instance.
+        Instance-specific keys are stored in wa_sessions.instance_api_key.
+        Falls back to the global EVOLUTION_API_KEY."""
+        import re
+        # Extract instance name from path (e.g., /instance/connect/spalla_u5)
+        match = re.search(r'/(?:connect|connectionState|logout|delete|restart|fetchInstances)/([^/?]+)', target_path)
+        if match:
+            instance_name = match.group(1)
+            try:
+                result = supabase_request('GET', f'wa_sessions?instance_name=eq.{instance_name}&select=instance_api_key&limit=1')
+                if isinstance(result, list) and result and result[0].get('instance_api_key'):
+                    return result[0]['instance_api_key']
+            except Exception:
+                pass
+        return EVOLUTION_API_KEY
+
     def _proxy_evolution(self, method):
         target_path = self.path[len('/api/evolution'):]
         if '..' in target_path:
@@ -3369,9 +3394,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         url = f'{EVOLUTION_BASE}{target_path}'
         body = self._read_body() if method in ('POST', 'PUT') else None
 
+        apikey = self._resolve_evolution_apikey(target_path)
         req = urllib.request.Request(url, data=body, method=method)
         req.add_header('Content-Type', 'application/json')
-        req.add_header('apikey', EVOLUTION_API_KEY)
+        req.add_header('apikey', apikey)
 
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
@@ -3431,13 +3457,15 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             return None
         return payload
 
-    # CR-M1: State machine — valid stage transitions
+    # CR-M1: State machine — valid stage transitions (merged for both trilhas)
     DS_VALID_TRANSITIONS = {
         'pendente': ('producao_ia',),
         'producao_ia': ('revisao_mariza',),
-        'revisao_mariza': ('revisao_kaique', 'producao_ia'),  # can send back
-        'revisao_kaique': ('revisao_queila', 'revisao_mariza'),  # can send back
-        'revisao_queila': ('aprovado', 'revisao_kaique'),  # can send back
+        'revisao_mariza': ('revisao_kaique', 'revisao_paralela', 'producao_ia'),  # kaique=scale, paralela=clinic, back
+        'revisao_kaique': ('revisao_queila', 'revisao_gobbi', 'revisao_mariza'),  # queila=clinic(via paralela), gobbi=scale, back
+        'revisao_gobbi': ('enviado', 'revisao_kaique'),  # scale final review, can send back
+        'revisao_paralela': ('revisao_queila',),  # clinic: auto-advance when both approve
+        'revisao_queila': ('enviado', 'revisao_paralela', 'aprovado', 'revisao_kaique'),  # clinic final review
         'aprovado': ('enviado',),
         'enviado': ('finalizado', 'ajustes'),
         'finalizado': (),
@@ -3531,6 +3559,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             'revisao_mariza': 'Mariza',
             'revisao_kaique': 'Kaique',
             'revisao_queila': 'Queila',
+            'revisao_gobbi': 'Gobbi',
+            'revisao_paralela': 'Gobbi + Kaique',
         }
         responsavel = responsavel_map.get(estagio)
 

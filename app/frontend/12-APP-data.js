@@ -792,6 +792,8 @@ const DS_ESTAGIOS = [
   { id: 'revisao_mariza', label: 'Rev. Mariza', color: '#f59e0b', icon: '◇', responsavel: 'Mariza' },
   { id: 'revisao_kaique', label: 'Rev. Kaique', color: '#3b82f6', icon: '◇', responsavel: 'Kaique' },
   { id: 'revisao_queila', label: 'Rev. Queila', color: '#ec4899', icon: '◉', responsavel: 'Queila' },
+  { id: 'revisao_gobbi', label: 'Rev. Gobbi', color: '#a855f7', icon: '◉', responsavel: 'Gobbi' },
+  { id: 'revisao_paralela', label: 'Rev. Gobbi + Kaique', color: '#7c3aed', icon: '◉◉', responsavel: 'Gobbi + Kaique' },
   { id: 'enviado', label: 'Enviado', color: '#06b6d4', icon: '▸', responsavel: null },
   { id: 'feedback_mentorado', label: 'Feedback', color: '#f97316', icon: '◈', responsavel: 'Mentorado' },
   { id: 'ajustes', label: 'Ajustes', color: '#ef4444', icon: '✦', responsavel: null },
@@ -803,7 +805,17 @@ const DS_DOC_TIPOS = [
   { id: 'oferta', label: 'Oferta e Produto', icon: '◆', color: '#8b5cf6' },
   { id: 'funil', label: 'Funil de Vendas', icon: '▽', color: '#3b82f6' },
   { id: 'conteudo', label: 'Posicionamento e Conteúdo', icon: '◈', color: '#f97316' },
+  { id: 'clinic', label: 'Dossiê Clínica', icon: '✚', color: '#14b8a6' },
 ];
+
+const DS_TRILHAS = [
+  { id: 'scale', label: 'Scale', color: '#8b5cf6', docs: ['oferta', 'funil', 'conteudo'] },
+  { id: 'clinic', label: 'Clinic', color: '#14b8a6', docs: ['clinic'] },
+];
+
+// Stage pipeline per trilha
+const DS_ESTAGIOS_SCALE = ['pendente','producao_ia','revisao_mariza','revisao_kaique','revisao_gobbi','enviado','feedback_mentorado','ajustes','aprovado','finalizado'];
+const DS_ESTAGIOS_CLINIC = ['pendente','producao_ia','revisao_mariza','revisao_paralela','revisao_queila','enviado','feedback_mentorado','ajustes','aprovado','finalizado'];
 
 const DS_STATUS_PRODUCAO = [
   { id: 'nao_iniciado', label: 'Não Iniciado', color: '#6b7280' },

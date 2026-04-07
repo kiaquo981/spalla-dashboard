@@ -219,6 +219,7 @@ function operon() {
       ctxLinkUrl: '',
       ctxFilter: { tipo: 'all', fase: 'all' },
       ctxExpanded: {},
+      ctxEditing: {},   // { [ctxId]: { titulo, conteudo, fase } }
       ctxTranscribing: {},
       ctxRecording: false,
       ctxMediaRecorder: null,
@@ -425,6 +426,9 @@ function operon() {
       teamView: 'cards', // 'cards' | 'ranking'
       gcalConflict: null,
       checkingConflict: false,    },
+
+    // --- Descarrego page state ---
+    descarrego: { menteeId: null, menteeName: '', search: '', dragging: false },
 
     // --- Data ---
     data: {
@@ -1031,7 +1035,7 @@ function operon() {
     get isCfoUser() {
       const email = (this.auth.currentUser?.email || '').toLowerCase();
       const name = (this.auth.currentUser?.full_name || '').toLowerCase();
-      return email.includes('cfo') || name.includes('cfo') || email.includes('financeiro') || name.includes('kaique');
+      return email.includes('cfo') || name.includes('cfo') || email.includes('financeiro') || name.includes('kaique') || name.includes('gobbi');
     },
 
     get filteredFinanceiro() {
@@ -2595,6 +2599,17 @@ function operon() {
       });
     },
 
+    hasBibDoc(mentoradoId, tipo) {
+      if (!this.bib.docs.length) return false;
+      const mid = typeof mentoradoId === 'string' ? parseInt(mentoradoId) : mentoradoId;
+      const tipoKeywords = { oferta: 'oferta', funil: 'funil', conteudo: 'posicionamento' };
+      const keyword = tipoKeywords[tipo] || tipo;
+      return this.bib.docs.some(d =>
+        (d.mentee_id === mid || d.mentee_id === String(mid)) &&
+        ((d.titulo || '').toLowerCase().includes(keyword) || (d.deep_link_slug || '').includes(keyword))
+      );
+    },
+
     bibMenteeOptions() {
       const seen = new Set();
       return this.bib.docs
@@ -3133,6 +3148,9 @@ function operon() {
                 resumo: c.resumo || c.zoom_topic || 'Call de acompanhamento',
                 gravacao: c.link_gravacao || null,
                 transcricao: c.link_transcricao || null,
+                senha_call: c['senha_Call'] || c.senha_call || null,
+                link_youtube: c.link_youtube || null,
+                plano_acao: c.link_plano_acao || null,
                 decisoes_tomadas: c.decisoes_tomadas || [],
                 feedbacks_queila: c.feedbacks_consultora || c.proximos_passos || [],
               }));
@@ -3513,13 +3531,14 @@ function operon() {
     // Uses vw_god_overview which already has: consultor_responsavel, dias_desde_call, ultima_call_data, tarefas_pendentes, tarefas_atrasadas
     ccConsultantBoard() {
       const mentees = this.data.mentees || [];
-      const me = (this.auth.currentUser?.full_name || '').split(' ')[0]; // "Heitor", "Lara", "Kaique"
+      const fullName = (this.auth.currentUser?.full_name || '').toLowerCase();
+      const me = fullName.split(' ')[0]; // "Heitor", "Lara", "Kaique"
       const dsProds = this.data.dsProducoes || [];
       const dsDocs = this.data.dsAllDocs || [];
       const now = new Date();
 
       // Filter by consultant's portfolio (admin sees all)
-      const isAdmin = ['kaique', 'gobbi', 'queila'].includes(me.toLowerCase());
+      const isAdmin = ['kaique', 'gobbi', 'queila'].some(n => fullName.includes(n));
       const myMentees = isAdmin ? mentees : mentees.filter(m =>
         (m.consultor_responsavel || '').toLowerCase() === me.toLowerCase()
       );
@@ -4857,6 +4876,7 @@ function operon() {
       'documentos': 'documentos',
       'arquivos': 'arquivos',
       'settings': 'settings',
+      'descarrego': 'descarrego',
       'jornada': 'kanban',
     },
 
@@ -5875,6 +5895,7 @@ function operon() {
       if (page === 'financeiro') this.loadFinanceiro();
       if (page === 'command_center' && !this.data.dsProducoes.length) this.loadDsData();
       if (page === 'carteira') this.initWaKeyboardShortcuts();
+      if (page === 'descarrego') { this.ui.ctxFilter.tipo = 'all'; this.ui.ctxFilter.fase = 'all'; }
       localStorage.setItem('spalla_page', page);
       // Update URL without reload
       const route = this._pageToRoute(page);
@@ -7717,8 +7738,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
         if (!createRes.ok) {
           const errBody = await createRes.json().catch(() => ({}));
-          if (createRes.status === 403 || createRes.status === 409 || errBody.error?.includes('already') || errBody.message?.includes('already')) {
-            console.log('[WA Session] Instance exists, reconnecting...');
+          if ([401, 403, 409].includes(createRes.status) || errBody.error?.includes('already') || errBody.message?.includes('already')) {
+            console.log('[WA Session] Instance may exist or creation restricted, trying reconnect...');
           } else {
             throw new Error(errBody.message || errBody.error || `HTTP ${createRes.status}`);
           }
@@ -9351,7 +9372,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     async saveContext() {
-      const menteeId = this.data.detail?.profile?.id;
+      const menteeId = this.data.detail?.profile?.id || this.descarrego?.menteeId;
       if (!menteeId) return;
       this.ui.ctxSaving = true;
       try {
@@ -9444,6 +9465,39 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           .update({ ativo: false })
           .eq('mentorado_id', menteeId);
       } catch (e) { console.warn('[Spalla] archiveContext:', e); }
+    },
+
+    // Context Hub — inline edit
+    ctxStartEdit(ctx) {
+      this.ui.ctxEditing = { ...this.ui.ctxEditing, [ctx.id]: { titulo: ctx.titulo || '', conteudo: ctx.conteudo || '', fase: ctx.fase || 'geral' } };
+    },
+    ctxCancelEdit(ctxId) {
+      const e = { ...this.ui.ctxEditing };
+      delete e[ctxId];
+      this.ui.ctxEditing = e;
+    },
+    async ctxSaveEdit(ctxId) {
+      const edit = this.ui.ctxEditing[ctxId];
+      if (!edit) return;
+      try {
+        const { error } = await sb.from('mentorado_context')
+          .update({ titulo: edit.titulo, conteudo: edit.conteudo, fase: edit.fase })
+          .eq('id', ctxId);
+        if (error) throw error;
+        const idx = this.data.menteeContext.findIndex(c => c.id === ctxId);
+        if (idx >= 0) {
+          this.data.menteeContext[idx] = { ...this.data.menteeContext[idx], titulo: edit.titulo, conteudo: edit.conteudo, fase: edit.fase };
+        }
+        this.ctxCancelEdit(ctxId);
+        this.toast('Contexto atualizado', 'success');
+      } catch (e) {
+        this.toast('Erro ao salvar: ' + e.message, 'error');
+      }
+    },
+
+    // Context Hub — toggle expand
+    ctxToggle(ctxId) {
+      this.ui.ctxExpanded = { ...this.ui.ctxExpanded, [ctxId]: !this.ui.ctxExpanded[ctxId] };
     },
 
     // Context Hub — filtered list (used in x-for)
@@ -9547,6 +9601,58 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       await this._autoTranscribeWithUrl(ctxId, ctx.arquivo_url);
     },
 
+    // ===== DESCARREGO PAGE helpers =====
+
+    get descarregoMenteeList() {
+      const q = (this.descarrego.search || '').toLowerCase().trim();
+      const list = this.data.mentees || [];
+      if (!q) return list;
+      return list.filter(m => (m.nome || '').toLowerCase().includes(q) || (m.instagram || '').toLowerCase().includes(q));
+    },
+
+    async selectDescarregoMentee(m) {
+      this.descarrego.menteeId = m.id;
+      this.descarrego.menteeName = m.nome;
+      this.ui.ctxTipo = 'texto';
+      this.ui.ctxTitulo = '';
+      this.ui.ctxConteudo = '';
+      this.ui.ctxLinkUrl = '';
+      this.ui.ctxArquivo = null;
+      this.ui.ctxFase = 'onboarding';
+      await this.loadMenteeContext(m.id);
+    },
+
+    handleDescarregoDrop(event) {
+      this.descarrego.dragging = false;
+      const file = event.dataTransfer?.files?.[0];
+      if (file) this.ui.ctxArquivo = file;
+    },
+
+    _ctxTipoStyle(tipo) {
+      const map = {
+        texto:    'background:#e8f4f0;color:#1a6b5a',
+        audio:    'background:#fef3e2;color:#9a6400',
+        gravacao: 'background:#fce8e8;color:#c0392b',
+        link:     'background:#e8eeff;color:#2a4fba',
+        arquivo:  'background:#f0ece8;color:#5a4a3a',
+        imagem:   'background:#f4e8f4;color:#7a2a8a',
+        video:    'background:#e8f0f4;color:#1a5a8a',
+        documento:'background:#f0ece8;color:#5a4a3a',
+      };
+      return map[tipo] || 'background:var(--op-bg-1);color:var(--op-text-muted)';
+    },
+
+    _ctxTipoLabel(tipo) {
+      const map = { texto:'TEXTO', audio:'ÁUDIO', gravacao:'GRAV.', link:'LINK', arquivo:'ARQ.', imagem:'IMG', video:'VÍDEO', documento:'DOC' };
+      return map[tipo] || (tipo || '').toUpperCase();
+    },
+
+    _formatRecSeconds(s) {
+      const m = Math.floor(s / 60);
+      const sec = s % 60;
+      return String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
+    },
+
     // ===== S2: Save WA message as Context (ativo) =====
 
     // Resolve mentorado from chat context (reused by both save functions)
@@ -9621,6 +9727,26 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.ui.ctxSaveModal = true;
     },
 
+    // Open save-to-context from WA inbox messages
+    openCtxSaveFromWaInbox(msg) {
+      const menteeId = msg.mentorado_id || this.ui.selectedMenteeId;
+      const menteeName = msg.mentorado_nome || this.data.mentees.find(m => m.id === menteeId)?.nome || '';
+      if (!menteeId) { this.toast('Mentorado não identificado para esta mensagem', 'error'); return; }
+      this.ui.ctxSaveData = {
+        menteeId, menteeName,
+        tipo: 'texto',
+        msgText: msg.content_text || msg.conteudo || '',
+        mediaUrl: null,
+        msgId: msg.id || null,
+        chatJid: msg.group_jid || null,
+        sender: msg.sender_name || '',
+        source: 'wa_inbox',
+      };
+      this.ui.ctxSaveDesc = (msg.content_text || msg.conteudo || '').substring(0, 200);
+      this.ui.ctxSavePasta = '';
+      this.ui.ctxSaveModal = true;
+    },
+
     // Confirm save from modal
     async confirmSaveContext() {
       const d = this.ui.ctxSaveData;
@@ -9666,10 +9792,14 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         if (inserted?.id && ['audio'].includes(d.tipo) && record.arquivo_url) {
           this._autoTranscribeWithUrl(inserted.id, record.arquivo_url);
         }
-        // Reload context if on context tab
-        if (d.source === 'wa_detail' && this.ui.activeDetailTab === 'contexto') {
-          await this.loadMenteeContext(d.menteeId);
+        // Navigate to mentorado detail → Contexto tab and reload
+        if (this.ui.page !== 'detail' || this.ui.selectedMenteeId !== d.menteeId) {
+          this.ui.selectedMenteeId = d.menteeId;
+          this.navigate('detail');
+          await this.loadMenteeDetail(d.menteeId);
         }
+        this.ui.activeDetailTab = 'contexto';
+        await this.loadMenteeContext(d.menteeId);
       } catch (e) {
         this.toast('Erro: ' + e.message, 'error');
       }
@@ -10985,9 +11115,11 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       return 'ds-aging--red';
     },
 
-    dsProgressPercent(estagio) {
-      const num = this.dsEstagioNum(estagio);
-      return Math.round((num / DS_ESTAGIOS.length) * 100);
+    dsProgressPercent(estagio, trilha) {
+      const stages = trilha ? this.dsEstagiosForTrilha(trilha) : DS_ESTAGIOS;
+      const idx = stages.findIndex(e => e.id === estagio);
+      const num = idx >= 0 ? idx + 1 : 0;
+      return Math.round((num / stages.length) * 100);
     },
 
     // --- DS Data Loading ---
@@ -10997,10 +11129,12 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       try {
         const [prodRes, docsRes] = await Promise.all([
           sb.from('vw_ds_pipeline').select('*').order('mentorado_nome'),
-          sb.from('ds_documentos').select('id, producao_id, mentorado_id, tipo, titulo, estagio_atual, responsavel_atual, estagio_desde, link_doc, ordem, prazo_entrega, prazos_etapas').order('ordem'),
+          sb.from('ds_documentos').select('id, producao_id, mentorado_id, tipo, titulo, estagio_atual, responsavel_atual, estagio_desde, link_doc, ordem, prazo_entrega, prazos_etapas, rev_paralela_gobbi, rev_paralela_kaique').order('ordem'),
         ]);
         if (prodRes.data) this.data.dsProducoes = prodRes.data;
         if (docsRes.data) this.data.dsAllDocs = docsRes.data;
+        // Pre-load Biblioteca so hasBibDoc() works on first render
+        if (!this.bib.docs.length) this.loadBiblioteca();
         // Auto-sync status for all non-paused/cancelled productions
         this._autoSyncDsStatuses();
       } catch (e) {
@@ -11193,24 +11327,40 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const cols = {};
       DS_ESTAGIOS.forEach(e => { cols[e.id] = []; });
       this.filteredDsProducoes.forEach(p => {
-        // Use estagio_min_num to determine which column
-        const minNum = p.estagio_min_num || 1;
-        const estagio = DS_ESTAGIOS[Math.min(minNum - 1, DS_ESTAGIOS.length - 1)];
+        // Determine column by the most-behind doc's actual stage
+        const docs = this.data.dsAllDocs.filter(d => d.producao_id === p.producao_id);
+        if (!docs.length) { cols['pendente'].push(p); return; }
+        const trilha = p.trilha || 'scale';
+        const stages = this.dsEstagiosForTrilha(trilha);
+        let minIdx = stages.length - 1;
+        docs.forEach(d => {
+          const idx = stages.findIndex(s => s.id === d.estagio_atual);
+          if (idx >= 0 && idx < minIdx) minIdx = idx;
+        });
+        const estagio = stages[minIdx];
         if (estagio && cols[estagio.id]) cols[estagio.id].push(p);
+        else cols['pendente'].push(p);
       });
       return cols;
     },
 
     // --- DS CRUD + Handoff ---
+    _docTrilha(doc) {
+      const prod = this.data.dsProducoes.find(p => p.producao_id === doc.producao_id);
+      return prod?.trilha || 'scale';
+    },
+
     async advanceDocStage(docId, notas) {
       if (!sb) return;
       const doc = this.data.dsAllDocs.find(d => d.id === docId);
       if (!doc) return;
-      const curIdx = DS_ESTAGIOS.findIndex(e => e.id === doc.estagio_atual);
-      if (curIdx < 0 || curIdx >= DS_ESTAGIOS.length - 1) return;
+      const trilha = this._docTrilha(doc);
+      const stages = this.dsEstagiosForTrilha(trilha);
+      const curIdx = stages.findIndex(e => e.id === doc.estagio_atual);
+      if (curIdx < 0 || curIdx >= stages.length - 1) return;
 
-      // Dependency check: enviado requires all 3 docs approved (admin can override)
-      const nextEstagio = DS_ESTAGIOS[curIdx + 1];
+      // Dependency check: enviado requires all docs approved (admin can override)
+      const nextEstagio = stages[curIdx + 1];
       if (nextEstagio.id === 'enviado') {
         const siblings = this.data.dsAllDocs.filter(d => d.producao_id === doc.producao_id && d.id !== docId);
         const allApproved = siblings.every(s => this.dsEstagioNum(s.estagio_atual) >= this.dsEstagioNum('aprovado'));
@@ -11236,6 +11386,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         revisao_mariza: 'data_revisao_mariza',
         revisao_kaique: 'data_revisao_kaique',
         revisao_queila: 'data_revisao_queila',
+        revisao_gobbi: 'data_revisao_queila',
+        revisao_paralela: 'data_revisao_queila',
         enviado: 'data_envio',
         feedback_mentorado: 'data_feedback_mentorado',
         finalizado: 'data_finalizado',
@@ -11486,9 +11638,14 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     dsCanAdvance(doc) {
       if (!doc) return false;
-      const curIdx = DS_ESTAGIOS.findIndex(e => e.id === doc.estagio_atual);
-      if (curIdx < 0 || curIdx >= DS_ESTAGIOS.length - 1) return false;
-      // Admin can always advance — confirm dialog handles the warning
+      const trilha = this._docTrilha(doc);
+      const stages = this.dsEstagiosForTrilha(trilha);
+      const curIdx = stages.findIndex(e => e.id === doc.estagio_atual);
+      if (curIdx < 0 || curIdx >= stages.length - 1) return false;
+      // Parallel review: block advance until both reviewers approved
+      if (doc.estagio_atual === 'revisao_paralela') {
+        return doc.rev_paralela_gobbi && doc.rev_paralela_kaique;
+      }
       return true;
     },
 
@@ -11567,12 +11724,16 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         }).select().single();
         if (prodErr) throw prodErr;
 
-        // 2. Create documents
+        // 2. Create documents (respects trilha)
+        const tituloMap = {
+          oferta: 'Dossiê de Oferta', funil: 'Dossiê de Funil',
+          conteudo: 'Dossiê de Posicionamento', clinic: 'Dossiê Clínica',
+        };
         const docs = f.docs.map((tipo, i) => ({
           producao_id: prod.id,
           mentorado_id: parseInt(f.mentorado_id),
           tipo,
-          titulo: tipo === 'oferta' ? 'Dossiê de Oferta' : tipo === 'funil' ? 'Dossiê de Funil' : 'Dossiê de Posicionamento',
+          titulo: tituloMap[tipo] || 'Dossiê',
           estagio_atual: 'pendente',
           responsavel_atual: f.responsavel || null,
           ordem: i + 1,
@@ -11795,6 +11956,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
             const tsMap = {
               producao_ia: 'data_producao_ia', revisao_mariza: 'data_revisao_mariza',
               revisao_kaique: 'data_revisao_kaique', revisao_queila: 'data_revisao_queila',
+              revisao_gobbi: 'data_revisao_queila', revisao_paralela: 'data_revisao_queila',
               enviado: 'data_envio', feedback_mentorado: 'data_feedback_mentorado',
               finalizado: 'data_finalizado',
             };
@@ -11809,11 +11971,66 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       };
     },
 
+    isValidGoogleDocsUrl(url) {
+      try { new URL(url); } catch { return false; }
+      return url.startsWith('https://') && (url.includes('docs.google.com') || url.includes('drive.google.com'));
+    },
+
     async updateDocLink(docId, link) {
       if (!sb) return;
       const { error } = await sb.from('ds_documentos').update({ link_doc: link }).eq('id', docId);
       if (error) this.toast('Erro ao salvar link: ' + error.message, 'error');
       else this.toast('Link salvo', 'success');
+    },
+
+    async updateMentoradoTrilha(mentoradoId, trilha) {
+      if (!mentoradoId) return;
+      try {
+        const resp = await fetch(`${CONFIG.API_BASE}/api/mentees/${mentoradoId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+          body: JSON.stringify({ trilha }),
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.error || resp.statusText); }
+      } catch (e) {
+        this.toast('Erro ao atualizar trilha: ' + e.message, 'error');
+        return;
+      }
+      // Update local detail
+      if (this.data.detail?.profile) this.data.detail.profile.trilha = trilha;
+      // Update mentorados list
+      const m = this.data.mentees.find(x => x.id === mentoradoId);
+      if (m) m.trilha = trilha;
+      // Update pipeline view
+      const prod = this.data.dsProducoes.find(x => x.mentorado_id === mentoradoId);
+      if (prod) prod.trilha = trilha;
+      this.toast('Trilha atualizada para ' + trilha.toUpperCase(), 'success');
+    },
+
+    dsDocTiposForTrilha(trilha) {
+      const t = DS_TRILHAS.find(x => x.id === trilha);
+      return t ? DS_DOC_TIPOS.filter(d => t.docs.includes(d.id)) : DS_DOC_TIPOS.slice(0, 3);
+    },
+
+    dsEstagiosForTrilha(trilha) {
+      const ids = trilha === 'clinic' ? DS_ESTAGIOS_CLINIC : DS_ESTAGIOS_SCALE;
+      return DS_ESTAGIOS.filter(s => ids.includes(s.id));
+    },
+
+    async dsToggleParalelaReview(docId, reviewer) {
+      if (!sb) return;
+      const field = reviewer === 'gobbi' ? 'rev_paralela_gobbi' : 'rev_paralela_kaique';
+      const doc = this.data.dsAllDocs.find(d => d.id === docId);
+      if (!doc) return;
+      const newVal = !doc[field];
+      const { error } = await sb.from('ds_documentos').update({ [field]: newVal }).eq('id', docId);
+      if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
+      doc[field] = newVal;
+      // Auto-advance if both done
+      if (doc.rev_paralela_gobbi && doc.rev_paralela_kaique && doc.estagio_atual === 'revisao_paralela') {
+        await this.advanceDocStage(docId);
+      }
+      this.toast(reviewer.charAt(0).toUpperCase() + reviewer.slice(1) + (newVal ? ' aprovou' : ' desfez aprovação'), newVal ? 'success' : 'info');
     },
 
     // ===================== ONBOARDING CS =====================

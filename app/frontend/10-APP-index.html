@@ -72,6 +72,11 @@
     .wa-topic-badge { align-self:center;font-size:10px;background:#ede9fe;color:#6d28d9;padding:2px 8px;border-radius:8px;margin:10px 0 2px;font-weight:500; }
     .wa-extract-btn { opacity:0;font-size:13px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;color:#3b82f6;padding:2px 6px;transition:opacity .15s;flex-shrink:0;margin-top:4px; }
     .wa-msg-wrapper:hover .wa-extract-btn { opacity:1; }
+    .wa-bubble__actions { position:absolute;top:4px;right:4px;display:flex;gap:2px;opacity:0;transition:opacity .15s;z-index:2; }
+    .wa-bubble:hover .wa-bubble__actions { opacity:1; }
+    .wa-bubble__ctx-btn { position:absolute;top:4px;right:4px;opacity:0;background:#fff;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;color:#8a7d52;padding:3px 5px;transition:opacity .15s;z-index:2; }
+    .wa-bubble:hover .wa-bubble__ctx-btn { opacity:1; }
+    .wa-bubble__ctx-btn:hover { background:#f0ead6;border-color:#8a7d52; }
     .wa-inbox-empty { text-align:center;color:#94a3b8;font-size:13px;padding:32px 16px; }
 
     /* Collision badge */
@@ -281,6 +286,67 @@
     .bib-shimmer__line--h { height:22px;width:60%; }
     .bib-shimmer__line--sm { width:40%; }
     @keyframes bib-shimmer { 0%{background-position:200% 0}100%{background-position:-200% 0} }
+
+    /* ===== DESCARREGO PAGE ===== */
+    .dcg-layout{display:flex;height:100%;overflow:hidden;background:var(--op-bg)}
+    .dcg-left{width:240px;min-width:240px;border-right:1px solid var(--op-border);display:flex;flex-direction:column;overflow:hidden;background:var(--op-bg-1)}
+    .dcg-left__header{padding:20px 16px 12px;border-bottom:1px solid var(--op-border)}
+    .dcg-left__title{font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--op-text-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px}
+    .dcg-search{width:100%;padding:7px 10px;border:1px solid var(--op-border);border-radius:6px;background:var(--op-bg);color:var(--op-text);font-size:13px;outline:none;transition:border-color .15s}
+    .dcg-search:focus{border-color:#7c7556}
+    .dcg-mentee-list{flex:1;overflow-y:auto;padding:8px}
+    .dcg-mentee-item{padding:9px 10px;border-radius:7px;cursor:pointer;transition:background .12s;border:1px solid transparent;margin-bottom:2px}
+    .dcg-mentee-item:hover{background:var(--op-bg)}
+    .dcg-mentee-item.active{background:var(--op-bg);border-color:var(--op-border);box-shadow:0 1px 3px rgba(0,0,0,.06)}
+    .dcg-mentee-item__name{font-size:13px;font-weight:500;color:var(--op-text);line-height:1.3}
+    .dcg-mentee-item__meta{font-size:11px;color:var(--op-text-muted);margin-top:1px}
+    .dcg-center{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+    .dcg-center__header{padding:14px 20px;border-bottom:1px solid var(--op-border);display:flex;align-items:center;gap:12px;min-height:53px}
+    .dcg-center__mentee-name{font-family:var(--font-display);font-size:15px;font-weight:600;color:var(--op-text)}
+    .dcg-center__placeholder-header{font-size:13px;color:var(--op-text-muted);font-style:italic}
+    .dcg-center__body{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:14px}
+    .dcg-dropzone{border:2px dashed var(--op-border);border-radius:12px;padding:36px 24px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;background:var(--op-bg-1)}
+    .dcg-dropzone:hover,.dcg-dropzone.dragging{border-color:#7c7556;background:rgba(107,100,70,.05)}
+    .dcg-dropzone__icon{font-size:28px;margin-bottom:8px}
+    .dcg-dropzone__text{font-size:13px;color:var(--op-text-muted)}
+    .dcg-dropzone__text strong{color:var(--op-text)}
+    .dcg-tipo-tabs{display:flex;gap:6px;flex-wrap:wrap}
+    .dcg-tipo-tab{padding:5px 12px;border-radius:20px;border:1px solid var(--op-border);background:var(--op-bg-1);color:var(--op-text-muted);font-size:12px;cursor:pointer;transition:all .12s;display:flex;align-items:center;gap:5px}
+    .dcg-tipo-tab:hover{border-color:#7c7556;color:var(--op-text)}
+    .dcg-tipo-tab.active{background:#35301d;border-color:#35301d;color:#e6e3da}
+    .dcg-input-area{border:1px solid var(--op-border);border-radius:10px;overflow:hidden;background:var(--op-bg)}
+    .dcg-input-title{width:100%;padding:11px 16px;border:none;border-bottom:1px solid var(--op-border);background:transparent;color:var(--op-text);font-size:14px;font-weight:500;outline:none}
+    .dcg-input-title::placeholder{color:var(--op-text-muted)}
+    .dcg-input-content{width:100%;padding:11px 16px;border:none;background:transparent;color:var(--op-text);font-size:14px;line-height:1.6;resize:none;outline:none;min-height:100px;max-height:220px;display:block}
+    .dcg-input-content::placeholder{color:var(--op-text-muted)}
+    .dcg-input-link{width:100%;padding:11px 16px;border:none;background:transparent;color:var(--op-text);font-size:14px;outline:none;display:block}
+    .dcg-input-link::placeholder{color:var(--op-text-muted)}
+    .dcg-input-footer{display:flex;align-items:center;justify-content:space-between;padding:9px 16px;border-top:1px solid var(--op-border);background:var(--op-bg-1)}
+    .dcg-rec-btn{display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:8px;border:1px solid var(--op-border);background:var(--op-bg);cursor:pointer;font-size:13px;color:var(--op-text-muted);transition:all .15s}
+    .dcg-rec-btn:hover{border-color:#c0392b;color:#c0392b}
+    .dcg-rec-btn.recording{background:#fef2f2;border-color:#ef4444;color:#ef4444}
+    .dcg-rec-dot{width:8px;height:8px;border-radius:50%;background:currentColor;animation:dcg-pulse 1s infinite}
+    @keyframes dcg-pulse{0%,100%{opacity:1}50%{opacity:.3}}
+    .dcg-file-preview{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--op-bg-1);border:1px solid var(--op-border);border-radius:8px;font-size:13px}
+    .dcg-file-preview__name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--op-text)}
+    .dcg-file-preview__size{color:var(--op-text-muted);font-size:12px}
+    .dcg-right{width:320px;min-width:320px;border-left:1px solid var(--op-border);display:flex;flex-direction:column;overflow:hidden;background:var(--op-bg-1)}
+    .dcg-right__header{padding:14px 16px;border-bottom:1px solid var(--op-border);display:flex;align-items:center;justify-content:space-between}
+    .dcg-right__title{font-size:11px;font-weight:700;color:var(--op-text-muted);text-transform:uppercase;letter-spacing:.06em}
+    .dcg-feed{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+    .dcg-feed-item{background:var(--op-bg);border:1px solid var(--op-border);border-radius:8px;padding:10px 12px;transition:border-color .12s}
+    .dcg-feed-item:hover{border-color:#7c7556}
+    .dcg-feed-item__header{display:flex;align-items:flex-start;gap:8px;margin-bottom:4px}
+    .dcg-feed-item__tipo{font-size:10px;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:10px;flex-shrink:0;line-height:1.6}
+    .dcg-feed-item__title{font-size:13px;font-weight:500;color:var(--op-text);line-height:1.3;flex:1}
+    .dcg-feed-item__body{font-size:12px;color:var(--op-text-muted);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:2px}
+    .dcg-feed-item__actions{display:flex;gap:6px;margin-top:8px}
+    .dcg-feed-item__action{font-size:11px;color:var(--op-text-muted);cursor:pointer;padding:2px 6px;border-radius:4px;transition:background .12s,color .12s}
+    .dcg-feed-item__action:hover{background:var(--op-bg-1);color:var(--op-text)}
+    .dcg-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;color:var(--op-text-muted);text-align:center;gap:8px}
+    .dcg-empty__icon{font-size:28px;opacity:.35}
+    .dcg-empty__text{font-size:13px;line-height:1.5}
+    .dcg-fase-sel{padding:5px 10px;border:1px solid var(--op-border);border-radius:6px;background:var(--op-bg);color:var(--op-text);font-size:13px;outline:none;cursor:pointer}
   </style>
 </head>
 <body>
@@ -423,6 +489,10 @@
           <a class="op-nav-item" :class="{ active: ui.page === 'onboarding' }" @click="navigate('onboarding'); loadObData()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
             <span x-show="ui.sidebarOpen">Onboarding</span>
+          </a>
+          <a class="op-nav-item" :class="{ active: ui.page === 'descarrego' }" @click="navigate('descarrego')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span x-show="ui.sidebarOpen">Descarrego</span>
           </a>
 
           <div class="op-sidebar__section" x-show="ui.sidebarOpen && isCfoUser">Gestao</div>
@@ -724,7 +794,7 @@
                             <!-- Meta row -->
                             <div style="display:flex;gap:12px;font-size:11px;color:var(--neutral-500);border-top:1px solid var(--neutral-100);padding-top:8px">
                               <span x-text="'Call: ' + m.ultimaCall"></span>
-                              <span x-show="['kaique','gobbi','queila'].includes((auth.currentUser?.full_name || '').split(' ')[0].toLowerCase()) && m.consultor" x-text="'Consultor: ' + m.consultor"></span>
+                              <span x-show="['kaique','gobbi','queila'].some(n => (auth.currentUser?.full_name || '').toLowerCase().includes(n)) && m.consultor" x-text="'Consultor: ' + m.consultor"></span>
                             </div>
 
                             <!-- Action buttons -->
@@ -1783,6 +1853,14 @@
                   <span class="badge badge--neutral" x-text="data.detail?.profile?.cohort"></span>
                   <span class="badge badge--neutral" x-text="data.detail?.phase?.marco_atual"></span>
                   <span class="badge badge--info" x-text="'Consultor: ' + data.detail?.profile?.consultor_responsavel" x-show="data.detail?.profile?.consultor_responsavel" style="font-size:11px"></span>
+                  <select style="font-size:11px;font-weight:600;padding:2px 6px;border-radius:4px;border:1px solid;cursor:pointer"
+                    :style="(data.detail?.profile?.trilha || 'scale') === 'clinic' ? 'background:#ccfbf1;color:#0d9488;border-color:#5eead4' : 'background:#ede9fe;color:#7c3aed;border-color:#c4b5fd'"
+                    :value="data.detail?.profile?.trilha || 'scale'"
+                    @change="updateMentoradoTrilha(data.detail.profile.id, $event.target.value)"
+                    title="Trilha do mentorado">
+                    <option value="scale">Scale</option>
+                    <option value="clinic">Clinic</option>
+                  </select>
                 </div>
                 <div class="detail-hero__meta" x-show="data.detail?.profile?.instagram">
                   <a :href="'https://instagram.com/' + (data.detail?.profile?.instagram || '').replace(/^@/, '')" target="_blank" rel="noopener noreferrer" style="text-decoration:none;color:inherit" @click.stop>
@@ -2548,6 +2626,15 @@
                         <a x-show="c.transcricao" :href="c.transcricao" target="_blank" rel="noopener" class="badge badge--sm badge--purple" style="text-decoration:none;cursor:pointer">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:3px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Transcricao
                         </a>
+                        <a x-show="c.link_youtube" :href="c.link_youtube" target="_blank" rel="noopener" class="badge badge--sm" style="text-decoration:none;cursor:pointer;background:#ff0000;color:#fff;display:inline-flex;align-items:center;gap:3px">
+                          <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M23.5 6.2c-.3-1-1-1.8-2-2.1C19.6 3.5 12 3.5 12 3.5s-7.6 0-9.5.6c-1 .3-1.8 1-2.1 2.1C0 8.1 0 12 0 12s0 3.9.4 5.8c.3 1 1 1.8 2.1 2.1 1.9.6 9.5.6 9.5.6s7.6 0 9.5-.6c1-.3 1.8-1 2-2.1.5-1.9.5-5.8.5-5.8s0-3.9-.5-5.8zM9.5 15.5V8.5l6.5 3.5-6.5 3.5z"/></svg> YouTube
+                        </a>
+                        <button x-show="c.senha_call && (c.gravacao || c.transcricao)" @click.stop="navigator.clipboard.writeText(c.senha_call); $el.title='Copiado!'; setTimeout(()=>$el.title='Copiar senha',1500)" class="badge badge--sm" style="border:none;cursor:pointer;background:#f59e0b;color:#fff;display:inline-flex;align-items:center;gap:3px" :title="'Copiar senha'">
+                          <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Senha
+                        </button>
+                        <a x-show="c.plano_acao" :href="c.plano_acao" target="_blank" rel="noopener" class="badge badge--sm" style="text-decoration:none;cursor:pointer;background:#10b981;color:#fff;display:inline-flex;align-items:center;gap:3px" title="Plano de Ação">
+                          <span style="font-weight:700;font-size:11px">PA</span>
+                        </a>
                       </div>
                       <div class="call-card__decisions" x-show="(c.decisoes_tomadas || []).length"><strong>Decisoes:</strong>
                         <template x-for="(d, di) in c.decisoes_tomadas || []" :key="di"><span class="badge badge--sm badge--brand" x-text="d"></span></template>
@@ -2593,7 +2680,11 @@
                       <div x-show="mi === 0 || waDateLabel(msg.created_at) !== waDateLabel((data.detail?.last_interactions || [])[mi-1]?.created_at)" class="wa-day-separator">
                         <span x-text="waDateLabel(msg.created_at)"></span>
                       </div>
-                      <div class="wa-bubble" :class="{ 'wa-bubble--me': msg.is_from_team || msg.sender === 'Equipe CASE' }" style="max-width:85%">
+                      <div class="wa-bubble" :class="{ 'wa-bubble--me': msg.is_from_team || msg.sender === 'Equipe CASE' }" style="max-width:85%;position:relative">
+                        <!-- Save to context button -->
+                        <button class="wa-bubble__ctx-btn" @click="saveDetailWaMsgAsContext(msg)" title="Salvar como contexto">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                        </button>
                         <div class="wa-bubble__sender" x-show="!msg.is_from_team && msg.sender !== 'Equipe CASE'" x-text="waCleanSenderName(msg.sender)"></div>
 
                         <!-- Text message -->
@@ -3229,10 +3320,11 @@
 
                 <div style="display:flex;flex-direction:column;gap:10px">
                   <template x-for="ctx in filteredMenteeContext" :key="ctx.id">
-                    <div style="border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--bg-card)">
+                    <div style="border:1px solid var(--border);border-radius:10px;background:var(--bg-card);transition:box-shadow .15s"
+                         :style="ui.ctxExpanded[ctx.id] ? 'box-shadow:0 2px 12px rgba(0,0,0,.08);border-color:var(--brand-300,#c4b896)' : ''">
 
-                      <!-- Header do card -->
-                      <div style="display:flex;align-items:flex-start;gap:10px">
+                      <!-- Header do card — clicavel -->
+                      <div @click="ctxToggle(ctx.id)" style="display:flex;align-items:center;gap:10px;padding:12px;cursor:pointer;user-select:none">
                         <!-- Ícone tipo -->
                         <div style="width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:17px"
                              :style="{'audio':'background:#fef3c7;color:#d97706','gravacao':'background:#fee2e2;color:#dc2626','arquivo':'background:#dbeafe;color:#2563eb','link':'background:#ede9fe;color:#7c3aed','texto':'background:#f0fdf4;color:#16a34a'}[ctx.tipo] || 'background:#f3f4f6'">
@@ -3241,76 +3333,128 @@
 
                         <!-- Título + meta -->
                         <div style="flex:1;min-width:0">
-                          <div style="font-size:13px;font-weight:600;margin-bottom:2px" x-text="ctx.titulo || ctx.tipo"></div>
-                          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                          <div style="display:flex;align-items:center;gap:6px">
+                            <span x-show="ctx.ativo_codigo" style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;background:#8a7d52;color:#fff;letter-spacing:.5px;flex-shrink:0" x-text="ctx.ativo_codigo"></span>
+                            <span style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="ctx.titulo || ctx.tipo"></span>
+                          </div>
+                          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px">
                             <span style="font-size:10px;padding:1px 6px;border-radius:3px;background:var(--bg-subtle);color:var(--text-secondary)" x-text="ctx.fase?.replaceAll('_',' ')"></span>
+                            <span x-show="ctx.origem === 'whatsapp'" style="font-size:10px;padding:1px 5px;border-radius:3px;background:#dcfce7;color:#166534">WA</span>
                             <span style="font-size:10px;color:var(--text-secondary)" x-text="ctx.criado_por?.split('@')[0] || 'sistema'"></span>
                             <span style="font-size:10px;color:var(--text-secondary)" x-text="new Date(ctx.created_at).toLocaleDateString('pt-BR', {day:'2-digit',month:'short',year:'numeric'})"></span>
                           </div>
                         </div>
 
-                        <!-- Arquivar + Deletar -->
-                        <div style="display:flex;gap:2px;flex-shrink:0">
-                          <button @click="archiveContext(ctx.id)" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:13px;padding:2px 4px" @mouseover="$el.style.color='#d97706'" @mouseout="$el.style.color='#9ca3af'" title="Arquivar (manter no banco mas ocultar)">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                        <!-- Preview do conteúdo (quando colapsado) -->
+                        <span x-show="!ui.ctxExpanded[ctx.id] && ctx.conteudo" style="font-size:11px;color:var(--text-secondary);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0"
+                              x-text="ctx.conteudo?.substring(0, 60)"></span>
+
+                        <!-- Expand chevron -->
+                        <svg :style="ui.ctxExpanded[ctx.id] ? 'transform:rotate(180deg)' : ''" style="flex-shrink:0;transition:transform .15s;color:var(--text-secondary)" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                      </div>
+
+                      <!-- Conteúdo expandido -->
+                      <div x-show="ui.ctxExpanded[ctx.id]" x-cloak style="padding:0 12px 12px;border-top:1px solid var(--border)">
+
+                        <!-- Actions bar -->
+                        <div style="display:flex;gap:6px;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:10px">
+                          <button x-show="!ui.ctxEditing[ctx.id]" @click.stop="ctxStartEdit(ctx)" style="font-size:11px;padding:3px 10px;border:1px solid var(--brand-500,#8a7d52);border-radius:4px;background:transparent;cursor:pointer;color:var(--brand-500,#8a7d52);display:flex;align-items:center;gap:4px">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            Editar
                           </button>
-                          <button @click="deleteContext(ctx.id)" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:13px;padding:2px 4px" @mouseover="$el.style.color='#dc2626'" @mouseout="$el.style.color='#9ca3af'" title="Excluir permanentemente">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                          <button @click.stop="archiveContext(ctx.id)" style="font-size:11px;padding:3px 10px;border:1px solid #d97706;border-radius:4px;background:transparent;cursor:pointer;color:#d97706;display:flex;align-items:center;gap:4px">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/></svg>
+                            Arquivar
                           </button>
+                          <button @click.stop="deleteContext(ctx.id)" style="font-size:11px;padding:3px 10px;border:1px solid #dc2626;border-radius:4px;background:transparent;cursor:pointer;color:#dc2626;display:flex;align-items:center;gap:4px">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            Excluir
+                          </button>
+                          <!-- Botão Transcrever -->
+                          <button x-show="['audio','gravacao'].includes(ctx.tipo) && ctx.arquivo_url && !ctx.transcricao"
+                                  @click.stop="transcribeContext(ctx.id)"
+                                  :disabled="ui.ctxTranscribing[ctx.id]"
+                                  style="font-size:11px;padding:3px 10px;border:1px solid #d97706;border-radius:4px;background:transparent;cursor:pointer;color:#d97706;display:flex;align-items:center;gap:4px"
+                                  :style="ui.ctxTranscribing[ctx.id] ? 'opacity:0.6;cursor:not-allowed' : ''">
+                            <span x-show="!ui.ctxTranscribing[ctx.id]">Transcrever</span>
+                            <span x-show="ui.ctxTranscribing[ctx.id]">Transcrevendo...</span>
+                          </button>
+                        </div>
+
+                        <!-- Inline edit mode -->
+                        <div x-show="ui.ctxEditing[ctx.id]" @click.stop style="margin-bottom:12px;padding:10px;background:var(--bg-subtle);border-radius:8px">
+                          <div style="margin-bottom:8px">
+                            <label style="font-size:10px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:3px">Titulo</label>
+                            <input type="text" :value="ui.ctxEditing[ctx.id]?.titulo" @input="ui.ctxEditing[ctx.id].titulo = $event.target.value"
+                                   style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;box-sizing:border-box">
+                          </div>
+                          <div style="margin-bottom:8px">
+                            <label style="font-size:10px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:3px">Conteudo</label>
+                            <textarea :value="ui.ctxEditing[ctx.id]?.conteudo" @input="ui.ctxEditing[ctx.id].conteudo = $event.target.value"
+                                      rows="5" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
+                          </div>
+                          <div style="display:flex;align-items:center;gap:8px">
+                            <label style="font-size:10px;font-weight:600;color:var(--text-secondary)">Fase</label>
+                            <select :value="ui.ctxEditing[ctx.id]?.fase" @change="ui.ctxEditing[ctx.id].fase = $event.target.value"
+                                    style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px">
+                              <option value="onboarding">Onboarding</option>
+                              <option value="travas">Travas / Bloqueios</option>
+                              <option value="momentos">Momentos / Insights</option>
+                              <option value="acoes">Acoes / Execucoes</option>
+                              <option value="dossie_oferta">Dossie Oferta</option>
+                              <option value="dossie_posicionamento">Dossie Posicionamento</option>
+                              <option value="dossie_funil">Dossie Funil</option>
+                              <option value="funil_novo">Novo Funil</option>
+                              <option value="campanha">Campanha</option>
+                              <option value="conteudo">Conteudo</option>
+                              <option value="financeiro">Financeiro</option>
+                              <option value="geral">Geral</option>
+                            </select>
+                            <div style="margin-left:auto;display:flex;gap:6px">
+                              <button @click.stop="ctxCancelEdit(ctx.id)" style="font-size:11px;padding:4px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);cursor:pointer;color:var(--text-secondary)">Cancelar</button>
+                              <button @click.stop="ctxSaveEdit(ctx.id)" class="btn btn--brand btn--sm" style="font-size:11px;padding:4px 12px">Salvar</button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <!-- Imagem inline preview -->
+                        <div x-show="ctx.arquivo_tipo?.startsWith('image/')" style="margin-bottom:10px">
+                          <img :src="ctx.arquivo_url" :alt="ctx.arquivo_nome" style="max-width:100%;max-height:300px;border-radius:6px;object-fit:contain;border:1px solid var(--border)">
+                        </div>
+
+                        <!-- Texto / conteúdo (read mode) -->
+                        <div x-show="ctx.conteudo && !ui.ctxEditing[ctx.id] && !ctx.arquivo_tipo?.startsWith('image/')" style="margin-bottom:10px">
+                          <div style="font-size:12px;color:var(--text-primary);line-height:1.6;white-space:pre-wrap" x-text="ctx.conteudo"></div>
+                        </div>
+
+                        <!-- Transcrição (se existir) -->
+                        <div x-show="ctx.transcricao" style="margin-bottom:10px;padding:8px 10px;background:#f0fdf4;border-radius:6px;border-left:3px solid #16a34a">
+                          <div style="font-size:10px;font-weight:600;color:#16a34a;margin-bottom:4px">TRANSCRICAO</div>
+                          <div style="font-size:12px;color:var(--text-primary);line-height:1.5;white-space:pre-wrap" x-text="ctx.transcricao"></div>
+                        </div>
+
+                        <!-- Arquivo / Link -->
+                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                          <a x-show="ctx.arquivo_url && !ctx.arquivo_tipo?.startsWith('image/')"
+                             :href="ctx.arquivo_url" target="_blank" @click.stop
+                             style="font-size:11px;color:var(--brand-500);text-decoration:none;display:flex;align-items:center;gap:4px">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            <span x-text="ctx.arquivo_nome || 'Baixar arquivo'"></span>
+                            <span x-show="ctx.arquivo_tamanho" style="color:var(--text-secondary)" x-text="'(' + Math.round(ctx.arquivo_tamanho/1024) + ' KB)'"></span>
+                          </a>
+                          <a x-show="ctx.link_url" :href="ctx.link_url" target="_blank" @click.stop
+                             style="font-size:11px;color:#7c3aed;text-decoration:none;display:flex;align-items:center;gap:4px">
+                            <span x-text="ctx.link_url?.replace(/^https?:\/\//, '').substring(0, 50)"></span>
+                          </a>
+                        </div>
+
+                        <!-- Metadata footer -->
+                        <div x-show="ctx.origem || ctx.wa_group_jid" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;gap:10px;font-size:10px;color:var(--text-secondary)">
+                          <span x-show="ctx.origem" x-text="'Origem: ' + ctx.origem"></span>
+                          <span x-show="ctx.wa_group_jid" x-text="'Grupo WA: ' + ctx.wa_group_jid.split('@')[0]"></span>
                         </div>
                       </div>
 
-                      <!-- Imagem inline preview -->
-                      <div x-show="ctx.arquivo_tipo?.startsWith('image/')" style="margin-top:10px">
-                        <img :src="ctx.arquivo_url" :alt="ctx.arquivo_nome" style="max-width:100%;max-height:200px;border-radius:6px;object-fit:contain;border:1px solid var(--border)">
-                      </div>
-
-                      <!-- Texto / conteúdo -->
-                      <div x-show="ctx.conteudo && !ctx.arquivo_tipo?.startsWith('image/')" style="margin-top:8px">
-                        <div style="font-size:12px;color:var(--text-primary);line-height:1.6;white-space:pre-wrap"
-                             x-text="ui.ctxExpanded[ctx.id] ? ctx.conteudo : (ctx.conteudo?.substring(0, 280) + (ctx.conteudo?.length > 280 ? '…' : ''))"></div>
-                        <button x-show="ctx.conteudo?.length > 280" @click="ui.ctxExpanded = {...ui.ctxExpanded, [ctx.id]: !ui.ctxExpanded[ctx.id]}"
-                                style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--brand-500);padding:4px 0;margin-top:2px"
-                                x-text="ui.ctxExpanded[ctx.id] ? '▲ Ver menos' : '▼ Ver mais'"></button>
-                      </div>
-
-                      <!-- Transcrição (se existir) -->
-                      <div x-show="ctx.transcricao" style="margin-top:8px;padding:8px 10px;background:#f0fdf4;border-radius:6px;border-left:3px solid #16a34a">
-                        <div style="font-size:10px;font-weight:600;color:#16a34a;margin-bottom:4px">TRANSCRIÇÃO</div>
-                        <div style="font-size:12px;color:var(--text-primary);line-height:1.5;white-space:pre-wrap"
-                             x-text="ui.ctxExpanded['t_' + ctx.id] ? ctx.transcricao : (ctx.transcricao?.substring(0, 240) + (ctx.transcricao?.length > 240 ? '…' : ''))"></div>
-                        <button x-show="ctx.transcricao?.length > 240" @click="ui.ctxExpanded = {...ui.ctxExpanded, ['t_' + ctx.id]: !ui.ctxExpanded['t_' + ctx.id]}"
-                                style="background:none;border:none;cursor:pointer;font-size:11px;color:#16a34a;padding:2px 0"
-                                x-text="ui.ctxExpanded['t_' + ctx.id] ? '▲ Ver menos' : '▼ Ver mais'"></button>
-                      </div>
-
-                      <!-- Actions: arquivo download + botão transcrever -->
-                      <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap">
-                        <!-- Download / abrir arquivo (não-imagem) -->
-                        <a x-show="ctx.arquivo_url && !ctx.arquivo_tipo?.startsWith('image/')"
-                           :href="ctx.arquivo_url" target="_blank"
-                           style="font-size:11px;color:var(--brand-500);text-decoration:none;display:flex;align-items:center;gap:4px">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                          <span x-text="ctx.arquivo_nome || 'Baixar arquivo'"></span>
-                          <span x-show="ctx.arquivo_tamanho" style="color:var(--text-secondary)" x-text="'(' + Math.round(ctx.arquivo_tamanho/1024) + ' KB)'"></span>
-                        </a>
-
-                        <!-- Link externo -->
-                        <a x-show="ctx.link_url" :href="ctx.link_url" target="_blank"
-                           style="font-size:11px;color:#7c3aed;text-decoration:none;display:flex;align-items:center;gap:4px">
-                          🔗 <span x-text="ctx.link_url?.replace(/^https?:\/\//, '').substring(0, 50)"></span>
-                        </a>
-
-                        <!-- Botão Transcrever (só p/ áudio/gravacao sem transcrição ainda) -->
-                        <button x-show="['audio','gravacao'].includes(ctx.tipo) && ctx.arquivo_url && !ctx.transcricao"
-                                @click="transcribeContext(ctx.id)"
-                                :disabled="ui.ctxTranscribing[ctx.id]"
-                                style="display:flex;align-items:center;gap:4px;padding:3px 10px;border:1px solid #d97706;border-radius:4px;background:transparent;cursor:pointer;font-size:11px;color:#d97706"
-                                :style="ui.ctxTranscribing[ctx.id] ? 'opacity:0.6;cursor:not-allowed' : ''">
-                          <span x-show="!ui.ctxTranscribing[ctx.id]">🤖 Transcrever</span>
-                          <span x-show="ui.ctxTranscribing[ctx.id]">Transcrevendo...</span>
-                        </button>
-                      </div>
                     </div>
                   </template>
                 </div>
@@ -5000,10 +5144,15 @@
               <div class="wa-chat__messages" x-show="ui.whatsappSelectedChat">
                 <template x-for="(msg, mi) in data.whatsappMessages" :key="msg.key?.id || mi">
                   <div class="wa-bubble" :class="{ 'wa-bubble--me': msg.key?.fromMe }" :id="'wa-msg-' + (msg.key?.id || mi)">
-                    <!-- Reply button -->
-                    <button class="wa-bubble__reply-btn" @click="setWaReply(msg)" title="Responder">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
-                    </button>
+                    <!-- Action buttons (reply + save to context) -->
+                    <div class="wa-bubble__actions">
+                      <button class="wa-bubble__reply-btn" @click="setWaReply(msg)" title="Responder">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+                      </button>
+                      <button class="wa-bubble__reply-btn" @click="saveWaMsgAsContext(msg)" title="Salvar como contexto na ficha" style="color:#8a7d52">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                      </button>
+                    </div>
                     <div class="wa-bubble__sender" x-show="!msg.key?.fromMe" x-text="msg.pushName || 'Desconhecido'"></div>
                     <template x-if="getWaMessageType(msg) === 'text'">
                       <div class="wa-bubble__text" x-text="getWaMessageText(msg)"></div>
@@ -5884,7 +6033,7 @@
                       <div class="ds-doc-accordion__body" x-show="ui.dsExpandedDocs[doc.id]" x-transition>
                         <!-- Timeline visual -->
                         <div class="ds-timeline" role="list" aria-label="Etapas do documento">
-                          <template x-for="(stage, si) in DS_ESTAGIOS" :key="stage.id">
+                          <template x-for="(stage, si) in dsEstagiosForTrilha(_docTrilha(doc))" :key="stage.id">
                             <div class="ds-timeline__step" role="listitem" :class="{
                               'ds-timeline__step--done': dsEstagioNum(doc.estagio_atual) > si + 1,
                               'ds-timeline__step--active': dsEstagioNum(doc.estagio_atual) === si + 1,
@@ -5895,6 +6044,17 @@
                               <span x-show="getStagePrazo(doc, stage.id)" class="ds-timeline__prazo" :class="dsPrazoClass(getStagePrazo(doc, stage.id))" x-text="dsFormatDate(getStagePrazo(doc, stage.id))"></span>
                             </div>
                           </template>
+                          <!-- Parallel review controls (CLINIC only) -->
+                          <div x-show="doc.estagio_atual === 'revisao_paralela'" style="display:flex;gap:8px;margin-top:8px;padding:8px;background:#f5f3ff;border-radius:6px">
+                            <button class="btn btn--sm" :style="doc.rev_paralela_gobbi ? 'background:#10b981;color:#fff' : 'border:1px solid #a855f7;color:#a855f7'"
+                              @click="dsToggleParalelaReview(doc.id, 'gobbi')">
+                              <span x-text="doc.rev_paralela_gobbi ? '✓ Gobbi aprovou' : '○ Gobbi'"></span>
+                            </button>
+                            <button class="btn btn--sm" :style="doc.rev_paralela_kaique ? 'background:#10b981;color:#fff' : 'border:1px solid #3b82f6;color:#3b82f6'"
+                              @click="dsToggleParalelaReview(doc.id, 'kaique')">
+                              <span x-text="doc.rev_paralela_kaique ? '✓ Kaique aprovou' : '○ Kaique'"></span>
+                            </button>
+                          </div>
                         </div>
 
                         <!-- Doc info -->
@@ -5910,7 +6070,7 @@
                         <div class="ds-stage-prazos">
                           <span class="ds-stage-prazos__title">Prazos por etapa</span>
                           <div class="ds-stage-prazos__grid">
-                            <template x-for="(stage, si) in DS_ESTAGIOS.filter(s => s.id !== 'pendente' && s.id !== 'finalizado')" :key="stage.id">
+                            <template x-for="(stage, si) in dsEstagiosForTrilha(_docTrilha(doc)).filter(s => s.id !== 'pendente' && s.id !== 'finalizado')" :key="stage.id">
                               <div class="ds-stage-prazos__item" :class="{ 'ds-stage-prazos__item--active': doc.estagio_atual === stage.id }">
                                 <label class="ds-stage-prazos__label" :class="dsPrazoClass(getStagePrazo(doc, stage.id))" x-text="stage.icon + ' ' + stage.label" :style="'border-left: 2px solid ' + stage.color"></label>
                                 <input type="date" class="ds-input ds-input--xs" :class="{ 'ds-input--danger': dsPrazoClass(getStagePrazo(doc, stage.id)) === 'ds-deadline--overdue', 'ds-input--warning': dsPrazoClass(getStagePrazo(doc, stage.id)) === 'ds-deadline--soon' }" :value="getStagePrazo(doc, stage.id)" @change="setStagePrazo(doc.id, doc.producao_id, stage.id, $event.target.value)">
@@ -5921,7 +6081,7 @@
 
                         <!-- Actions -->
                         <div class="ds-doc-actions">
-                          <button class="btn btn--sm" style="background:#2d4a3e;color:#fff;display:flex;align-items:center;gap:4px"
+                          <button x-show="hasBibDoc(doc.mentorado_id, doc.tipo)" class="btn btn--sm" style="background:#2d4a3e;color:#fff;display:flex;align-items:center;gap:4px"
                             @click="navigateToDossieDoc(doc.mentorado_id, doc.tipo)"
                             aria-label="Ver dossiê na Biblioteca">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -5932,8 +6092,14 @@
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                             Google Docs ↗
                           </a>
+                          <button x-show="doc.link_doc" class="btn btn--sm" style="border:1px solid #4285f4;color:#4285f4;display:flex;align-items:center;gap:3px;font-size:11px;padding:4px 8px"
+                            @click="let url = prompt('Editar link do Google Docs:', doc.link_doc); if(url && isValidGoogleDocsUrl(url)) { updateDocLink(doc.id, url); doc.link_doc = url; } else if(url) { toast('Link inválido — use um link do Google Docs', 'warning'); }"
+                            title="Editar link do Google Docs">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                            Editar link
+                          </button>
                           <button x-show="!doc.link_doc" class="btn btn--sm" style="border:1px dashed #4285f4;color:#4285f4;display:flex;align-items:center;gap:4px;font-size:11px"
-                            @click="let url = prompt('Cole o link do Google Docs:'); if(url && url.startsWith('https://')) { updateDocLink(doc.id, url); doc.link_doc = url; }">
+                            @click="let url = prompt('Cole o link do Google Docs:'); if(url && isValidGoogleDocsUrl(url)) { updateDocLink(doc.id, url); doc.link_doc = url; } else if(url) { toast('Link inválido — use um link do Google Docs', 'warning'); }">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                             Vincular Google Doc
                           </button>
@@ -6111,11 +6277,11 @@
                       </div>
                     </div>
 
-                    <!-- Dossiês -->
+                    <!-- Dossiês (filtered by mentorado trilha) -->
                     <div class="ds-create-modal__field">
                       <label class="ds-create-modal__label">Quais dossiês entregar?</label>
                       <div class="ds-create-modal__checks">
-                        <template x-for="dt in DS_DOC_TIPOS" :key="dt.id">
+                        <template x-for="dt in dsDocTiposForTrilha((data.mentees.find(m => String(m.id) === String(ui.dsCreateForm.mentorado_id))?.trilha) || 'scale')" :key="dt.id">
                           <button type="button" class="ds-create-modal__check" :class="ui.dsCreateForm.docs.includes(dt.id) ? 'ds-create-modal__check--on' : ''" :style="ui.dsCreateForm.docs.includes(dt.id) ? '--check-color:' + dt.color : ''" @click="dsToggleDocType(dt.id)">
                             <span class="ds-create-modal__check-box" x-text="ui.dsCreateForm.docs.includes(dt.id) ? '✓' : ''"></span>
                             <span x-text="dt.icon"></span>
@@ -6260,15 +6426,18 @@
                         <div style="display:flex;align-items:center;gap:4px">
                           <span class="ds-prod-card__name" x-text="p.mentorado_nome"></span>
                           <span x-show="p.carteira" style="font-size:9px;font-weight:600;padding:1px 4px;border-radius:3px;background:#f1f5f9;color:#64748b" x-text="p.carteira"></span>
+                          <span style="font-size:8px;font-weight:700;padding:1px 4px;border-radius:3px;letter-spacing:0.5px"
+                            :style="(p.trilha || 'scale') === 'clinic' ? 'background:#ccfbf1;color:#0d9488' : 'background:#ede9fe;color:#7c3aed'"
+                            x-text="(p.trilha || 'scale').toUpperCase()"></span>
                         </div>
                         <span class="ds-prod-card__resp" x-text="'Resp: ' + (p.responsavel_atual || '-')"></span>
                       </div>
                       <span class="ds-status-badge" :style="'background:' + dsStatusConfig(p.status).color + '20; color:' + dsStatusConfig(p.status).color" x-text="dsStatusConfig(p.status).label"></span>
                     </div>
 
-                    <!-- 3 Doc Bars -->
+                    <!-- Doc Bars (filtered by trilha) -->
                     <div class="ds-prod-card__docs">
-                      <template x-for="dt in DS_DOC_TIPOS" :key="dt.id">
+                      <template x-for="dt in dsDocTiposForTrilha(p.trilha || 'scale')" :key="dt.id">
                         <div class="ds-prod-card__doc-row" style="display:flex;align-items:center;gap:6px;font-size:11px;padding:2px 0">
                           <span class="ds-prod-card__doc-icon" x-text="dt.icon" :title="dt.label" style="min-width:14px"></span>
                           <div class="ds-doc-bar" role="progressbar" :aria-valuenow="dsProgressPercent(p[dt.id + '_estagio'] || 'pendente')" aria-valuemin="0" aria-valuemax="100" :aria-label="dt.label" style="flex:1">
@@ -6276,6 +6445,32 @@
                           </div>
                           <span class="ds-prod-card__doc-stage" :style="'color:' + dsEstagioConfig(p[dt.id + '_estagio'] || 'pendente').color" x-text="dsEstagioConfig(p[dt.id + '_estagio'] || 'pendente').label" style="min-width:70px;font-size:10px;font-weight:600"></span>
                           <span x-show="p[dt.id + '_prazo']" class="ds-deadline-badge ds-deadline-badge--sm" :class="dsPrazoClass(p[dt.id + '_prazo'])" x-text="dsFormatDate(p[dt.id + '_prazo'])" style="font-size:10px"></span>
+                        </div>
+                      </template>
+                    </div>
+
+                    <!-- Quick Access Buttons -->
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 0 2px;border-top:1px solid var(--neutral-100)" @click.stop>
+                      <template x-for="doc in getDsDocs(p.producao_id)" :key="doc.id">
+                        <div style="display:flex;gap:3px;align-items:center">
+                          <span style="font-size:10px;font-weight:600;color:#475569;white-space:nowrap" x-text="({oferta:'Oferta',funil:'Funil',conteudo:'Posicion.'}[doc.tipo] || doc.tipo) + ':'"></span>
+                          <button x-show="hasBibDoc(doc.mentorado_id, doc.tipo)" class="btn btn--sm" style="background:#2d4a3e;color:#fff;font-size:9px;padding:2px 6px;display:flex;align-items:center;gap:3px;border-radius:4px"
+                            @click="navigateToDossieDoc(doc.mentorado_id, doc.tipo)" title="Ver dossiê no Operon">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            Operon
+                          </button>
+                          <a x-show="doc.link_doc" :href="doc.link_doc" target="_blank" rel="noopener"
+                            class="btn btn--sm" style="background:#4285f4;color:#fff;font-size:9px;padding:2px 6px;text-decoration:none;display:flex;align-items:center;gap:3px;border-radius:4px"
+                            title="Abrir no Google Docs">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                            Docs
+                          </a>
+                          <button x-show="!doc.link_doc && !hasBibDoc(doc.mentorado_id, doc.tipo)" class="btn btn--sm" style="border:1px dashed #94a3b8;color:#94a3b8;font-size:9px;padding:2px 6px;display:flex;align-items:center;gap:3px;border-radius:4px"
+                            @click="let url = prompt('Cole o link do Google Docs para ' + (DS_DOC_TIPOS.find(t => t.id === doc.tipo)?.label || doc.tipo) + ':'); if(url && isValidGoogleDocsUrl(url)) { updateDocLink(doc.id, url); doc.link_doc = url; } else if(url) { toast('Link inválido — use um link do Google Docs', 'warning'); }"
+                            title="Vincular Google Docs">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                            Vincular
+                          </button>
                         </div>
                       </template>
                     </div>
@@ -6303,7 +6498,7 @@
             <!-- VIEW: Pipeline Kanban (drag & drop) -->
             <div x-show="ui.dsView === 'pipeline' && !ui.dsLoading" class="ds-pipeline-wrapper" role="tabpanel">
               <div class="op-kanban ds-pipeline" role="list" aria-label="Pipeline de producao">
-                <template x-for="stage in DS_ESTAGIOS" :key="stage.id">
+                <template x-for="stage in DS_ESTAGIOS.filter(s => (dsPipelineColumns()[s.id] || []).length > 0 || ['pendente','producao_ia','revisao_mariza','enviado','finalizado'].includes(s.id))" :key="stage.id">
                   <div class="op-kanban__column ds-pipeline__col" role="listitem"
                     @dragover.prevent="dsDragOver($event, stage.id)"
                     @dragleave="dsDragLeave($event, stage.id)"
@@ -9293,6 +9488,155 @@
           </div>
         </div>
 
+        <!-- ===== DESCARREGO PAGE ===== -->
+        <div class="page-content page-content--full" x-show="ui.page === 'descarrego'" x-transition>
+          <div class="dcg-layout">
+            <!-- LEFT: Mentee selector -->
+            <div class="dcg-left">
+              <div class="dcg-left__header">
+                <div class="dcg-left__title">Mentorados</div>
+                <input class="dcg-search" type="text" placeholder="Buscar..." x-model="descarrego.search">
+              </div>
+              <div class="dcg-mentee-list">
+                <template x-for="m in descarregoMenteeList" :key="m.id">
+                  <div class="dcg-mentee-item" :class="{ active: descarrego.menteeId === m.id }" @click="selectDescarregoMentee(m)">
+                    <div class="dcg-mentee-item__name" x-text="m.nome"></div>
+                    <div class="dcg-mentee-item__meta" x-text="m.produto_nome || m.plano || m.instagram || ''"></div>
+                  </div>
+                </template>
+                <div x-show="!descarregoMenteeList.length" class="dcg-empty">
+                  <div class="dcg-empty__icon">🔍</div>
+                  <div class="dcg-empty__text">Nenhum mentorado encontrado</div>
+                </div>
+              </div>
+            </div>
+            <!-- CENTER: Input area -->
+            <div class="dcg-center">
+              <div class="dcg-center__header">
+                <template x-if="descarrego.menteeId">
+                  <div style="display:flex;align-items:center;gap:10px;width:100%">
+                    <div class="dcg-center__mentee-name" x-text="descarrego.menteeName"></div>
+                    <div style="flex:1"></div>
+                    <select class="dcg-fase-sel" x-model="ui.ctxFase">
+                      <option value="onboarding">Onboarding</option>
+                      <option value="execucao">Execução</option>
+                      <option value="otimizacao">Otimização</option>
+                      <option value="manutencao">Manutenção</option>
+                    </select>
+                  </div>
+                </template>
+                <template x-if="!descarrego.menteeId">
+                  <span class="dcg-center__placeholder-header">Selecione um mentorado para começar</span>
+                </template>
+              </div>
+              <div class="dcg-center__body" x-show="descarrego.menteeId">
+                <!-- Tipo pills -->
+                <div class="dcg-tipo-tabs">
+                  <template x-for="t in [{v:'texto',label:'Texto',icon:'📝'},{v:'gravacao',label:'Gravação',icon:'🎙'},{v:'audio',label:'Áudio',icon:'🎵'},{v:'link',label:'Link',icon:'🔗'},{v:'arquivo',label:'Arquivo',icon:'📎'},{v:'imagem',label:'Imagem',icon:'🖼'},{v:'video',label:'Vídeo',icon:'🎬'}]" :key="t.v">
+                    <button class="dcg-tipo-tab" :class="{ active: ui.ctxTipo === t.v }" @click="ui.ctxTipo = t.v; ui.ctxArquivo = null">
+                      <span x-text="t.icon"></span><span x-text="t.label"></span>
+                    </button>
+                  </template>
+                </div>
+                <!-- File drop zone -->
+                <div x-show="['arquivo','imagem','video','audio'].includes(ui.ctxTipo)"
+                  class="dcg-dropzone"
+                  :class="{ dragging: descarrego.dragging }"
+                  @dragover.prevent="descarrego.dragging = true"
+                  @dragleave.prevent="descarrego.dragging = false"
+                  @drop.prevent="handleDescarregoDrop($event)"
+                  @click="$refs.dcgFileInput.click()">
+                  <input type="file" x-ref="dcgFileInput" style="display:none"
+                    @change="ui.ctxArquivo = $event.target.files[0]; $event.target.value = ''"
+                    :accept="ui.ctxTipo === 'imagem' ? 'image/*' : ui.ctxTipo === 'video' ? 'video/*' : ui.ctxTipo === 'audio' ? 'audio/*' : '*/*'">
+                  <template x-if="!ui.ctxArquivo">
+                    <div>
+                      <div class="dcg-dropzone__icon">📂</div>
+                      <div class="dcg-dropzone__text"><strong>Arraste e solte</strong> ou clique para selecionar</div>
+                    </div>
+                  </template>
+                  <template x-if="ui.ctxArquivo">
+                    <div class="dcg-file-preview" @click.stop>
+                      <span>📎</span>
+                      <span class="dcg-file-preview__name" x-text="ui.ctxArquivo.name"></span>
+                      <span class="dcg-file-preview__size" x-text="(ui.ctxArquivo.size/1024).toFixed(0)+'KB'"></span>
+                      <button style="color:var(--op-text-muted);cursor:pointer;background:none;border:none" @click.stop="ui.ctxArquivo = null">✕</button>
+                    </div>
+                  </template>
+                </div>
+                <!-- Recording UI -->
+                <div x-show="ui.ctxTipo === 'gravacao'" style="display:flex;align-items:center;gap:12px">
+                  <button class="dcg-rec-btn" :class="{ recording: ui.ctxRecording }"
+                    @click="ui.ctxRecording ? stopRecording() : startRecording()">
+                    <span class="dcg-rec-dot" x-show="ui.ctxRecording"></span>
+                    <span x-text="ui.ctxRecording ? '⬛ Parar · ' + _formatRecSeconds(ui.ctxRecordingSeconds) : '🎙 Iniciar gravação'"></span>
+                  </button>
+                  <span x-show="ui.ctxRecording" style="font-size:13px;color:var(--op-text-muted)">Gravando ao vivo…</span>
+                </div>
+                <!-- Text / link input area -->
+                <div class="dcg-input-area">
+                  <input class="dcg-input-title" type="text" placeholder="Título (opcional)" x-model="ui.ctxTitulo">
+                  <textarea class="dcg-input-content"
+                    x-show="ui.ctxTipo === 'texto'"
+                    placeholder="Cole ou escreva o conteúdo aqui…"
+                    x-model="ui.ctxConteudo"
+                    rows="5"></textarea>
+                  <input class="dcg-input-link"
+                    x-show="ui.ctxTipo === 'link'"
+                    type="url" placeholder="https://…" x-model="ui.ctxLinkUrl">
+                  <div class="dcg-input-footer">
+                    <span style="font-size:12px;color:var(--op-text-muted)" x-text="ui.ctxTipo === 'texto' && ui.ctxConteudo ? ui.ctxConteudo.length + ' chars' : ''"></span>
+                    <button class="btn btn--sm btn--brand" :disabled="ui.ctxSaving" @click="saveContext()">
+                      <span x-show="!ui.ctxSaving">Salvar</span>
+                      <span x-show="ui.ctxSaving">Salvando…</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <!-- No mentee selected state -->
+              <div x-show="!descarrego.menteeId" class="dcg-empty" style="flex:1">
+                <div class="dcg-empty__icon">👈</div>
+                <div class="dcg-empty__text">Escolha um mentorado<br>na lista à esquerda</div>
+              </div>
+            </div>
+            <!-- RIGHT: Live feed -->
+            <div class="dcg-right">
+              <div class="dcg-right__header">
+                <span class="dcg-right__title">Contexto salvo</span>
+                <span x-show="descarrego.menteeId" style="font-size:12px;color:var(--op-text-muted)" x-text="filteredMenteeContext.length + ' itens'"></span>
+              </div>
+              <div class="dcg-feed" x-show="descarrego.menteeId">
+                <div x-show="!filteredMenteeContext.length" class="dcg-empty">
+                  <div class="dcg-empty__icon">📭</div>
+                  <div class="dcg-empty__text">Nenhum contexto ainda.<br>Adicione acima!</div>
+                </div>
+                <template x-for="ctx in filteredMenteeContext" :key="ctx.id">
+                  <div class="dcg-feed-item">
+                    <div class="dcg-feed-item__header">
+                      <span class="dcg-feed-item__tipo" :style="_ctxTipoStyle(ctx.tipo)" x-text="_ctxTipoLabel(ctx.tipo)"></span>
+                      <span class="dcg-feed-item__title" x-text="ctx.titulo || '(sem título)'"></span>
+                    </div>
+                    <div class="dcg-feed-item__body" x-show="ctx.conteudo || ctx.transcricao"
+                      x-text="ctx.transcricao || ctx.conteudo"></div>
+                    <div class="dcg-feed-item__actions">
+                      <span class="dcg-feed-item__action"
+                        x-show="['audio','gravacao'].includes(ctx.tipo) && ctx.arquivo_url && !ctx.transcricao && !ui.ctxTranscribing[ctx.id]"
+                        @click="transcribeContext(ctx.id)">✨ Transcrever</span>
+                      <span x-show="ui.ctxTranscribing[ctx.id]" style="font-size:11px;color:var(--op-text-muted);padding:2px 6px">Transcrevendo…</span>
+                      <span style="flex:1"></span>
+                      <span class="dcg-feed-item__action" style="color:#ef4444" @click="archiveContext(ctx.id)">✕</span>
+                    </div>
+                  </div>
+                </template>
+              </div>
+              <div x-show="!descarrego.menteeId" class="dcg-empty" style="flex:1">
+                <div class="dcg-empty__icon">📋</div>
+                <div class="dcg-empty__text">O contexto salvo<br>aparecerá aqui</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </main>
 
       <!-- ===== S9-B: WA Inbox Drawer — Global ===== -->
@@ -9350,6 +9694,9 @@
                     <!-- Task extraction (S9-C registers openWaTaskExtract) -->
                     <button class="wa-extract-btn" title="Criar tarefa"
                             @click="typeof openWaTaskExtract === 'function' && openWaTaskExtract(msg)">⊕</button>
+                    <!-- Save as active context -->
+                    <button class="wa-extract-btn" title="Salvar na ficha (contexto ativo)"
+                            @click="openCtxSaveFromWaInbox(msg)" style="color:#10b981">📌</button>
                   </div>
                   <span class="wa-msg-time" x-text="_waInboxMsgTime(msg.timestamp)"></span>
                 </div>
@@ -10475,6 +10822,49 @@
     </div>
   </template>
 
+  <!-- Modal: Salvar mensagem como contexto ativo -->
+  <template x-if="ui.ctxSaveModal">
+    <div class="ds-modal-overlay" @click.self="ui.ctxSaveModal = false" style="z-index:9999">
+      <div class="ds-create-modal" style="max-width:420px">
+        <div class="ds-create-modal__header">
+          <h3 style="font-size:15px">Salvar na ficha</h3>
+          <button class="ds-create-modal__close" @click="ui.ctxSaveModal = false">&times;</button>
+        </div>
+        <div class="ds-create-modal__body" style="display:flex;flex-direction:column;gap:10px">
+          <div>
+            <label class="ds-create-modal__label">Mentorado</label>
+            <div style="font-weight:600;font-size:14px" x-text="ui.ctxSaveData?.menteeName || '-'"></div>
+          </div>
+          <div>
+            <label class="ds-create-modal__label">Mensagem</label>
+            <div style="font-size:12px;background:#f8fafc;padding:8px;border-radius:6px;max-height:100px;overflow-y:auto;color:#475569" x-text="ui.ctxSaveData?.msgText || '[sem texto]'"></div>
+          </div>
+          <div>
+            <label class="ds-create-modal__label">Titulo (opcional)</label>
+            <input type="text" class="ds-input" x-model="ui.ctxSaveDesc" placeholder="Ex: Feedback sobre oferta, Resultado call..." style="font-size:13px">
+          </div>
+          <div>
+            <label class="ds-create-modal__label">Tipo</label>
+            <select class="ds-input" x-model="ui.ctxSaveData.tipo" style="font-size:13px">
+              <option value="texto">Texto</option>
+              <option value="audio">Audio</option>
+              <option value="imagem">Imagem</option>
+              <option value="documento">Documento</option>
+              <option value="link">Link</option>
+            </select>
+          </div>
+        </div>
+        <div class="ds-create-modal__footer">
+          <button class="btn btn--sm" @click="ui.ctxSaveModal = false">Cancelar</button>
+          <button class="btn btn--brand" @click="confirmSaveContext()" :disabled="ui.ctxSaveSaving">
+            <span x-show="!ui.ctxSaveSaving">Salvar na ficha</span>
+            <span x-show="ui.ctxSaveSaving">Salvando...</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </template>
+
   </div>
 
   <!-- Scripts -->
@@ -10483,7 +10873,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=133"></script>
+  <script src="11-APP-app.js?v=135"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">
@@ -10505,7 +10895,6 @@
       }, 2000);
     });
   </script>
-
 
 </body>
 </html>
