@@ -10668,21 +10668,21 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     async loadMeuTrabalho() {
       this.meuTrabalhoLoading = true;
       try {
-        if (!this.supabase) sb = await initSupabase();
+        if (!sb) sb = await initSupabase();
+        if (!sb) { console.error('[MeuTrabalho] Supabase not available'); this.meuTrabalho = []; return; }
         // Resolve primeiro nome: full_name > user_metadata.full_name > email prefix
         let me = (this.auth.currentUser?.full_name
           || this.auth.currentUser?.user_metadata?.full_name
           || '').toLowerCase().split(' ')[0];
         if (!me) {
-          // Fallback: extrair de email (kaique.azevedoo@... → kaique)
           const email = (this.auth.currentUser?.email || '').toLowerCase();
-          me = email.split(/[@.]/)[0]; // 'kaique' de 'kaique.azevedoo@outlook...'
+          me = email.split(/[@.]/)[0];
         }
-        if (!me) { this.meuTrabalho = []; return; }
-        // Match contra TEAM_MEMBERS pra usar o id canônico
+        if (!me) { console.warn('[MeuTrabalho] no user name resolved'); this.meuTrabalho = []; return; }
         const member = TEAM_MEMBERS.find(m => m.id === me || m.name.toLowerCase() === me);
         const searchName = member ? member.id : me;
-        const { data, error } = await this.supabase
+        console.log('[MeuTrabalho] querying for:', searchName);
+        const { data, error } = await sb
           .from('vw_meu_trabalho')
           .select('*')
           .or(`responsavel.ilike.%${searchName}%,acompanhante.ilike.%${searchName}%`)
@@ -10690,6 +10690,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           .limit(200);
         if (error) throw error;
         this.meuTrabalho = data || [];
+        console.log('[MeuTrabalho] loaded', this.meuTrabalho.length, 'tasks');
       } catch (e) {
         console.warn('[Spalla] loadMeuTrabalho:', e);
         this.meuTrabalho = [];
@@ -10717,15 +10718,14 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     async loadSprintDashboard() {
       this.sprintLoading = true;
       try {
-        if (!this.supabase) sb = await initSupabase();
-        const { data, error } = await this.supabase
+        if (!sb) sb = await initSupabase();
+        const { data, error } = await sb
           .from('vw_sprint_dashboard')
           .select('*')
           .order('sprint_inicio', { ascending: false })
           .limit(20);
         if (error) throw error;
         this.sprintDashboard = data || [];
-        // Auto-select active sprint
         const active = (data || []).find(s => s.sprint_status === 'ativo');
         if (active) this.selectSprint(active.sprint_id);
       } catch (e) {
@@ -10738,8 +10738,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     async selectSprint(sprintId) {
       this.sprintActive = this.sprintDashboard.find(s => s.sprint_id === sprintId) || null;
       try {
-        if (!this.supabase) sb = await initSupabase();
-        const { data, error } = await this.supabase
+        if (!sb) sb = await initSupabase();
+        const { data, error } = await sb
           .from('god_tasks')
           .select('*')
           .eq('sprint_id', sprintId)
@@ -10773,9 +10773,9 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     async addTaskToSprint(taskId) {
-      if (!this.sprintActive) return;
+      if (!this.sprintActive || !sb) return;
       try {
-        await this.supabase.from('god_tasks').update({ sprint_id: this.sprintActive.sprint_id }).eq('id', taskId);
+        await sb.from('god_tasks').update({ sprint_id: this.sprintActive.sprint_id }).eq('id', taskId);
         this.selectSprint(this.sprintActive.sprint_id);
         this.toast?.('Task adicionada ao sprint');
       } catch (e) {
@@ -10784,8 +10784,9 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     async removeTaskFromSprint(taskId) {
+      if (!sb) return;
       try {
-        await this.supabase.from('god_tasks').update({ sprint_id: null }).eq('id', taskId);
+        await sb.from('god_tasks').update({ sprint_id: null }).eq('id', taskId);
         this.sprintTasks = this.sprintTasks.filter(t => t.id !== taskId);
         this.toast?.('Task removida do sprint');
       } catch (e) {
