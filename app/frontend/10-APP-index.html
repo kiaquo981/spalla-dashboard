@@ -3705,6 +3705,10 @@
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                   Meu Trabalho
                 </button>
+                <button class="cu-view-tab" :class="{ 'cu-view-tab--active': ui.taskView === 'matrix' }" @click="ui.taskView = 'matrix'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>
+                  Matriz
+                </button>
                 <!-- + Visualizacao -->
                 <button class="cu-view-tab" style="color:#94a3b8;border:none" @click="let n = prompt('Nome da view'); if(n) saveCurrentView(n)">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -3722,6 +3726,11 @@
                   </div>
                 </div>
                 <div class="page-header__actions">
+                  <!-- Activity Timeline (Dragon 22) -->
+                  <button class="btn btn--sm" @click="loadActivityTimeline(); activityTimelineOpen = true" style="display:flex;align-items:center;gap:4px;border-color:#16a34a;color:#16a34a">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    Timeline
+                  </button>
                   <!-- Focus Mode (Dragon 45) -->
                   <button class="btn btn--sm" @click="toggleFocusMode()" :title="focusMode ? 'Sair do Zen' : 'Modo Zen'" style="display:flex;align-items:center;gap:4px;border-color:#7c3aed;color:#7c3aed">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
@@ -4559,6 +4568,67 @@
             </div>
           </div>
 
+          <!-- ACTIVITY TIMELINE MODAL (Dragon 22) -->
+          <div x-show="activityTimelineOpen" x-transition.opacity class="cu-modal-overlay" @click.self="activityTimelineOpen = false">
+            <div @click.stop class="cu-modal-box cu-modal-box--lg">
+              <div class="cu-modal-header">
+                <h3>Timeline de Atividades</h3>
+                <button @click="activityTimelineOpen = false" class="cu-modal-close">&times;</button>
+              </div>
+              <div class="cu-modal-body" style="max-height:70vh;overflow-y:auto">
+                <template x-for="group in activityByDay" :key="group.day">
+                  <div style="margin-bottom:16px">
+                    <div style="font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border,#e8e5de)" x-text="group.day"></div>
+                    <template x-for="a in group.items" :key="a.id">
+                      <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #f5f4f0">
+                        <span class="avatar avatar--sm" :style="'background:' + avatarGradient(a.actor || a.user_name || 'S')" x-text="avatarInitials(a.actor || a.user_name || 'Sistema')" style="width:28px;height:28px;font-size:10px;flex-shrink:0"></span>
+                        <div style="flex:1">
+                          <div style="font-size:12px"><strong x-text="a.actor || a.user_name || 'Sistema'"></strong> <span style="color:#94a3b8" x-text="a.action || 'atualizou'"></span> <span style="color:var(--text-primary)" x-text="a.task_title || a.details?.titulo || ''"></span></div>
+                          <div style="font-size:10px;color:#94a3b8;margin-top:2px" x-text="formatDateFull(a.created_at)"></div>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+                <div x-show="!activityTimeline.length" class="cu-empty">
+                  <p class="cu-empty__desc">Nenhuma atividade registrada</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- PRIORITY MATRIX / EISENHOWER (Dragon 38) -->
+          <div x-show="ui.taskView === 'matrix'" style="display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:12px;padding:8px 0;min-height:400px">
+            <div style="border:2px solid #fee2e2;border-radius:10px;padding:12px;background:#fffbfb">
+              <h4 style="margin:0 0 8px;font-size:12px;color:#dc2626;text-transform:uppercase;letter-spacing:.04em">Urgente + Importante</h4>
+              <template x-for="t in priorityMatrix.urgentImportant.slice(0,8)" :key="t.id">
+                <div style="font-size:11px;padding:4px 0;cursor:pointer;border-bottom:1px solid #fee2e2" @click="openTaskDetail(t.id)" x-text="t.titulo"></div>
+              </template>
+              <span x-show="!priorityMatrix.urgentImportant.length" style="font-size:11px;color:#94a3b8">Nenhuma</span>
+            </div>
+            <div style="border:2px solid #fef3c7;border-radius:10px;padding:12px;background:#fffef7">
+              <h4 style="margin:0 0 8px;font-size:12px;color:#d97706;text-transform:uppercase;letter-spacing:.04em">Importante, Nao Urgente</h4>
+              <template x-for="t in priorityMatrix.notUrgentImportant.slice(0,8)" :key="t.id">
+                <div style="font-size:11px;padding:4px 0;cursor:pointer;border-bottom:1px solid #fef3c7" @click="openTaskDetail(t.id)" x-text="t.titulo"></div>
+              </template>
+              <span x-show="!priorityMatrix.notUrgentImportant.length" style="font-size:11px;color:#94a3b8">Nenhuma</span>
+            </div>
+            <div style="border:2px solid #dbeafe;border-radius:10px;padding:12px;background:#f8faff">
+              <h4 style="margin:0 0 8px;font-size:12px;color:#3b82f6;text-transform:uppercase;letter-spacing:.04em">Urgente, Nao Importante</h4>
+              <template x-for="t in priorityMatrix.urgentNotImportant.slice(0,8)" :key="t.id">
+                <div style="font-size:11px;padding:4px 0;cursor:pointer;border-bottom:1px solid #dbeafe" @click="openTaskDetail(t.id)" x-text="t.titulo"></div>
+              </template>
+              <span x-show="!priorityMatrix.urgentNotImportant.length" style="font-size:11px;color:#94a3b8">Nenhuma</span>
+            </div>
+            <div style="border:2px solid #f1f0ec;border-radius:10px;padding:12px;background:#fafaf8">
+              <h4 style="margin:0 0 8px;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em">Nem Urgente, Nem Importante</h4>
+              <template x-for="t in priorityMatrix.notUrgentNotImportant.slice(0,8)" :key="t.id">
+                <div style="font-size:11px;padding:4px 0;cursor:pointer;border-bottom:1px solid #f1f0ec" @click="openTaskDetail(t.id)" x-text="t.titulo"></div>
+              </template>
+              <span x-show="!priorityMatrix.notUrgentNotImportant.length" style="font-size:11px;color:#94a3b8">Nenhuma</span>
+            </div>
+          </div>
+
           <!-- Task Detail Drawer (ClickUp-style 2-panel) -->
           <!-- ===== AUTOMATIONS PANEL ===== -->
           <div x-show="ui.automationsOpen" x-transition.opacity class="cu-modal-overlay" @click.self="ui.automationsOpen = false">
@@ -4832,6 +4902,10 @@
                       <button x-show="timeTracker.taskId === activeTaskDetail.id" @click="const r = stopTimeTracker(); saveTimeEntry(r.taskId, r.elapsed)" title="Parar timer" style="padding:4px 8px;border-radius:6px;border:none;background:#fee2e2;cursor:pointer;color:#dc2626;font-size:11px;font-weight:600;display:flex;align-items:center;gap:4px">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
                         <span x-text="formatDuration(timeTracker.elapsed)"></span>
+                      </button>
+                      <!-- Watch (Dragon 23) -->
+                      <button @click="toggleWatcher(activeTaskDetail.id)" :title="isWatching(activeTaskDetail.id) ? 'Parar de acompanhar' : 'Acompanhar'" style="padding:6px;border-radius:6px;border:none;background:none;cursor:pointer;transition:background .1s" :style="isWatching(activeTaskDetail.id) ? 'color:#3b82f6' : 'color:#64748b'" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'">
+                        <svg width="14" height="14" viewBox="0 0 24 24" :fill="isWatching(activeTaskDetail.id) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                       </button>
                       <!-- Copy link -->
                       <button @click="copyTaskLink(activeTaskDetail.id)" title="Copiar link" style="padding:6px;border-radius:6px;border:none;background:none;cursor:pointer;color:#64748b;transition:background .1s" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'">
