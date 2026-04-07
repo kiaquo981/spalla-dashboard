@@ -204,6 +204,11 @@ function operon() {
       bulkSelected: {}, // { taskId: true }
       bulkMode: false,
       collapsedGroups: {},
+      fieldsModalOpen: false,
+      fieldsModalTab: 'add', // 'create' | 'add'
+      newFieldName: '',
+      newFieldType: 'text',
+      visibleFieldIds: {}, // { fieldId: true } — which custom fields show as columns
       taskSpaceFilter: 'all', // space_id filter
       taskListFilter: 'all', // list_id filter
       taskSprintFilter: 'all', // sprint_id filter
@@ -1549,9 +1554,24 @@ function operon() {
         for (const item of result) {
           if (item._depth > 0) continue; // Group only top-level
           let key;
-          if (groupBy === 'assignee') key = item.responsavel || 'Sem responsável';
+          if (groupBy === 'assignee') key = item.responsavel || 'Sem responsavel';
           else if (groupBy === 'priority') key = item.prioridade || 'normal';
           else if (groupBy === 'list') key = this.getListName(item.list_id) || 'Sem lista';
+          else if (groupBy === 'mentorado') key = item.mentorado_nome || 'Sem mentorado';
+          else if (groupBy === 'date') {
+            const due = item.data_fim || item.prazo;
+            if (!due) { key = 'sem_data'; }
+            else {
+              const d = new Date(due + 'T00:00:00');
+              const today = new Date(); today.setHours(0,0,0,0);
+              const diff = Math.round((d - today) / 86400000);
+              if (diff < 0) key = 'em_atraso';
+              else if (diff === 0) key = 'hoje';
+              else if (diff === 1) key = 'amanha';
+              else if (diff <= 7) key = d.toLocaleDateString('pt-BR', { weekday: 'long' }).replace(/^\w/, c => c.toUpperCase());
+              else key = 'futuro';
+            }
+          }
           else key = item.status || 'pendente';
           if (!grouped[key]) { grouped[key] = []; groupOrder.push(key); }
           grouped[key].push(item);
@@ -1562,14 +1582,17 @@ function operon() {
         // For status, use a fixed order
         const keys = groupBy === 'status' ? ['pendente', 'em_andamento', 'concluida'].filter(k => grouped[k]) :
                      groupBy === 'priority' ? ['urgente', 'alta', 'normal', 'baixa'].filter(k => grouped[k]) :
+                     groupBy === 'date' ? ['em_atraso', 'hoje', 'amanha'].concat(groupOrder.filter(k => !['em_atraso','hoje','amanha','futuro','sem_data'].includes(k))).concat(['futuro', 'sem_data']).filter(k => grouped[k]) :
                      groupOrder;
         // Add any keys not in the fixed order
         for (const k of groupOrder) { if (!keys.includes(k)) keys.push(k); }
         for (const key of keys) {
           const items = grouped[key] || [];
           if (!items.length) continue;
+          const dateLabels = { em_atraso: 'Em atraso', hoje: 'Hoje', amanha: 'Amanha', futuro: 'Futuro', sem_data: 'Sem data' };
           const label = groupBy === 'status' ? this.statusLabel(key) :
                         groupBy === 'priority' ? this.priorityLabel(key) :
+                        groupBy === 'date' ? (dateLabels[key] || key) :
                         key ? key.charAt(0).toUpperCase() + key.slice(1) : 'Sem responsavel';
           finalResult.push({ id: 'group_' + key, _isGroupHeader: true, _groupLabel: label, _groupKey: key, _groupBy: groupBy, _groupCount: items.length, _depth: 0 });
           for (let idx = 0; idx < items.length; idx++) {
@@ -1598,6 +1621,7 @@ function operon() {
     groupHeaderColor(groupBy, key) {
       if (groupBy === 'status') return { pendente: '#64748b', em_andamento: '#2563eb', concluida: '#16a34a' }[key] || '#64748b';
       if (groupBy === 'priority') return { urgente: '#dc2626', alta: '#ea580c', normal: '#64748b', baixa: '#94a3b8' }[key] || '#64748b';
+      if (groupBy === 'date') return { em_atraso: '#dc2626', hoje: '#d97706', amanha: '#2563eb', futuro: '#64748b', sem_data: '#94a3b8' }[key] || '#8b6f47';
       return '#8b6f47';
     },
 
@@ -1931,6 +1955,7 @@ function operon() {
         this.loadTaskTags(); // non-blocking
         this.loadSpallaMembers(); // non-blocking: popula data.members
         this.loadGodLists();     // non-blocking: popula data.lists + data.sprints
+        this.loadFieldDefs();    // non-blocking: popula data.fieldDefs for custom columns
 
         if (this.auth.authenticated) {
           // Auto-refresh token before it expires (every 45 min)
@@ -7350,6 +7375,41 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     // --- Custom Fields ---
+    // Custom Fields — column helpers
+    visibleCustomFields() {
+      return (this.data.fieldDefs || []).filter(f => this.ui.visibleFieldIds[f.field_id || f.id]);
+    },
+    getTaskFieldValue(task, fieldId) {
+      const cf = task.custom_fields_json || task.custom_fields || [];
+      if (Array.isArray(cf)) {
+        const found = cf.find(f => f.field_id === fieldId);
+        return found?.value?.v ?? '';
+      }
+      return '';
+    },
+    toggleFieldVisibility(fieldId) {
+      this.ui.visibleFieldIds = { ...this.ui.visibleFieldIds, [fieldId]: !this.ui.visibleFieldIds[fieldId] };
+    },
+    async createCustomField() {
+      const name = this.ui.newFieldName?.trim();
+      if (!name) return;
+      const spaceId = this.ui.taskSpaceFilter !== 'all' ? this.ui.taskSpaceFilter : 'global';
+      const scope = spaceId === 'global' ? 'global' : 'space:' + spaceId;
+      try {
+        const { data, error } = await sb.from('god_task_field_defs').insert({
+          name,
+          field_type: this.ui.newFieldType || 'text',
+          scope,
+          sort_order: (this.data.fieldDefs?.length || 0) + 1,
+        }).select().single();
+        if (error) throw error;
+        this.ui.newFieldName = '';
+        this.ui.visibleFieldIds = { ...this.ui.visibleFieldIds, [data.id]: true };
+        await this.loadFieldDefs(this.ui.taskSpaceFilter !== 'all' ? this.ui.taskSpaceFilter : null);
+        this.toast('Campo criado: ' + name, 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
     async loadFieldDefs(spaceId = null, listId = null, taskId = null) {
       if (!sb) return;
       const p_task_id = taskId || '00000000-0000-0000-0000-000000000000';
