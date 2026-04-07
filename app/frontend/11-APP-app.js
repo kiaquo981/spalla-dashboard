@@ -1501,13 +1501,13 @@ function operon() {
         const checklistCount = (task.checklist || []).length;
         const totalChildren = subtaskCount + childTasks.length + checklistCount;
 
-        result.push({ ...task, _depth: 0, _childCount: totalChildren });
+        result.push({ ...task, _depth: 0, _childCount: totalChildren, _currentGroup: 'all', _isGroupLast: false });
 
         if (this.ui.taskExpandedIds[task.id] && totalChildren > 0) {
           // 1) Child tasks (real god_tasks with parent_task_id)
           for (const child of childTasks) {
             const grandchildren = (child.subtasks || []).length + (childTasksByParent[child.id] || []).length;
-            result.push({ ...child, _depth: 1, _childCount: grandchildren, _isChildTask: true, _parentId: task.id });
+            result.push({ ...child, _depth: 1, _childCount: grandchildren, _isChildTask: true, _parentId: task.id, _currentGroup: 'all', _isGroupLast: false });
           }
           // 2) Inline subtasks
           (task.subtasks || []).forEach((sub, idx) => {
@@ -1521,7 +1521,7 @@ function operon() {
               data_inicio: sub.data_inicio || null,
               data_fim: sub.data_fim || null, prazo: sub.data_fim || null,
               tags: [], is_blocked: false, recorrencia: 'nenhuma',
-              _depth: 1, _childCount: 0, _isSubtask: true, _parentId: task.id, _subIdx: idx,
+              _depth: 1, _childCount: 0, _isSubtask: true, _parentId: task.id, _subIdx: idx, _currentGroup: 'all', _isGroupLast: false,
             });
           });
           // 3) Checklist items
@@ -1535,7 +1535,7 @@ function operon() {
               acompanhante: null, mentorado_nome: null,
               data_inicio: null, data_fim: ci.due_date || null, prazo: ci.due_date || null,
               tags: [], is_blocked: false, recorrencia: 'nenhuma',
-              _depth: 1, _childCount: 0, _isChecklist: true, _parentId: task.id, _checkIdx: idx,
+              _depth: 1, _childCount: 0, _isChecklist: true, _parentId: task.id, _checkIdx: idx, _currentGroup: 'all', _isGroupLast: false,
             });
           });
         }
@@ -1584,6 +1584,10 @@ function operon() {
         }
         return finalResult;
       }
+
+      // Mark last top-level item for "+ Adicionar Tarefa" button
+      const topLevel = result.filter(t => t._depth === 0);
+      if (topLevel.length) topLevel[topLevel.length - 1]._isGroupLast = true;
 
       return result;
     },
