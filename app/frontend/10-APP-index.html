@@ -4177,11 +4177,12 @@
                     </div>
                     <!-- Column headers -->
                     <table x-show="t._isGroupHeader && !ui.collapsedGroups?.[t._groupKey]" style="width:100%;border-collapse:collapse;table-layout:fixed">
-                      <colgroup class="cu-list__colgroup"><col><col><col><col><col><col></colgroup>
+                      <colgroup class="cu-list__colgroup"><col><col><col><col><col><col><col></colgroup>
                       <tr style="border-bottom:1px solid var(--border)">
                         <th></th>
                         <th class="cu-list__th">Nome</th>
                         <th class="cu-list__th">Responsavel</th>
+                        <th class="cu-list__th">Data inicio</th>
                         <th class="cu-list__th">Data de vencimento</th>
                         <th class="cu-list__th">Prioridade</th>
                         <template x-for="cf in visibleCustomFields()" :key="cf.field_id || cf.id">
@@ -4198,7 +4199,7 @@
                     <!-- Task Row -->
                     <table x-show="!t._isGroupHeader && !ui.collapsedGroups?.[t._currentGroup]" style="width:100%;border-collapse:collapse;table-layout:fixed"
                            :data-task-id="t.id" @contextmenu="showContextMenu($event, t._parentId || t.id)" @click="openTaskDetail(t._parentId || t.id)">
-                      <colgroup class="cu-list__colgroup"><col><col><col><col><col><col></colgroup>
+                      <colgroup class="cu-list__colgroup"><col><col><col><col><col><col><col></colgroup>
                       <tr class="cu-list__row" :class="{ 'cu-list__row--done': t.status === 'concluida' }">
                         <td class="cu-list__td" @click.stop>
                           <input type="checkbox" :checked="t.status === 'concluida'" @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"
@@ -4239,6 +4240,13 @@
                               <option value="">+</option>
                               <template x-for="m in data.members || []" :key="m.id"><option :value="m.nome_curto || m.name" x-text="m.nome_curto || m.name"></option></template>
                             </select>
+                          </div>
+                        </td>
+                        <!-- Start date (inline edit) -->
+                        <td class="cu-list__td cu-list__td--editable" @click.stop>
+                          <div style="display:flex;align-items:center;gap:4px">
+                            <span style="font-size:11px;color:#64748b" x-text="t.data_inicio ? new Date(t.data_inicio).toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}) : '-'"></span>
+                            <input type="date" :value="(t.data_inicio || '').slice(0,10)" @change="updateTaskField(t.id, 'data_inicio', $event.target.value)" class="cu-list__inline-date">
                           </div>
                         </td>
                         <!-- Due date (inline edit) -->
@@ -4778,75 +4786,189 @@
           </div>
 
           <!-- ===== CUSTOM FIELDS MODAL (CU-02.3) ===== -->
-          <div x-show="ui.fieldsModalOpen" x-cloak x-transition.opacity style="position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center" @click.self="ui.fieldsModalOpen = false">
-            <div @click.stop class="cu-modal-box cu-modal-box--sm" style="width:400px">
+          <div x-show="ui.fieldsModalOpen" x-cloak x-transition.opacity style="position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center" @click.self="ui.fieldsModalOpen = false"
+               x-data="{ fieldSearch: '' }">
+            <div @click.stop style="background:#fff;border-radius:12px;width:340px;max-height:85vh;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.2);display:flex;flex-direction:column">
               <!-- Header -->
-              <div class="cu-modal-header">
-                <h3>Campos</h3>
-                <button @click="ui.fieldsModalOpen = false" class="cu-modal-close">&times;</button>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px 0">
+                <h3 style="margin:0;font-size:15px;font-weight:700">Campos</h3>
+                <button @click="ui.fieldsModalOpen = false" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:18px;padding:2px 6px;border-radius:4px" @mouseenter="$el.style.background='#f1f5f9'" @mouseleave="$el.style.background='none'">&times;</button>
               </div>
               <!-- Search -->
-              <div style="padding:12px 20px 8px">
-                <input type="text" placeholder="Pesquise campos novos ou existentes" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box" @focus="$el.style.borderColor='#8a7d52'" @blur="$el.style.borderColor='#e2e8f0'">
+              <div style="padding:10px 18px 8px">
+                <input type="text" x-model="fieldSearch" placeholder="Pesquise campos novos ou existentes" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box" @focus="$el.style.borderColor='#8a7d52'" @blur="$el.style.borderColor='#e2e8f0'">
               </div>
               <!-- Tabs -->
-              <div style="display:flex;gap:0;padding:0 20px;border-bottom:1px solid #e8e5de">
-                <button @click="ui.fieldsModalTab = 'create'" style="padding:8px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent"
+              <div style="display:flex;gap:0;padding:0 18px;border-bottom:1px solid #e8e5de">
+                <button @click="ui.fieldsModalTab = 'create'" style="padding:8px 14px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent"
                         :style="ui.fieldsModalTab === 'create' ? 'border-color:#1e293b;color:#1e293b' : 'color:#94a3b8'">Criar novo</button>
-                <button @click="ui.fieldsModalTab = 'add'" style="padding:8px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent"
+                <button @click="ui.fieldsModalTab = 'add'" style="padding:8px 14px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent"
                         :style="ui.fieldsModalTab === 'add' ? 'border-color:#1e293b;color:#1e293b' : 'color:#94a3b8'">Adicionar um existente</button>
               </div>
-              <!-- Tab: Create New -->
-              <div x-show="ui.fieldsModalTab === 'create'" style="padding:12px 20px 20px">
-                <div style="margin-bottom:12px">
-                  <input type="text" x-model="ui.newFieldName" placeholder="Nome do campo" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box;margin-bottom:8px">
-                  <select x-model="ui.newFieldType" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box">
-                    <option value="text">Texto</option>
-                    <option value="number">Numero</option>
-                    <option value="date">Data</option>
-                    <option value="select">Lista suspensa</option>
-                    <option value="multi_select">Rotulos (multi-select)</option>
-                    <option value="checkbox">Caixa de selecao</option>
-                    <option value="url">Site / URL</option>
-                    <option value="rating">Avaliacao</option>
-                    <option value="progress">Progresso (manual)</option>
-                    <option value="user">Pessoas</option>
-                  </select>
-                </div>
-                <button @click="createCustomField()" class="btn btn--brand btn--sm" style="width:100%" :disabled="!ui.newFieldName?.trim()">Criar campo</button>
-                <div style="margin-top:16px;font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Sugeridos</div>
-                <div style="display:flex;flex-direction:column;gap:4px">
-                  <template x-for="s in [{n:'Objetivo do Sprint',t:'text',i:'🎯'},{n:'Feedback do Cliente',t:'text',i:'💬'},{n:'Data de Revisao',t:'date',i:'📅'},{n:'Esforco',t:'select',i:'💪'},{n:'Hub Task ID',t:'text',i:'🔗'}]" :key="s.n">
-                    <button @click="ui.newFieldName = s.n; ui.newFieldType = s.t" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:none;background:none;cursor:pointer;border-radius:6px;font-size:13px;text-align:left;width:100%"
-                            @mouseenter="$el.style.background='#f8f7f4'" @mouseleave="$el.style.background='none'">
-                      <span x-text="s.i"></span>
-                      <span x-text="s.n"></span>
-                    </button>
-                  </template>
-                </div>
+
+              <!-- ===== TAB: CRIAR NOVO (ClickUp-style categories with SVG icons) ===== -->
+              <div x-show="ui.fieldsModalTab === 'create'" style="overflow-y:auto;max-height:calc(85vh - 140px);padding:8px 18px 16px">
+                <!-- Sugerido -->
+                <div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;padding:10px 0 6px">Sugerido</div>
+                <template x-for="s in [
+                  {n:'Objetivo da Sprint',t:'text',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#7c3aed&quot; stroke-width=&quot;2&quot;><path d=&quot;M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z&quot;/><path d=&quot;M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12z&quot;/><path d=&quot;M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z&quot;/></svg>'},
+                  {n:'Tarefas Pendentes',t:'text',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#7c3aed&quot; stroke-width=&quot;2&quot;><path d=&quot;M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z&quot;/><polyline points=&quot;14 2 14 8 20 8&quot;/></svg>'},
+                  {n:'Feedback do Cliente',t:'text',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#7c3aed&quot; stroke-width=&quot;2&quot;><path d=&quot;M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z&quot;/></svg>'},
+                  {n:'Data de Revisao',t:'date',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#64748b&quot; stroke-width=&quot;2&quot;><rect x=&quot;3&quot; y=&quot;4&quot; width=&quot;18&quot; height=&quot;18&quot; rx=&quot;2&quot;/><line x1=&quot;16&quot; y1=&quot;2&quot; x2=&quot;16&quot; y2=&quot;6&quot;/><line x1=&quot;8&quot; y1=&quot;2&quot; x2=&quot;8&quot; y2=&quot;6&quot;/><line x1=&quot;3&quot; y1=&quot;10&quot; x2=&quot;21&quot; y2=&quot;10&quot;/></svg>'}
+                ]" :key="s.n">
+                  <button @click="ui.newFieldName = s.n; ui.newFieldType = s.t; createCustomField()" x-show="!fieldSearch || s.n.toLowerCase().includes(fieldSearch.toLowerCase())"
+                          style="display:flex;align-items:center;gap:10px;padding:8px 8px;border:none;background:none;cursor:pointer;border-radius:6px;font-size:13px;text-align:left;width:100%;color:#1e293b"
+                          @mouseenter="$el.style.background='#f8f7f4'" @mouseleave="$el.style.background='none'">
+                    <span x-html="s.icon"></span>
+                    <span x-text="s.n"></span>
+                  </button>
+                </template>
+
+                <!-- Campos de IA -->
+                <div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;padding:14px 0 6px">Campos de IA</div>
+                <template x-for="s in [
+                  {n:'Resumo',t:'text',color:'#7c3aed'},
+                  {n:'Texto personalizado',t:'text',color:'#7c3aed'},
+                  {n:'Menu suspenso personalizado',t:'select',color:'#7c3aed'}
+                ]" :key="s.n">
+                  <button @click="ui.newFieldName = s.n; ui.newFieldType = s.t; createCustomField()" x-show="!fieldSearch || s.n.toLowerCase().includes(fieldSearch.toLowerCase())"
+                          style="display:flex;align-items:center;gap:10px;padding:8px 8px;border:none;background:none;cursor:pointer;border-radius:6px;font-size:13px;text-align:left;width:100%;color:#1e293b"
+                          @mouseenter="$el.style.background='#f8f7f4'" @mouseleave="$el.style.background='none'">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" :stroke="s.color" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M9 12l2 2 4-4"/></svg>
+                    <span x-text="s.n"></span>
+                  </button>
+                </template>
+
+                <!-- Todos -->
+                <div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;padding:14px 0 6px">Todos</div>
+                <template x-for="s in [
+                  {n:'Lista suspensa',t:'select',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#6366f1&quot; stroke-width=&quot;2&quot;><rect x=&quot;3&quot; y=&quot;3&quot; width=&quot;18&quot; height=&quot;18&quot; rx=&quot;2&quot;/><polyline points=&quot;9 11 12 14 15 11&quot;/></svg>'},
+                  {n:'Area de texto (texto longo)',t:'text',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#64748b&quot; stroke-width=&quot;2&quot;><line x1=&quot;3&quot; y1=&quot;6&quot; x2=&quot;21&quot; y2=&quot;6&quot;/><line x1=&quot;3&quot; y1=&quot;12&quot; x2=&quot;15&quot; y2=&quot;12&quot;/><line x1=&quot;3&quot; y1=&quot;18&quot; x2=&quot;18&quot; y2=&quot;18&quot;/></svg>'},
+                  {n:'Numero',t:'number',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#3b82f6&quot; stroke-width=&quot;2.5&quot;><text x=&quot;6&quot; y=&quot;18&quot; font-size=&quot;16&quot; font-weight=&quot;700&quot; fill=&quot;#3b82f6&quot; stroke=&quot;none&quot;>#</text></svg>'},
+                  {n:'Rotulos',t:'multi_select',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#f59e0b&quot; stroke-width=&quot;2&quot;><path d=&quot;M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z&quot;/><line x1=&quot;7&quot; y1=&quot;7&quot; x2=&quot;7.01&quot; y2=&quot;7&quot;/></svg>'},
+                  {n:'Caixa de selecao',t:'checkbox',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#6366f1&quot; stroke-width=&quot;2&quot;><rect x=&quot;3&quot; y=&quot;3&quot; width=&quot;18&quot; height=&quot;18&quot; rx=&quot;2&quot;/><polyline points=&quot;9 11 12 14 22 4&quot;/></svg>'},
+                  {n:'Dinheiro',t:'number',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#16a34a&quot; stroke-width=&quot;2&quot;><line x1=&quot;12&quot; y1=&quot;1&quot; x2=&quot;12&quot; y2=&quot;23&quot;/><path d=&quot;M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6&quot;/></svg>'},
+                  {n:'Site / URL',t:'url',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#dc2626&quot; stroke-width=&quot;2&quot;><circle cx=&quot;12&quot; cy=&quot;12&quot; r=&quot;10&quot;/><line x1=&quot;2&quot; y1=&quot;12&quot; x2=&quot;22&quot; y2=&quot;12&quot;/><path d=&quot;M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z&quot;/></svg>'},
+                  {n:'Formula',t:'text',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#475569&quot; stroke-width=&quot;2&quot;><path d=&quot;M4 20h4l10-12L14 4 4 16v4z&quot;/><line x1=&quot;14&quot; y1=&quot;4&quot; x2=&quot;18&quot; y2=&quot;8&quot;/></svg>'},
+                  {n:'Progresso (manual)',t:'progress',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#f59e0b&quot; stroke-width=&quot;2&quot;><circle cx=&quot;12&quot; cy=&quot;12&quot; r=&quot;10&quot;/><path d=&quot;M12 6v6l4 2&quot;/></svg>'},
+                  {n:'Avaliacao',t:'rating',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#f59e0b&quot; stroke-width=&quot;2&quot;><polygon points=&quot;12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2&quot;/></svg>'},
+                  {n:'Votacao',t:'rating',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#6366f1&quot; stroke-width=&quot;2&quot;><path d=&quot;M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z&quot;/><path d=&quot;M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3&quot;/></svg>'},
+                  {n:'Sentimento',t:'select',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#6366f1&quot; stroke-width=&quot;2&quot;><circle cx=&quot;12&quot; cy=&quot;12&quot; r=&quot;10&quot;/><path d=&quot;M8 14s1.5 2 4 2 4-2 4-2&quot;/><line x1=&quot;9&quot; y1=&quot;9&quot; x2=&quot;9.01&quot; y2=&quot;9&quot;/><line x1=&quot;15&quot; y1=&quot;9&quot; x2=&quot;15.01&quot; y2=&quot;9&quot;/></svg>'},
+                  {n:'Localizacao',t:'text',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#dc2626&quot; stroke-width=&quot;2&quot;><path d=&quot;M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z&quot;/><circle cx=&quot;12&quot; cy=&quot;10&quot; r=&quot;3&quot;/></svg>'},
+                  {n:'Assinatura',t:'text',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#16a34a&quot; stroke-width=&quot;2&quot;><path d=&quot;M4 20h4l10-12L14 4 4 16v4z&quot;/></svg>'},
+                  {n:'Itens de acao',t:'text',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#7c3aed&quot; stroke-width=&quot;2&quot;><path d=&quot;M9 11l3 3L22 4&quot;/><path d=&quot;M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11&quot;/></svg>'},
+                  {n:'Relacionamento',t:'text',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#64748b&quot; stroke-width=&quot;2&quot;><path d=&quot;M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71&quot;/><path d=&quot;M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71&quot;/></svg>'},
+                  {n:'Arquivos',t:'url',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#6366f1&quot; stroke-width=&quot;2&quot;><path d=&quot;M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48&quot;/></svg>'},
+                  {n:'Tamanho da camiseta',t:'select',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#f59e0b&quot; stroke-width=&quot;2&quot;><rect x=&quot;3&quot; y=&quot;3&quot; width=&quot;18&quot; height=&quot;18&quot; rx=&quot;2&quot;/><text x=&quot;7&quot; y=&quot;17&quot; font-size=&quot;12&quot; fill=&quot;#f59e0b&quot; stroke=&quot;none&quot; font-weight=&quot;700&quot;>XL</text></svg>'},
+                  {n:'Pessoas',t:'user',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#64748b&quot; stroke-width=&quot;2&quot;><path d=&quot;M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2&quot;/><circle cx=&quot;12&quot; cy=&quot;7&quot; r=&quot;4&quot;/></svg>'},
+                  {n:'Botao',t:'url',icon:'<svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;#64748b&quot; stroke-width=&quot;2&quot;><rect x=&quot;3&quot; y=&quot;8&quot; width=&quot;18&quot; height=&quot;8&quot; rx=&quot;4&quot;/></svg>'}
+                ]" :key="s.n">
+                  <button @click="ui.newFieldName = s.n; ui.newFieldType = s.t; createCustomField()" x-show="!fieldSearch || s.n.toLowerCase().includes(fieldSearch.toLowerCase())"
+                          style="display:flex;align-items:center;gap:10px;padding:8px 8px;border:none;background:none;cursor:pointer;border-radius:6px;font-size:13px;text-align:left;width:100%;color:#1e293b"
+                          @mouseenter="$el.style.background='#f8f7f4'" @mouseleave="$el.style.background='none'">
+                    <span x-html="s.icon"></span>
+                    <span x-text="s.n"></span>
+                  </button>
+                </template>
               </div>
-              <!-- Tab: Add Existing (show/hide toggle) -->
-              <div x-show="ui.fieldsModalTab === 'add'" style="padding:12px 20px 20px">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-                  <span style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase">Mostrados</span>
-                  <button @click="data.fieldDefs.forEach(f => { ui.visibleFieldIds = {...ui.visibleFieldIds, [f.field_id || f.id]: false} })" style="font-size:11px;color:#94a3b8;background:none;border:none;cursor:pointer">Ocultar tudo</button>
+
+              <!-- ===== TAB: ADICIONAR EXISTENTE (native + custom fields with toggle) ===== -->
+              <div x-show="ui.fieldsModalTab === 'add'" style="overflow-y:auto;max-height:calc(85vh - 140px);padding:8px 18px 16px">
+                <!-- Mostrados -->
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0">
+                  <span style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em">Mostrados</span>
+                  <button @click="Object.keys(ui.nativeFieldsVisible).forEach(k => ui.nativeFieldsVisible[k] = false); data.fieldDefs?.forEach(f => { ui.visibleFieldIds = {...ui.visibleFieldIds, [f.field_id || f.id]: false} })" style="font-size:11px;color:#6366f1;background:none;border:none;cursor:pointer;font-weight:500">Ocultar tudo</button>
                 </div>
-                <div style="display:flex;flex-direction:column;gap:2px">
-                  <template x-for="f in (data.fieldDefs || [])" :key="f.field_id || f.id">
-                    <label style="display:flex;align-items:center;justify-content:space-between;padding:8px 4px;cursor:pointer;border-radius:6px"
-                           @mouseenter="$el.style.background='#f8f7f4'" @mouseleave="$el.style.background='none'">
-                      <div style="display:flex;align-items:center;gap:8px;font-size:13px">
-                        <span style="font-size:14px" x-text="{'text':'Aa','number':'#','date':'📅','select':'📋','multi_select':'🏷','checkbox':'☑','url':'🔗','rating':'⭐','progress':'📊','user':'👤'}[f.field_type] || '📝'"></span>
-                        <span x-text="f.field_name || f.name"></span>
-                      </div>
-                      <div style="position:relative;width:36px;height:20px;cursor:pointer" @click="toggleFieldVisibility(f.field_id || f.id)">
-                        <div style="width:36px;height:20px;border-radius:10px;transition:background .2s" :style="ui.visibleFieldIds[f.field_id || f.id] ? 'background:#6366f1' : 'background:#d1d5db'"></div>
-                        <div style="position:absolute;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .2s" :style="ui.visibleFieldIds[f.field_id || f.id] ? 'left:18px' : 'left:2px'"></div>
-                      </div>
-                    </label>
-                  </template>
-                  <div x-show="!(data.fieldDefs || []).length" style="text-align:center;padding:20px;color:#94a3b8;font-size:13px">Nenhum campo criado ainda</div>
+                <!-- Native fields (always available) -->
+                <template x-for="nf in [
+                  {key:'nome',label:'Nome da tarefa',icon:'Aa',on:true},
+                  {key:'sprints',label:'Sprints',icon:'⟳',on:true},
+                  {key:'responsavel',label:'Responsavel',icon:'👤',on:true},
+                  {key:'data_fim',label:'Data de vencimento',icon:'📅',on:true},
+                  {key:'prioridade',label:'Prioridade',icon:'🚩',on:true},
+                  {key:'points',label:'Pontos do Sprint',icon:'⊕',on:true},
+                  {key:'status',label:'Status',icon:'◉',on:true}
+                ].filter(f => ui.nativeFieldsVisible?.[f.key] !== false)" :key="nf.key">
+                  <label x-show="!fieldSearch || nf.label.toLowerCase().includes(fieldSearch.toLowerCase())"
+                         style="display:flex;align-items:center;justify-content:space-between;padding:7px 4px;cursor:pointer;border-radius:6px"
+                         @mouseenter="$el.style.background='#f8f7f4'" @mouseleave="$el.style.background='none'">
+                    <div style="display:flex;align-items:center;gap:8px;font-size:13px">
+                      <span style="font-size:13px;width:18px;text-align:center;color:#64748b" x-text="nf.icon"></span>
+                      <span x-text="nf.label"></span>
+                    </div>
+                    <div style="position:relative;width:36px;height:20px" @click="ui.nativeFieldsVisible = {...(ui.nativeFieldsVisible||{}), [nf.key]: !(ui.nativeFieldsVisible?.[nf.key] !== false)}">
+                      <div style="width:36px;height:20px;border-radius:10px;transition:background .2s" :style="ui.nativeFieldsVisible?.[nf.key] !== false ? 'background:#6366f1' : 'background:#d1d5db'"></div>
+                      <div style="position:absolute;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .2s" :style="ui.nativeFieldsVisible?.[nf.key] !== false ? 'left:18px' : 'left:2px'"></div>
+                    </div>
+                  </label>
+                </template>
+                <!-- Custom fields (created) shown -->
+                <template x-for="f in (data.fieldDefs || []).filter(f => ui.visibleFieldIds[f.field_id || f.id])" :key="f.field_id || f.id">
+                  <label x-show="!fieldSearch || (f.field_name||f.name||'').toLowerCase().includes(fieldSearch.toLowerCase())"
+                         style="display:flex;align-items:center;justify-content:space-between;padding:7px 4px;cursor:pointer;border-radius:6px"
+                         @mouseenter="$el.style.background='#f8f7f4'" @mouseleave="$el.style.background='none'">
+                    <div style="display:flex;align-items:center;gap:8px;font-size:13px">
+                      <span style="font-size:13px;width:18px;text-align:center" x-text="{'text':'Aa','number':'#','date':'📅','select':'📋','multi_select':'🏷','checkbox':'☑','url':'🔗','rating':'⭐','progress':'📊','user':'👤'}[f.field_type] || '📝'"></span>
+                      <span x-text="f.field_name || f.name"></span>
+                    </div>
+                    <div style="position:relative;width:36px;height:20px" @click="toggleFieldVisibility(f.field_id || f.id)">
+                      <div style="width:36px;height:20px;border-radius:10px;background:#6366f1"></div>
+                      <div style="position:absolute;top:2px;left:18px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
+                    </div>
+                  </label>
+                </template>
+
+                <!-- Oculto -->
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0 6px">
+                  <span style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em">Oculto</span>
                 </div>
+                <!-- Native fields hidden -->
+                <template x-for="nf in [
+                  {key:'comentarios',label:'Comentarios',icon:'💬'},
+                  {key:'comentarios_atribuidos',label:'Comentarios atribuidos',icon:'📌'},
+                  {key:'data_criada',label:'Data criada',icon:'📅'},
+                  {key:'data_atualizacao',label:'Data de atualizacao',icon:'📅'},
+                  {key:'data_conclusao',label:'Data de conclusao',icon:'📅'},
+                  {key:'data_inicio',label:'Data inicial',icon:'📅'},
+                  {key:'dependencias',label:'Dependencias',icon:'🔗'},
+                  {key:'docs_vinculados',label:'Documentos vinculados',icon:'📎'},
+                  {key:'time_estimate',label:'Estimativa de tempo',icon:'⏱'},
+                  {key:'id_tarefa',label:'ID da tarefa',icon:'🔑'},
+                  {key:'listas',label:'Listas',icon:'☰'},
+                  {key:'tarefas_vinculadas',label:'Tarefas vinculadas',icon:'✓'},
+                  {key:'time_spent',label:'Tempo rastreado',icon:'⏱'},
+                  {key:'tipo',label:'Tipo de tarefa',icon:'⊕'},
+                  {key:'ultimos_comentarios',label:'Ultimos comentarios',icon:'💬'}
+                ].filter(f => ui.nativeFieldsVisible?.[f.key] === false || !ui.nativeFieldsVisible?.hasOwnProperty?.(f.key))" :key="nf.key">
+                  <label x-show="!fieldSearch || nf.label.toLowerCase().includes(fieldSearch.toLowerCase())"
+                         style="display:flex;align-items:center;justify-content:space-between;padding:7px 4px;cursor:pointer;border-radius:6px"
+                         @mouseenter="$el.style.background='#f8f7f4'" @mouseleave="$el.style.background='none'">
+                    <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#94a3b8">
+                      <span style="font-size:13px;width:18px;text-align:center" x-text="nf.icon"></span>
+                      <span x-text="nf.label"></span>
+                    </div>
+                    <div style="position:relative;width:36px;height:20px" @click="ui.nativeFieldsVisible = {...(ui.nativeFieldsVisible||{}), [nf.key]: true}">
+                      <div style="width:36px;height:20px;border-radius:10px;background:#d1d5db"></div>
+                      <div style="position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
+                    </div>
+                  </label>
+                </template>
+                <!-- Custom fields hidden -->
+                <template x-for="f in (data.fieldDefs || []).filter(f => !ui.visibleFieldIds[f.field_id || f.id])" :key="'h-' + (f.field_id || f.id)">
+                  <label x-show="!fieldSearch || (f.field_name||f.name||'').toLowerCase().includes(fieldSearch.toLowerCase())"
+                         style="display:flex;align-items:center;justify-content:space-between;padding:7px 4px;cursor:pointer;border-radius:6px"
+                         @mouseenter="$el.style.background='#f8f7f4'" @mouseleave="$el.style.background='none'">
+                    <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#94a3b8">
+                      <span style="font-size:13px;width:18px;text-align:center" x-text="{'text':'Aa','number':'#','date':'📅','select':'📋','multi_select':'🏷','checkbox':'☑','url':'🔗','rating':'⭐','progress':'📊','user':'👤'}[f.field_type] || '📝'"></span>
+                      <span x-text="f.field_name || f.name"></span>
+                    </div>
+                    <div style="position:relative;width:36px;height:20px" @click="toggleFieldVisibility(f.field_id || f.id)">
+                      <div style="width:36px;height:20px;border-radius:10px;background:#d1d5db"></div>
+                      <div style="position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div>
+                    </div>
+                  </label>
+                </template>
+                <div x-show="!(data.fieldDefs || []).length && !Object.keys(ui.nativeFieldsVisible || {}).some(k => ui.nativeFieldsVisible[k] === false)" style="text-align:center;padding:12px;color:#94a3b8;font-size:12px">Todos os campos estao visiveis</div>
               </div>
             </div>
           </div>
