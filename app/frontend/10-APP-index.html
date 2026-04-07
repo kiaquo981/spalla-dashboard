@@ -11683,7 +11683,9 @@
   </template>
 
   <!-- COMMAND PALETTE (Dragon 25) — Cmd+K -->
-  <div x-show="cmdPalette" x-cloak x-transition.opacity class="cu-modal-overlay" style="display:none;z-index:9999;background:rgba(0,0,0,.5)" @click.self="cmdPalette = false">
+  <div x-show="cmdPalette" x-cloak x-transition.opacity
+       style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center"
+       @click.self="cmdPalette = false">
     <div @click.stop class="cu-cmd-palette">
       <div class="cu-cmd-palette__input-wrap">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
