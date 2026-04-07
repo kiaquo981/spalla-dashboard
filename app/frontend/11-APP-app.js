@@ -203,6 +203,7 @@ function operon() {
       calMonth: new Date().getMonth(),
       bulkSelected: {}, // { taskId: true }
       bulkMode: false,
+      collapsedGroups: {},
       taskSpaceFilter: 'all', // space_id filter
       taskListFilter: 'all', // list_id filter
       taskSprintFilter: 'all', // sprint_id filter
@@ -1571,10 +1572,13 @@ function operon() {
                         groupBy === 'priority' ? this.priorityLabel(key) :
                         key ? key.charAt(0).toUpperCase() + key.slice(1) : 'Sem responsavel';
           finalResult.push({ id: 'group_' + key, _isGroupHeader: true, _groupLabel: label, _groupKey: key, _groupBy: groupBy, _groupCount: items.length, _depth: 0 });
-          for (const item of items) {
+          for (let idx = 0; idx < items.length; idx++) {
+            const item = items[idx];
+            item._currentGroup = key;
+            item._isGroupLast = (idx === items.length - 1);
             finalResult.push(item);
             for (const child of childItems) {
-              if (child._parentId === item.id) finalResult.push(child);
+              if (child._parentId === item.id) { child._currentGroup = key; finalResult.push(child); }
             }
           }
         }
@@ -12755,6 +12759,21 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     relativeTime(dateStr) { return this.timeAgo(dateStr); },
+
+    relativeDueDate(dateStr) {
+      if (!dateStr) return '';
+      const d = this._parseDate(dateStr);
+      if (!d) return dateStr;
+      const today = new Date(); today.setHours(0,0,0,0);
+      const target = new Date(d); target.setHours(0,0,0,0);
+      const diff = Math.round((target - today) / 86400000);
+      if (diff === 0) return 'Hoje';
+      if (diff === 1) return 'Amanha';
+      if (diff === -1) return 'Ontem';
+      if (diff < -1) return Math.abs(diff) + ' dias atras';
+      if (diff <= 7) return target.toLocaleDateString('pt-BR', { weekday: 'short' });
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    },
 
     timeAgo(dateStr) {
       if (!dateStr) return '-';
