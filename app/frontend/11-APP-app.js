@@ -453,6 +453,10 @@ function operon() {
     // --- Descarrego page state ---
     descarrego: { menteeId: null, menteeName: '', search: '', dragging: false },
 
+    // --- Meu Trabalho (root-level for Alpine reactivity) ---
+    meuTrabalho: [],
+    meuTrabalhoLoading: false,
+
     // --- Data ---
     data: {
       mentees: [],
@@ -515,8 +519,7 @@ function operon() {
       menteeMessages: [],  // EPIC 1: Chatwoot messages for current mentorado
       menteeContext: [],   // Context Hub: áudios, notas, arquivos para dossiê
       menteeDescarregos: [], // LF-FASE3: pipeline de descarregos (nova entidade)
-      meuTrabalho: [], // LF Modo EU: tarefas filtradas por responsavel = me OR acompanhante
-      meuTrabalhoLoading: false,
+      // meuTrabalho: moved to root level for Alpine reactivity
       teamPerformance: [],
       feedbackList: [],           // TASK-10: god_feedback entries
       // Command Center static data
