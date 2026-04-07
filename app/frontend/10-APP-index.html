@@ -4010,7 +4010,12 @@
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
                             </button>
                             <span class="cu-list__status-dot" :style="'background:' + (t.status==='concluida' ? '#22c55e' : t.status==='em_andamento' ? '#3b82f6' : '#94a3b8')"></span>
-                            <span class="cu-list__title" :class="{ 'cu-list__title--done': t.status==='concluida' }" x-text="t.titulo"></span>
+                            <span class="cu-list__title" :class="{ 'cu-list__title--done': t.status==='concluida' }" x-text="t.titulo"
+                                  contenteditable="true" @click.stop
+                                  @blur="inlineEditTitle(t.id, $el.innerText)"
+                                  @keydown.enter.prevent="$el.blur()"
+                                  @focus="$el.style.background='#fffbeb';$el.style.outline='2px solid #d97706';$el.style.outlineOffset='1px';$el.style.borderRadius='3px'"
+                                  @focusout="$el.style.background='';$el.style.outline='';$el.style.outlineOffset=''"></span>
                             <span x-show="t.descricao" class="cu-list__indicator"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/></svg></span>
                             <span x-show="subtaskProgress(t).total > 0" class="cu-list__indicator cu-list__indicator--subtask">
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
