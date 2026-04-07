@@ -7606,12 +7606,15 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       }
       return cells;
     },
-    calTasksForDate(dateStr) {
+    calAllTasksForDate(dateStr) {
       return this.data.tasks.filter(t => {
         const due = t.data_fim || t.prazo;
         if (!due) return false;
         return due.slice(0, 10) === dateStr;
-      }).slice(0, 5); // max 5 per cell
+      });
+    },
+    calTasksForDate(dateStr) {
+      return this.calAllTasksForDate(dateStr).slice(0, 5);
     },
     async calDropTask(event, dateStr) {
       const taskId = event.dataTransfer?.getData('text/plain');

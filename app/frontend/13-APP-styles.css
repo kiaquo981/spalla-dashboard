@@ -3018,6 +3018,45 @@ img { max-width: 100%; display: block; }
 .cu-list__add-btn:hover { color: var(--brand-500, #8a7d52); }
 
 /* ================================================================
+   CALENDAR VIEW (Story CU-01.5)
+   ================================================================ */
+.cu-cal { padding: 8px 0; }
+.cu-cal__nav { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.cu-cal__nav-btn { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 13px; color: var(--text-primary); transition: border-color .1s; }
+.cu-cal__nav-btn:hover { border-color: var(--brand-400, #8a7d52); }
+.cu-cal__month { margin: 0; font-size: 16px; font-weight: 700; min-width: 180px; text-align: center; }
+.cu-cal__today-btn { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 11px; color: var(--text-secondary); }
+.cu-cal__today-btn:hover { border-color: var(--brand-400, #8a7d52); color: var(--brand-500, #8a7d52); }
+
+/* Weekday headers */
+.cu-cal__weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; margin-bottom: 1px; }
+.cu-cal__weekday { text-align: center; font-size: 11px; font-weight: 600; color: #94a3b8; padding: 6px 0; }
+
+/* Grid */
+.cu-cal__grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: #e8e5de; border-radius: 8px; overflow: hidden; }
+.cu-cal__cell { background: #fff; min-height: 100px; padding: 6px; position: relative; }
+.cu-cal__cell--today { background: #fffbeb; }
+.cu-cal__cell--other { background: #fafaf8; opacity: .45; }
+.cu-cal__day { font-size: 11px; font-weight: 600; margin-bottom: 4px; color: #94a3b8; }
+.cu-cal__day--today { color: #d97706; font-weight: 700; background: #fbbf24; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; }
+
+/* Task pill in calendar cell */
+.cu-cal__task { font-size: 10px; padding: 3px 6px; margin-bottom: 2px; border-radius: 4px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-left: 3px solid; background: #fff; transition: background .1s; }
+.cu-cal__task:hover { background: #f8f7f4; }
+.cu-cal__task--done { background: #f0fdf4; opacity: .7; text-decoration: line-through; }
+.cu-cal__task--urgente { border-color: #dc2626; }
+.cu-cal__task--alta { border-color: #ea580c; }
+.cu-cal__task--normal { border-color: #64748b; }
+.cu-cal__task--baixa { border-color: #d1d5db; }
+.cu-cal__more { font-size: 9px; color: #94a3b8; padding: 2px 0; cursor: pointer; }
+.cu-cal__more:hover { color: var(--brand-500, #8a7d52); }
+
+@media (max-width: 768px) {
+  .cu-cal__cell { min-height: 60px; padding: 3px; }
+  .cu-cal__task { font-size: 9px; padding: 2px 4px; }
+}
+
+/* ================================================================
    GANTT VIEW
    ================================================================ */
 .gantt-view { margin-top: 8px; }

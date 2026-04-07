@@ -4025,37 +4025,32 @@
               </div>
 
               <!-- CALENDAR VIEW -->
-              <div x-show="ui.taskView === 'calendar'" style="padding:8px 0">
-                <!-- Calendar navigation -->
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-                  <div style="display:flex;align-items:center;gap:8px">
-                    <button @click="calNavMonth(-1)" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 8px;cursor:pointer;font-size:13px">&lt;</button>
-                    <h3 style="margin:0;font-size:16px;min-width:180px;text-align:center" x-text="calMonthLabel()"></h3>
-                    <button @click="calNavMonth(1)" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 8px;cursor:pointer;font-size:13px">&gt;</button>
-                    <button @click="ui.calYear = new Date().getFullYear(); ui.calMonth = new Date().getMonth()" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 8px;cursor:pointer;font-size:11px;color:var(--text-secondary)">Hoje</button>
-                  </div>
+              <!-- CALENDAR VIEW v2 — CSS-driven (CU-01.5) -->
+              <div class="cu-cal" x-show="ui.taskView === 'calendar'">
+                <div class="cu-cal__nav">
+                  <button class="cu-cal__nav-btn" @click="calNavMonth(-1)">&lt;</button>
+                  <h3 class="cu-cal__month" x-text="calMonthLabel()"></h3>
+                  <button class="cu-cal__nav-btn" @click="calNavMonth(1)">&gt;</button>
+                  <button class="cu-cal__today-btn" @click="ui.calYear = new Date().getFullYear(); ui.calMonth = new Date().getMonth()">Hoje</button>
                 </div>
-                <!-- Weekday headers -->
-                <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;margin-bottom:1px">
+                <div class="cu-cal__weekdays">
                   <template x-for="d in ['Dom','Seg','Ter','Qua','Qui','Sex','Sab']">
-                    <div style="text-align:center;font-size:11px;font-weight:600;color:var(--text-secondary);padding:6px 0" x-text="d"></div>
+                    <div class="cu-cal__weekday" x-text="d"></div>
                   </template>
                 </div>
-                <!-- Calendar grid -->
-                <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border)">
+                <div class="cu-cal__grid">
                   <template x-for="cell in calCells()" :key="cell.key">
-                    <div style="background:var(--bg-card);min-height:90px;padding:4px;position:relative"
-                         :style="cell.isToday ? 'background:#fffbeb' : (!cell.inMonth ? 'background:var(--bg-subtle);opacity:.5' : '')"
+                    <div class="cu-cal__cell" :class="{ 'cu-cal__cell--today': cell.isToday, 'cu-cal__cell--other': !cell.inMonth }"
                          @dragover.prevent @drop.prevent="calDropTask($event, cell.date)">
-                      <div style="font-size:11px;font-weight:600;margin-bottom:4px;color:var(--text-secondary)" :style="cell.isToday ? 'color:#d97706;font-weight:700' : ''" x-text="cell.day"></div>
+                      <div class="cu-cal__day"><span :class="{ 'cu-cal__day--today': cell.isToday }" x-text="cell.day"></span></div>
                       <template x-for="t in calTasksForDate(cell.date)" :key="t.id">
-                        <div draggable="true" @dragstart="onDragStart($event, t.id)"
-                             @click="openTaskDetail(t.id)"
-                             style="font-size:10px;padding:2px 5px;margin-bottom:2px;border-radius:4px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-left:3px solid"
-                             :style="'border-color:' + (t.prioridade==='urgente' ? '#dc2626' : t.prioridade==='alta' ? '#ea580c' : t.prioridade==='normal' ? '#64748b' : '#94a3b8') + ';background:' + (t.status==='concluida' ? '#f0fdf4' : '#fff')">
-                          <span x-text="t.titulo?.substring(0,30)"></span>
+                        <div class="cu-cal__task" :class="'cu-cal__task--' + (t.prioridade || 'normal') + (t.status === 'concluida' ? ' cu-cal__task--done' : '')"
+                             draggable="true" @dragstart="onDragStart($event, t.id)" @click="openTaskDetail(t.id)">
+                          <span x-text="t.titulo?.substring(0, 28)"></span>
                         </div>
                       </template>
+                      <div x-show="calAllTasksForDate(cell.date).length > 5" class="cu-cal__more"
+                           x-text="'+' + (calAllTasksForDate(cell.date).length - 5) + ' mais'"></div>
                     </div>
                   </template>
                 </div>
