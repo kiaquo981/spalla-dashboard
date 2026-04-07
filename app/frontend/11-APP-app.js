@@ -483,6 +483,7 @@ function operon() {
       taskTags: [],             // god_task_tags — all available tags
       fieldDefs: [],            // applicable god_task_field_defs for current modal
       automations: [],          // god_automations rules
+      savedViews: [],           // god_saved_views
       finDetailLogs: [],        // financial logs for mentee detail tab
       menteeNotes: [],          // notes for current notes drawer
       waSelectedMentees: [],    // IDs selected in bulk mode
@@ -1963,6 +1964,7 @@ function operon() {
         this.loadGodLists();     // non-blocking: popula data.lists + data.sprints
         this.loadFieldDefs();    // non-blocking: popula data.fieldDefs for custom columns
         this.loadAutomations();  // non-blocking: popula data.automations
+        this.loadSavedViews();   // non-blocking: popula data.savedViews
         this._subscribeRealtime(); // Supabase Realtime for live task updates
         this._initKeyboardShortcuts(); // N=new, /=search, Esc=close, Alt+1-4=views
 
@@ -7658,6 +7660,51 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     async updateTaskPoints(taskId, points) {
       const val = parseInt(points) || null;
       await this.updateTaskField(taskId, 'points', val);
+    },
+
+    // ── Saved Views ──
+    async loadSavedViews() {
+      if (!sb) return;
+      try {
+        const { data } = await sb.from('god_saved_views').select('*').order('is_pinned', { ascending: false }).order('name');
+        if (data) this.data.savedViews = data;
+      } catch (e) { console.warn('[Spalla] loadSavedViews:', e.message); }
+    },
+
+    async saveCurrentView(name) {
+      if (!name?.trim() || !sb) return;
+      const config = {
+        groupBy: this.ui.taskGroupBy,
+        spaceFilter: this.ui.taskSpaceFilter,
+        listFilter: this.ui.taskListFilter,
+        sprintFilter: this.ui.taskSprintFilter,
+        visibleFieldIds: this.ui.visibleFieldIds,
+      };
+      try {
+        const { error } = await sb.from('god_saved_views').insert({
+          name, view_type: this.ui.taskView, config,
+          space_id: this.ui.taskSpaceFilter !== 'all' ? this.ui.taskSpaceFilter : null,
+        });
+        if (error) throw error;
+        await this.loadSavedViews();
+        this.toast('View salva: ' + name, 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    applySavedView(view) {
+      this.ui.taskView = view.view_type || 'list';
+      const c = view.config || {};
+      if (c.groupBy) this.ui.taskGroupBy = c.groupBy;
+      if (c.spaceFilter) this.ui.taskSpaceFilter = c.spaceFilter;
+      if (c.listFilter) this.ui.taskListFilter = c.listFilter;
+      if (c.sprintFilter) this.ui.taskSprintFilter = c.sprintFilter;
+      if (c.visibleFieldIds) this.ui.visibleFieldIds = c.visibleFieldIds;
+    },
+
+    async deleteSavedView(id) {
+      if (!confirm('Excluir esta view?')) return;
+      await sb.from('god_saved_views').delete().eq('id', id);
+      this.data.savedViews = (this.data.savedViews || []).filter(v => v.id !== id);
     },
 
     // ── Realtime Subscriptions ──

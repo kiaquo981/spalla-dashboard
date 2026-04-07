@@ -3668,6 +3668,19 @@
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="7" y="10" width="14" height="4" rx="1"/><rect x="5" y="16" width="10" height="4" rx="1"/></svg>
                   Gantt
                 </button>
+                <!-- Saved views -->
+                <template x-for="sv in data.savedViews || []" :key="sv.id">
+                  <button class="cu-view-tab" @click="applySavedView(sv)" :title="'View: ' + sv.name" style="position:relative">
+                    <span x-text="sv.name"></span>
+                    <span @click.stop="deleteSavedView(sv.id)" style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;border-radius:50%;background:#fee2e2;color:#dc2626;font-size:10px;display:none;align-items:center;justify-content:center;cursor:pointer;line-height:1"
+                          @mouseenter="$el.style.display='flex'" @mouseleave="$el.style.display='none'">&times;</span>
+                  </button>
+                </template>
+                <!-- + Visualizacao -->
+                <button class="cu-view-tab" style="color:#94a3b8;border:none" @click="let n = prompt('Nome da view'); if(n) saveCurrentView(n)">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Visualizacao
+                </button>
               </div>
 
               <div class="page-header">
