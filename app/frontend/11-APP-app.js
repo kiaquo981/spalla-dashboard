@@ -9693,6 +9693,26 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.ui.ctxSaveModal = true;
     },
 
+    // Open save-to-context from WA inbox messages
+    openCtxSaveFromWaInbox(msg) {
+      const menteeId = msg.mentorado_id || this.ui.selectedMenteeId;
+      const menteeName = msg.mentorado_nome || this.data.mentees.find(m => m.id === menteeId)?.nome || '';
+      if (!menteeId) { this.toast('Mentorado não identificado para esta mensagem', 'error'); return; }
+      this.ui.ctxSaveData = {
+        menteeId, menteeName,
+        tipo: 'texto',
+        msgText: msg.content_text || msg.conteudo || '',
+        mediaUrl: null,
+        msgId: msg.id || null,
+        chatJid: msg.group_jid || null,
+        sender: msg.sender_name || '',
+        source: 'wa_inbox',
+      };
+      this.ui.ctxSaveDesc = (msg.content_text || msg.conteudo || '').substring(0, 200);
+      this.ui.ctxSavePasta = '';
+      this.ui.ctxSaveModal = true;
+    },
+
     // Confirm save from modal
     async confirmSaveContext() {
       const d = this.ui.ctxSaveData;

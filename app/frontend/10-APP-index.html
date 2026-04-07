@@ -9627,6 +9627,9 @@
                     <!-- Task extraction (S9-C registers openWaTaskExtract) -->
                     <button class="wa-extract-btn" title="Criar tarefa"
                             @click="typeof openWaTaskExtract === 'function' && openWaTaskExtract(msg)">⊕</button>
+                    <!-- Save as active context -->
+                    <button class="wa-extract-btn" title="Salvar na ficha (contexto ativo)"
+                            @click="openCtxSaveFromWaInbox(msg)" style="color:#10b981">📌</button>
                   </div>
                   <span class="wa-msg-time" x-text="_waInboxMsgTime(msg.timestamp)"></span>
                 </div>
@@ -10783,6 +10786,48 @@
     });
   </script>
 
+  <!-- Modal: Salvar mensagem como contexto ativo -->
+  <template x-if="ui.ctxSaveModal">
+    <div class="ds-modal-overlay" @click.self="ui.ctxSaveModal = false" style="z-index:9999">
+      <div class="ds-create-modal" style="max-width:420px">
+        <div class="ds-create-modal__header">
+          <h3 style="font-size:15px">Salvar na ficha</h3>
+          <button class="ds-create-modal__close" @click="ui.ctxSaveModal = false">&times;</button>
+        </div>
+        <div class="ds-create-modal__body" style="display:flex;flex-direction:column;gap:10px">
+          <div>
+            <label class="ds-create-modal__label">Mentorado</label>
+            <div style="font-weight:600;font-size:14px" x-text="ui.ctxSaveData?.menteeName || '-'"></div>
+          </div>
+          <div>
+            <label class="ds-create-modal__label">Mensagem</label>
+            <div style="font-size:12px;background:#f8fafc;padding:8px;border-radius:6px;max-height:100px;overflow-y:auto;color:#475569" x-text="ui.ctxSaveData?.msgText || '[sem texto]'"></div>
+          </div>
+          <div>
+            <label class="ds-create-modal__label">Titulo (opcional)</label>
+            <input type="text" class="ds-input" x-model="ui.ctxSaveDesc" placeholder="Ex: Feedback sobre oferta, Resultado call..." style="font-size:13px">
+          </div>
+          <div>
+            <label class="ds-create-modal__label">Tipo</label>
+            <select class="ds-input" x-model="ui.ctxSaveData.tipo" style="font-size:13px">
+              <option value="texto">Texto</option>
+              <option value="audio">Audio</option>
+              <option value="imagem">Imagem</option>
+              <option value="documento">Documento</option>
+              <option value="link">Link</option>
+            </select>
+          </div>
+        </div>
+        <div class="ds-create-modal__footer">
+          <button class="btn btn--sm" @click="ui.ctxSaveModal = false">Cancelar</button>
+          <button class="btn btn--brand" @click="confirmSaveContext()" :disabled="ui.ctxSaveSaving">
+            <span x-show="!ui.ctxSaveSaving">Salvar na ficha</span>
+            <span x-show="ui.ctxSaveSaving">Salvando...</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </template>
 
 </body>
 </html>
