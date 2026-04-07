@@ -215,7 +215,7 @@ function operon() {
       newFieldName: '',
       newFieldType: 'text',
       visibleFieldIds: {}, // { fieldId: true } — which custom fields show as columns
-      nativeFieldsVisible: { nome: true, sprints: true, responsavel: true, data_fim: true, prioridade: true, points: true, status: true, data_inicio: true }, // native column toggles
+      nativeFieldsVisible: { nome: true, sprints: true, responsavel: true, data_inicio: true, data_fim: true, prioridade: true, points: true, status: true, comentarios: true }, // native column toggles
       collapsedSpaces: {}, // { spaceId: true }
       subtaskExpanded: null, // index of expanded subtask in drawer
       automationsOpen: false,
