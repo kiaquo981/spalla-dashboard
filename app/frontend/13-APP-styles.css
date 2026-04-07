@@ -2971,11 +2971,13 @@ img { max-width: 100%; display: block; }
 .cu-list__group-add:hover { color: var(--brand-500, #8a7d52); }
 
 /* Column headers */
-.cu-list__colgroup col:nth-child(1) { width: 32px; }
-.cu-list__colgroup col:nth-child(3) { width: 120px; }
-.cu-list__colgroup col:nth-child(4) { width: 140px; }
-.cu-list__colgroup col:nth-child(5) { width: 100px; }
-.cu-list__colgroup col:nth-child(6) { width: 32px; }
+.cu-list__colgroup col:nth-child(1) { width: 36px; }  /* checkbox */
+.cu-list__colgroup col:nth-child(3) { width: 120px; } /* responsavel */
+.cu-list__colgroup col:nth-child(4) { width: 110px; } /* data inicio */
+.cu-list__colgroup col:nth-child(5) { width: 110px; } /* data vencimento */
+.cu-list__colgroup col:nth-child(6) { width: 90px; }  /* prioridade */
+.cu-list__colgroup col:nth-child(7) { width: 100px; } /* comentarios */
+.cu-list__colgroup col:nth-child(8) { width: 36px; }  /* + button */
 .cu-list__th { font-size: 10px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: .05em; text-align: left; padding: 4px 8px; }
 
 /* Task row */
