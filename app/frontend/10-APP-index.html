@@ -3988,17 +3988,33 @@
                             <span x-show="(t.tags||[]).length > 3" class="cu-list__indicator" x-text="'+' + ((t.tags||[]).length - 3)"></span>
                           </div>
                         </td>
-                        <td class="cu-list__td" @click.stop>
-                          <span x-show="t.responsavel" class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel)" x-text="avatarInitials(t.responsavel)" style="width:26px;height:26px;font-size:10px"></span>
-                          <span x-show="!t.responsavel" class="cu-list__assign-empty">+</span>
+                        <!-- Responsavel (inline edit) -->
+                        <td class="cu-list__td cu-list__td--editable" @click.stop>
+                          <div style="display:flex;align-items:center;gap:4px">
+                            <span x-show="t.responsavel" class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel)" x-text="avatarInitials(t.responsavel)" style="width:26px;height:26px;font-size:10px"></span>
+                            <select :value="t.responsavel || ''" @change="updateTaskField(t.id, 'responsavel', $event.target.value)" class="cu-list__inline-select">
+                              <option value="">+</option>
+                              <template x-for="m in data.members || []" :key="m.id"><option :value="m.nome_curto || m.name" x-text="m.nome_curto || m.name"></option></template>
+                            </select>
+                          </div>
                         </td>
-                        <td class="cu-list__td cu-list__due" :class="{ 'cu-list__due--overdue': isOverdue(t.data_fim || t.prazo) && t.status !== 'concluida' }"
-                            x-text="relativeDueDate(t.data_fim || t.prazo) || '-'"></td>
-                        <td class="cu-list__td">
-                          <span class="cu-list__prio">
-                            <span class="cu-list__prio-dot" :style="'background:' + (t.prioridade==='urgente' ? '#dc2626' : t.prioridade==='alta' ? '#ea580c' : t.prioridade==='normal' ? '#64748b' : '#d1d5db')"></span>
-                            <span class="cu-list__prio-label" x-text="prioLabel(t.prioridade)"></span>
-                          </span>
+                        <!-- Due date (inline edit) -->
+                        <td class="cu-list__td cu-list__td--editable" @click.stop>
+                          <div style="display:flex;align-items:center;gap:4px">
+                            <span class="cu-list__due" :class="{ 'cu-list__due--overdue': isOverdue(t.data_fim || t.prazo) && t.status !== 'concluida' }"
+                                  x-text="relativeDueDate(t.data_fim || t.prazo) || '-'"></span>
+                            <input type="date" :value="(t.data_fim || t.prazo || '').slice(0,10)" @change="updateTaskField(t.id, 'data_fim', $event.target.value)" class="cu-list__inline-date">
+                          </div>
+                        </td>
+                        <!-- Priority (inline edit) -->
+                        <td class="cu-list__td cu-list__td--editable" @click.stop>
+                          <select :value="t.prioridade || 'normal'" @change="updateTaskField(t.id, 'prioridade', $event.target.value)" class="cu-list__inline-prio"
+                                  :style="'color:' + (t.prioridade==='urgente' ? '#dc2626' : t.prioridade==='alta' ? '#ea580c' : '#64748b')">
+                            <option value="urgente">Urgente</option>
+                            <option value="alta">Alta</option>
+                            <option value="normal">Normal</option>
+                            <option value="baixa">Baixa</option>
+                          </select>
                         </td>
                         <td class="cu-list__td" @click.stop>
                           <button class="cu-list__more" @click="openTaskModal(t)">
