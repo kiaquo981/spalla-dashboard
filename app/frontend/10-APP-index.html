@@ -3684,6 +3684,14 @@
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
                     Por áudio
                   </button>
+                  <button class="btn btn--sm" style="display:flex;align-items:center;gap:4px;border-color:#6366f1;color:#6366f1" @click="ui.automationsOpen = true" title="Automacoes">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                    Automatizar
+                  </button>
+                  <button class="btn btn--sm" style="display:flex;align-items:center;gap:4px;border-color:#d97706;color:#d97706" @click="ui.dashboardOpen = true" title="Dashboard">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                    Paineis
+                  </button>
                   <button class="btn btn--brand" @click="openTaskModal()">+ Nova Tarefa</button>
                 </div>
               </div>
@@ -4165,6 +4173,153 @@
           </div>
 
           <!-- Task Detail Drawer (ClickUp-style 2-panel) -->
+          <!-- ===== AUTOMATIONS PANEL ===== -->
+          <div x-show="ui.automationsOpen" x-transition.opacity style="position:fixed;inset:0;z-index:998;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center" @click.self="ui.automationsOpen = false">
+            <div @click.stop style="background:#fff;border-radius:12px;width:560px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #e8e5de">
+                <h3 style="margin:0;font-size:15px;font-weight:700">Automacoes</h3>
+                <button @click="ui.automationsOpen = false" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:18px">&times;</button>
+              </div>
+              <!-- Existing automations -->
+              <div style="padding:12px 20px">
+                <template x-for="auto in data.automations || []" :key="auto.id">
+                  <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #f1f5f9;border-radius:8px;margin-bottom:6px">
+                    <div style="position:relative;width:36px;height:20px;cursor:pointer;flex-shrink:0" @click="toggleAutomation(auto.id)">
+                      <div style="width:36px;height:20px;border-radius:10px;transition:background .2s" :style="auto.is_active ? 'background:#22c55e' : 'background:#d1d5db'"></div>
+                      <div style="position:absolute;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .2s" :style="auto.is_active ? 'left:18px' : 'left:2px'"></div>
+                    </div>
+                    <div style="flex:1;min-width:0">
+                      <div style="font-size:13px;font-weight:600" x-text="auto.name"></div>
+                      <div style="font-size:11px;color:#94a3b8">
+                        Quando <strong x-text="auto.trigger_type.replace(/_/g,' ')"></strong> → <strong x-text="auto.action_type.replace(/_/g,' ')"></strong>
+                        <span x-show="auto.execution_count" x-text="' (' + auto.execution_count + 'x)'"></span>
+                      </div>
+                    </div>
+                    <button @click="deleteAutomation(auto.id)" style="background:none;border:none;cursor:pointer;color:#d1d5db;padding:4px" @mouseenter="$el.style.color='#dc2626'" @mouseleave="$el.style.color='#d1d5db'">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                  </div>
+                </template>
+                <div x-show="!(data.automations||[]).length" style="text-align:center;padding:20px;color:#94a3b8;font-size:13px">Nenhuma automacao criada</div>
+              </div>
+              <!-- Create new -->
+              <div style="padding:12px 20px 20px;border-top:1px solid #f1f5f9">
+                <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;margin-bottom:8px">Nova automacao</div>
+                <input type="text" x-model="ui.autoForm.name" placeholder="Nome (ex: Auto-assign Kaique)" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;margin-bottom:8px;box-sizing:border-box">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+                  <div>
+                    <label style="font-size:10px;font-weight:600;color:#94a3b8;display:block;margin-bottom:3px">QUANDO</label>
+                    <select x-model="ui.autoForm.trigger_type" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px">
+                      <option value="status_changed">Status mudou</option>
+                      <option value="task_created">Task criada</option>
+                      <option value="assignee_changed">Responsavel mudou</option>
+                      <option value="priority_changed">Prioridade mudou</option>
+                      <option value="due_date_arrived">Data de vencimento chegou</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style="font-size:10px;font-weight:600;color:#94a3b8;display:block;margin-bottom:3px">ENTAO</label>
+                    <select x-model="ui.autoForm.action_type" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px">
+                      <option value="change_status">Mudar status</option>
+                      <option value="change_assignee">Atribuir responsavel</option>
+                      <option value="change_priority">Mudar prioridade</option>
+                      <option value="add_tag">Adicionar tag</option>
+                      <option value="send_notification">Enviar notificacao</option>
+                    </select>
+                  </div>
+                </div>
+                <!-- Action config based on type -->
+                <div style="margin-bottom:8px">
+                  <template x-if="ui.autoForm.action_type === 'change_status'">
+                    <select x-model="ui.autoForm.action_config.status" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px">
+                      <option value="pendente">Para: Pendente</option>
+                      <option value="em_andamento">Para: Em Andamento</option>
+                      <option value="concluida">Para: Concluida</option>
+                    </select>
+                  </template>
+                  <template x-if="ui.autoForm.action_type === 'change_assignee'">
+                    <select x-model="ui.autoForm.action_config.assignee" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px">
+                      <option value="">Selecionar...</option>
+                      <template x-for="m in data.members || []" :key="m.id"><option :value="m.nome_curto || m.name" x-text="m.nome_curto || m.name"></option></template>
+                    </select>
+                  </template>
+                  <template x-if="ui.autoForm.action_type === 'change_priority'">
+                    <select x-model="ui.autoForm.action_config.priority" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px">
+                      <option value="urgente">Para: Urgente</option>
+                      <option value="alta">Para: Alta</option>
+                      <option value="normal">Para: Normal</option>
+                      <option value="baixa">Para: Baixa</option>
+                    </select>
+                  </template>
+                  <template x-if="ui.autoForm.action_type === 'send_notification'">
+                    <input type="text" x-model="ui.autoForm.action_config.message" placeholder="Mensagem da notificacao" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;box-sizing:border-box">
+                  </template>
+                </div>
+                <button @click="saveAutomation({...ui.autoForm}); ui.autoForm = { name: '', trigger_type: 'status_changed', trigger_config: {}, condition_config: {}, action_type: 'change_status', action_config: {} }"
+                        class="btn btn--brand btn--sm" style="width:100%" :disabled="!ui.autoForm.name?.trim()">Criar automacao</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== DASHBOARD MODAL ===== -->
+          <div x-show="ui.dashboardOpen" x-transition.opacity style="position:fixed;inset:0;z-index:998;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center" @click.self="ui.dashboardOpen = false">
+            <div @click.stop style="background:#fff;border-radius:12px;width:700px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #e8e5de">
+                <h3 style="margin:0;font-size:15px;font-weight:700">Dashboard</h3>
+                <button @click="ui.dashboardOpen = false" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:18px">&times;</button>
+              </div>
+              <div style="padding:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
+                <!-- KPI cards -->
+                <div style="padding:16px;background:#f8f7f4;border-radius:10px;text-align:center">
+                  <div style="font-size:28px;font-weight:700" x-text="dashboardStats.total"></div>
+                  <div style="font-size:11px;color:#94a3b8">Total</div>
+                </div>
+                <div style="padding:16px;background:#eff6ff;border-radius:10px;text-align:center">
+                  <div style="font-size:28px;font-weight:700;color:#2563eb" x-text="dashboardStats.inProgress"></div>
+                  <div style="font-size:11px;color:#2563eb">Em progresso</div>
+                </div>
+                <div style="padding:16px;background:#dcfce7;border-radius:10px;text-align:center">
+                  <div style="font-size:28px;font-weight:700;color:#16a34a" x-text="dashboardStats.done"></div>
+                  <div style="font-size:11px;color:#16a34a">Concluidas</div>
+                </div>
+                <div style="padding:16px;background:#fee2e2;border-radius:10px;text-align:center">
+                  <div style="font-size:28px;font-weight:700;color:#dc2626" x-text="dashboardStats.overdue"></div>
+                  <div style="font-size:11px;color:#dc2626">Atrasadas</div>
+                </div>
+                <div style="padding:16px;background:#fef3c7;border-radius:10px;text-align:center">
+                  <div style="font-size:28px;font-weight:700;color:#d97706" x-text="dashboardStats.recentDone"></div>
+                  <div style="font-size:11px;color:#d97706">Concluidas (7 dias)</div>
+                </div>
+              </div>
+              <!-- By assignee -->
+              <div style="padding:0 20px 16px">
+                <h4 style="font-size:13px;font-weight:700;color:#475569;margin:16px 0 8px">Por responsavel (pendentes)</h4>
+                <template x-for="[name, count] in dashboardStats.byAssignee" :key="name">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                    <span class="avatar avatar--sm" :style="'background:' + avatarGradient(name)" x-text="avatarInitials(name)" style="width:24px;height:24px;font-size:9px;flex-shrink:0"></span>
+                    <span style="font-size:12px;flex:1" x-text="name"></span>
+                    <div style="flex:2;height:8px;background:#f1f5f9;border-radius:4px;overflow:hidden">
+                      <div style="height:100%;background:#6366f1;border-radius:4px;transition:width .3s" :style="'width:' + Math.min(100, count / Math.max(...dashboardStats.byAssignee.map(a=>a[1])) * 100) + '%'"></div>
+                    </div>
+                    <span style="font-size:12px;font-weight:600;color:#475569;min-width:30px;text-align:right" x-text="count"></span>
+                  </div>
+                </template>
+              </div>
+              <!-- By priority -->
+              <div style="padding:0 20px 20px">
+                <h4 style="font-size:13px;font-weight:700;color:#475569;margin:0 0 8px">Por prioridade (pendentes)</h4>
+                <div style="display:flex;gap:8px">
+                  <template x-for="[prio, color] in [['urgente','#dc2626'],['alta','#ea580c'],['normal','#64748b'],['baixa','#94a3b8']]" :key="prio">
+                    <div style="flex:1;padding:10px;border-radius:8px;text-align:center" :style="'background:' + color + '11'">
+                      <div style="font-size:20px;font-weight:700" :style="'color:' + color" x-text="dashboardStats.byPriority[prio]"></div>
+                      <div style="font-size:10px;text-transform:capitalize" :style="'color:' + color" x-text="prio"></div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- ===== CUSTOM FIELDS MODAL (CU-02.3) ===== -->
           <div x-show="ui.fieldsModalOpen" x-transition.opacity style="position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center" @click.self="ui.fieldsModalOpen = false">
             <div @click.stop style="background:#fff;border-radius:12px;width:400px;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)">
