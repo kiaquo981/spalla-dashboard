@@ -7768,6 +7768,114 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       };
     },
 
+    // ── Activity Timeline (Dragon 22) ──
+    activityTimeline: [],
+    activityTimelineOpen: false,
+    async loadActivityTimeline() {
+      if (!sb) return;
+      try {
+        const { data, error } = await sb.from('god_task_activity')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(100);
+        if (!error && data) this.activityTimeline = data;
+      } catch (e) { console.warn('[Activity]', e.message); }
+    },
+    get activityByDay() {
+      const groups = {};
+      for (const a of this.activityTimeline) {
+        const day = (a.created_at || '').slice(0, 10);
+        if (!groups[day]) groups[day] = [];
+        groups[day].push(a);
+      }
+      return Object.entries(groups).map(([day, items]) => ({ day, items }));
+    },
+
+    // ── Task Watchers (Dragon 23) ──
+    async toggleWatcher(taskId) {
+      const me = this.auth?.currentUser?.user_metadata?.full_name || this.auth?.currentUser?.email || 'user';
+      const task = this.data.tasks.find(t => t.id === taskId);
+      if (!task) return;
+      const watchers = task.watchers || [];
+      const idx = watchers.indexOf(me);
+      if (idx >= 0) watchers.splice(idx, 1);
+      else watchers.push(me);
+      task.watchers = [...watchers];
+      if (sb) {
+        try {
+          await sb.from('god_tasks').update({ watchers }).eq('id', taskId);
+        } catch (e) { console.warn('[Watch]', e.message); }
+      }
+    },
+    isWatching(taskId) {
+      const me = this.auth?.currentUser?.user_metadata?.full_name || '';
+      const task = this.data.tasks.find(t => t.id === taskId);
+      return (task?.watchers || []).includes(me);
+    },
+
+    // ── Global Search (Dragon 32) ──
+    globalSearchOpen: false,
+    globalSearchQuery: '',
+    get globalSearchResults() {
+      const q = (this.globalSearchQuery || '').toLowerCase().trim();
+      if (!q || q.length < 2) return { tasks: [], mentorados: [], calls: [] };
+      return {
+        tasks: this.data.tasks.filter(t => t.titulo?.toLowerCase().includes(q)).slice(0, 10),
+        mentorados: (this.data.mentorados || []).filter(m => (m.nome || '').toLowerCase().includes(q)).slice(0, 5),
+        calls: (this.data.calls || []).filter(c => (c.titulo || c.assunto || '').toLowerCase().includes(q)).slice(0, 5),
+      };
+    },
+
+    // ── Sprint Velocity (Dragon 37) ──
+    get sprintVelocityData() {
+      const sprints = (this.data.sprints || []).filter(s => s.status === 'encerrado' || s.status === 'ativo');
+      return sprints.map(s => {
+        const tasks = this.data.tasks.filter(t => t.sprint_id === s.id);
+        const done = tasks.filter(t => t.status === 'concluida');
+        return {
+          name: s.nome || 'Sprint',
+          committed: tasks.reduce((sum, t) => sum + (t.points || 1), 0),
+          completed: done.reduce((sum, t) => sum + (t.points || 1), 0),
+          taskCount: tasks.length,
+          doneCount: done.length,
+        };
+      });
+    },
+
+    // ── Priority Matrix / Eisenhower (Dragon 38) ──
+    get priorityMatrix() {
+      const tasks = this.data.tasks.filter(t => t.status !== 'concluida' && t.status !== 'cancelada');
+      const now = new Date();
+      const urgent = t => t.data_fim && new Date(t.data_fim) <= new Date(now.getTime() + 3 * 86400000);
+      return {
+        urgentImportant: tasks.filter(t => urgent(t) && (t.prioridade === 'urgente' || t.prioridade === 'alta')),
+        notUrgentImportant: tasks.filter(t => !urgent(t) && (t.prioridade === 'urgente' || t.prioridade === 'alta')),
+        urgentNotImportant: tasks.filter(t => urgent(t) && t.prioridade !== 'urgente' && t.prioridade !== 'alta'),
+        notUrgentNotImportant: tasks.filter(t => !urgent(t) && t.prioridade !== 'urgente' && t.prioridade !== 'alta'),
+      };
+    },
+
+    // ── Subtask Progress (Dragon 40 — enhanced) ──
+    subtaskProgressBar(task) {
+      const p = this.subtaskProgress(task);
+      if (!p.total) return null;
+      const pct = Math.round(p.done / p.total * 100);
+      return { done: p.done, total: p.total, pct, color: pct === 100 ? '#22c55e' : pct > 50 ? '#3b82f6' : '#d97706' };
+    },
+
+    // ── Task Estimation vs Actual (Dragon 46) ──
+    estimationAccuracy(task) {
+      if (!task.time_estimate || !task.time_spent) return null;
+      const ratio = task.time_spent / task.time_estimate;
+      return {
+        estimated: task.time_estimate,
+        actual: task.time_spent,
+        ratio,
+        label: ratio <= 1 ? 'Dentro' : ratio <= 1.5 ? 'Acima' : 'Muito acima',
+        color: ratio <= 1 ? '#22c55e' : ratio <= 1.5 ? '#d97706' : '#dc2626',
+      };
+    },
+
     // ── Keyboard Navigation in List (Dragon 30) ──
     _listFocusIdx: -1,
     listKeyNav(e) {
