@@ -436,6 +436,11 @@
             <span x-show="ui.sidebarOpen">Dashboard</span>
             <span class="sidebar-alert-badge" role="status" aria-live="polite" aria-atomic="true" x-show="ui.sidebarOpen && criticalAlertCount > 0" x-text="criticalAlertCount" :aria-label="'Alertas críticos: ' + criticalAlertCount"></span>
           </a>
+          <a class="op-nav-item" :class="{ active: ui.page === 'meu_trabalho' }" @click="navigate('meu-trabalho'); loadMeuTrabalho()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v2"/></svg>
+            <span x-show="ui.sidebarOpen">Meu Trabalho</span>
+            <span class="sidebar-alert-badge" x-show="ui.sidebarOpen && (meuTrabalho||[]).length > 0" x-text="(meuTrabalho||[]).length"></span>
+          </a>
           <a class="op-nav-item" :class="{ active: ui.page === 'tasks' }" @click="navigate('tasks')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
             <span x-show="ui.sidebarOpen">Tarefas</span>
@@ -3618,6 +3623,60 @@
                     </div>
                   </template>
                   <div class="kanban-column__empty" x-show="!menteesByPhase(fase).length">Nenhum mentorado</div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- ===== PAGE: MEU TRABALHO (Modo EU) ===== -->
+        <div class="page-content" x-show="ui.page === 'meu_trabalho'" x-transition x-cloak style="padding:24px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+            <div>
+              <h1 style="font-size:22px;font-weight:600;margin:0;color:var(--text-primary)">Meu Trabalho</h1>
+              <p style="font-size:13px;color:var(--text-secondary);margin:4px 0 0">Tarefas onde você é responsável ou acompanhante. Independente de mentorado, sprint ou space.</p>
+            </div>
+            <button @click="loadMeuTrabalho()" :disabled="meuTrabalhoLoading" style="font-size:12px;background:var(--brand-500,#b09b6e);color:#fff;border:none;border-radius:6px;padding:8px 14px;cursor:pointer">
+              <span x-show="!meuTrabalhoLoading">↻ Atualizar</span>
+              <span x-show="meuTrabalhoLoading">Carregando…</span>
+            </button>
+          </div>
+
+          <div x-show="!meuTrabalhoLoading && !(meuTrabalho||[]).length" style="text-align:center;padding:60px 20px;color:var(--text-secondary)">
+            <div style="font-size:48px;margin-bottom:12px">🎯</div>
+            <div style="font-size:15px;font-weight:600;margin-bottom:6px">Nenhuma tarefa atribuída a você</div>
+            <div style="font-size:13px">Quando alguém te marcar como responsável ou acompanhante, aparece aqui.</div>
+          </div>
+
+          <div x-show="(meuTrabalho||[]).length" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
+            <template x-for="(group, status) in meuTrabalhoGroupedByStatus" :key="status">
+              <div x-show="group.length" style="border:1px solid var(--border);border-radius:10px;background:var(--bg-card);overflow:hidden">
+                <div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between"
+                     :style="{'pendente':'background:#f3f4f6','em_andamento':'background:#dbeafe','em_revisao':'background:#fef3c7','bloqueada':'background:#fee2e2','pausada':'background:#ede9fe'}[status]">
+                  <span style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px" x-text="status.replace('_',' ')"></span>
+                  <span style="font-size:11px;background:rgba(0,0,0,0.1);padding:2px 8px;border-radius:10px" x-text="group.length"></span>
+                </div>
+                <div style="padding:8px;display:flex;flex-direction:column;gap:6px;max-height:600px;overflow-y:auto">
+                  <template x-for="t in group" :key="t.id">
+                    <div @click="openTaskDetail(t.id)" style="padding:10px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;transition:box-shadow .15s"
+                         :style="t.bloqueada_por_dependencia ? 'border-color:#dc2626;background:#fef2f2' : (t.atrasada ? 'border-color:#d97706' : '')">
+                      <div style="display:flex;align-items:flex-start;gap:8px">
+                        <span style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;flex-shrink:0"
+                              :style="{'urgente':'background:#dc2626;color:#fff','alta':'background:#d97706;color:#fff','normal':'background:#e5e7eb;color:#374151','baixa':'background:#f3f4f6;color:#6b7280'}[t.prioridade] || 'background:#f3f4f6'"
+                              x-text="(t.prioridade||'normal').slice(0,3).toUpperCase()"></span>
+                        <div style="flex:1;min-width:0">
+                          <div style="font-size:13px;font-weight:500;color:var(--text-primary);margin-bottom:4px;word-wrap:break-word" x-text="t.titulo"></div>
+                          <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:10px;color:var(--text-secondary)">
+                            <span x-show="t.mentorado_nome" x-text="'👤 ' + t.mentorado_nome"></span>
+                            <span x-show="t.data_fim" x-text="'📅 ' + new Date(t.data_fim).toLocaleDateString('pt-BR')"></span>
+                            <span x-show="t.especie && t.especie !== 'one_time'" :style="{color: t.especie === 'quest' ? '#7c3aed' : '#0369a1'}" x-text="t.especie"></span>
+                            <span x-show="t.bloqueada_por_dependencia" style="color:#dc2626;font-weight:600">⛔ bloqueada</span>
+                            <span x-show="t.atrasada" style="color:#d97706;font-weight:600">⚠ atrasada</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
                 </div>
               </div>
             </template>

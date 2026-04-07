@@ -515,6 +515,8 @@ function operon() {
       menteeMessages: [],  // EPIC 1: Chatwoot messages for current mentorado
       menteeContext: [],   // Context Hub: áudios, notas, arquivos para dossiê
       menteeDescarregos: [], // LF-FASE3: pipeline de descarregos (nova entidade)
+      meuTrabalho: [], // LF Modo EU: tarefas filtradas por responsavel = me OR acompanhante
+      meuTrabalhoLoading: false,
       teamPerformance: [],
       feedbackList: [],           // TASK-10: god_feedback entries
       // Command Center static data
@@ -4960,6 +4962,7 @@ function operon() {
       'dashboard': 'dashboard',
       'kanban': 'kanban',
       'tasks': 'tasks',
+      'meu-trabalho': 'meu_trabalho',
       'agenda': 'agenda',
       'equipe': 'equipe',
       'whatsapp': 'whatsapp',
@@ -10620,6 +10623,37 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       } catch (e) {
         if (reqId === this._timelineReqId) console.warn('[Spalla] loadTimeline exception:', e);
       }
+    },
+
+    // ===== LF Modo EU: tela default do operador =====
+    async loadMeuTrabalho() {
+      this.meuTrabalhoLoading = true;
+      try {
+        if (!this.supabase) sb = await initSupabase();
+        const me = (this.auth.currentUser?.full_name || this.auth.currentUser?.email || '').toLowerCase().split(' ')[0];
+        if (!me) { this.meuTrabalho = []; return; }
+        const { data, error } = await this.supabase
+          .from('vw_meu_trabalho')
+          .select('*')
+          .or(`responsavel.ilike.%${me}%,acompanhante.ilike.%${me}%`)
+          .order('prioridade', { ascending: true })
+          .limit(200);
+        if (error) throw error;
+        this.meuTrabalho = data || [];
+      } catch (e) {
+        console.warn('[Spalla] loadMeuTrabalho:', e);
+        this.meuTrabalho = [];
+      } finally {
+        this.meuTrabalhoLoading = false;
+      }
+    },
+
+    get meuTrabalhoGroupedByStatus() {
+      const groups = { pendente: [], em_andamento: [], em_revisao: [], bloqueada: [], pausada: [] };
+      for (const t of this.meuTrabalho || []) {
+        if (groups[t.status]) groups[t.status].push(t);
+      }
+      return groups;
     },
 
     // ===== LF-FASE3: Descarregos pipeline =====
