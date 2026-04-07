@@ -3768,10 +3768,23 @@
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                   Selecionar
                 </button>
-                <button class="btn btn--sm btn--outline" @click="syncClickUpSubtasks()" :disabled="ui.syncingSubtasks" style="display:flex;align-items:center;gap:6px" title="Sincronizar subtasks do ClickUp">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :style="ui.syncingSubtasks ? 'animation:spin 1s linear infinite' : ''"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-                  <span x-text="ui.syncingSubtasks ? 'Sincronizando…' : 'Sync ClickUp'"></span>
-                </button>
+                <div style="position:relative;display:inline-block" x-data="{ syncMenu: false }">
+                  <button class="btn btn--sm btn--outline" @click="syncMenu = !syncMenu" :disabled="ui.syncingSubtasks" style="display:flex;align-items:center;gap:6px" title="ClickUp Sync">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :style="ui.syncingSubtasks ? 'animation:spin 1s linear infinite' : ''"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                    <span x-text="ui.syncingSubtasks ? 'Sincronizando…' : 'ClickUp'"></span>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                  <div x-show="syncMenu" @click.outside="syncMenu = false" style="position:absolute;right:0;top:100%;margin-top:4px;z-index:200;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:4px;min-width:200px;box-shadow:0 8px 24px rgba(0,0,0,.12)">
+                    <button @click="syncClickUpSubtasks(); syncMenu = false" style="width:100%;text-align:left;padding:8px 10px;border:none;background:none;cursor:pointer;font-size:12px;border-radius:6px;display:flex;align-items:center;gap:8px" @mouseover="$el.style.background='#f8fafc'" @mouseout="$el.style.background='none'">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                      Sync Subtasks
+                    </button>
+                    <button @click="clickupImportAll(); syncMenu = false" style="width:100%;text-align:left;padding:8px 10px;border:none;background:none;cursor:pointer;font-size:12px;border-radius:6px;display:flex;align-items:center;gap:8px" @mouseover="$el.style.background='#f8fafc'" @mouseout="$el.style.background='none'">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      Importar Tudo
+                    </button>
+                  </div>
+                </div>
                 <span class="op-toolbar__count" x-text="(ui.taskView === 'list' ? tasksTree.filter(t=>t._depth===0).length : data.tasks.length) + ' tarefas'"></span>
               </div>
 

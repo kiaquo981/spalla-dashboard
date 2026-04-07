@@ -6988,6 +6988,34 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       }
     },
 
+    async clickupImportAll() {
+      if (!confirm('Importar todas as tarefas do ClickUp? Tarefas existentes serao atualizadas.')) return;
+      this.ui.syncingSubtasks = true;
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/clickup/import-all`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const json = await res.json();
+        if (!res.ok) { this.toast(json.error || 'Erro ao importar', 'error'); return; }
+        this.toast(`Importadas: ${json.imported}, Atualizadas: ${json.updated}`, 'success');
+        await this.loadTasks();
+      } catch (e) { this.toast('Erro de conexao', 'error'); }
+      finally { this.ui.syncingSubtasks = false; }
+    },
+
+    async clickupPushTask(taskId) {
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/clickup/push/${taskId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const json = await res.json();
+        if (!res.ok) { this.toast(json.error || 'Erro ao enviar', 'error'); return; }
+        if (json.clickup_url) {
+          const idx = this.data.tasks.findIndex(t => t.id === taskId);
+          if (idx >= 0) {
+            this.data.tasks[idx] = { ...this.data.tasks[idx], operon_id: json.clickup_id, clickup_url: json.clickup_url };
+          }
+        }
+        this.toast(`Task ${json.action === 'created' ? 'criada' : 'atualizada'} no ClickUp`, 'success');
+      } catch (e) { this.toast('Erro ao enviar pro ClickUp', 'error'); }
+    },
+
     addSubtask() {
       if (this.taskForm.newSubtask.trim()) {
         this.taskForm.subtasks.push({
