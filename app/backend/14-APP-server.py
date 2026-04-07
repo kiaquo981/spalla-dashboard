@@ -6117,6 +6117,36 @@ if __name__ == '__main__':
     recurring_thread.start()
     print(f'[Spalla] Recurring tasks: background thread started (every 1h)')
 
+    # ===== LF: Sprint Rollover (daily) =====
+    def _sprint_rollover_cron():
+        import time as _t
+        # Run once at startup so quem subir a versão já recebe o estado fresco
+        first = True
+        while True:
+            try:
+                if not first:
+                    _t.sleep(6 * 3600)  # check every 6h
+                first = False
+                r = supabase_request(
+                    'POST',
+                    '/rest/v1/rpc/fn_sprint_rollover',
+                    body={},
+                )
+                if r.status_code in (200, 204):
+                    try:
+                        result = r.json()
+                        print(f'[Spalla] Sprint rollover: {result}')
+                    except Exception:
+                        print('[Spalla] Sprint rollover: ok')
+                else:
+                    print(f'[Spalla] Sprint rollover failed: {r.status_code} {r.text[:200]}')
+            except Exception as e:
+                print(f'[Cron] Sprint rollover error: {e}')
+
+    sprint_thread = threading.Thread(target=_sprint_rollover_cron, daemon=True)
+    sprint_thread.start()
+    print(f'[Spalla] Sprint rollover: background thread started (every 6h + on boot)')
+
     server = ReuseAddrHTTPServer(('', PORT), ProxyHandler)
     try:
         server.serve_forever()
