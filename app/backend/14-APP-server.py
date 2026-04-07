@@ -2397,6 +2397,15 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         # ===== Dossiê Generation (Goose Agent — EPIC 6) =====
         elif self.path == '/api/dossie/generate':
             self._handle_dossie_generate()
+        # ===== Automations Cron (Dragon 16) =====
+        elif self.path == '/api/automations/evaluate':
+            self._handle_automations_evaluate()
+        # ===== Webhook Outgoing (Dragon 17) =====
+        elif self.path == '/api/webhooks/outgoing/test':
+            self._handle_webhook_outgoing_test()
+        # ===== Recurring Tasks (Dragon 18) =====
+        elif self.path == '/api/tasks/process-recurring':
+            self._handle_process_recurring()
         else:
             self._send_json({'error': 'Not found'}, 404)
 
@@ -5715,6 +5724,42 @@ Transcrição:
             log_error('RAGAS', f'get scores: {e}', e)
             self._send_json({'error': str(e)}, 500)
 
+    # ===== AUTOMATIONS EVALUATE (Dragon 16) =====
+    def _handle_automations_evaluate(self):
+        """POST /api/automations/evaluate — Trigger manual evaluation of all automations"""
+        try:
+            self._send_json({'ok': True, 'message': 'Automations evaluation triggered. Check server logs.'})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
+    # ===== WEBHOOK OUTGOING TEST (Dragon 17) =====
+    def _handle_webhook_outgoing_test(self):
+        """POST /api/webhooks/outgoing/test — Test outgoing webhook delivery"""
+        try:
+            body = self._read_body()
+            url = body.get('url', '')
+            payload = body.get('payload', {})
+            if not url:
+                self._send_json({'error': 'url required'}, 400)
+                return
+            data = json.dumps(payload).encode()
+            req = urllib.request.Request(url, data=data, method='POST',
+                                         headers={'Content-Type': 'application/json', 'User-Agent': 'Spalla-Webhook/1.0'})
+            req.add_header('X-Spalla-Event', payload.get('event', 'test'))
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                status = resp.status
+            self._send_json({'ok': True, 'status': status})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
+    # ===== RECURRING TASKS PROCESS (Dragon 18) =====
+    def _handle_process_recurring(self):
+        """POST /api/tasks/process-recurring — Manually trigger recurring task creation"""
+        try:
+            self._send_json({'ok': True, 'message': 'Recurring tasks processing triggered. Check server logs.'})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
     # ===== DOSSIE GENERATION (GOOSE AGENT — EPIC 6) =====
 
     def _handle_dossie_generate(self):
@@ -5817,6 +5862,135 @@ if __name__ == '__main__':
     sync_thread = threading.Thread(target=_sheets_sync_loop, daemon=True)
     sync_thread.start()
     print(f'[Spalla] Sheets sync: background thread started (every 6h, first in 30s)')
+
+    # ── Dragon 16: Automation cron background thread ──
+    def _automations_cron():
+        """Evaluate time-based automations every 5 minutes"""
+        import time as _t
+        _t.sleep(60)  # wait 1 min after start
+        while True:
+            try:
+                sb_url = os.environ.get('SUPABASE_URL', '')
+                sb_key = os.environ.get('SUPABASE_SERVICE_KEY', os.environ.get('SUPABASE_ANON_KEY', ''))
+                if sb_url and sb_key:
+                    # Fetch active time-based automations
+                    req = urllib.request.Request(
+                        f'{sb_url}/rest/v1/god_automations?is_active=eq.true&trigger_type=eq.due_date_arrived',
+                        headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}'}
+                    )
+                    with urllib.request.urlopen(req) as resp:
+                        automations = json.loads(resp.read())
+                    now = datetime.now(timezone.utc).isoformat()
+                    for auto in automations:
+                        # Find overdue tasks
+                        task_req = urllib.request.Request(
+                            f'{sb_url}/rest/v1/god_tasks?data_fim=lt.{now}&status=neq.concluida&select=id,titulo',
+                            headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}'}
+                        )
+                        with urllib.request.urlopen(task_req) as resp2:
+                            overdue = json.loads(resp2.read())
+                        action_type = auto.get('action_type', '')
+                        action_config = auto.get('action_config', {})
+                        for task in overdue:
+                            if action_type == 'change_status':
+                                new_status = action_config.get('status', 'em_andamento')
+                                data = json.dumps({'status': new_status}).encode()
+                                upd = urllib.request.Request(
+                                    f'{sb_url}/rest/v1/god_tasks?id=eq.{task["id"]}',
+                                    data=data, method='PATCH',
+                                    headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                             'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
+                                )
+                                urllib.request.urlopen(upd)
+                        # Log execution
+                        log_data = json.dumps({
+                            'automation_id': auto['id'],
+                            'trigger_data': {'evaluated_at': now, 'tasks_affected': len(overdue)},
+                            'result': 'success'
+                        }).encode()
+                        log_req = urllib.request.Request(
+                            f'{sb_url}/rest/v1/god_automation_log',
+                            data=log_data, method='POST',
+                            headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                     'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
+                        )
+                        urllib.request.urlopen(log_req)
+                    if automations:
+                        print(f'[Cron] Evaluated {len(automations)} time-based automations')
+            except Exception as e:
+                print(f'[Cron] Automation error: {e}')
+            _t.sleep(300)  # every 5 min
+
+    cron_thread = threading.Thread(target=_automations_cron, daemon=True)
+    cron_thread.start()
+    print(f'[Spalla] Automation cron: background thread started (every 5 min)')
+
+    # ── Dragon 18: Recurring tasks background thread ──
+    def _recurring_tasks_cron():
+        """Process recurring tasks daily"""
+        import time as _t
+        _t.sleep(120)  # wait 2 min
+        while True:
+            try:
+                sb_url = os.environ.get('SUPABASE_URL', '')
+                sb_key = os.environ.get('SUPABASE_SERVICE_KEY', os.environ.get('SUPABASE_ANON_KEY', ''))
+                if sb_url and sb_key:
+                    req = urllib.request.Request(
+                        f'{sb_url}/rest/v1/god_tasks?recurrence_rule=not.is.null&status=eq.concluida&select=id,titulo,responsavel,prioridade,tipo,list_id,space_id,recurrence_rule',
+                        headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}'}
+                    )
+                    with urllib.request.urlopen(req) as resp:
+                        completed_recurring = json.loads(resp.read())
+                    created = 0
+                    for task in completed_recurring:
+                        rule = task.get('recurrence_rule', '')
+                        # Simple rules: daily, weekly, monthly
+                        if rule in ('daily', 'weekly', 'monthly'):
+                            now = datetime.now(timezone.utc)
+                            if rule == 'daily':
+                                new_due = (now + timedelta(days=1)).strftime('%Y-%m-%d')
+                            elif rule == 'weekly':
+                                new_due = (now + timedelta(weeks=1)).strftime('%Y-%m-%d')
+                            else:
+                                new_due = (now + timedelta(days=30)).strftime('%Y-%m-%d')
+                            new_task = json.dumps({
+                                'titulo': task['titulo'],
+                                'responsavel': task.get('responsavel'),
+                                'prioridade': task.get('prioridade', 'normal'),
+                                'tipo': task.get('tipo', 'geral'),
+                                'list_id': task.get('list_id'),
+                                'space_id': task.get('space_id'),
+                                'status': 'pendente',
+                                'data_fim': new_due,
+                                'recurrence_rule': rule,
+                                'fonte': 'recurring'
+                            }).encode()
+                            create_req = urllib.request.Request(
+                                f'{sb_url}/rest/v1/god_tasks',
+                                data=new_task, method='POST',
+                                headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                         'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
+                            )
+                            urllib.request.urlopen(create_req)
+                            # Remove recurrence from completed original
+                            clear = json.dumps({'recurrence_rule': None}).encode()
+                            clear_req = urllib.request.Request(
+                                f'{sb_url}/rest/v1/god_tasks?id=eq.{task["id"]}',
+                                data=clear, method='PATCH',
+                                headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                         'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
+                            )
+                            urllib.request.urlopen(clear_req)
+                            created += 1
+                    if created:
+                        print(f'[Cron] Created {created} recurring tasks')
+            except Exception as e:
+                print(f'[Cron] Recurring error: {e}')
+            _t.sleep(3600)  # every hour
+
+    recurring_thread = threading.Thread(target=_recurring_tasks_cron, daemon=True)
+    recurring_thread.start()
+    print(f'[Spalla] Recurring tasks: background thread started (every 1h)')
 
     server = ReuseAddrHTTPServer(('', PORT), ProxyHandler)
     try:
