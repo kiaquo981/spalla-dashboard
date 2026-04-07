@@ -3636,7 +3636,8 @@
         </div>
 
         <!-- ===== PAGE: MEU TRABALHO (Modo EU) ===== -->
-        <div class="page-content" x-show="ui.page === 'meu_trabalho'" x-transition x-cloak style="padding:24px">
+        <div class="page-content" x-show="ui.page === 'meu_trabalho'" x-transition x-cloak style="padding:24px"
+             x-effect="if (ui.page === 'meu_trabalho' && !meuTrabalho.length && !meuTrabalhoLoading) loadMeuTrabalho()">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
             <div>
               <h1 style="font-size:22px;font-weight:600;margin:0;color:var(--text-primary)">Meu Trabalho</h1>
@@ -3735,7 +3736,8 @@
         </div>
 
         <!-- ===== PAGE: SPRINTS ===== -->
-        <div class="page-content" x-show="ui.page === 'sprints'" x-transition x-cloak style="padding:24px">
+        <div class="page-content" x-show="ui.page === 'sprints'" x-transition x-cloak style="padding:24px"
+             x-effect="if (ui.page === 'sprints' && !sprintDashboard.length && !sprintLoading) loadSprintDashboard()">
           <!-- Header -->
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
             <div>
@@ -12258,7 +12260,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=201"></script>
+  <script src="11-APP-app.js?v=202"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">
