@@ -4225,7 +4225,25 @@
                             <option value="baixa" :selected="activeTaskDetail.prioridade === 'baixa'">Baixa</option>
                           </select>
                         </div>
-                        <!-- Row 3: Etiquetas -->
+                        <!-- Row 3: Estimativa de tempo | Pontos do Sprint -->
+                        <div style="padding:var(--sp-3) var(--sp-4);background:var(--cream-50);color:var(--neutral-500);font-weight:var(--fw-medium);border-bottom:1px solid var(--neutral-200);display:flex;align-items:center;gap:var(--sp-2)">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Estimativa de tempo
+                        </div>
+                        <div style="padding:var(--sp-2) var(--sp-4);border-bottom:1px solid var(--neutral-200);display:flex;align-items:center;gap:4px;font-size:var(--text-sm)">
+                          <input type="number" min="0" placeholder="min" :value="activeTaskDetail.time_estimate || ''"
+                                 @change="let v = parseInt($event.target.value) || null; activeTaskDetail.time_estimate = v; if(typeof sb !== 'undefined' && sb) sb.from('god_tasks').update({time_estimate: v}).eq('id', activeTaskDetail.id)"
+                                 style="width:60px;padding:4px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;outline:none;background:#fafaf8">
+                          <span style="color:#94a3b8;font-size:11px">min</span>
+                        </div>
+                        <div style="padding:var(--sp-3) var(--sp-4);background:var(--cream-50);color:var(--neutral-500);font-weight:var(--fw-medium);border-bottom:1px solid var(--neutral-200);display:flex;align-items:center;gap:var(--sp-2)">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Pontos do Sprint
+                        </div>
+                        <div style="padding:var(--sp-2) var(--sp-4);border-bottom:1px solid var(--neutral-200);display:flex;align-items:center">
+                          <input type="number" min="0" placeholder="pts" :value="activeTaskDetail.points || ''"
+                                 @change="let v = parseInt($event.target.value) || null; activeTaskDetail.points = v; if(typeof sb !== 'undefined' && sb) sb.from('god_tasks').update({points: v}).eq('id', activeTaskDetail.id)"
+                                 style="width:60px;padding:4px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;outline:none;background:#fafaf8">
+                        </div>
+                        <!-- Row 4: Etiquetas -->
                         <div style="padding:10px 14px;background:#fafaf8;color:#64748b;font-weight:500;display:flex;align-items:center;gap:6px">
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg> Etiquetas
                         </div>
@@ -4476,6 +4494,14 @@
                             </div>
                           </div>
                         </template>
+                      </div>
+
+                      <!-- Add dependency link -->
+                      <div style="display:flex;align-items:center;gap:6px;margin-bottom:24px;padding:8px 12px;border:1px dashed #e2e8f0;border-radius:8px;cursor:pointer;color:#94a3b8;font-size:12px;transition:border-color .15s,color .15s"
+                           @click="toast('Vincular dependencias: em desenvolvimento', 'info')"
+                           @mouseenter="$el.style.borderColor='#6366f1';$el.style.color='#6366f1'" @mouseleave="$el.style.borderColor='#e2e8f0';$el.style.color='#94a3b8'">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                        Vincular itens ou adicionar dependencias
                       </div>
 
                       <!-- Bottom action links -->
