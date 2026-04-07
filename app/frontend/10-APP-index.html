@@ -3699,7 +3699,7 @@
                 <div class="cu-list__wrap">
                   <template x-for="t in group.tasks" :key="t.id">
                     <table style="width:100%;border-collapse:collapse;table-layout:fixed" @click="openTaskDetail(t.id)">
-                      <colgroup><col style="width:36px"><col><col style="width:120px"><col style="width:110px"><col style="width:100px"><col style="width:90px"></colgroup>
+                      <colgroup><col style="width:36px"><col><col style="width:100px"><col style="width:100px"><col style="width:110px"><col style="width:80px"></colgroup>
                       <tr class="cu-list__row" :class="{ 'cu-list__row--done': t.status === 'concluida' }">
                         <td class="cu-list__td" @click.stop>
                           <input type="checkbox" :checked="t.status === 'concluida'" @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"
@@ -3707,7 +3707,7 @@
                         </td>
                         <td class="cu-list__td cu-list__td--name">
                           <div style="display:flex;align-items:center;gap:8px">
-                            <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0"
+                            <span style="width:10px;height:10px;border-radius:50%;flex-shrink:0"
                                   :style="{'pendente':'background:#94a3b8','em_andamento':'background:#3b82f6','em_revisao':'background:#f59e0b','bloqueada':'background:#ef4444','pausada':'background:#8b5cf6','concluida':'background:#22c55e'}[t.status] || 'background:#d1d5db'"></span>
                             <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="t.titulo"></span>
                             <span x-show="t.mentorado_nome && meuTrabalhoGroupBy !== 'mentorado'" style="font-size:10px;color:var(--text-secondary);flex-shrink:0" x-text="'— ' + t.mentorado_nome"></span>
@@ -3720,19 +3720,19 @@
                           </div>
                         </td>
                         <td class="cu-list__td">
-                          <span x-show="t.data_fim" style="font-size:11px"
+                          <span x-show="t.data_fim" style="font-size:11px;white-space:nowrap"
                                 :style="t.atrasada ? 'color:#dc2626;font-weight:600' : 'color:var(--text-secondary)'"
                                 x-text="t.data_fim ? relativeDueDate(t.data_fim) : ''"></span>
                           <span x-show="!t.data_fim" style="font-size:11px;color:#d1d5db">-</span>
                         </td>
                         <td class="cu-list__td">
-                          <span style="font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600;white-space:nowrap"
+                          <span style="font-size:10px;padding:3px 8px;border-radius:10px;font-weight:600;white-space:nowrap;display:inline-block"
                                 :style="{'pendente':'background:#f1f5f9;color:#64748b','em_andamento':'background:#dbeafe;color:#2563eb','em_revisao':'background:#fef3c7;color:#d97706','bloqueada':'background:#fee2e2;color:#dc2626','pausada':'background:#ede9fe;color:#7c3aed','concluida':'background:#dcfce7;color:#16a34a'}[t.status] || 'background:#f3f4f6'"
-                                x-text="({'pendente':'Pendente','em_andamento':'Em andamento','em_revisao':'Em revisao','bloqueada':'Bloqueada','pausada':'Pausada','concluida':'Concluida'})[t.status] || t.status"></span>
+                                x-text="({'pendente':'A fazer','em_andamento':'Fazendo','em_revisao':'Revisao','bloqueada':'Bloqueada','pausada':'Pausada','concluida':'Feito'})[t.status] || t.status"></span>
                         </td>
                         <td class="cu-list__td">
-                          <span style="font-size:10px;font-weight:600"
-                                :style="{'urgente':'color:#dc2626','alta':'color:#ea580c','normal':'color:#64748b','baixa':'color:#94a3b8'}[t.prioridade] || 'color:#94a3b8'"
+                          <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;display:inline-block"
+                                :style="{'urgente':'background:#fee2e2;color:#dc2626','alta':'background:#ffedd5;color:#ea580c','normal':'background:#f1f5f9;color:#64748b','baixa':'background:#f8fafc;color:#94a3b8'}[t.prioridade] || 'background:#f1f5f9;color:#94a3b8'"
                                 x-text="({'urgente':'Urgente','alta':'Alta','normal':'Normal','baixa':'Baixa'})[t.prioridade] || 'Normal'"></span>
                         </td>
                       </tr>
@@ -12269,7 +12269,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=210"></script>
+  <script src="11-APP-app.js?v=211"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">
