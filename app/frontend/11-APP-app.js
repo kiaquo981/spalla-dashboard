@@ -10656,6 +10656,121 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       return groups;
     },
 
+    // ===== LF-FASE3: Criar descarrego direto pelo frontend =====
+    openDescarregoCreate() {
+      this.ui.descarregoModal = {
+        open: true, tipo: 'texto', texto: '',
+        audioBlob: null, audioUrl: null,
+        recording: false, recordingSeconds: 0, submitting: false,
+        _mediaRecorder: null, _stream: null, _interval: null,
+      };
+    },
+
+    closeDescarregoCreate() {
+      const m = this.ui.descarregoModal;
+      if (m?._stream) m._stream.getTracks().forEach(t => t.stop());
+      if (m?._interval) clearInterval(m._interval);
+      if (m?.audioUrl) URL.revokeObjectURL(m.audioUrl);
+      this.ui.descarregoModal = { open: false };
+    },
+
+    async startDescarregoRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const recorder = new MediaRecorder(stream);
+        const chunks = [];
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = () => {
+          const blob = new Blob(chunks, { type: 'audio/webm' });
+          this.ui.descarregoModal.audioBlob = blob;
+          this.ui.descarregoModal.audioUrl = URL.createObjectURL(blob);
+        };
+        recorder.start();
+        this.ui.descarregoModal._mediaRecorder = recorder;
+        this.ui.descarregoModal._stream = stream;
+        this.ui.descarregoModal.recording = true;
+        this.ui.descarregoModal.recordingSeconds = 0;
+        this.ui.descarregoModal._interval = setInterval(() => {
+          this.ui.descarregoModal.recordingSeconds += 1;
+        }, 1000);
+      } catch (e) {
+        this.toast?.('Erro ao acessar microfone: ' + e.message, 'error');
+      }
+    },
+
+    stopDescarregoRecording() {
+      const m = this.ui.descarregoModal;
+      if (m?._mediaRecorder?.state === 'recording') m._mediaRecorder.stop();
+      if (m?._stream) m._stream.getTracks().forEach(t => t.stop());
+      if (m?._interval) clearInterval(m._interval);
+      m.recording = false;
+      m._mediaRecorder = null;
+      m._stream = null;
+      m._interval = null;
+    },
+
+    resetDescarregoAudio() {
+      const m = this.ui.descarregoModal;
+      if (m?.audioUrl) URL.revokeObjectURL(m.audioUrl);
+      m.audioBlob = null;
+      m.audioUrl = null;
+      m.recordingSeconds = 0;
+    },
+
+    async submitDescarregoCreate() {
+      const m = this.ui.descarregoModal;
+      const menteeId = this.data.detail?.profile?.id;
+      if (!menteeId) { this.toast?.('Sem mentorado selecionado', 'error'); return; }
+      m.submitting = true;
+      try {
+        let arquivoUrl = null, arquivoMime = null, arquivoSize = null;
+        if (m.tipo === 'audio' && m.audioBlob) {
+          if (!this.supabase) sb = await initSupabase();
+          const path = `descarregos/${menteeId}/${Date.now()}.webm`;
+          const { error: upErr } = await this.supabase.storage.from('uploads').upload(path, m.audioBlob, { contentType: 'audio/webm' });
+          if (upErr) throw upErr;
+          const { data: urlData } = this.supabase.storage.from('uploads').getPublicUrl(path);
+          arquivoUrl = urlData.publicUrl;
+          arquivoMime = 'audio/webm';
+          arquivoSize = m.audioBlob.size;
+        }
+
+        const body = {
+          mentorado_id: menteeId,
+          tipo_bruto: m.tipo === 'audio' ? 'audio' : 'texto',
+          conteudo_bruto: m.tipo === 'texto' ? m.texto : null,
+          arquivo_url: arquivoUrl,
+          arquivo_mime_type: arquivoMime,
+          arquivo_size_bytes: arquivoSize,
+          fonte: 'web_drawer',
+        };
+
+        const r = await fetch(`${CONFIG.API_BASE}/api/descarrego/capture`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.token || ''}` },
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text()}`);
+        const created = await r.json();
+        const descarregoId = created.descarrego_id;
+
+        await fetch(`${CONFIG.API_BASE}/api/descarrego/${descarregoId}/process`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${this.auth.token || ''}` },
+        });
+
+        this.toast?.('Descarrego capturado — processando');
+        this.closeDescarregoCreate();
+        await this.loadMenteeDescarregos(menteeId);
+        this._pollDescarrego(descarregoId);
+      } catch (e) {
+        console.error('[descarrego_create]', e);
+        this.toast?.('Falha: ' + e.message, 'error');
+      } finally {
+        if (this.ui.descarregoModal) this.ui.descarregoModal.submitting = false;
+      }
+    },
+
     // ===== LF-FASE3: Descarregos pipeline =====
     async loadMenteeDescarregos(menteeId) {
       if (!menteeId) return;

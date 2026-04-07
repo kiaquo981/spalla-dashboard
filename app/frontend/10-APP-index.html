@@ -3217,14 +3217,20 @@
                 </div>
 
                 <!-- ── Pipeline Descarregos (LF-FASE3) ── -->
-                <div x-show="(data.menteeDescarregos || []).length" style="margin-bottom:16px;border:1px solid var(--border);border-radius:10px;background:var(--bg-subtle,#fafaf7);padding:12px">
+                <div style="margin-bottom:16px;border:1px solid var(--border);border-radius:10px;background:var(--bg-subtle,#fafaf7);padding:12px">
                   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
                     <div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--text-primary)">
                       <span style="width:8px;height:8px;border-radius:50%;background:#16a34a;display:inline-block"></span>
                       Pipeline de Descarregos
                       <span x-text="(data.menteeDescarregos || []).length" style="background:var(--brand-300,#c4b896);color:#fff;border-radius:10px;padding:1px 8px;font-size:10px"></span>
                     </div>
-                    <button @click="loadMenteeDescarregos(data.detail?.profile?.id)" style="font-size:11px;color:var(--text-secondary);background:none;border:1px solid var(--border);border-radius:4px;padding:3px 8px;cursor:pointer" title="Recarregar">↻</button>
+                    <div style="display:flex;gap:6px">
+                      <button @click="openDescarregoCreate()" style="font-size:11px;background:var(--brand-500,#b09b6e);color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer">+ Novo descarrego</button>
+                      <button @click="loadMenteeDescarregos(data.detail?.profile?.id)" style="font-size:11px;color:var(--text-secondary);background:none;border:1px solid var(--border);border-radius:4px;padding:3px 8px;cursor:pointer" title="Recarregar">↻</button>
+                    </div>
+                  </div>
+                  <div x-show="!(data.menteeDescarregos || []).length" style="text-align:center;padding:16px;color:var(--text-secondary);font-size:12px">
+                    Nenhum descarrego ainda. Clique em <strong>+ Novo descarrego</strong> pra capturar um áudio ou texto.
                   </div>
 
                   <div style="display:flex;flex-direction:column;gap:8px">
@@ -11940,6 +11946,67 @@
         <span><kbd>↑↓</kbd> navegar</span>
         <span><kbd>↵</kbd> selecionar</span>
         <span><kbd>esc</kbd> fechar</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Modal: Novo Descarrego (LF-FASE3) ===== -->
+  <div x-show="ui.descarregoModal?.open" x-cloak @keydown.escape.window="closeDescarregoCreate()"
+       style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center">
+    <div @click.away="closeDescarregoCreate()" style="background:#fff;border-radius:12px;width:90%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+      <div style="padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <h2 style="font-size:16px;font-weight:600;margin:0">Novo Descarrego</h2>
+          <p style="font-size:12px;color:var(--text-secondary);margin:2px 0 0" x-text="'Para: ' + (data.detail?.profile?.nome || '')"></p>
+        </div>
+        <button @click="closeDescarregoCreate()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-secondary)">×</button>
+      </div>
+
+      <div style="padding:20px">
+        <!-- Seletor tipo -->
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <button @click="ui.descarregoModal.tipo = 'texto'" :class="ui.descarregoModal?.tipo === 'texto' ? 'active' : ''"
+                  :style="ui.descarregoModal?.tipo === 'texto' ? 'background:var(--brand-500,#b09b6e);color:#fff' : 'background:#f3f4f6;color:#374151'"
+                  style="flex:1;padding:10px;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500">📝 Texto</button>
+          <button @click="ui.descarregoModal.tipo = 'audio'" :class="ui.descarregoModal?.tipo === 'audio' ? 'active' : ''"
+                  :style="ui.descarregoModal?.tipo === 'audio' ? 'background:var(--brand-500,#b09b6e);color:#fff' : 'background:#f3f4f6;color:#374151'"
+                  style="flex:1;padding:10px;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500">🎤 Áudio</button>
+        </div>
+
+        <!-- Campo texto -->
+        <div x-show="ui.descarregoModal?.tipo === 'texto'">
+          <textarea x-model="ui.descarregoModal.texto" rows="6" placeholder="Descreva tarefa, contexto, feedback, problema… A IA classifica e age."
+                    style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:vertical"></textarea>
+        </div>
+
+        <!-- Campo áudio -->
+        <div x-show="ui.descarregoModal?.tipo === 'audio'">
+          <div x-show="!ui.descarregoModal?.recording && !ui.descarregoModal?.audioBlob" style="text-align:center;padding:30px;border:2px dashed var(--border);border-radius:8px">
+            <button @click="startDescarregoRecording()" style="background:#dc2626;color:#fff;border:none;border-radius:50%;width:64px;height:64px;font-size:28px;cursor:pointer">🎤</button>
+            <div style="margin-top:12px;font-size:12px;color:var(--text-secondary)">Clique pra começar a gravar</div>
+          </div>
+          <div x-show="ui.descarregoModal?.recording" style="text-align:center;padding:30px;border:2px solid #dc2626;border-radius:8px;background:#fef2f2">
+            <div style="display:inline-block;width:12px;height:12px;background:#dc2626;border-radius:50%;animation:pulse 1s infinite"></div>
+            <div style="margin-top:8px;font-size:13px;color:#dc2626;font-weight:600" x-text="'Gravando… ' + (ui.descarregoModal?.recordingSeconds || 0) + 's'"></div>
+            <button @click="stopDescarregoRecording()" style="margin-top:12px;background:#dc2626;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer">⏹ Parar</button>
+          </div>
+          <div x-show="ui.descarregoModal?.audioBlob && !ui.descarregoModal?.recording" style="padding:16px;border:1px solid var(--border);border-radius:8px;background:#f9fafb">
+            <audio :src="ui.descarregoModal?.audioUrl" controls style="width:100%"></audio>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button @click="resetDescarregoAudio()" style="flex:1;background:#f3f4f6;color:#374151;border:none;border-radius:6px;padding:8px;font-size:12px;cursor:pointer">🔄 Regravar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
+        <button @click="closeDescarregoCreate()" style="background:#f3f4f6;color:#374151;border:none;border-radius:6px;padding:9px 16px;font-size:13px;cursor:pointer">Cancelar</button>
+        <button @click="submitDescarregoCreate()"
+                :disabled="ui.descarregoModal?.submitting || (!ui.descarregoModal?.texto && !ui.descarregoModal?.audioBlob)"
+                style="background:var(--brand-500,#b09b6e);color:#fff;border:none;border-radius:6px;padding:9px 16px;font-size:13px;cursor:pointer">
+          <span x-show="!ui.descarregoModal?.submitting">Capturar e processar</span>
+          <span x-show="ui.descarregoModal?.submitting">Enviando…</span>
+        </button>
       </div>
     </div>
   </div>
