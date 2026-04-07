@@ -211,6 +211,9 @@ function operon() {
       visibleFieldIds: {}, // { fieldId: true } — which custom fields show as columns
       collapsedSpaces: {}, // { spaceId: true }
       subtaskExpanded: null, // index of expanded subtask in drawer
+      automationsOpen: false,
+      autoForm: { name: '', trigger_type: 'status_changed', trigger_config: {}, condition_config: {}, action_type: 'change_status', action_config: {} },
+      dashboardOpen: false,
       taskSpaceFilter: 'all', // space_id filter
       taskListFilter: 'all', // list_id filter
       taskSprintFilter: 'all', // sprint_id filter
@@ -479,6 +482,7 @@ function operon() {
       // Tags & Custom Fields
       taskTags: [],             // god_task_tags — all available tags
       fieldDefs: [],            // applicable god_task_field_defs for current modal
+      automations: [],          // god_automations rules
       finDetailLogs: [],        // financial logs for mentee detail tab
       menteeNotes: [],          // notes for current notes drawer
       waSelectedMentees: [],    // IDs selected in bulk mode
@@ -1958,6 +1962,7 @@ function operon() {
         this.loadSpallaMembers(); // non-blocking: popula data.members
         this.loadGodLists();     // non-blocking: popula data.lists + data.sprints
         this.loadFieldDefs();    // non-blocking: popula data.fieldDefs for custom columns
+        this.loadAutomations();  // non-blocking: popula data.automations
 
         if (this.auth.authenticated) {
           // Auto-refresh token before it expires (every 45 min)
@@ -7651,6 +7656,116 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     async updateTaskPoints(taskId, points) {
       const val = parseInt(points) || null;
       await this.updateTaskField(taskId, 'points', val);
+    },
+
+    // ── Automations Engine ──
+    async loadAutomations() {
+      if (!sb) return;
+      try {
+        const { data, error } = await sb.from('god_automations').select('*').order('created_at', { ascending: false });
+        if (!error && data) this.data.automations = data;
+      } catch (e) { console.warn('[Spalla] loadAutomations:', e.message); }
+    },
+
+    async saveAutomation(auto) {
+      if (!sb) return;
+      try {
+        if (auto.id) {
+          const { error } = await sb.from('god_automations').update(auto).eq('id', auto.id);
+          if (error) throw error;
+        } else {
+          const { data, error } = await sb.from('god_automations').insert(auto).select().single();
+          if (error) throw error;
+          auto.id = data.id;
+        }
+        await this.loadAutomations();
+        this.toast('Automacao salva', 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    async toggleAutomation(id) {
+      const auto = (this.data.automations || []).find(a => a.id === id);
+      if (!auto) return;
+      auto.is_active = !auto.is_active;
+      await sb.from('god_automations').update({ is_active: auto.is_active }).eq('id', id);
+    },
+
+    async deleteAutomation(id) {
+      if (!confirm('Excluir esta automacao?')) return;
+      await sb.from('god_automations').delete().eq('id', id);
+      this.data.automations = (this.data.automations || []).filter(a => a.id !== id);
+      this.toast('Automacao excluida', 'success');
+    },
+
+    // Evaluate automations on task change
+    async evaluateAutomations(taskId, triggerType, triggerData = {}) {
+      const rules = (this.data.automations || []).filter(a => a.is_active && a.trigger_type === triggerType);
+      const task = this.data.tasks.find(t => t.id === taskId);
+      if (!task || !rules.length) return;
+
+      for (const rule of rules) {
+        // Check condition
+        const cond = rule.condition_config || {};
+        if (cond.space_id && task.space_id !== cond.space_id) continue;
+        if (cond.priority && task.prioridade !== cond.priority) continue;
+        if (cond.list_id && task.list_id !== cond.list_id) continue;
+
+        // Check trigger specifics
+        const trig = rule.trigger_config || {};
+        if (triggerType === 'status_changed' && trig.to && triggerData.newValue !== trig.to) continue;
+        if (triggerType === 'status_changed' && trig.from && triggerData.oldValue !== trig.from) continue;
+
+        // Execute action
+        const act = rule.action_config || {};
+        try {
+          if (rule.action_type === 'change_status') await this.updateTaskStatus(taskId, act.status);
+          else if (rule.action_type === 'change_assignee') await this.updateTaskField(taskId, 'responsavel', act.assignee);
+          else if (rule.action_type === 'change_priority') await this.updateTaskField(taskId, 'prioridade', act.priority);
+          else if (rule.action_type === 'send_notification') this.toast('Auto: ' + (act.message || rule.name), 'info');
+
+          // Log execution
+          await sb.from('god_automation_log').insert({
+            automation_id: rule.id, task_id: taskId,
+            trigger_data: triggerData, action_result: act, success: true,
+          });
+          await sb.from('god_automations').update({
+            execution_count: (rule.execution_count || 0) + 1,
+            last_executed_at: new Date().toISOString(),
+          }).eq('id', rule.id);
+        } catch (e) {
+          await sb.from('god_automation_log').insert({
+            automation_id: rule.id, task_id: taskId,
+            trigger_data: triggerData, success: false, error_message: e.message,
+          });
+        }
+      }
+    },
+
+    // ── Dashboard Stats ──
+    get dashboardStats() {
+      const tasks = this.data.tasks;
+      const now = new Date();
+      const weekAgo = new Date(now - 7 * 86400000);
+      const recentDone = tasks.filter(t => t.status === 'concluida' && t.updated_at && new Date(t.updated_at) > weekAgo).length;
+      const byAssignee = {};
+      tasks.filter(t => t.status !== 'concluida').forEach(t => {
+        const key = t.responsavel || 'Sem responsavel';
+        byAssignee[key] = (byAssignee[key] || 0) + 1;
+      });
+      const byPriority = { urgente: 0, alta: 0, normal: 0, baixa: 0 };
+      tasks.filter(t => t.status !== 'concluida').forEach(t => { byPriority[t.prioridade || 'normal']++; });
+      const overdue = tasks.filter(t => t.status === 'pendente' && (t.data_fim || t.prazo) && new Date(t.data_fim || t.prazo) < now).length;
+
+      return {
+        total: tasks.length,
+        pending: tasks.filter(t => t.status === 'pendente').length,
+        inProgress: tasks.filter(t => t.status === 'em_andamento').length,
+        done: tasks.filter(t => t.status === 'concluida').length,
+        overdue,
+        recentDone,
+        byAssignee: Object.entries(byAssignee).sort((a, b) => b[1] - a[1]),
+        byPriority,
+      };
     },
 
     // ── Calendar View helpers ──
