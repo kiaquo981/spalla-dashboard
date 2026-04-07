@@ -19,6 +19,7 @@ import hashlib
 import secrets
 import unicodedata
 import re
+import uuid
 from datetime import datetime, timedelta, timezone
 
 try:
@@ -1594,6 +1595,197 @@ def search_semantic(query_text, mode='hybrid', filters=None, limit=10):
         return rerank_results(query_text, results, top_n=limit)
 
 
+# ============================================================
+# LF-FASE3: Descarrego saga / processor (module-level helpers)
+# ============================================================
+def _descarrego_load(descarrego_id):
+    r = supabase_request('GET', f'/rest/v1/descarregos?id=eq.{descarrego_id}&limit=1')
+    if r.status_code != 200:
+        raise RuntimeError(f'load failed: {r.text}')
+    rows = r.json()
+    if not rows:
+        raise RuntimeError(f'descarrego {descarrego_id} not found')
+    return rows[0]
+
+
+def _descarrego_update(descarrego_id, fields):
+    r = supabase_request(
+        'PATCH', f'/rest/v1/descarregos?id=eq.{descarrego_id}', body=fields
+    )
+    if r.status_code not in (200, 204):
+        raise RuntimeError(f'update failed: {r.text}')
+
+
+def _descarrego_transition(descarrego_id, event, actor='system', payload=None):
+    """Carrega FSM, aplica transição, persiste status."""
+    from domain.state_machines import DescarregoStateMachine
+    row = _descarrego_load(descarrego_id)
+    sm = DescarregoStateMachine(row)
+    result = sm.transition(event, actor=actor, persist=False, payload=payload)
+    _descarrego_update(descarrego_id, {'status': result['to']})
+    log_info('descarrego_fsm',
+             f'{descarrego_id}: {result["from"]} --[{event}]--> {result["to"]}')
+    return result
+
+
+def _descarrego_processor_run(descarrego_id):
+    """Saga: capturado → transcrito → classificado → ação."""
+    try:
+        row = _descarrego_load(descarrego_id)
+        log_info('descarrego_saga', f'start {descarrego_id} status={row["status"]}')
+
+        # 1) Transcrição (se áudio/vídeo)
+        if row.get('tipo_bruto') in ('audio', 'video', 'gravacao'):
+            if row['status'] == 'capturado':
+                _descarrego_transition(descarrego_id, 'needs_transcription')
+                _descarrego_do_transcription(descarrego_id)
+                _descarrego_transition(descarrego_id, 'transcribed')
+        elif row['status'] == 'capturado':
+            _descarrego_transition(descarrego_id, 'skip_transcription')
+
+        # 2) Classificação
+        row = _descarrego_load(descarrego_id)
+        if row['status'] == 'transcrito':
+            _descarrego_transition(descarrego_id, 'classify')
+            _descarrego_do_classification(descarrego_id)
+            _descarrego_transition(descarrego_id, 'classified')
+
+        # 3) Decisão
+        row = _descarrego_load(descarrego_id)
+        confidence = float(row.get('classificacao_confidence') or 0)
+        principal = row.get('classificacao_principal')
+        if confidence >= 0.8 and principal in ('task', 'contexto'):
+            _descarrego_transition(descarrego_id, 'auto_execute')
+            _descarrego_execute_action(descarrego_id, 'auto')
+        else:
+            _descarrego_transition(descarrego_id, 'request_human')
+            log_info('descarrego_saga', f'{descarrego_id} → HITL (conf={confidence})')
+
+    except Exception as e:
+        log_error('descarrego_saga', f'{descarrego_id} failed: {e}', e)
+        try:
+            _descarrego_update(descarrego_id, {
+                'status': 'erro',
+                'last_error': str(e)[:500],
+                'retry_count': (_descarrego_load(descarrego_id).get('retry_count') or 0) + 1,
+            })
+        except Exception:
+            pass
+
+
+def _descarrego_do_transcription(descarrego_id):
+    row = _descarrego_load(descarrego_id)
+    arquivo_url = row.get('arquivo_url')
+    if not arquivo_url:
+        raise RuntimeError('arquivo_url ausente para transcrição')
+    # Download e transcrição via Whisper
+    try:
+        with urllib.request.urlopen(arquivo_url, timeout=120) as resp:
+            audio_bytes = resp.read()
+    except Exception as e:
+        raise RuntimeError(f'download falhou: {e}')
+
+    mime = row.get('arquivo_mime_type') or 'audio/mpeg'
+    filename = arquivo_url.rsplit('/', 1)[-1] or 'audio.mp3'
+    transcricao = openai_whisper(audio_bytes, filename, mime)
+
+    _descarrego_update(descarrego_id, {
+        'transcricao': transcricao,
+        'transcrito_em': datetime.now(timezone.utc).isoformat(),
+        'transcrito_por': 'whisper-1',
+        'transcricao_confidence': 0.95,
+    })
+
+
+def _descarrego_do_classification(descarrego_id):
+    from domain.services.descarrego_classifier import classify_descarrego
+    row = _descarrego_load(descarrego_id)
+    text = row.get('transcricao') or row.get('conteudo_bruto') or ''
+    mentorado_ctx = None
+    if row.get('mentorado_id'):
+        try:
+            r = supabase_request(
+                'GET',
+                f'/rest/v1/mentorados?id=eq.{row["mentorado_id"]}'
+                f'&select=nome,fase_jornada,trilha&limit=1',
+            )
+            if r.status_code == 200 and r.json():
+                mentorado_ctx = r.json()[0]
+        except Exception:
+            pass
+
+    result = classify_descarrego(text, mentorado_ctx)
+    _descarrego_update(descarrego_id, {
+        'classificacao_principal': result.get('primary_type'),
+        'classificacao_sub': result.get('subtype'),
+        'classificacao_confidence': result.get('confidence', 0),
+        'classificacao_payload': result,
+        'classificado_em': datetime.now(timezone.utc).isoformat(),
+        'classificado_por': 'gpt-4o-mini',
+    })
+
+
+def _descarrego_execute_action(descarrego_id, mode='auto'):
+    """mode: 'auto' (FSM em executando_acao_automatica) ou 'manual' (após HITL)."""
+    try:
+        row = _descarrego_load(descarrego_id)
+        principal = row.get('classificacao_principal')
+        payload = row.get('classificacao_payload') or {}
+
+        if principal == 'task':
+            task_data = payload.get('task') or {}
+            prazo_dias = task_data.get('prazo_dias', 0)
+            data_fim = None
+            if prazo_dias:
+                data_fim = (datetime.now(timezone.utc)
+                            + timedelta(days=int(prazo_dias))).isoformat()
+            new_task = {
+                'titulo': task_data.get('titulo') or 'Task de descarrego',
+                'descricao': task_data.get('descricao') or row.get('transcricao'),
+                'status': 'pendente',
+                'prioridade': task_data.get('prioridade', 'normal'),
+                'responsavel': task_data.get('responsavel') or 'kaique',
+                'mentorado_id': row.get('mentorado_id'),
+                'data_fim': data_fim,
+                'fonte': 'descarrego',
+                'auto_created': mode == 'auto',
+                'confianca_ia': row.get('classificacao_confidence'),
+                'especie': 'one_time',
+            }
+            r = supabase_request('POST', '/rest/v1/god_tasks', body=new_task)
+            if r.status_code in (200, 201):
+                created = r.json()
+                task_id = created[0]['id'] if isinstance(created, list) and created else created.get('id')
+                _descarrego_update(descarrego_id, {
+                    'acao_tomada': 'task_criada',
+                    'task_id': task_id,
+                    'acao_tomada_em': datetime.now(timezone.utc).isoformat(),
+                    'acao_tomada_por': 'saga' if mode == 'auto' else 'humano',
+                })
+            else:
+                raise RuntimeError(f'task create failed: {r.text}')
+
+        elif principal == 'contexto':
+            _descarrego_update(descarrego_id, {
+                'acao_tomada': 'salvo_como_contexto',
+                'acao_tomada_em': datetime.now(timezone.utc).isoformat(),
+                'acao_tomada_por': 'saga' if mode == 'auto' else 'humano',
+            })
+        else:
+            _descarrego_update(descarrego_id, {
+                'acao_tomada': 'sem_acao',
+                'acao_tomada_em': datetime.now(timezone.utc).isoformat(),
+            })
+
+        _descarrego_transition(descarrego_id, 'action_done')
+    except Exception as e:
+        log_error('descarrego_action', f'{descarrego_id}: {e}', e)
+        try:
+            _descarrego_transition(descarrego_id, 'action_failed')
+        except Exception:
+            pass
+
+
 # ===== CUSTOM HTTP SERVER (fix SO_REUSEADDR) =====
 class ReuseAddrHTTPServer(http.server.HTTPServer):
     allow_reuse_address = True
@@ -2187,6 +2379,119 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             self._send_json({'error': f'Sync failed: {e}'}, 500)
 
+    # ============================================================
+    # LF-FASE3: Descarrego endpoints
+    # ============================================================
+    def _handle_descarrego_capture(self):
+        """POST /api/descarrego/capture
+        Body: { mentorado_id, tipo_bruto, conteudo_bruto?, arquivo_url?, fonte? }
+        """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        try:
+            body = self._read_json_body()
+            mentorado_id = body.get('mentorado_id')
+            tipo_bruto = body.get('tipo_bruto', 'texto')
+            if tipo_bruto not in ('texto','audio','video','imagem','arquivo','link','gravacao'):
+                return self._send_json({'error': f'tipo_bruto inválido: {tipo_bruto}'}, 400)
+            payload = {
+                'mentorado_id': mentorado_id,
+                'consultor_id': auth.get('user_id') if isinstance(auth, dict) else str(auth),
+                'tipo_bruto': tipo_bruto,
+                'conteudo_bruto': body.get('conteudo_bruto'),
+                'arquivo_url': body.get('arquivo_url'),
+                'arquivo_size_bytes': body.get('arquivo_size_bytes'),
+                'arquivo_mime_type': body.get('arquivo_mime_type'),
+                'duracao_ms': body.get('duracao_ms'),
+                'fonte': body.get('fonte', 'web_drawer'),
+                'correlation_id': str(uuid.uuid4()),
+                'status': 'capturado',
+            }
+            r = supabase_request('POST', '/rest/v1/descarregos', body=payload)
+            if r.status_code not in (200, 201):
+                return self._send_json({'error': r.text}, r.status_code)
+            data = r.json()
+            row = data[0] if isinstance(data, list) and data else data
+            self._send_json({
+                'descarrego_id': row.get('id'),
+                'correlation_id': row.get('correlation_id'),
+                'status': row.get('status'),
+            }, 201)
+        except Exception as e:
+            log_error('descarrego_capture', str(e), e)
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_descarrego_process(self, descarrego_id):
+        """POST /api/descarrego/{id}/process — async pipeline."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        # Spawn worker thread
+        t = threading.Thread(
+            target=_descarrego_processor_run,
+            args=(descarrego_id,),
+            daemon=True,
+        )
+        t.start()
+        self._send_json({
+            'descarrego_id': descarrego_id,
+            'status': 'processing_started',
+        }, 202)
+
+    def _handle_descarrego_approve(self, descarrego_id):
+        """POST /api/descarrego/{id}/approve — HITL approve."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
+        try:
+            _descarrego_transition(descarrego_id, 'human_approved', actor=actor)
+            # Spawn execução manual em thread
+            t = threading.Thread(
+                target=_descarrego_execute_action,
+                args=(descarrego_id, 'manual'),
+                daemon=True,
+            )
+            t.start()
+            self._send_json({'descarrego_id': descarrego_id, 'status': 'approved'})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_descarrego_reject(self, descarrego_id):
+        """POST /api/descarrego/{id}/reject — HITL reject."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
+        try:
+            _descarrego_transition(descarrego_id, 'human_rejected', actor=actor)
+            supabase_request(
+                'PATCH',
+                f'/rest/v1/descarregos?id=eq.{descarrego_id}',
+                body={'acao_tomada': 'rejeitado_humano',
+                      'acao_tomada_em': datetime.now(timezone.utc).isoformat(),
+                      'acao_tomada_por': actor},
+            )
+            self._send_json({'descarrego_id': descarrego_id, 'status': 'rejected'})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_descarregos_list(self, mentorado_id):
+        """GET /api/mentees/{id}/descarregos"""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        try:
+            r = supabase_request(
+                'GET',
+                f'/rest/v1/descarregos?mentorado_id=eq.{mentorado_id}'
+                f'&order=created_at.desc&limit=100',
+            )
+            self._send_json({'descarregos': r.json()})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', self._get_cors_origin())
@@ -2256,6 +2561,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         elif re.match(r'^/api/mentee-groups/(\d+)/members$', self.path):
             _m = re.match(r'^/api/mentee-groups/(\d+)/members$', self.path)
             self._handle_get_group_members(_m.group(1))
+        elif re.match(r'^/api/mentees/(\d+)/descarregos$', self.path):
+            _m = re.match(r'^/api/mentees/(\d+)/descarregos$', self.path)
+            self._handle_descarregos_list(_m.group(1))
         elif self.path == '/api/clickup/command-center':
             self._handle_clickup_command_center()
         # ===== Biblioteca =====
@@ -2345,6 +2653,18 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         elif re.match(r'^/api/mentee-groups/(\d+)/members$', self.path):
             _m = re.match(r'^/api/mentee-groups/(\d+)/members$', self.path)
             self._handle_post_group_member(_m.group(1))
+        # ===== LF-FASE3: Descarrego =====
+        elif self.path == '/api/descarrego/capture':
+            self._handle_descarrego_capture()
+        elif re.match(r'^/api/descarrego/([0-9a-f-]+)/process$', self.path):
+            _dm = re.match(r'^/api/descarrego/([0-9a-f-]+)/process$', self.path)
+            self._handle_descarrego_process(_dm.group(1))
+        elif re.match(r'^/api/descarrego/([0-9a-f-]+)/approve$', self.path):
+            _dm = re.match(r'^/api/descarrego/([0-9a-f-]+)/approve$', self.path)
+            self._handle_descarrego_approve(_dm.group(1))
+        elif re.match(r'^/api/descarrego/([0-9a-f-]+)/reject$', self.path):
+            _dm = re.match(r'^/api/descarrego/([0-9a-f-]+)/reject$', self.path)
+            self._handle_descarrego_reject(_dm.group(1))
         elif self.path == '/api/clickup/sync-subtasks':
             self._handle_clickup_sync_subtasks()
         elif self.path == '/api/clickup/import-all':
