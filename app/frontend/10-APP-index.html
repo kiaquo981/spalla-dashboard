@@ -3320,10 +3320,11 @@
 
                 <div style="display:flex;flex-direction:column;gap:10px">
                   <template x-for="ctx in filteredMenteeContext" :key="ctx.id">
-                    <div style="border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--bg-card)">
+                    <div style="border:1px solid var(--border);border-radius:10px;background:var(--bg-card);transition:box-shadow .15s"
+                         :style="ui.ctxExpanded[ctx.id] ? 'box-shadow:0 2px 12px rgba(0,0,0,.08);border-color:var(--brand-300,#c4b896)' : ''">
 
-                      <!-- Header do card -->
-                      <div style="display:flex;align-items:flex-start;gap:10px">
+                      <!-- Header do card — clicavel -->
+                      <div @click="ctxToggle(ctx.id)" style="display:flex;align-items:center;gap:10px;padding:12px;cursor:pointer;user-select:none">
                         <!-- Ícone tipo -->
                         <div style="width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:17px"
                              :style="{'audio':'background:#fef3c7;color:#d97706','gravacao':'background:#fee2e2;color:#dc2626','arquivo':'background:#dbeafe;color:#2563eb','link':'background:#ede9fe;color:#7c3aed','texto':'background:#f0fdf4;color:#16a34a'}[ctx.tipo] || 'background:#f3f4f6'">
@@ -3332,76 +3333,128 @@
 
                         <!-- Título + meta -->
                         <div style="flex:1;min-width:0">
-                          <div style="font-size:13px;font-weight:600;margin-bottom:2px" x-text="ctx.titulo || ctx.tipo"></div>
-                          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                          <div style="display:flex;align-items:center;gap:6px">
+                            <span x-show="ctx.ativo_codigo" style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;background:#8a7d52;color:#fff;letter-spacing:.5px;flex-shrink:0" x-text="ctx.ativo_codigo"></span>
+                            <span style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="ctx.titulo || ctx.tipo"></span>
+                          </div>
+                          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px">
                             <span style="font-size:10px;padding:1px 6px;border-radius:3px;background:var(--bg-subtle);color:var(--text-secondary)" x-text="ctx.fase?.replaceAll('_',' ')"></span>
+                            <span x-show="ctx.origem === 'whatsapp'" style="font-size:10px;padding:1px 5px;border-radius:3px;background:#dcfce7;color:#166534">WA</span>
                             <span style="font-size:10px;color:var(--text-secondary)" x-text="ctx.criado_por?.split('@')[0] || 'sistema'"></span>
                             <span style="font-size:10px;color:var(--text-secondary)" x-text="new Date(ctx.created_at).toLocaleDateString('pt-BR', {day:'2-digit',month:'short',year:'numeric'})"></span>
                           </div>
                         </div>
 
-                        <!-- Arquivar + Deletar -->
-                        <div style="display:flex;gap:2px;flex-shrink:0">
-                          <button @click="archiveContext(ctx.id)" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:13px;padding:2px 4px" @mouseover="$el.style.color='#d97706'" @mouseout="$el.style.color='#9ca3af'" title="Arquivar (manter no banco mas ocultar)">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                        <!-- Preview do conteúdo (quando colapsado) -->
+                        <span x-show="!ui.ctxExpanded[ctx.id] && ctx.conteudo" style="font-size:11px;color:var(--text-secondary);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0"
+                              x-text="ctx.conteudo?.substring(0, 60)"></span>
+
+                        <!-- Expand chevron -->
+                        <svg :style="ui.ctxExpanded[ctx.id] ? 'transform:rotate(180deg)' : ''" style="flex-shrink:0;transition:transform .15s;color:var(--text-secondary)" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                      </div>
+
+                      <!-- Conteúdo expandido -->
+                      <div x-show="ui.ctxExpanded[ctx.id]" x-cloak style="padding:0 12px 12px;border-top:1px solid var(--border)">
+
+                        <!-- Actions bar -->
+                        <div style="display:flex;gap:6px;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:10px">
+                          <button x-show="!ui.ctxEditing[ctx.id]" @click.stop="ctxStartEdit(ctx)" style="font-size:11px;padding:3px 10px;border:1px solid var(--brand-500,#8a7d52);border-radius:4px;background:transparent;cursor:pointer;color:var(--brand-500,#8a7d52);display:flex;align-items:center;gap:4px">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            Editar
                           </button>
-                          <button @click="deleteContext(ctx.id)" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:13px;padding:2px 4px" @mouseover="$el.style.color='#dc2626'" @mouseout="$el.style.color='#9ca3af'" title="Excluir permanentemente">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                          <button @click.stop="archiveContext(ctx.id)" style="font-size:11px;padding:3px 10px;border:1px solid #d97706;border-radius:4px;background:transparent;cursor:pointer;color:#d97706;display:flex;align-items:center;gap:4px">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/></svg>
+                            Arquivar
                           </button>
+                          <button @click.stop="deleteContext(ctx.id)" style="font-size:11px;padding:3px 10px;border:1px solid #dc2626;border-radius:4px;background:transparent;cursor:pointer;color:#dc2626;display:flex;align-items:center;gap:4px">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            Excluir
+                          </button>
+                          <!-- Botão Transcrever -->
+                          <button x-show="['audio','gravacao'].includes(ctx.tipo) && ctx.arquivo_url && !ctx.transcricao"
+                                  @click.stop="transcribeContext(ctx.id)"
+                                  :disabled="ui.ctxTranscribing[ctx.id]"
+                                  style="font-size:11px;padding:3px 10px;border:1px solid #d97706;border-radius:4px;background:transparent;cursor:pointer;color:#d97706;display:flex;align-items:center;gap:4px"
+                                  :style="ui.ctxTranscribing[ctx.id] ? 'opacity:0.6;cursor:not-allowed' : ''">
+                            <span x-show="!ui.ctxTranscribing[ctx.id]">Transcrever</span>
+                            <span x-show="ui.ctxTranscribing[ctx.id]">Transcrevendo...</span>
+                          </button>
+                        </div>
+
+                        <!-- Inline edit mode -->
+                        <div x-show="ui.ctxEditing[ctx.id]" @click.stop style="margin-bottom:12px;padding:10px;background:var(--bg-subtle);border-radius:8px">
+                          <div style="margin-bottom:8px">
+                            <label style="font-size:10px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:3px">Titulo</label>
+                            <input type="text" :value="ui.ctxEditing[ctx.id]?.titulo" @input="ui.ctxEditing[ctx.id].titulo = $event.target.value"
+                                   style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;box-sizing:border-box">
+                          </div>
+                          <div style="margin-bottom:8px">
+                            <label style="font-size:10px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:3px">Conteudo</label>
+                            <textarea :value="ui.ctxEditing[ctx.id]?.conteudo" @input="ui.ctxEditing[ctx.id].conteudo = $event.target.value"
+                                      rows="5" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
+                          </div>
+                          <div style="display:flex;align-items:center;gap:8px">
+                            <label style="font-size:10px;font-weight:600;color:var(--text-secondary)">Fase</label>
+                            <select :value="ui.ctxEditing[ctx.id]?.fase" @change="ui.ctxEditing[ctx.id].fase = $event.target.value"
+                                    style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px">
+                              <option value="onboarding">Onboarding</option>
+                              <option value="travas">Travas / Bloqueios</option>
+                              <option value="momentos">Momentos / Insights</option>
+                              <option value="acoes">Acoes / Execucoes</option>
+                              <option value="dossie_oferta">Dossie Oferta</option>
+                              <option value="dossie_posicionamento">Dossie Posicionamento</option>
+                              <option value="dossie_funil">Dossie Funil</option>
+                              <option value="funil_novo">Novo Funil</option>
+                              <option value="campanha">Campanha</option>
+                              <option value="conteudo">Conteudo</option>
+                              <option value="financeiro">Financeiro</option>
+                              <option value="geral">Geral</option>
+                            </select>
+                            <div style="margin-left:auto;display:flex;gap:6px">
+                              <button @click.stop="ctxCancelEdit(ctx.id)" style="font-size:11px;padding:4px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);cursor:pointer;color:var(--text-secondary)">Cancelar</button>
+                              <button @click.stop="ctxSaveEdit(ctx.id)" class="btn btn--brand btn--sm" style="font-size:11px;padding:4px 12px">Salvar</button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <!-- Imagem inline preview -->
+                        <div x-show="ctx.arquivo_tipo?.startsWith('image/')" style="margin-bottom:10px">
+                          <img :src="ctx.arquivo_url" :alt="ctx.arquivo_nome" style="max-width:100%;max-height:300px;border-radius:6px;object-fit:contain;border:1px solid var(--border)">
+                        </div>
+
+                        <!-- Texto / conteúdo (read mode) -->
+                        <div x-show="ctx.conteudo && !ui.ctxEditing[ctx.id] && !ctx.arquivo_tipo?.startsWith('image/')" style="margin-bottom:10px">
+                          <div style="font-size:12px;color:var(--text-primary);line-height:1.6;white-space:pre-wrap" x-text="ctx.conteudo"></div>
+                        </div>
+
+                        <!-- Transcrição (se existir) -->
+                        <div x-show="ctx.transcricao" style="margin-bottom:10px;padding:8px 10px;background:#f0fdf4;border-radius:6px;border-left:3px solid #16a34a">
+                          <div style="font-size:10px;font-weight:600;color:#16a34a;margin-bottom:4px">TRANSCRICAO</div>
+                          <div style="font-size:12px;color:var(--text-primary);line-height:1.5;white-space:pre-wrap" x-text="ctx.transcricao"></div>
+                        </div>
+
+                        <!-- Arquivo / Link -->
+                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                          <a x-show="ctx.arquivo_url && !ctx.arquivo_tipo?.startsWith('image/')"
+                             :href="ctx.arquivo_url" target="_blank" @click.stop
+                             style="font-size:11px;color:var(--brand-500);text-decoration:none;display:flex;align-items:center;gap:4px">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            <span x-text="ctx.arquivo_nome || 'Baixar arquivo'"></span>
+                            <span x-show="ctx.arquivo_tamanho" style="color:var(--text-secondary)" x-text="'(' + Math.round(ctx.arquivo_tamanho/1024) + ' KB)'"></span>
+                          </a>
+                          <a x-show="ctx.link_url" :href="ctx.link_url" target="_blank" @click.stop
+                             style="font-size:11px;color:#7c3aed;text-decoration:none;display:flex;align-items:center;gap:4px">
+                            <span x-text="ctx.link_url?.replace(/^https?:\/\//, '').substring(0, 50)"></span>
+                          </a>
+                        </div>
+
+                        <!-- Metadata footer -->
+                        <div x-show="ctx.origem || ctx.wa_group_jid" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;gap:10px;font-size:10px;color:var(--text-secondary)">
+                          <span x-show="ctx.origem" x-text="'Origem: ' + ctx.origem"></span>
+                          <span x-show="ctx.wa_group_jid" x-text="'Grupo WA: ' + ctx.wa_group_jid.split('@')[0]"></span>
                         </div>
                       </div>
 
-                      <!-- Imagem inline preview -->
-                      <div x-show="ctx.arquivo_tipo?.startsWith('image/')" style="margin-top:10px">
-                        <img :src="ctx.arquivo_url" :alt="ctx.arquivo_nome" style="max-width:100%;max-height:200px;border-radius:6px;object-fit:contain;border:1px solid var(--border)">
-                      </div>
-
-                      <!-- Texto / conteúdo -->
-                      <div x-show="ctx.conteudo && !ctx.arquivo_tipo?.startsWith('image/')" style="margin-top:8px">
-                        <div style="font-size:12px;color:var(--text-primary);line-height:1.6;white-space:pre-wrap"
-                             x-text="ui.ctxExpanded[ctx.id] ? ctx.conteudo : (ctx.conteudo?.substring(0, 280) + (ctx.conteudo?.length > 280 ? '…' : ''))"></div>
-                        <button x-show="ctx.conteudo?.length > 280" @click="ui.ctxExpanded = {...ui.ctxExpanded, [ctx.id]: !ui.ctxExpanded[ctx.id]}"
-                                style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--brand-500);padding:4px 0;margin-top:2px"
-                                x-text="ui.ctxExpanded[ctx.id] ? '▲ Ver menos' : '▼ Ver mais'"></button>
-                      </div>
-
-                      <!-- Transcrição (se existir) -->
-                      <div x-show="ctx.transcricao" style="margin-top:8px;padding:8px 10px;background:#f0fdf4;border-radius:6px;border-left:3px solid #16a34a">
-                        <div style="font-size:10px;font-weight:600;color:#16a34a;margin-bottom:4px">TRANSCRIÇÃO</div>
-                        <div style="font-size:12px;color:var(--text-primary);line-height:1.5;white-space:pre-wrap"
-                             x-text="ui.ctxExpanded['t_' + ctx.id] ? ctx.transcricao : (ctx.transcricao?.substring(0, 240) + (ctx.transcricao?.length > 240 ? '…' : ''))"></div>
-                        <button x-show="ctx.transcricao?.length > 240" @click="ui.ctxExpanded = {...ui.ctxExpanded, ['t_' + ctx.id]: !ui.ctxExpanded['t_' + ctx.id]}"
-                                style="background:none;border:none;cursor:pointer;font-size:11px;color:#16a34a;padding:2px 0"
-                                x-text="ui.ctxExpanded['t_' + ctx.id] ? '▲ Ver menos' : '▼ Ver mais'"></button>
-                      </div>
-
-                      <!-- Actions: arquivo download + botão transcrever -->
-                      <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap">
-                        <!-- Download / abrir arquivo (não-imagem) -->
-                        <a x-show="ctx.arquivo_url && !ctx.arquivo_tipo?.startsWith('image/')"
-                           :href="ctx.arquivo_url" target="_blank"
-                           style="font-size:11px;color:var(--brand-500);text-decoration:none;display:flex;align-items:center;gap:4px">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                          <span x-text="ctx.arquivo_nome || 'Baixar arquivo'"></span>
-                          <span x-show="ctx.arquivo_tamanho" style="color:var(--text-secondary)" x-text="'(' + Math.round(ctx.arquivo_tamanho/1024) + ' KB)'"></span>
-                        </a>
-
-                        <!-- Link externo -->
-                        <a x-show="ctx.link_url" :href="ctx.link_url" target="_blank"
-                           style="font-size:11px;color:#7c3aed;text-decoration:none;display:flex;align-items:center;gap:4px">
-                          🔗 <span x-text="ctx.link_url?.replace(/^https?:\/\//, '').substring(0, 50)"></span>
-                        </a>
-
-                        <!-- Botão Transcrever (só p/ áudio/gravacao sem transcrição ainda) -->
-                        <button x-show="['audio','gravacao'].includes(ctx.tipo) && ctx.arquivo_url && !ctx.transcricao"
-                                @click="transcribeContext(ctx.id)"
-                                :disabled="ui.ctxTranscribing[ctx.id]"
-                                style="display:flex;align-items:center;gap:4px;padding:3px 10px;border:1px solid #d97706;border-radius:4px;background:transparent;cursor:pointer;font-size:11px;color:#d97706"
-                                :style="ui.ctxTranscribing[ctx.id] ? 'opacity:0.6;cursor:not-allowed' : ''">
-                          <span x-show="!ui.ctxTranscribing[ctx.id]">🤖 Transcrever</span>
-                          <span x-show="ui.ctxTranscribing[ctx.id]">Transcrevendo...</span>
-                        </button>
-                      </div>
                     </div>
                   </template>
                 </div>
