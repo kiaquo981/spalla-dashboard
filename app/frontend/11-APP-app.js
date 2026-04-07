@@ -7420,6 +7420,117 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
     },
 
+    // ── Sprint Management ──
+    get activeSprintId() {
+      return this.ui.taskSprintFilter !== 'all' ? this.ui.taskSprintFilter : null;
+    },
+    get activeSprintData() {
+      const id = this.activeSprintId;
+      if (!id) return null;
+      return (this.data.sprints || []).find(s => s.id === id) || null;
+    },
+    get sprintTasks() {
+      const id = this.activeSprintId;
+      if (!id) return [];
+      return this.data.tasks.filter(t => t.sprint_id === id);
+    },
+    get sprintStats() {
+      const tasks = this.sprintTasks;
+      const total = tasks.length;
+      const done = tasks.filter(t => t.status === 'concluida').length;
+      const points = tasks.reduce((s, t) => s + (t.points || 0), 0);
+      const donePoints = tasks.filter(t => t.status === 'concluida').reduce((s, t) => s + (t.points || 0), 0);
+      return { total, done, pending: total - done, points, donePoints, remainingPoints: points - donePoints, pct: total ? Math.round(done / total * 100) : 0 };
+    },
+    sprintBurndownData() {
+      // Returns { labels: [dates], ideal: [points], actual: [points] }
+      const sp = this.activeSprintData;
+      if (!sp?.inicio || !sp?.fim) return null;
+      const start = new Date(sp.inicio);
+      const end = new Date(sp.fim);
+      const totalDays = Math.ceil((end - start) / 86400000) + 1;
+      const totalPoints = this.sprintStats.points || this.sprintStats.total;
+      const labels = [];
+      const ideal = [];
+      for (let i = 0; i < totalDays; i++) {
+        const d = new Date(start); d.setDate(d.getDate() + i);
+        labels.push(d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }));
+        ideal.push(Math.round(totalPoints * (1 - i / (totalDays - 1))));
+      }
+      // Actual: remaining per day from snapshots (or estimate from current data)
+      const remaining = this.sprintStats.remainingPoints || (this.sprintStats.total - this.sprintStats.done);
+      const today = new Date();
+      const daysPassed = Math.min(totalDays, Math.ceil((today - start) / 86400000) + 1);
+      const actual = [];
+      for (let i = 0; i < daysPassed; i++) {
+        // Linear interpolation from totalPoints to remaining (simplified — real data comes from snapshots)
+        actual.push(Math.round(totalPoints - (totalPoints - remaining) * (i / (daysPassed - 1 || 1))));
+      }
+      return { labels, ideal, actual };
+    },
+    async sprintCreate() {
+      const name = prompt('Nome do sprint (ex: Sprint 4)');
+      if (!name) return;
+      const inicio = prompt('Data inicio (YYYY-MM-DD)');
+      if (!inicio) return;
+      const fim = prompt('Data fim (YYYY-MM-DD)');
+      if (!fim) return;
+      const spaceId = this.ui.taskSpaceFilter !== 'all' ? this.ui.taskSpaceFilter : 'space_sistema';
+      try {
+        const { data, error } = await sb.from('god_lists').insert({
+          id: 'sprint_' + Date.now(),
+          nome: name,
+          space_id: spaceId,
+          tipo: 'sprint',
+          sprint_inicio: inicio,
+          sprint_fim: fim,
+          sprint_status: 'planejado',
+          ordem: (this.data.sprints?.length || 0) + 1,
+        }).select().single();
+        if (error) throw error;
+        this.toast('Sprint criado', 'success');
+        await this.loadSpacesAndStatuses();
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+    async sprintClose(sprintId) {
+      if (!confirm('Encerrar este sprint? Tarefas incompletas podem ser movidas pro proximo.')) return;
+      try {
+        const { error } = await sb.from('god_lists').update({ sprint_status: 'encerrado' }).eq('id', sprintId);
+        if (error) throw error;
+        // Take final snapshot
+        await sb.rpc('fn_sprint_snapshot', { p_sprint_id: sprintId });
+        this.toast('Sprint encerrado', 'success');
+        await this.loadSpacesAndStatuses();
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+    async sprintActivate(sprintId) {
+      try {
+        const { error } = await sb.from('god_lists').update({ sprint_status: 'ativo' }).eq('id', sprintId);
+        if (error) throw error;
+        this.toast('Sprint ativado', 'success');
+        await this.loadSpacesAndStatuses();
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+    async sprintCarryOver(fromSprintId, toSprintId) {
+      const incomplete = this.data.tasks.filter(t => t.sprint_id === fromSprintId && t.status !== 'concluida');
+      if (!incomplete.length) { this.toast('Nenhuma tarefa incompleta', 'info'); return; }
+      if (!confirm(`Mover ${incomplete.length} tarefa(s) incompleta(s) pro sprint selecionado?`)) return;
+      const ids = incomplete.map(t => t.id);
+      try {
+        const { error } = await sb.from('god_tasks').update({ sprint_id: toSprintId }).in('id', ids);
+        if (error) throw error;
+        this.data.tasks = this.data.tasks.map(t => ids.includes(t.id) ? { ...t, sprint_id: toSprintId } : t);
+        this.toast(`${ids.length} tarefa(s) movida(s)`, 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+    async assignToSprint(taskId, sprintId) {
+      await this.updateTaskField(taskId, 'sprint_id', sprintId || null);
+    },
+    async updateTaskPoints(taskId, points) {
+      const val = parseInt(points) || null;
+      await this.updateTaskField(taskId, 'points', val);
+    },
+
     // ── Calendar View helpers ──
     calMonthLabel() {
       const d = new Date(this.ui.calYear, this.ui.calMonth, 1);

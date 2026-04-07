@@ -3611,6 +3611,8 @@
                 </div>
               </template>
 
+              <button @click="sprintCreate()" style="font-size:10px;padding:2px 8px;margin:4px 8px;border:1px dashed var(--border);border-radius:4px;background:none;cursor:pointer;color:var(--text-secondary);display:flex;align-items:center;gap:4px" @mouseover="$el.style.color='var(--brand)';$el.style.borderColor='var(--brand)'" @mouseout="$el.style.color='var(--text-secondary)';$el.style.borderColor='var(--border)'">+ Sprint</button>
+
               <!-- Spaces -->
               <div class="tasks-sidebar__section-label" style="margin-top:8px">SPACES</div>
               <template x-for="space in spaces" :key="space.id">
@@ -3773,6 +3775,71 @@
                 <span class="op-toolbar__count" x-text="(ui.taskView === 'list' ? tasksTree.filter(t=>t._depth===0).length : data.tasks.length) + ' tarefas'"></span>
               </div>
 
+              <!-- SPRINT DETAIL PANEL -->
+              <div x-show="activeSprintId" style="margin-bottom:12px;border:1px solid var(--border);border-radius:10px;padding:14px;background:var(--bg-card)">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+                  <h3 style="margin:0;font-size:15px" x-text="activeSprintData?.nome || 'Sprint'"></h3>
+                  <span style="font-size:11px;padding:2px 8px;border-radius:12px;font-weight:600"
+                        :style="activeSprintData?.status === 'ativo' ? 'background:#dcfce7;color:#166534' : activeSprintData?.status === 'encerrado' ? 'background:#f3f4f6;color:#6b7280' : 'background:#fef3c7;color:#92400e'"
+                        x-text="activeSprintData?.status === 'ativo' ? 'Ativo' : activeSprintData?.status === 'encerrado' ? 'Encerrado' : 'Planejado'"></span>
+                  <span style="font-size:11px;color:var(--text-secondary)" x-text="(activeSprintData?.inicio || '') + ' → ' + (activeSprintData?.fim || '')"></span>
+                  <div style="margin-left:auto;display:flex;gap:6px">
+                    <button x-show="activeSprintData?.status === 'planejado'" @click="sprintActivate(activeSprintId)" class="btn btn--sm btn--brand" style="font-size:11px;padding:3px 10px">Ativar</button>
+                    <button x-show="activeSprintData?.status === 'ativo'" @click="sprintClose(activeSprintId)" class="btn btn--sm" style="font-size:11px;padding:3px 10px;border-color:#d97706;color:#d97706">Encerrar</button>
+                    <select x-show="activeSprintData?.status === 'encerrado'" @change="if($event.target.value) sprintCarryOver(activeSprintId, $event.target.value); $event.target.value=''" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px">
+                      <option value="">Carry-over para...</option>
+                      <template x-for="sp in data.sprints.filter(s => s.id !== activeSprintId && s.status !== 'encerrado')" :key="sp.id">
+                        <option :value="sp.id" x-text="sp.nome"></option>
+                      </template>
+                    </select>
+                  </div>
+                </div>
+                <!-- Sprint KPIs -->
+                <div style="display:flex;gap:12px;flex-wrap:wrap">
+                  <div style="flex:1;min-width:80px;text-align:center;padding:8px;background:var(--bg-subtle);border-radius:8px">
+                    <div style="font-size:20px;font-weight:700" x-text="sprintStats.total"></div>
+                    <div style="font-size:10px;color:var(--text-secondary)">Total</div>
+                  </div>
+                  <div style="flex:1;min-width:80px;text-align:center;padding:8px;background:#dcfce7;border-radius:8px">
+                    <div style="font-size:20px;font-weight:700;color:#166534" x-text="sprintStats.done"></div>
+                    <div style="font-size:10px;color:#166534">Concluidas</div>
+                  </div>
+                  <div style="flex:1;min-width:80px;text-align:center;padding:8px;background:#fef3c7;border-radius:8px">
+                    <div style="font-size:20px;font-weight:700;color:#92400e" x-text="sprintStats.pending"></div>
+                    <div style="font-size:10px;color:#92400e">Restantes</div>
+                  </div>
+                  <div style="flex:1;min-width:80px;text-align:center;padding:8px;background:#eff6ff;border-radius:8px">
+                    <div style="font-size:20px;font-weight:700;color:#1d4ed8" x-text="sprintStats.points + ' pts'"></div>
+                    <div style="font-size:10px;color:#1d4ed8">Total Points</div>
+                  </div>
+                  <div style="flex:1;min-width:80px;text-align:center;padding:8px;background:#f0fdf4;border-radius:8px">
+                    <div style="font-size:20px;font-weight:700;color:#16a34a" x-text="sprintStats.donePoints + ' pts'"></div>
+                    <div style="font-size:10px;color:#16a34a">Done Points</div>
+                  </div>
+                  <div style="flex:1;min-width:80px;text-align:center;padding:8px;border-radius:8px;position:relative;overflow:hidden">
+                    <div style="position:absolute;inset:0;background:#22c55e;opacity:.15;border-radius:8px"></div>
+                    <div style="position:absolute;left:0;top:0;bottom:0;background:#22c55e;opacity:.25;border-radius:8px;transition:width .3s" :style="'width:' + sprintStats.pct + '%'"></div>
+                    <div style="position:relative;font-size:20px;font-weight:700" x-text="sprintStats.pct + '%'"></div>
+                    <div style="position:relative;font-size:10px;color:var(--text-secondary)">Progresso</div>
+                  </div>
+                </div>
+                <!-- Burndown mini (ASCII-style with bars) -->
+                <div x-show="sprintStats.total > 0" style="margin-top:12px">
+                  <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Burndown</div>
+                  <div style="display:flex;align-items:flex-end;gap:2px;height:40px">
+                    <template x-for="(val, i) in (sprintBurndownData()?.actual || [])" :key="i">
+                      <div style="flex:1;border-radius:2px 2px 0 0;min-width:4px;transition:height .2s"
+                           :style="'height:' + (sprintStats.points ? Math.max(4, val / sprintStats.points * 40) : 4) + 'px;background:' + (i === (sprintBurndownData()?.actual?.length - 1) ? '#3b82f6' : '#93c5fd')"
+                           :title="(sprintBurndownData()?.labels?.[i] || '') + ': ' + val + ' pts restantes'"></div>
+                    </template>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-secondary);margin-top:2px">
+                    <span x-text="sprintBurndownData()?.labels?.[0] || ''"></span>
+                    <span x-text="sprintBurndownData()?.labels?.slice(-1)?.[0] || ''"></span>
+                  </div>
+                </div>
+              </div>
+
               <!-- BOARD VIEW -->
               <div class="task-board" x-show="ui.taskView === 'board'">
                 <template x-for="col in boardColumns" :key="col.key">
@@ -3834,6 +3901,10 @@
                           <div x-show="t.parent_task_id" class="task-board__card-parent">
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                             <span x-text="'Subtarefa'"></span>
+                          </div>
+                          <div x-show="t.points || t.sprint_id" style="display:flex;align-items:center;gap:6px;margin-top:4px">
+                            <span x-show="t.points" style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;background:#eff6ff;color:#1d4ed8" x-text="t.points + ' pts'"></span>
+                            <span x-show="t.sprint_id && !activeSprintId" style="font-size:10px;padding:1px 6px;border-radius:10px;background:#f3f4f6;color:#6b7280" x-text="data.sprints.find(s=>s.id===t.sprint_id)?.nome || ''"></span>
                           </div>
                           <div class="task-board__card-footer">
                             <span x-show="t.responsavel" class="task-board__card-assignee">
