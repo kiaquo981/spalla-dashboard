@@ -627,6 +627,15 @@ function operon() {
       mentorado_nome: '',
       tipo: 'geral',
       notificarMentorado: false,
+      // LF Story 4: espécie + campos relacionados
+      especie: 'one_time',
+      rrule: '',
+      rrule_freq: 'DAILY',
+      rrule_interval: 1,
+      proxima_execucao: '',
+      trigger_aggregate: '',
+      trigger_event: '',
+      trigger_filter: '',
       prioridade: 'normal',
       prazo: '', // this becomes data_fim
       data_inicio: '',
@@ -6900,6 +6909,21 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       delete formData.newDependsOn;
       delete formData.newDependsOnType;
       delete formData.fieldValues;
+      // LF Story 4: limpa campos de UI helper antes de persistir
+      delete formData.rrule_freq;
+      delete formData.rrule_interval;
+      // Triggered: extrai pra criar regra separada após salvar a task
+      const triggerSpec = (formData.especie === 'triggered_template' && formData.trigger_aggregate && formData.trigger_event)
+        ? { aggregate: formData.trigger_aggregate, event: formData.trigger_event, filter: formData.trigger_filter }
+        : null;
+      delete formData.trigger_aggregate;
+      delete formData.trigger_event;
+      delete formData.trigger_filter;
+      // Recorrente: garante rrule construído
+      if (formData.especie !== 'recorrente_template') {
+        formData.rrule = null;
+        formData.proxima_execucao = null;
+      }
       const pendingDependencies = this.taskForm.dependencies || [];
       if (formData.data_fim) formData.prazo = formData.data_fim;
       // Normalize tags to TEXT[] for backward compat column
@@ -6945,6 +6969,10 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         if (newTask.responsavel) {
           newTask._notifyMentorado = this.taskForm.notificarMentorado || false;
           this._notifyTaskViaWa(newTask).catch(e => console.warn('[task-notify]', e));
+        }
+        // LF Story 4: cria regra de trigger se especie=triggered_template
+        if (triggerSpec) {
+          await this._createTriggerRule(newId, triggerSpec);
         }
       }
       this._cacheTasksLocal();
@@ -10768,6 +10796,40 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         this.toast?.('Falha: ' + e.message, 'error');
       } finally {
         if (this.ui.descarregoModal) this.ui.descarregoModal.submitting = false;
+      }
+    },
+
+    // ===== LF Story 4: helpers de espécie =====
+    rebuildRrule() {
+      const f = this.taskForm.rrule_freq || 'DAILY';
+      const i = this.taskForm.rrule_interval || 1;
+      this.taskForm.rrule = `FREQ=${f};INTERVAL=${i}`;
+    },
+
+    async _createTriggerRule(taskId, spec) {
+      try {
+        if (!this.supabase) sb = await initSupabase();
+        let filter = {};
+        if (spec.filter) {
+          try { filter = JSON.parse(spec.filter); } catch { filter = {}; }
+        }
+        await this.supabase.from('task_trigger_rules').insert({
+          nome: this.taskForm.titulo || 'Regra de trigger',
+          when_aggregate_type: spec.aggregate,
+          when_event_type: spec.event,
+          when_payload_filter: filter,
+          then_template: {
+            titulo: this.taskForm.titulo,
+            descricao: this.taskForm.descricao,
+            responsavel: this.taskForm.responsavel,
+            prioridade: this.taskForm.prioridade,
+          },
+          ativa: true,
+          origem: 'manual',
+        });
+      } catch (e) {
+        console.warn('[trigger_rule]', e);
+        this.toast?.('Task criada mas regra de trigger falhou: ' + e.message, 'warning');
       }
     },
 

@@ -11369,6 +11369,61 @@
               </div>
             </div>
 
+            <!-- LF: Espécie de tarefa -->
+            <div class="modal__row">
+              <div style="flex:1"><label>Espécie</label>
+                <select x-model="taskForm.especie" class="modal__select">
+                  <option value="one_time">📌 One-time (tarefa simples)</option>
+                  <option value="quest">⚔️ Quest (tarefa-pai com filhos sequenciais)</option>
+                  <option value="recorrente_template">🔄 Recorrente (template + instâncias)</option>
+                  <option value="triggered_template">⚡ Triggered (dispara por evento)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Recorrente: rrule helper -->
+            <div x-show="taskForm.especie === 'recorrente_template'" style="padding:12px;background:#f9fafb;border:1px solid var(--border);border-radius:8px;margin-bottom:12px">
+              <div class="modal__row">
+                <div><label>Frequência</label>
+                  <select x-model="taskForm.rrule_freq" class="modal__select" @change="rebuildRrule()">
+                    <option value="HOURLY">Por hora</option>
+                    <option value="DAILY">Diário</option>
+                    <option value="WEEKLY">Semanal</option>
+                    <option value="MONTHLY">Mensal</option>
+                  </select>
+                </div>
+                <div><label>Intervalo</label>
+                  <input type="number" min="1" x-model.number="taskForm.rrule_interval" class="modal__input" @input="rebuildRrule()">
+                </div>
+              </div>
+              <div style="font-size:11px;color:var(--text-secondary);margin-top:6px">RRULE: <code x-text="taskForm.rrule || '(vazio)'"></code></div>
+              <div><label style="margin-top:8px">Próxima execução</label>
+                <input type="datetime-local" x-model="taskForm.proxima_execucao" class="modal__input">
+              </div>
+            </div>
+
+            <!-- Triggered: campos da regra -->
+            <div x-show="taskForm.especie === 'triggered_template'" style="padding:12px;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;margin-bottom:12px">
+              <div style="font-size:11px;color:#92400e;margin-bottom:8px">Cria uma regra em <strong>task_trigger_rules</strong>. A task será materializada automaticamente quando o evento ocorrer.</div>
+              <div class="modal__row">
+                <div><label>Aggregate Type</label>
+                  <select x-model="taskForm.trigger_aggregate" class="modal__select">
+                    <option value="">--</option>
+                    <option value="Mentorado">Mentorado</option>
+                    <option value="Task">Task</option>
+                    <option value="DossieProducao">DossieProducao</option>
+                    <option value="Descarrego">Descarrego</option>
+                    <option value="Call">Call</option>
+                  </select>
+                </div>
+                <div><label>Event Type</label>
+                  <input type="text" x-model="taskForm.trigger_event" class="modal__input" placeholder="ex: MentoradoFaseChanged">
+                </div>
+              </div>
+              <label style="margin-top:8px">Filtro JSONB (opcional)</label>
+              <textarea x-model="taskForm.trigger_filter" class="modal__input" rows="2" placeholder='{"new_fase":"escala"}' style="font-family:monospace;font-size:12px"></textarea>
+            </div>
+
             <!-- Datas -->
             <div class="modal__row">
               <div><label>Data Inicio</label><input type="date" x-model="taskForm.data_inicio" class="modal__input"></div>
