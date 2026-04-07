@@ -72,6 +72,11 @@
     .wa-topic-badge { align-self:center;font-size:10px;background:#ede9fe;color:#6d28d9;padding:2px 8px;border-radius:8px;margin:10px 0 2px;font-weight:500; }
     .wa-extract-btn { opacity:0;font-size:13px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;color:#3b82f6;padding:2px 6px;transition:opacity .15s;flex-shrink:0;margin-top:4px; }
     .wa-msg-wrapper:hover .wa-extract-btn { opacity:1; }
+    .wa-bubble__actions { position:absolute;top:4px;right:4px;display:flex;gap:2px;opacity:0;transition:opacity .15s;z-index:2; }
+    .wa-bubble:hover .wa-bubble__actions { opacity:1; }
+    .wa-bubble__ctx-btn { position:absolute;top:4px;right:4px;opacity:0;background:#fff;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;color:#8a7d52;padding:3px 5px;transition:opacity .15s;z-index:2; }
+    .wa-bubble:hover .wa-bubble__ctx-btn { opacity:1; }
+    .wa-bubble__ctx-btn:hover { background:#f0ead6;border-color:#8a7d52; }
     .wa-inbox-empty { text-align:center;color:#94a3b8;font-size:13px;padding:32px 16px; }
 
     /* Collision badge */
@@ -2675,7 +2680,11 @@
                       <div x-show="mi === 0 || waDateLabel(msg.created_at) !== waDateLabel((data.detail?.last_interactions || [])[mi-1]?.created_at)" class="wa-day-separator">
                         <span x-text="waDateLabel(msg.created_at)"></span>
                       </div>
-                      <div class="wa-bubble" :class="{ 'wa-bubble--me': msg.is_from_team || msg.sender === 'Equipe CASE' }" style="max-width:85%">
+                      <div class="wa-bubble" :class="{ 'wa-bubble--me': msg.is_from_team || msg.sender === 'Equipe CASE' }" style="max-width:85%;position:relative">
+                        <!-- Save to context button -->
+                        <button class="wa-bubble__ctx-btn" @click="saveDetailWaMsgAsContext(msg)" title="Salvar como contexto">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                        </button>
                         <div class="wa-bubble__sender" x-show="!msg.is_from_team && msg.sender !== 'Equipe CASE'" x-text="waCleanSenderName(msg.sender)"></div>
 
                         <!-- Text message -->
@@ -5082,12 +5091,15 @@
               <div class="wa-chat__messages" x-show="ui.whatsappSelectedChat">
                 <template x-for="(msg, mi) in data.whatsappMessages" :key="msg.key?.id || mi">
                   <div class="wa-bubble" :class="{ 'wa-bubble--me': msg.key?.fromMe }" :id="'wa-msg-' + (msg.key?.id || mi)">
-                    <!-- Reply button -->
-                    <button class="wa-bubble__reply-btn" @click="setWaReply(msg)" title="Responder">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
-                    </button>
-                    <!-- Save to context -->
-                    <button class="wa-bubble__reply-btn" @click="saveWaMsgAsContext(msg)" title="Salvar na ficha" style="right:32px;color:#10b981">📌</button>
+                    <!-- Action buttons (reply + save to context) -->
+                    <div class="wa-bubble__actions">
+                      <button class="wa-bubble__reply-btn" @click="setWaReply(msg)" title="Responder">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+                      </button>
+                      <button class="wa-bubble__reply-btn" @click="saveWaMsgAsContext(msg)" title="Salvar como contexto na ficha" style="color:#8a7d52">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                      </button>
+                    </div>
                     <div class="wa-bubble__sender" x-show="!msg.key?.fromMe" x-text="msg.pushName || 'Desconhecido'"></div>
                     <template x-if="getWaMessageType(msg) === 'text'">
                       <div class="wa-bubble__text" x-text="getWaMessageText(msg)"></div>
