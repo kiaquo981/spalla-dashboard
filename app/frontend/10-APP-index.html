@@ -3948,7 +3948,8 @@
               </div>
 
               <!-- LIST VIEW — ClickUp-style grouped table -->
-              <div x-show="ui.taskView === 'list'" style="margin-top:4px">
+              <div x-show="ui.taskView === 'list'" style="margin-top:4px;overflow-x:auto">
+                <div style="min-width:700px">
                 <template x-for="t in tasksTree" :key="t.id + '-' + (t._depth||0)">
                   <div>
                     <!-- ═══ Group Header (collapsible) ═══ -->
@@ -3962,87 +3963,87 @@
                       <button @click.stop="openTaskModal()" style="font-size:11px;background:none;border:none;cursor:pointer;color:var(--text-secondary);padding:2px 4px" title="Adicionar tarefa">+</button>
                     </div>
                     <!-- Column headers (after group header, when not collapsed) -->
-                    <div x-show="t._isGroupHeader && !ui.collapsedGroups?.[t._groupKey]" style="display:grid;grid-template-columns:32px 1fr 120px 140px 100px 28px;gap:0;padding:4px 8px;border-bottom:1px solid var(--border);margin-bottom:2px">
-                      <div style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em"></div>
-                      <div style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Nome</div>
-                      <div style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Responsavel</div>
-                      <div style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Data de vencimento</div>
-                      <div style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Prioridade</div>
-                      <div></div>
-                    </div>
+                    <table x-show="t._isGroupHeader && !ui.collapsedGroups?.[t._groupKey]" style="width:100%;border-collapse:collapse;table-layout:fixed">
+                      <colgroup><col style="width:32px"><col><col style="width:120px"><col style="width:140px"><col style="width:100px"><col style="width:32px"></colgroup>
+                      <tr style="border-bottom:1px solid var(--border)">
+                        <th></th>
+                        <th style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:4px 8px">Nome</th>
+                        <th style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:4px">Responsavel</th>
+                        <th style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:4px">Data de vencimento</th>
+                        <th style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:4px">Prioridade</th>
+                        <th></th>
+                      </tr>
+                    </table>
 
                     <!-- ═══ Task Row ═══ -->
-                    <div x-show="!t._isGroupHeader && !ui.collapsedGroups?.[t._currentGroup]"
-                         @click="openTaskDetail(t.id)"
-                         style="display:grid;grid-template-columns:32px 1fr 120px 140px 100px 28px;gap:0;padding:6px 8px;border-bottom:1px solid #f1f5f9;cursor:pointer;align-items:center;transition:background .1s"
-                         @mouseenter="$el.style.background='#fafaf8'" @mouseleave="$el.style.background='transparent'"
-                         :style="t.status === 'concluida' ? 'opacity:.6' : ''">
+                    <table x-show="!t._isGroupHeader && !ui.collapsedGroups?.[t._currentGroup]" style="width:100%;border-collapse:collapse;table-layout:fixed"
+                           @click="openTaskDetail(t.id)">
+                      <colgroup><col style="width:32px"><col><col style="width:120px"><col style="width:140px"><col style="width:100px"><col style="width:32px"></colgroup>
+                      <tr style="border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s"
+                          @mouseenter="$el.style.background='#fafaf8'" @mouseleave="$el.style.background='transparent'"
+                          :style="t.status === 'concluida' ? 'opacity:.6' : ''">
 
-                      <!-- Checkbox -->
-                      <div @click.stop>
-                        <input type="checkbox" :checked="t.status === 'concluida'" @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"
-                               style="width:15px;height:15px;cursor:pointer;accent-color:#22c55e;border-radius:50%">
-                      </div>
+                        <!-- Checkbox -->
+                        <td style="padding:6px 4px;vertical-align:middle" @click.stop>
+                          <input type="checkbox" :checked="t.status === 'concluida'" @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"
+                                 style="width:15px;height:15px;cursor:pointer;accent-color:#22c55e">
+                        </td>
 
-                      <!-- Name cell (rich: expand, icon, title, indicators, tags) -->
-                      <div style="display:flex;align-items:center;gap:6px;min-width:0;padding-right:12px" :style="(t._depth||0) > 0 ? 'padding-left:20px' : ''">
-                        <!-- Expand toggle -->
-                        <button x-show="t._childCount > 0" @click.stop="toggleTaskExpand(t.id)" style="background:none;border:none;cursor:pointer;padding:0;color:#94a3b8;flex-shrink:0;transition:transform .15s"
-                                :style="ui.taskExpandedIds[t.id] ? 'transform:rotate(90deg)' : ''">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-                        </button>
-                        <!-- Status dot -->
-                        <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0"
-                              :style="'background:' + (t.status==='concluida' ? '#22c55e' : t.status==='em_andamento' ? '#3b82f6' : '#94a3b8')"></span>
-                        <!-- Title -->
-                        <span style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" :style="t.status==='concluida' ? 'text-decoration:line-through;color:#94a3b8' : ''" x-text="t.titulo"></span>
-                        <!-- Inline indicators -->
-                        <span x-show="t.points" style="font-size:10px;color:#6366f1;font-weight:600;flex-shrink:0" x-text="t.points + ' pts'"></span>
-                        <span x-show="t.descricao" style="flex-shrink:0;color:#94a3b8" title="Tem descricao">
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/></svg>
-                        </span>
-                        <span x-show="subtaskProgress(t).total > 0" style="font-size:10px;color:#64748b;flex-shrink:0;display:flex;align-items:center;gap:2px">
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                          <span x-text="subtaskProgress(t).done + '/' + subtaskProgress(t).total"></span>
-                        </span>
-                        <span x-show="t.comments?.length" style="font-size:10px;color:#94a3b8;flex-shrink:0;display:flex;align-items:center;gap:1px">
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                          <span x-text="t.comments.length"></span>
-                        </span>
-                        <!-- Tags inline -->
-                        <template x-for="tag in (t.tags||[]).slice(0,3)" :key="tag.id||tag.name||tag">
-                          <span style="font-size:10px;padding:1px 6px;border-radius:3px;font-weight:600;flex-shrink:0;white-space:nowrap"
-                                :style="tag.color ? 'background:'+tag.color+';color:#fff' : 'background:#e2e8f0;color:#475569'"
-                                x-text="tag.name||tag"></span>
-                        </template>
-                        <span x-show="(t.tags||[]).length > 3" style="font-size:10px;color:#94a3b8;flex-shrink:0" x-text="'+' + ((t.tags||[]).length - 3)"></span>
-                      </div>
+                        <!-- Name cell -->
+                        <td style="padding:6px 8px;vertical-align:middle;overflow:hidden">
+                          <div style="display:flex;align-items:center;gap:6px;min-width:0" :style="(t._depth||0) > 0 ? 'padding-left:20px' : ''">
+                            <button x-show="t._childCount > 0" @click.stop="toggleTaskExpand(t.id)" style="background:none;border:none;cursor:pointer;padding:0;color:#94a3b8;flex-shrink:0;transition:transform .15s"
+                                    :style="ui.taskExpandedIds[t.id] ? 'transform:rotate(90deg)' : ''">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+                            <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0"
+                                  :style="'background:' + (t.status==='concluida' ? '#22c55e' : t.status==='em_andamento' ? '#3b82f6' : '#94a3b8')"></span>
+                            <span style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" :style="t.status==='concluida' ? 'text-decoration:line-through;color:#94a3b8' : ''" x-text="t.titulo"></span>
+                            <span x-show="t.descricao" style="flex-shrink:0;color:#c4c0b8"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/></svg></span>
+                            <span x-show="subtaskProgress(t).total > 0" style="font-size:10px;color:#64748b;flex-shrink:0;display:inline-flex;align-items:center;gap:2px">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                              <span x-text="subtaskProgress(t).done + '/' + subtaskProgress(t).total"></span>
+                            </span>
+                            <span x-show="t.comments?.length" style="font-size:10px;color:#c4c0b8;flex-shrink:0;display:inline-flex;align-items:center;gap:1px">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                              <span x-text="t.comments.length"></span>
+                            </span>
+                            <template x-for="tag in (t.tags||[]).slice(0,3)" :key="tag.id||tag.name||tag">
+                              <span style="font-size:10px;padding:1px 6px;border-radius:3px;font-weight:600;flex-shrink:0;white-space:nowrap"
+                                    :style="tag.color ? 'background:'+tag.color+';color:#fff' : 'background:#e2e8f0;color:#475569'"
+                                    x-text="tag.name||tag"></span>
+                            </template>
+                            <span x-show="(t.tags||[]).length > 3" style="font-size:10px;color:#94a3b8;flex-shrink:0" x-text="'+' + ((t.tags||[]).length - 3)"></span>
+                          </div>
+                        </td>
 
-                      <!-- Responsavel -->
-                      <div @click.stop style="display:flex;align-items:center;gap:6px">
-                        <span x-show="t.responsavel" class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel)" x-text="avatarInitials(t.responsavel)" style="width:26px;height:26px;font-size:10px;flex-shrink:0"></span>
-                        <span x-show="!t.responsavel" style="width:26px;height:26px;border-radius:50%;border:1.5px dashed #d1d5db;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#d1d5db;font-size:14px" @click="$refs['assignSelect_'+t.id]?.focus()">+</span>
-                      </div>
+                        <!-- Responsavel -->
+                        <td style="padding:6px 4px;vertical-align:middle" @click.stop>
+                          <span x-show="t.responsavel" class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel)" x-text="avatarInitials(t.responsavel)" style="width:26px;height:26px;font-size:10px"></span>
+                          <span x-show="!t.responsavel" style="width:26px;height:26px;border-radius:50%;border:1.5px dashed #d1d5db;display:inline-flex;align-items:center;justify-content:center;color:#d1d5db;font-size:14px">+</span>
+                        </td>
 
-                      <!-- Due date -->
-                      <div style="font-size:12px" :style="isOverdue(t.data_fim || t.prazo) && t.status !== 'concluida' ? 'color:#dc2626;font-weight:600' : 'color:var(--text-secondary)'">
-                        <span x-text="relativeDueDate(t.data_fim || t.prazo) || '-'"></span>
-                      </div>
+                        <!-- Due date -->
+                        <td style="padding:6px 4px;vertical-align:middle;font-size:12px" :style="isOverdue(t.data_fim || t.prazo) && t.status !== 'concluida' ? 'color:#dc2626;font-weight:600' : 'color:var(--text-secondary)'"
+                            x-text="relativeDueDate(t.data_fim || t.prazo) || '-'">
+                        </td>
 
-                      <!-- Priority -->
-                      <div style="display:flex;align-items:center;gap:4px">
-                        <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0"
-                              :style="'background:' + (t.prioridade==='urgente' ? '#dc2626' : t.prioridade==='alta' ? '#ea580c' : t.prioridade==='normal' ? '#64748b' : '#d1d5db')"></span>
-                        <span style="font-size:12px;color:var(--text-secondary)" x-text="prioLabel(t.prioridade)"></span>
-                      </div>
+                        <!-- Priority -->
+                        <td style="padding:6px 4px;vertical-align:middle">
+                          <span style="display:inline-flex;align-items:center;gap:4px">
+                            <span style="width:8px;height:8px;border-radius:50%" :style="'background:' + (t.prioridade==='urgente' ? '#dc2626' : t.prioridade==='alta' ? '#ea580c' : t.prioridade==='normal' ? '#64748b' : '#d1d5db')"></span>
+                            <span style="font-size:12px;color:var(--text-secondary)" x-text="prioLabel(t.prioridade)"></span>
+                          </span>
+                        </td>
 
-                      <!-- Settings/more -->
-                      <div @click.stop>
-                        <button @click="openTaskModal(t)" style="background:none;border:none;cursor:pointer;color:#d1d5db;padding:2px" @mouseenter="$el.style.color='#64748b'" @mouseleave="$el.style.color='#d1d5db'">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
-                        </button>
-                      </div>
-                    </div>
+                        <!-- More -->
+                        <td style="padding:6px 2px;vertical-align:middle" @click.stop>
+                          <button @click="openTaskModal(t)" style="background:none;border:none;cursor:pointer;color:#d1d5db;padding:2px" @mouseenter="$el.style.color='#64748b'" @mouseleave="$el.style.color='#d1d5db'">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                          </button>
+                        </td>
+                      </tr>
+                    </table>
 
                     <!-- "+ Adicionar Tarefa" after last item in group -->
                     <div x-show="t._isGroupLast && !ui.collapsedGroups?.[t._currentGroup]" style="padding:6px 8px 16px 40px">
@@ -4054,6 +4055,7 @@
                     </div>
                   </div>
                 </template>
+                </div>
                 <div x-show="!tasksTree.length" style="text-align:center;padding:40px;color:var(--text-secondary)">
                   <p>Nenhuma tarefa encontrada.</p>
                   <button class="btn btn--brand" @click="openTaskModal()">Criar primeira tarefa</button>
