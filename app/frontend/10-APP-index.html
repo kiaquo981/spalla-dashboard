@@ -4574,10 +4574,25 @@
                           </div>
                           <span x-show="!(t.comments?.length)" style="color:#cbd5e1">-</span>
                         </td>
-                        <!-- Custom field columns -->
+                        <!-- Custom field columns (inline edit by type) -->
                         <template x-for="cf in visibleCustomFields()" :key="cf.field_id || cf.id">
-                          <td class="cu-list__td cu-list__td--editable" @click.stop style="font-size:12px;color:#64748b"
-                              x-text="getTaskFieldValue(t, cf.field_id || cf.id) || '-'"></td>
+                          <td class="cu-list__td cu-list__td--editable" @click.stop style="font-size:12px">
+                            <!-- text -->
+                            <input x-show="cf.field_type === 'text'" type="text" :value="getTaskFieldValue(t, cf.field_id || cf.id)" @change="saveInlineFieldValue(t.id, cf.field_id || cf.id, $event.target.value)" style="width:100%;border:none;background:none;font-size:12px;color:#475569;padding:2px 4px;outline:none" :placeholder="'-'">
+                            <!-- number -->
+                            <input x-show="cf.field_type === 'number'" type="number" :value="getTaskFieldValue(t, cf.field_id || cf.id)" @change="saveInlineFieldValue(t.id, cf.field_id || cf.id, $event.target.value)" style="width:60px;border:none;background:none;font-size:12px;color:#475569;padding:2px 4px;outline:none">
+                            <!-- date -->
+                            <input x-show="cf.field_type === 'date'" type="date" :value="getTaskFieldValue(t, cf.field_id || cf.id)" @change="saveInlineFieldValue(t.id, cf.field_id || cf.id, $event.target.value)" class="cu-list__inline-date">
+                            <!-- checkbox -->
+                            <input x-show="cf.field_type === 'checkbox'" type="checkbox" :checked="getTaskFieldValue(t, cf.field_id || cf.id) === 'true' || getTaskFieldValue(t, cf.field_id || cf.id) === true" @change="saveInlineFieldValue(t.id, cf.field_id || cf.id, $event.target.checked)" style="width:16px;height:16px;accent-color:var(--brand-500)">
+                            <!-- select/dropdown -->
+                            <select x-show="cf.field_type === 'select' || cf.field_type === 'dropdown'" @change="saveInlineFieldValue(t.id, cf.field_id || cf.id, $event.target.value)" class="cu-list__inline-select" style="font-size:11px">
+                              <option value="">-</option>
+                              <template x-for="opt in (cf.options || [])" :key="opt"><option :value="opt" :selected="getTaskFieldValue(t, cf.field_id || cf.id) === opt" x-text="opt"></option></template>
+                            </select>
+                            <!-- fallback for other types -->
+                            <span x-show="!['text','number','date','checkbox','select','dropdown'].includes(cf.field_type)" style="color:#94a3b8" x-text="getTaskFieldValue(t, cf.field_id || cf.id) || '-'"></span>
+                          </td>
                         </template>
                         <td class="cu-list__td" @click.stop>
                           <button class="cu-list__more" @click="openTaskModal(t)">
@@ -12313,7 +12328,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=212"></script>
+  <script src="11-APP-app.js?v=213"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">

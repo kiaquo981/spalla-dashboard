@@ -7547,6 +7547,18 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       if (error) console.warn('[Spalla] saveFieldValues error:', error.message);
     },
 
+    async saveInlineFieldValue(taskId, fieldId, value) {
+      if (!sb || !taskId || !fieldId) return;
+      try {
+        await sb.from('god_task_field_values').upsert(
+          { task_id: taskId, field_id: fieldId, value: { v: value } },
+          { onConflict: 'task_id,field_id' }
+        );
+      } catch (e) {
+        console.warn('[Spalla] saveInlineFieldValue:', e);
+      }
+    },
+
     async setParentTask(taskId, parentId) {
       const t = this.data.tasks.find(x => x.id === taskId);
       if (t) {
