@@ -4108,18 +4108,20 @@
               </div>
 
               <!-- GANTT VIEW -->
+              <!-- GANTT VIEW v2 (CU-02.6) -->
               <div class="gantt-view" x-show="ui.taskView === 'gantt'">
-                <div class="gantt-controls">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
                   <div class="view-toggle">
                     <button class="view-toggle__btn" :class="{ active: ui.taskGanttRange === 'week' }" @click="ui.taskGanttRange = 'week'">Semana</button>
                     <button class="view-toggle__btn" :class="{ active: ui.taskGanttRange === 'month' }" @click="ui.taskGanttRange = 'month'">Mes</button>
                     <button class="view-toggle__btn" :class="{ active: ui.taskGanttRange === 'quarter' }" @click="ui.taskGanttRange = 'quarter'">Trimestre</button>
                   </div>
+                  <span style="font-size:11px;color:#94a3b8" x-text="ganttTasks.length + ' tarefas com datas'"></span>
                 </div>
-                <div class="gantt-chart">
+                <div class="gantt-chart" style="position:relative">
                   <!-- Day headers -->
                   <div class="gantt-header">
-                    <div class="gantt-header__label">Tarefa</div>
+                    <div class="gantt-header__label" style="font-size:11px">Tarefa</div>
                     <div class="gantt-header__timeline">
                       <template x-for="(dh, dhi) in ganttDayHeaders()" :key="dhi">
                         <div class="gantt-header__day" :class="{ 'gantt-header__day--today': dh.isToday, 'gantt-header__day--weekend': dh.isWeekend }" x-text="dh.label"></div>
@@ -4127,23 +4129,35 @@
                     </div>
                   </div>
                   <!-- Task rows -->
-                  <template x-for="t in ganttTasks" :key="t.id">
-                    <div class="gantt-row" @click="openTaskDetail(t.id)">
-                      <div class="gantt-row__label">
-                        <span class="gantt-row__title" x-text="t.titulo"></span>
-                        <span class="gantt-row__assignee" x-text="t.responsavel"></span>
+                  <template x-for="(t, ti) in ganttTasks" :key="t.id">
+                    <div class="gantt-row" @click="openTaskDetail(t.id)" style="position:relative">
+                      <div class="gantt-row__label" style="display:flex;align-items:center;gap:6px">
+                        <span style="width:6px;height:6px;border-radius:50%;flex-shrink:0"
+                              :style="'background:' + (t.status==='concluida' ? '#22c55e' : t.status==='em_andamento' ? '#3b82f6' : '#94a3b8')"></span>
+                        <span class="gantt-row__title" x-text="t.titulo" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+                        <span x-show="t.responsavel" class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel)" x-text="avatarInitials(t.responsavel)" style="width:20px;height:20px;font-size:8px;flex-shrink:0"></span>
                       </div>
                       <div class="gantt-row__timeline">
-                        <div class="gantt-bar" :style="ganttBarStyle(t)" :title="t.titulo">
-                          <span class="gantt-bar__text" x-text="t.titulo.length > 20 ? t.titulo.substring(0,20) + '...' : t.titulo"></span>
+                        <div class="gantt-bar" :style="ganttBarStyle(t)" :title="t.titulo + ' (' + (t.data_inicio || '?') + ' → ' + (t.data_fim || t.prazo || '?') + ')'">
+                          <span class="gantt-bar__text" x-text="t.titulo.length > 15 ? t.titulo.substring(0,15) + '…' : t.titulo"></span>
                         </div>
-                        <!-- Today line -->
+                        <!-- Dependency arrow: if this task has parent_task_id and parent is also in ganttTasks -->
+                        <template x-if="t.parent_task_id && ganttTasks.find(p => p.id === t.parent_task_id)">
+                          <svg style="position:absolute;top:0;left:200px;width:calc(100% - 200px);height:100%;pointer-events:none;overflow:visible">
+                            <line x1="0" :y1="14" x2="20" :y2="14" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="4 2" marker-end="url(#arrowhead)"/>
+                          </svg>
+                        </template>
+                        <!-- Gridlines -->
                         <template x-for="(dh, dhi) in ganttDayHeaders()" :key="'grid'+dhi">
                           <div class="gantt-row__gridline" :class="{ 'gantt-row__gridline--today': dh.isToday }" :style="'left:' + (dhi / ganttDayHeaders().length * 100) + '%'"></div>
                         </template>
                       </div>
                     </div>
                   </template>
+                  <!-- SVG arrowhead definition -->
+                  <svg style="position:absolute;width:0;height:0">
+                    <defs><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#6366f1"/></marker></defs>
+                  </svg>
                   <div class="empty-state" x-show="!ganttTasks.length" style="padding:40px"><p>Nenhuma tarefa com datas para exibir no Gantt.</p></div>
                 </div>
               </div>
@@ -4417,7 +4431,7 @@
                           <template x-for="field in data.fieldDefs" :key="field.field_id">
                             <template x-if="true">
                               <div style="display:contents">
-                                <div style="color:#64748b;font-weight:500;padding:6px 0" x-text="field.name"></div>
+                                <div style="color:#64748b;font-weight:500;padding:6px 0" x-text="field.field_name || field.name"></div>
                                 <div style="padding:6px 0">
                                   <!-- URL field -->
                                   <template x-if="field.field_type === 'url'">
@@ -4491,23 +4505,46 @@
                         </h4>
                         <div class="task-drawer__subtasks">
                           <template x-for="(st, si) in activeTaskDetail.subtasks || []" :key="si">
-                            <div style="margin-bottom:4px;padding:8px 10px;border:1px solid var(--neutral-100, #f1f5f9);border-radius:8px;background:#fafaf8;transition:border-color .15s"
-                                 @mouseover="$el.style.borderColor='var(--neutral-300, #cbd5e1)'" @mouseout="$el.style.borderColor='var(--neutral-100, #f1f5f9)'">
+                            <div style="margin-bottom:4px;padding:8px 10px;border:1px solid var(--neutral-100, #f1f5f9);border-radius:8px;background:#fafaf8;transition:border-color .15s;cursor:pointer"
+                                 @mouseover="$el.style.borderColor='var(--neutral-300, #cbd5e1)'" @mouseout="$el.style.borderColor='var(--neutral-100, #f1f5f9)'"
+                                 @click="ui.subtaskExpanded = ui.subtaskExpanded === si ? null : si">
+                              <!-- Main row -->
                               <div style="display:flex;align-items:center;gap:8px">
-                                <input type="checkbox" :checked="st.done" @change="toggleSubtask(activeTaskDetail.id, si)" style="width:15px;height:15px;flex-shrink:0;cursor:pointer;accent-color:#2d4a3e;border-radius:4px">
+                                <input type="checkbox" :checked="st.done" @click.stop @change="toggleSubtask(activeTaskDetail.id, si)" style="width:15px;height:15px;flex-shrink:0;cursor:pointer;accent-color:#2d4a3e">
                                 <span :class="{ 'line-through': st.done }" :style="st.done ? 'color:#94a3b8' : 'color:#1e293b'" style="flex:1;font-size:13px" x-text="st.text"></span>
+                                <span x-show="st.responsavel" class="avatar avatar--sm" :style="'background:' + avatarGradient(st.responsavel)" x-text="avatarInitials(st.responsavel)" style="width:20px;height:20px;font-size:8px;flex-shrink:0"></span>
                                 <span style="font-size:10px;padding:2px 6px;border-radius:4px;font-weight:500"
-                                  :style="st.status==='concluida' ? 'background:#dcfce7;color:#166534' : st.status==='bloqueada' ? 'background:#fee2e2;color:#991b1b' : st.status==='em_andamento' ? 'background:#dbeafe;color:#1e40af' : 'background:#f1f5f9;color:#64748b'"
+                                  :style="st.status==='concluida' ? 'background:#dcfce7;color:#166534' : st.status==='em_andamento' ? 'background:#dbeafe;color:#1e40af' : 'background:#f1f5f9;color:#64748b'"
                                   x-text="st.status || 'pendente'"></span>
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" style="flex-shrink:0;transition:transform .15s"
+                                     :style="ui.subtaskExpanded === si ? 'transform:rotate(180deg)' : ''"><polyline points="6 9 12 15 18 9"/></svg>
                               </div>
-                              <div x-show="st.responsavel || st.data_inicio || st.data_fim || (st.prioridade && st.prioridade !== 'normal')" style="display:flex;gap:8px;flex-wrap:wrap;font-size:11px;color:#94a3b8;margin-top:4px;padding-left:23px">
-                                <span x-show="st.responsavel" style="display:flex;align-items:center;gap:3px">
-                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                                  <span x-text="st.responsavel"></span>
-                                </span>
-                                <span x-show="st.data_inicio" x-text="st.data_inicio"></span>
-                                <span x-show="st.data_fim" x-text="st.data_fim"></span>
-                                <span x-show="st.prioridade && st.prioridade !== 'normal'" style="padding:1px 5px;border-radius:4px;background:#fef3c7;color:#92400e" x-text="st.prioridade"></span>
+                              <!-- Expanded: editable fields -->
+                              <div x-show="ui.subtaskExpanded === si" @click.stop style="margin-top:8px;padding-top:8px;border-top:1px solid #f1f5f9;display:grid;grid-template-columns:100px 1fr;gap:6px 8px;font-size:12px">
+                                <span style="color:#94a3b8;font-weight:500">Responsavel</span>
+                                <select :value="st.responsavel || ''" @change="st.responsavel = $event.target.value; _sbSyncSubtasks(activeTaskDetail.id, activeTaskDetail.subtasks)"
+                                        style="padding:3px 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:11px;background:#fff">
+                                  <option value="">—</option>
+                                  <template x-for="m in data.members || []" :key="m.id"><option :value="m.nome_curto || m.name" x-text="m.nome_curto || m.name"></option></template>
+                                </select>
+                                <span style="color:#94a3b8;font-weight:500">Status</span>
+                                <select :value="st.status || 'pendente'" @change="st.status = $event.target.value; st.done = ($event.target.value === 'concluida'); _sbSyncSubtasks(activeTaskDetail.id, activeTaskDetail.subtasks)"
+                                        style="padding:3px 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:11px;background:#fff">
+                                  <option value="pendente">Pendente</option>
+                                  <option value="em_andamento">Em Andamento</option>
+                                  <option value="concluida">Concluida</option>
+                                </select>
+                                <span style="color:#94a3b8;font-weight:500">Data fim</span>
+                                <input type="date" :value="st.data_fim || ''" @change="st.data_fim = $event.target.value; _sbSyncSubtasks(activeTaskDetail.id, activeTaskDetail.subtasks)"
+                                       style="padding:3px 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:11px;background:#fff">
+                                <span style="color:#94a3b8;font-weight:500">Prioridade</span>
+                                <select :value="st.prioridade || 'normal'" @change="st.prioridade = $event.target.value; _sbSyncSubtasks(activeTaskDetail.id, activeTaskDetail.subtasks)"
+                                        style="padding:3px 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:11px;background:#fff">
+                                  <option value="normal">Normal</option>
+                                  <option value="alta">Alta</option>
+                                  <option value="urgente">Urgente</option>
+                                  <option value="baixa">Baixa</option>
+                                </select>
                               </div>
                             </div>
                           </template>
