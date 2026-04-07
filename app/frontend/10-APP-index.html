@@ -3750,9 +3750,11 @@
                 </select>
                 <select class="op-toolbar__select" x-model="ui.taskGroupBy" style="width:auto;min-width:120px">
                   <option value="status">Agrupar: Status</option>
-                  <option value="assignee">Agrupar: Responsável</option>
+                  <option value="date">Agrupar: Data de vencimento</option>
+                  <option value="assignee">Agrupar: Responsavel</option>
                   <option value="priority">Agrupar: Prioridade</option>
                   <option value="list">Agrupar: Lista</option>
+                  <option value="mentorado">Agrupar: Mentorado</option>
                 </select>
                 <!-- Tag filter -->
                 <div class="task-tag-filter" style="position:relative">
@@ -3953,7 +3955,14 @@
                         <th class="cu-list__th">Responsavel</th>
                         <th class="cu-list__th">Data de vencimento</th>
                         <th class="cu-list__th">Prioridade</th>
-                        <th></th>
+                        <template x-for="cf in visibleCustomFields()" :key="cf.field_id || cf.id">
+                          <th class="cu-list__th" x-text="cf.name"></th>
+                        </template>
+                        <th style="padding:4px">
+                          <button @click.stop="ui.fieldsModalOpen = true" class="cu-list__add-col-btn" title="Adicionar campo">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                          </button>
+                        </th>
                       </tr>
                     </table>
 
@@ -4016,6 +4025,11 @@
                             <option value="baixa">Baixa</option>
                           </select>
                         </td>
+                        <!-- Custom field columns -->
+                        <template x-for="cf in visibleCustomFields()" :key="cf.field_id || cf.id">
+                          <td class="cu-list__td cu-list__td--editable" @click.stop style="font-size:12px;color:#64748b"
+                              x-text="getTaskFieldValue(t, cf.field_id || cf.id) || '-'"></td>
+                        </template>
                         <td class="cu-list__td" @click.stop>
                           <button class="cu-list__more" @click="openTaskModal(t)">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
@@ -4116,6 +4130,80 @@
           </div>
 
           <!-- Task Detail Drawer (ClickUp-style 2-panel) -->
+          <!-- ===== CUSTOM FIELDS MODAL (CU-02.3) ===== -->
+          <div x-show="ui.fieldsModalOpen" x-transition.opacity style="position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center" @click.self="ui.fieldsModalOpen = false">
+            <div @click.stop style="background:#fff;border-radius:12px;width:400px;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)">
+              <!-- Header -->
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #e8e5de">
+                <h3 style="margin:0;font-size:15px;font-weight:700">Campos</h3>
+                <button @click="ui.fieldsModalOpen = false" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:18px">&times;</button>
+              </div>
+              <!-- Search -->
+              <div style="padding:12px 20px 8px">
+                <input type="text" placeholder="Pesquise campos novos ou existentes" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box" @focus="$el.style.borderColor='#8a7d52'" @blur="$el.style.borderColor='#e2e8f0'">
+              </div>
+              <!-- Tabs -->
+              <div style="display:flex;gap:0;padding:0 20px;border-bottom:1px solid #e8e5de">
+                <button @click="ui.fieldsModalTab = 'create'" style="padding:8px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent"
+                        :style="ui.fieldsModalTab === 'create' ? 'border-color:#1e293b;color:#1e293b' : 'color:#94a3b8'">Criar novo</button>
+                <button @click="ui.fieldsModalTab = 'add'" style="padding:8px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent"
+                        :style="ui.fieldsModalTab === 'add' ? 'border-color:#1e293b;color:#1e293b' : 'color:#94a3b8'">Adicionar um existente</button>
+              </div>
+              <!-- Tab: Create New -->
+              <div x-show="ui.fieldsModalTab === 'create'" style="padding:12px 20px 20px">
+                <div style="margin-bottom:12px">
+                  <input type="text" x-model="ui.newFieldName" placeholder="Nome do campo" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box;margin-bottom:8px">
+                  <select x-model="ui.newFieldType" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box">
+                    <option value="text">Texto</option>
+                    <option value="number">Numero</option>
+                    <option value="date">Data</option>
+                    <option value="select">Lista suspensa</option>
+                    <option value="multi_select">Rotulos (multi-select)</option>
+                    <option value="checkbox">Caixa de selecao</option>
+                    <option value="url">Site / URL</option>
+                    <option value="rating">Avaliacao</option>
+                    <option value="progress">Progresso (manual)</option>
+                    <option value="user">Pessoas</option>
+                  </select>
+                </div>
+                <button @click="createCustomField()" class="btn btn--brand btn--sm" style="width:100%" :disabled="!ui.newFieldName?.trim()">Criar campo</button>
+                <div style="margin-top:16px;font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Sugeridos</div>
+                <div style="display:flex;flex-direction:column;gap:4px">
+                  <template x-for="s in [{n:'Objetivo do Sprint',t:'text',i:'🎯'},{n:'Feedback do Cliente',t:'text',i:'💬'},{n:'Data de Revisao',t:'date',i:'📅'},{n:'Esforco',t:'select',i:'💪'},{n:'Hub Task ID',t:'text',i:'🔗'}]" :key="s.n">
+                    <button @click="ui.newFieldName = s.n; ui.newFieldType = s.t" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:none;background:none;cursor:pointer;border-radius:6px;font-size:13px;text-align:left;width:100%"
+                            @mouseenter="$el.style.background='#f8f7f4'" @mouseleave="$el.style.background='none'">
+                      <span x-text="s.i"></span>
+                      <span x-text="s.n"></span>
+                    </button>
+                  </template>
+                </div>
+              </div>
+              <!-- Tab: Add Existing (show/hide toggle) -->
+              <div x-show="ui.fieldsModalTab === 'add'" style="padding:12px 20px 20px">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                  <span style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase">Mostrados</span>
+                  <button @click="data.fieldDefs.forEach(f => { ui.visibleFieldIds = {...ui.visibleFieldIds, [f.field_id || f.id]: false} })" style="font-size:11px;color:#94a3b8;background:none;border:none;cursor:pointer">Ocultar tudo</button>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:2px">
+                  <template x-for="f in (data.fieldDefs || [])" :key="f.field_id || f.id">
+                    <label style="display:flex;align-items:center;justify-content:space-between;padding:8px 4px;cursor:pointer;border-radius:6px"
+                           @mouseenter="$el.style.background='#f8f7f4'" @mouseleave="$el.style.background='none'">
+                      <div style="display:flex;align-items:center;gap:8px;font-size:13px">
+                        <span style="font-size:14px" x-text="{'text':'Aa','number':'#','date':'📅','select':'📋','multi_select':'🏷','checkbox':'☑','url':'🔗','rating':'⭐','progress':'📊','user':'👤'}[f.field_type] || '📝'"></span>
+                        <span x-text="f.field_name || f.name"></span>
+                      </div>
+                      <div style="position:relative;width:36px;height:20px;cursor:pointer" @click="toggleFieldVisibility(f.field_id || f.id)">
+                        <div style="width:36px;height:20px;border-radius:10px;transition:background .2s" :style="ui.visibleFieldIds[f.field_id || f.id] ? 'background:#6366f1' : 'background:#d1d5db'"></div>
+                        <div style="position:absolute;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .2s" :style="ui.visibleFieldIds[f.field_id || f.id] ? 'left:18px' : 'left:2px'"></div>
+                      </div>
+                    </label>
+                  </template>
+                  <div x-show="!(data.fieldDefs || []).length" style="text-align:center;padding:20px;color:#94a3b8;font-size:13px">Nenhum campo criado ainda</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="op-drawer-overlay" x-show="ui.taskDetailDrawer" x-transition.opacity @click.self="closeTaskDetail()"
                style="display:flex;align-items:center;justify-content:center">
             <div x-show="ui.taskDetailDrawer" x-transition:enter="slide-in" @click.stop
