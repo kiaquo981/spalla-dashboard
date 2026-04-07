@@ -219,6 +219,7 @@ function operon() {
       ctxLinkUrl: '',
       ctxFilter: { tipo: 'all', fase: 'all' },
       ctxExpanded: {},
+      ctxEditing: {},   // { [ctxId]: { titulo, conteudo, fase } }
       ctxTranscribing: {},
       ctxRecording: false,
       ctxMediaRecorder: null,
@@ -9464,6 +9465,39 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           .update({ ativo: false })
           .eq('mentorado_id', menteeId);
       } catch (e) { console.warn('[Spalla] archiveContext:', e); }
+    },
+
+    // Context Hub — inline edit
+    ctxStartEdit(ctx) {
+      this.ui.ctxEditing = { ...this.ui.ctxEditing, [ctx.id]: { titulo: ctx.titulo || '', conteudo: ctx.conteudo || '', fase: ctx.fase || 'geral' } };
+    },
+    ctxCancelEdit(ctxId) {
+      const e = { ...this.ui.ctxEditing };
+      delete e[ctxId];
+      this.ui.ctxEditing = e;
+    },
+    async ctxSaveEdit(ctxId) {
+      const edit = this.ui.ctxEditing[ctxId];
+      if (!edit) return;
+      try {
+        const { error } = await sb.from('mentorado_context')
+          .update({ titulo: edit.titulo, conteudo: edit.conteudo, fase: edit.fase })
+          .eq('id', ctxId);
+        if (error) throw error;
+        const idx = this.data.menteeContext.findIndex(c => c.id === ctxId);
+        if (idx >= 0) {
+          this.data.menteeContext[idx] = { ...this.data.menteeContext[idx], titulo: edit.titulo, conteudo: edit.conteudo, fase: edit.fase };
+        }
+        this.ctxCancelEdit(ctxId);
+        this.toast('Contexto atualizado', 'success');
+      } catch (e) {
+        this.toast('Erro ao salvar: ' + e.message, 'error');
+      }
+    },
+
+    // Context Hub — toggle expand
+    ctxToggle(ctxId) {
+      this.ui.ctxExpanded = { ...this.ui.ctxExpanded, [ctxId]: !this.ui.ctxExpanded[ctxId] };
     },
 
     // Context Hub — filtered list (used in x-for)
