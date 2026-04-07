@@ -10658,12 +10658,23 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.meuTrabalhoLoading = true;
       try {
         if (!this.supabase) sb = await initSupabase();
-        const me = (this.auth.currentUser?.full_name || this.auth.currentUser?.email || '').toLowerCase().split(' ')[0];
+        // Resolve primeiro nome: full_name > user_metadata.full_name > email prefix
+        let me = (this.auth.currentUser?.full_name
+          || this.auth.currentUser?.user_metadata?.full_name
+          || '').toLowerCase().split(' ')[0];
+        if (!me) {
+          // Fallback: extrair de email (kaique.azevedoo@... → kaique)
+          const email = (this.auth.currentUser?.email || '').toLowerCase();
+          me = email.split(/[@.]/)[0]; // 'kaique' de 'kaique.azevedoo@outlook...'
+        }
         if (!me) { this.meuTrabalho = []; return; }
+        // Match contra TEAM_MEMBERS pra usar o id canônico
+        const member = TEAM_MEMBERS.find(m => m.id === me || m.name.toLowerCase() === me);
+        const searchName = member ? member.id : me;
         const { data, error } = await this.supabase
           .from('vw_meu_trabalho')
           .select('*')
-          .or(`responsavel.ilike.%${me}%,acompanhante.ilike.%${me}%`)
+          .or(`responsavel.ilike.%${searchName}%,acompanhante.ilike.%${searchName}%`)
           .order('prioridade', { ascending: true })
           .limit(200);
         if (error) throw error;
