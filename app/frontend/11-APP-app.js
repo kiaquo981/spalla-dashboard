@@ -170,6 +170,12 @@ function operon() {
     _detailCache: {},
 
     // --- UI State ---
+    darkMode: localStorage.getItem('spalla_dark') === 'true',
+    toggleDarkMode() {
+      this.darkMode = !this.darkMode;
+      localStorage.setItem('spalla_dark', this.darkMode);
+      document.documentElement.setAttribute('data-theme', this.darkMode ? 'dark' : 'light');
+    },
     ui: {
       page: localStorage.getItem('spalla_page') || CONFIG.DEFAULT_PAGE,
       sidebarOpen: true,
@@ -209,11 +215,13 @@ function operon() {
       newFieldName: '',
       newFieldType: 'text',
       visibleFieldIds: {}, // { fieldId: true } — which custom fields show as columns
+      nativeFieldsVisible: { nome: true, sprints: true, responsavel: true, data_inicio: true, data_fim: true, prioridade: true, points: true, status: true, comentarios: true }, // native column toggles
       collapsedSpaces: {}, // { spaceId: true }
       subtaskExpanded: null, // index of expanded subtask in drawer
       automationsOpen: false,
       autoForm: { name: '', trigger_type: 'status_changed', trigger_config: {}, condition_config: {}, action_type: 'change_status', action_config: {} },
       dashboardOpen: false,
+      notificationsOpen: false,
       taskSpaceFilter: 'all', // space_id filter
       taskListFilter: 'all', // list_id filter
       taskSprintFilter: 'all', // sprint_id filter
@@ -506,6 +514,9 @@ function operon() {
       timeline: [],
       menteeMessages: [],  // EPIC 1: Chatwoot messages for current mentorado
       menteeContext: [],   // Context Hub: áudios, notas, arquivos para dossiê
+      menteeDescarregos: [], // LF-FASE3: pipeline de descarregos (nova entidade)
+      meuTrabalho: [], // LF Modo EU: tarefas filtradas por responsavel = me OR acompanhante
+      meuTrabalhoLoading: false,
       teamPerformance: [],
       feedbackList: [],           // TASK-10: god_feedback entries
       // Command Center static data
@@ -616,6 +627,15 @@ function operon() {
       mentorado_nome: '',
       tipo: 'geral',
       notificarMentorado: false,
+      // LF Story 4: espécie + campos relacionados
+      especie: 'one_time',
+      rrule: '',
+      rrule_freq: 'DAILY',
+      rrule_interval: 1,
+      proxima_execucao: '',
+      trigger_aggregate: '',
+      trigger_event: '',
+      trigger_filter: '',
       prioridade: 'normal',
       prazo: '', // this becomes data_fim
       data_inicio: '',
@@ -1482,6 +1502,17 @@ function operon() {
         }
       }
       list = this._filterTasks(list);
+      // Quick filter (Dragon 39)
+      if (this.quickFilter) {
+        const me = (this.auth?.currentUser?.user_metadata?.full_name || this.auth?.currentUser?.full_name || this.auth?.currentUser?.email || '').toLowerCase().split(' ')[0];
+        const now = new Date();
+        const weekEnd = new Date(now); weekEnd.setDate(now.getDate() + 7);
+        if (this.quickFilter === 'mine') list = list.filter(t => t.responsavel && me && t.responsavel.toLowerCase().includes(me));
+        else if (this.quickFilter === 'overdue') list = list.filter(t => t.data_fim && new Date(t.data_fim) < now && t.status !== 'concluida');
+        else if (this.quickFilter === 'unassigned') list = list.filter(t => !t.responsavel);
+        else if (this.quickFilter === 'thisWeek') list = list.filter(t => t.data_fim && new Date(t.data_fim) >= now && new Date(t.data_fim) <= weekEnd);
+        else if (this.quickFilter === 'favorites') list = list.filter(t => this.favorites.includes(t.id));
+      }
       if (this.ui.search && this.ui.page === 'tasks') {
         const q = this.ui.search.toLowerCase();
         list = list.filter(t => t.titulo?.toLowerCase().includes(q) || t.mentorado_nome?.toLowerCase().includes(q) || t.responsavel?.toLowerCase().includes(q));
@@ -1854,6 +1885,8 @@ function operon() {
 
     async init() {
       try {
+        // Apply stored dark mode
+        if (this.darkMode) document.documentElement.setAttribute('data-theme', 'dark');
         // Deep-link: resolve URL pathname to page
         const pathname = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
         // Deep-link: /mentorado/:id — store for after auth
@@ -1969,6 +2002,8 @@ function operon() {
         this.loadTemplates();    // non-blocking: popula data.templates
         this._subscribeRealtime(); // Supabase Realtime for live task updates
         this._initKeyboardShortcuts(); // N=new, /=search, Esc=close, Alt+1-4=views
+        this.$watch('ui.taskView', () => setTimeout(() => this._initSortable(), 200));
+        setTimeout(() => this._initSortable(), 500); // Initial sortable setup
 
         if (this.auth.authenticated) {
           // Auto-refresh token before it expires (every 45 min)
@@ -4936,6 +4971,7 @@ function operon() {
       'dashboard': 'dashboard',
       'kanban': 'kanban',
       'tasks': 'tasks',
+      'meu-trabalho': 'meu_trabalho',
       'agenda': 'agenda',
       'equipe': 'equipe',
       'whatsapp': 'whatsapp',
@@ -6873,6 +6909,21 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       delete formData.newDependsOn;
       delete formData.newDependsOnType;
       delete formData.fieldValues;
+      // LF Story 4: limpa campos de UI helper antes de persistir
+      delete formData.rrule_freq;
+      delete formData.rrule_interval;
+      // Triggered: extrai pra criar regra separada após salvar a task
+      const triggerSpec = (formData.especie === 'triggered_template' && formData.trigger_aggregate && formData.trigger_event)
+        ? { aggregate: formData.trigger_aggregate, event: formData.trigger_event, filter: formData.trigger_filter }
+        : null;
+      delete formData.trigger_aggregate;
+      delete formData.trigger_event;
+      delete formData.trigger_filter;
+      // Recorrente: garante rrule construído
+      if (formData.especie !== 'recorrente_template') {
+        formData.rrule = null;
+        formData.proxima_execucao = null;
+      }
       const pendingDependencies = this.taskForm.dependencies || [];
       if (formData.data_fim) formData.prazo = formData.data_fim;
       // Normalize tags to TEXT[] for backward compat column
@@ -6918,6 +6969,10 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         if (newTask.responsavel) {
           newTask._notifyMentorado = this.taskForm.notificarMentorado || false;
           this._notifyTaskViaWa(newTask).catch(e => console.warn('[task-notify]', e));
+        }
+        // LF Story 4: cria regra de trigger se especie=triggered_template
+        if (triggerSpec) {
+          await this._createTriggerRule(newId, triggerSpec);
         }
       }
       this._cacheTasksLocal();
@@ -7521,7 +7576,32 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     // Gantt helpers
     // ── Bulk Actions ──
     get bulkCount() { return Object.values(this.ui.bulkSelected).filter(Boolean).length; },
-    bulkToggle(taskId) { this.ui.bulkSelected = { ...this.ui.bulkSelected, [taskId]: !this.ui.bulkSelected[taskId] }; },
+    _isRealTaskId(id) {
+      // Reject synthetic IDs from tasksTree (subtask/checklist rows have prefixes)
+      if (!id || typeof id !== 'string') return false;
+      if (id.startsWith('sub_') || id.startsWith('check_')) return false;
+      return true;
+    },
+    _lastBulkIdx: -1,
+    bulkToggle(taskId, event) {
+      if (!this._isRealTaskId(taskId)) return;
+      // Only consider real (non-synthetic) tasks for range selection
+      const tree = this.tasksTree.filter(t => !t._isGroupHeader && this._isRealTaskId(t.id));
+      const idx = tree.findIndex(t => t.id === taskId);
+      // Shift+Click range selection
+      if (event?.shiftKey && this._lastBulkIdx >= 0 && idx >= 0) {
+        const from = Math.min(this._lastBulkIdx, idx);
+        const to = Math.max(this._lastBulkIdx, idx);
+        const sel = { ...this.ui.bulkSelected };
+        for (let i = from; i <= to; i++) {
+          if (tree[i]) sel[tree[i].id] = true;
+        }
+        this.ui.bulkSelected = sel;
+      } else {
+        this.ui.bulkSelected = { ...this.ui.bulkSelected, [taskId]: !this.ui.bulkSelected[taskId] };
+      }
+      if (idx >= 0) this._lastBulkIdx = idx;
+    },
     bulkSelectAll() {
       const sel = {};
       this.data.tasks.forEach(t => { sel[t.id] = true; });
@@ -7529,7 +7609,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
     bulkClear() { this.ui.bulkSelected = {}; this.ui.bulkMode = false; },
     async bulkUpdateField(field, value) {
-      const ids = Object.entries(this.ui.bulkSelected).filter(([,v]) => v).map(([id]) => id);
+      const ids = Object.entries(this.ui.bulkSelected).filter(([,v]) => v).map(([id]) => id).filter(id => this._isRealTaskId(id));
       if (!ids.length) return;
       if (!confirm(`Atualizar ${ids.length} tarefa(s)?`)) return;
       try {
@@ -7541,7 +7621,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
     },
     async bulkDelete() {
-      const ids = Object.entries(this.ui.bulkSelected).filter(([,v]) => v).map(([id]) => id);
+      const ids = Object.entries(this.ui.bulkSelected).filter(([,v]) => v).map(([id]) => id).filter(id => this._isRealTaskId(id));
       if (!ids.length) return;
       if (!confirm(`Excluir ${ids.length} tarefa(s) permanentemente?`)) return;
       try {
@@ -7552,6 +7632,417 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         this.bulkClear();
       } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
     },
+
+    // ── Command Palette (Dragon 25) ──
+    cmdPalette: false,
+    cmdQuery: '',
+    cmdSelectedIdx: 0,
+    get cmdResults() {
+      const q = (this.cmdQuery || '').toLowerCase().trim();
+      if (!q) return this._cmdDefaultActions();
+      const results = [];
+      // Search tasks
+      this.data.tasks.filter(t => t.titulo?.toLowerCase().includes(q)).slice(0, 8).forEach(t => {
+        results.push({ type: 'task', icon: '📋', label: t.titulo, sublabel: t.responsavel || '', action: () => { this.openTaskDetail(t.id); this.cmdPalette = false; } });
+      });
+      // Search pages — use real ui.page keys (matching navigate())
+      const pages = [
+        { key: 'dashboard', label: 'Dashboard', icon: '📊' },
+        { key: 'tasks', label: 'Tarefas', icon: '✅' },
+        { key: 'kanban', label: 'Mentorados', icon: '👥' },
+        { key: 'agenda', label: 'Agenda', icon: '📞' },
+        { key: 'documentos', label: 'Documentos', icon: '📁' },
+        { key: 'whatsapp', label: 'WhatsApp', icon: '💬' },
+        { key: 'equipe', label: 'Equipe', icon: '👤' },
+      ];
+      pages.filter(p => p.label.toLowerCase().includes(q)).forEach(p => {
+        results.push({ type: 'nav', icon: p.icon, label: 'Ir para ' + p.label, sublabel: '', action: () => { this.navigate(p.key); this.cmdPalette = false; } });
+      });
+      // Search members — filter tasks by responsavel via search input
+      (this.data.members || []).filter(m => (m.nome_curto || m.name || '').toLowerCase().includes(q)).slice(0, 4).forEach(m => {
+        const memberName = m.nome_curto || m.name;
+        results.push({ type: 'member', icon: '👤', label: memberName, sublabel: 'Filtrar tarefas', action: () => { this.ui.search = memberName; this.navigate('tasks'); this.cmdPalette = false; } });
+      });
+      // Actions
+      if ('nova tarefa'.includes(q) || 'criar'.includes(q) || 'new task'.includes(q)) {
+        results.push({ type: 'action', icon: '➕', label: 'Criar nova tarefa', sublabel: 'N', action: () => { this.openTaskModal(); this.cmdPalette = false; } });
+      }
+      if ('dark'.includes(q) || 'escuro'.includes(q) || 'claro'.includes(q) || 'tema'.includes(q)) {
+        results.push({ type: 'action', icon: '🌙', label: this.darkMode ? 'Modo claro' : 'Modo escuro', sublabel: '', action: () => { this.toggleDarkMode(); this.cmdPalette = false; } });
+      }
+      return results;
+    },
+    _cmdDefaultActions() {
+      return [
+        { type: 'action', icon: '➕', label: 'Criar nova tarefa', sublabel: 'N', action: () => { this.openTaskModal(); this.cmdPalette = false; } },
+        { type: 'nav', icon: '✅', label: 'Ir para Tarefas', sublabel: '', action: () => { this.navigate('tasks'); this.cmdPalette = false; } },
+        { type: 'nav', icon: '👥', label: 'Ir para Mentorados', sublabel: '', action: () => { this.navigate('kanban'); this.cmdPalette = false; } },
+        { type: 'nav', icon: '📞', label: 'Ir para Agenda', sublabel: '', action: () => { this.navigate('agenda'); this.cmdPalette = false; } },
+        { type: 'action', icon: '🌙', label: this.darkMode ? 'Modo claro' : 'Modo escuro', sublabel: '', action: () => { this.toggleDarkMode(); this.cmdPalette = false; } },
+        { type: 'action', icon: '🔍', label: 'Buscar tarefa...', sublabel: '/', action: () => { this.navigate('tasks'); this.cmdPalette = false; setTimeout(() => document.querySelector('.tasks-main input[type="text"]')?.focus(), 200); } },
+      ];
+    },
+    cmdExec(idx) {
+      const item = this.cmdResults[idx || this.cmdSelectedIdx];
+      if (item?.action) item.action();
+    },
+    cmdKeyDown(e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); this.cmdSelectedIdx = Math.min(this.cmdSelectedIdx + 1, this.cmdResults.length - 1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); this.cmdSelectedIdx = Math.max(this.cmdSelectedIdx - 1, 0); }
+      else if (e.key === 'Enter') { e.preventDefault(); this.cmdExec(); }
+      else if (e.key === 'Escape') { this.cmdPalette = false; }
+    },
+
+    // ── Quick Filters (Dragon 39) ──
+    quickFilter: null, // 'mine' | 'overdue' | 'unassigned' | 'thisWeek' | 'favorites'
+    setQuickFilter(filter) {
+      this.quickFilter = this.quickFilter === filter ? null : filter;
+    },
+    get quickFilterCounts() {
+      const tasks = this.data.tasks;
+      const me = (this.auth?.currentUser?.user_metadata?.full_name || this.auth?.currentUser?.full_name || this.auth?.currentUser?.email || '').toLowerCase().split(' ')[0];
+      const now = new Date();
+      const weekEnd = new Date(now); weekEnd.setDate(now.getDate() + 7);
+      return {
+        mine: tasks.filter(t => t.responsavel && me && t.responsavel.toLowerCase().includes(me)).length,
+        overdue: tasks.filter(t => t.data_fim && new Date(t.data_fim) < now && t.status !== 'concluida').length,
+        unassigned: tasks.filter(t => !t.responsavel).length,
+        thisWeek: tasks.filter(t => t.data_fim && new Date(t.data_fim) >= now && new Date(t.data_fim) <= weekEnd).length,
+        favorites: this.favorites.length,
+      };
+    },
+
+    // ── Task Age (Dragon 43) ──
+    taskAge(createdAt) {
+      if (!createdAt) return null;
+      const days = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000);
+      if (days <= 3) return { label: 'Novo', cls: 'cu-age--fresh' };
+      if (days <= 7) return { label: days + 'd', cls: 'cu-age--week' };
+      if (days <= 30) return { label: days + 'd', cls: 'cu-age--stale' };
+      return { label: Math.floor(days / 30) + 'mo', cls: 'cu-age--ancient' };
+    },
+
+    // ── Focus/Zen Mode (Dragon 45) ──
+    focusMode: false,
+    toggleFocusMode() {
+      this.focusMode = !this.focusMode;
+      document.documentElement.classList.toggle('cu-focus-mode', this.focusMode);
+    },
+
+    // ── Context Menu (Dragon 48) ──
+    contextMenu: { show: false, x: 0, y: 0, taskId: null },
+    showContextMenu(e, taskId) {
+      e.preventDefault();
+      this.contextMenu = { show: true, x: e.clientX, y: e.clientY, taskId };
+    },
+    hideContextMenu() { this.contextMenu.show = false; },
+    contextAction(action) {
+      const id = this.contextMenu.taskId;
+      this.hideContextMenu();
+      if (!id) return;
+      switch(action) {
+        case 'open': this.openTaskDetail(id); break;
+        case 'duplicate': this.duplicateTask(id); break;
+        case 'favorite': this.toggleFavorite(id); break;
+        case 'complete': this.updateTaskStatus(id, 'concluida'); break;
+        case 'delete': if (confirm('Excluir?')) this.deleteTask(id); break;
+        case 'timer': this.startTimeTracker(id); break;
+        case 'copy': navigator.clipboard.writeText(window.location.origin + '/tasks?task=' + id); this.toast('Link copiado', 'success'); break;
+      }
+    },
+
+    // ── Batch Move (Dragon 42) ──
+    async bulkMoveToList(listId) {
+      const ids = Object.entries(this.ui.bulkSelected).filter(([,v]) => v).map(([id]) => id);
+      if (!ids.length || !sb) return;
+      try {
+        const { error } = await sb.from('god_tasks').update({ list_id: listId }).in('id', ids);
+        if (error) throw error;
+        this.data.tasks = this.data.tasks.map(t => ids.includes(t.id) ? { ...t, list_id: listId } : t);
+        this.toast(`${ids.length} tarefa(s) movida(s)`, 'success');
+        this.bulkClear();
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    // ── Task Archive (Dragon 35) ──
+    async archiveTask(taskId) {
+      if (!sb) return;
+      try {
+        await sb.from('god_tasks').update({ status: 'arquivada' }).eq('id', taskId);
+        const task = this.data.tasks.find(t => t.id === taskId);
+        if (task) task.status = 'arquivada';
+        this.toast('Tarefa arquivada', 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+    async restoreTask(taskId) {
+      if (!sb) return;
+      try {
+        await sb.from('god_tasks').update({ status: 'pendente' }).eq('id', taskId);
+        const task = this.data.tasks.find(t => t.id === taskId);
+        if (task) task.status = 'pendente';
+        this.toast('Tarefa restaurada', 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    // ── Action Items from Comments (Dragon 51) ──
+    async createActionFromComment(taskId, commentText, assignee) {
+      if (!sb || !commentText) return;
+      try {
+        const parent = this.data.tasks.find(t => t.id === taskId);
+        const { data, error } = await sb.from('god_tasks').insert({
+          titulo: commentText.slice(0, 200),
+          responsavel: assignee || null,
+          parent_task_id: taskId,
+          status: 'pendente',
+          prioridade: 'normal',
+          tipo: 'acao',
+          space_id: parent?.space_id,
+          list_id: parent?.list_id,
+          fonte: 'comment_action'
+        }).select().single();
+        if (error) throw error;
+        this.data.tasks.push(data);
+        this.toast('Item de acao criado', 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    // ── My Work View (Dragon 36) ──
+    get myWorkData() {
+      const me = this.auth?.currentUser?.user_metadata?.full_name || '';
+      const meFirst = me.toLowerCase().split(' ')[0];
+      if (!meFirst) return { overdue: [], today: [], upcoming: [], done: [] };
+      const myTasks = this.data.tasks.filter(t => t.responsavel && t.responsavel.toLowerCase().includes(meFirst));
+      const now = new Date();
+      const todayStr = now.toISOString().slice(0, 10);
+      const weekEnd = new Date(now); weekEnd.setDate(now.getDate() + 7);
+      return {
+        overdue: myTasks.filter(t => t.data_fim && new Date(t.data_fim) < now && t.status !== 'concluida'),
+        today: myTasks.filter(t => t.data_fim && t.data_fim.slice(0, 10) === todayStr && t.status !== 'concluida'),
+        upcoming: myTasks.filter(t => t.data_fim && new Date(t.data_fim) > now && new Date(t.data_fim) <= weekEnd && t.status !== 'concluida'),
+        done: myTasks.filter(t => t.status === 'concluida').slice(0, 10),
+      };
+    },
+
+    // ── Activity Timeline (Dragon 22) ──
+    activityTimeline: [],
+    activityTimelineOpen: false,
+    async loadActivityTimeline() {
+      if (!sb) return;
+      try {
+        const { data, error } = await sb.from('god_task_activity')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(100);
+        if (!error && data) this.activityTimeline = data;
+      } catch (e) { console.warn('[Activity]', e.message); }
+    },
+    get activityByDay() {
+      const groups = {};
+      for (const a of this.activityTimeline) {
+        const day = (a.created_at || '').slice(0, 10);
+        if (!groups[day]) groups[day] = [];
+        groups[day].push(a);
+      }
+      return Object.entries(groups).map(([day, items]) => ({ day, items }));
+    },
+
+    // ── Task Watchers (Dragon 23) ──
+    async toggleWatcher(taskId) {
+      const me = this.auth?.currentUser?.user_metadata?.full_name || this.auth?.currentUser?.email || 'user';
+      const task = this.data.tasks.find(t => t.id === taskId);
+      if (!task) return;
+      const watchers = task.watchers || [];
+      const idx = watchers.indexOf(me);
+      if (idx >= 0) watchers.splice(idx, 1);
+      else watchers.push(me);
+      task.watchers = [...watchers];
+      if (sb) {
+        try {
+          await sb.from('god_tasks').update({ watchers }).eq('id', taskId);
+        } catch (e) { console.warn('[Watch]', e.message); }
+      }
+    },
+    isWatching(taskId) {
+      const me = this.auth?.currentUser?.user_metadata?.full_name || '';
+      const task = this.data.tasks.find(t => t.id === taskId);
+      return (task?.watchers || []).includes(me);
+    },
+
+    // ── Global Search (Dragon 32) ──
+    globalSearchOpen: false,
+    globalSearchQuery: '',
+    get globalSearchResults() {
+      const q = (this.globalSearchQuery || '').toLowerCase().trim();
+      if (!q || q.length < 2) return { tasks: [], mentorados: [], calls: [] };
+      return {
+        tasks: this.data.tasks.filter(t => t.titulo?.toLowerCase().includes(q)).slice(0, 10),
+        mentorados: (this.data.mentees || []).filter(m => (m.nome || '').toLowerCase().includes(q)).slice(0, 5),
+        calls: (this._supabaseCalls || []).filter(c => (c.titulo || c.assunto || '').toLowerCase().includes(q)).slice(0, 5),
+      };
+    },
+
+    // ── Sprint Velocity (Dragon 37) ──
+    get sprintVelocityData() {
+      const sprints = (this.data.sprints || []).filter(s => s.status === 'encerrado' || s.status === 'ativo');
+      return sprints.map(s => {
+        const tasks = this.data.tasks.filter(t => t.sprint_id === s.id);
+        const done = tasks.filter(t => t.status === 'concluida');
+        return {
+          name: s.nome || 'Sprint',
+          committed: tasks.reduce((sum, t) => sum + (t.points || 1), 0),
+          completed: done.reduce((sum, t) => sum + (t.points || 1), 0),
+          taskCount: tasks.length,
+          doneCount: done.length,
+        };
+      });
+    },
+
+    // ── Priority Matrix / Eisenhower (Dragon 38) ──
+    get priorityMatrix() {
+      const tasks = this.data.tasks.filter(t => t.status !== 'concluida' && t.status !== 'cancelada');
+      const now = new Date();
+      const urgent = t => t.data_fim && new Date(t.data_fim) <= new Date(now.getTime() + 3 * 86400000);
+      return {
+        urgentImportant: tasks.filter(t => urgent(t) && (t.prioridade === 'urgente' || t.prioridade === 'alta')),
+        notUrgentImportant: tasks.filter(t => !urgent(t) && (t.prioridade === 'urgente' || t.prioridade === 'alta')),
+        urgentNotImportant: tasks.filter(t => urgent(t) && t.prioridade !== 'urgente' && t.prioridade !== 'alta'),
+        notUrgentNotImportant: tasks.filter(t => !urgent(t) && t.prioridade !== 'urgente' && t.prioridade !== 'alta'),
+      };
+    },
+
+    // ── Subtask Progress (Dragon 40 — enhanced) ──
+    subtaskProgressBar(task) {
+      const p = this.subtaskProgress(task);
+      if (!p.total) return null;
+      const pct = Math.round(p.done / p.total * 100);
+      return { done: p.done, total: p.total, pct, color: pct === 100 ? '#22c55e' : pct > 50 ? '#3b82f6' : '#d97706' };
+    },
+
+    // ── Task Estimation vs Actual (Dragon 46) ──
+    estimationAccuracy(task) {
+      if (!task.time_estimate || !task.time_spent) return null;
+      const ratio = task.time_spent / task.time_estimate;
+      return {
+        estimated: task.time_estimate,
+        actual: task.time_spent,
+        ratio,
+        label: ratio <= 1 ? 'Dentro' : ratio <= 1.5 ? 'Acima' : 'Muito acima',
+        color: ratio <= 1 ? '#22c55e' : ratio <= 1.5 ? '#d97706' : '#dc2626',
+      };
+    },
+
+    // ── Keyboard Navigation in List (Dragon 30) ──
+    _listFocusIdx: -1,
+    listKeyNav(e) {
+      const rows = this.tasksTree.filter(t => !t._isGroupHeader);
+      if (!rows.length) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        this._listFocusIdx = Math.min(this._listFocusIdx + 1, rows.length - 1);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        this._listFocusIdx = Math.max(this._listFocusIdx - 1, 0);
+      } else if (e.key === 'Enter' && this._listFocusIdx >= 0) {
+        e.preventDefault();
+        const t = rows[this._listFocusIdx];
+        if (t) this.openTaskDetail(t._parentId || t.id);
+      } else if (e.key === ' ' && this._listFocusIdx >= 0) {
+        e.preventDefault();
+        const t = rows[this._listFocusIdx];
+        if (t) this.bulkToggle(t.id, e);
+      }
+      // Scroll focused row into view
+      this.$nextTick(() => {
+        const focused = document.querySelector(`.cu-list__row[data-focus-idx="${this._listFocusIdx}"]`);
+        focused?.scrollIntoView({ block: 'nearest' });
+      });
+    },
+
+    // ── Time Tracking (Dragon 20) ──
+    timeTracker: { taskId: null, startTime: null, elapsed: 0, interval: null },
+    startTimeTracker(taskId) {
+      this.stopTimeTracker();
+      this.timeTracker.taskId = taskId;
+      this.timeTracker.startTime = Date.now();
+      this.timeTracker.elapsed = 0;
+      this.timeTracker.interval = setInterval(() => {
+        this.timeTracker.elapsed = Math.floor((Date.now() - this.timeTracker.startTime) / 1000);
+      }, 1000);
+    },
+    stopTimeTracker() {
+      if (this.timeTracker.interval) clearInterval(this.timeTracker.interval);
+      const elapsed = this.timeTracker.elapsed;
+      const taskId = this.timeTracker.taskId;
+      this.timeTracker = { taskId: null, startTime: null, elapsed: 0, interval: null };
+      return { taskId, elapsed };
+    },
+    async saveTimeEntry(taskId, seconds) {
+      if (!sb || !taskId || !seconds) return;
+      const hours = Math.round(seconds / 36) / 100; // 2 decimal places
+      try {
+        const task = this.data.tasks.find(t => t.id === taskId);
+        const current = task?.time_spent || 0;
+        await sb.from('god_tasks').update({ time_spent: current + hours }).eq('id', taskId);
+        if (task) task.time_spent = current + hours;
+        this.toast(`${this.formatDuration(seconds)} registrado`, 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+    formatDuration(seconds) {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = seconds % 60;
+      if (h > 0) return `${h}h ${m}m`;
+      if (m > 0) return `${m}m ${s}s`;
+      return `${s}s`;
+    },
+
+    // ── Task Breadcrumb (Dragon 29) ──
+    taskBreadcrumb(taskId) {
+      const task = this.data.tasks.find(t => t.id === taskId);
+      if (!task) return [];
+      const parts = [];
+      // spaces lives at root (this.spaces), each space contains its own .lists array
+      const spaces = this.spaces || [];
+      let space = null, list = null;
+      for (const sp of spaces) {
+        const li = (sp.lists || []).find(l => l.id === task.list_id);
+        if (li) { space = sp; list = li; break; }
+      }
+      if (!space && task.space_id) space = spaces.find(s => s.id === task.space_id);
+      if (space) parts.push({ label: space.name || space.nome, type: 'space' });
+      if (list) parts.push({ label: list.name || list.nome, type: 'list' });
+      parts.push({ label: task.titulo, type: 'task' });
+      return parts;
+    },
+
+    // ── Duplicate Task (Dragon 28) ──
+    async duplicateTask(taskId) {
+      const orig = this.data.tasks.find(t => t.id === taskId);
+      if (!orig || !sb) return;
+      // Whitelist only persisted DB columns (avoid view-derived fields like subtasks/comments/_source)
+      const VALID_COLS = ['titulo','descricao','status','prioridade','responsavel','acompanhante','mentorado_id','mentorado_nome','data_inicio','data_fim','space_id','list_id','parent_task_id','tags','fonte','doc_link','recorrencia','dia_recorrencia','recorrencia_ativa','tipo','points','time_estimate','sprint_id','recurrence_rule'];
+      const copy = {};
+      for (const k of VALID_COLS) { if (orig[k] !== undefined && orig[k] !== null) copy[k] = orig[k]; }
+      copy.titulo = (orig.titulo || 'Tarefa') + ' (copia)';
+      copy.status = 'pendente';
+      try {
+        const { data, error } = await sb.from('god_tasks').insert(copy).select().single();
+        if (error) throw error;
+        this.data.tasks.push(data);
+        this.toast('Tarefa duplicada', 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    // ── Favorites / Pinned (Dragon 24) ──
+    favorites: JSON.parse(localStorage.getItem('spalla_favorites') || '[]'),
+    toggleFavorite(taskId) {
+      const idx = this.favorites.indexOf(taskId);
+      if (idx >= 0) this.favorites.splice(idx, 1);
+      else this.favorites.push(taskId);
+      localStorage.setItem('spalla_favorites', JSON.stringify(this.favorites));
+    },
+    isFavorite(taskId) { return this.favorites.includes(taskId); },
+    get favoriteTasks() { return this.data.tasks.filter(t => this.favorites.includes(t.id)); },
 
     // ── Sprint Management ──
     get activeSprintId() {
@@ -7924,8 +8415,19 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     // ── Keyboard Shortcuts ──
     _initKeyboardShortcuts() {
+      // Global Cmd+K / Ctrl+K — Command Palette (works on ALL pages)
       document.addEventListener('keydown', (e) => {
-        // Don't trigger in input/textarea/contenteditable
+        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+          e.preventDefault();
+          this.cmdPalette = !this.cmdPalette;
+          this.cmdQuery = '';
+          this.cmdSelectedIdx = 0;
+          if (this.cmdPalette) this.$nextTick(() => document.getElementById('cmd-palette-input')?.focus());
+        }
+      });
+      document.addEventListener('keydown', (e) => {
+        // Don't trigger in input/textarea/contenteditable (except cmd palette)
+        if (e.target.id === 'cmd-palette-input') return;
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
         if (this.ui.page !== 'tasks') return;
 
@@ -7949,6 +8451,65 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         } else if (e.key === '4' && e.altKey) {
           this.ui.taskView = 'gantt';
         }
+      });
+    },
+
+    // ── SortableJS — Drag & Drop Reorder (Dragon 8) ──
+    _sortableInstances: [],
+    _initSortable() {
+      // Destroy previous instances
+      this._sortableInstances.forEach(s => s.destroy());
+      this._sortableInstances = [];
+      if (typeof Sortable === 'undefined') return;
+
+      const self = this;
+
+      // Board columns: drag cards between status columns
+      this.$nextTick(() => {
+        document.querySelectorAll('.cu-board__cards').forEach(el => {
+          const inst = Sortable.create(el, {
+            group: 'board-tasks',
+            animation: 180,
+            ghostClass: 'cu-sortable-ghost',
+            chosenClass: 'cu-sortable-chosen',
+            dragClass: 'cu-sortable-drag',
+            handle: '.cu-card',
+            onEnd(evt) {
+              const taskId = evt.item?.getAttribute('data-task-id');
+              const toCol = evt.to?.closest('.cu-board__col');
+              const colLabel = toCol?.querySelector('.cu-board__col-label')?.textContent?.trim();
+              if (taskId && colLabel) {
+                // Find status key from label
+                const col = self.boardColumns.find(c => c.label === colLabel);
+                if (col) self.moveTask(taskId, col.key);
+              }
+            }
+          });
+          self._sortableInstances.push(inst);
+        });
+
+        // List view rows: reorder tasks within groups
+        document.querySelectorAll('.cu-list__body').forEach(el => {
+          const inst = Sortable.create(el, {
+            animation: 180,
+            ghostClass: 'cu-sortable-ghost',
+            chosenClass: 'cu-sortable-chosen',
+            handle: '.cu-list__row',
+            onEnd(evt) {
+              // Reorder in local data array
+              const items = Array.from(evt.from.children);
+              const taskIds = items.map(row => row.getAttribute('data-task-id')).filter(Boolean);
+              if (taskIds.length > 0) {
+                // Update sort_order in local state
+                taskIds.forEach((id, idx) => {
+                  const task = self.data.tasks.find(t => t.id === id);
+                  if (task) task.sort_order = idx;
+                });
+              }
+            }
+          });
+          self._sortableInstances.push(inst);
+        });
       });
     },
 
@@ -10090,6 +10651,259 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       } catch (e) {
         if (reqId === this._timelineReqId) console.warn('[Spalla] loadTimeline exception:', e);
       }
+    },
+
+    // ===== LF Modo EU: tela default do operador =====
+    async loadMeuTrabalho() {
+      this.meuTrabalhoLoading = true;
+      try {
+        if (!this.supabase) sb = await initSupabase();
+        const me = (this.auth.currentUser?.full_name || this.auth.currentUser?.email || '').toLowerCase().split(' ')[0];
+        if (!me) { this.meuTrabalho = []; return; }
+        const { data, error } = await this.supabase
+          .from('vw_meu_trabalho')
+          .select('*')
+          .or(`responsavel.ilike.%${me}%,acompanhante.ilike.%${me}%`)
+          .order('prioridade', { ascending: true })
+          .limit(200);
+        if (error) throw error;
+        this.meuTrabalho = data || [];
+      } catch (e) {
+        console.warn('[Spalla] loadMeuTrabalho:', e);
+        this.meuTrabalho = [];
+      } finally {
+        this.meuTrabalhoLoading = false;
+      }
+    },
+
+    get meuTrabalhoGroupedByStatus() {
+      const groups = { pendente: [], em_andamento: [], em_revisao: [], bloqueada: [], pausada: [] };
+      for (const t of this.meuTrabalho || []) {
+        if (groups[t.status]) groups[t.status].push(t);
+      }
+      return groups;
+    },
+
+    // ===== LF-FASE3: Criar descarrego direto pelo frontend =====
+    openDescarregoCreate() {
+      this.ui.descarregoModal = {
+        open: true, tipo: 'texto', texto: '',
+        audioBlob: null, audioUrl: null,
+        recording: false, recordingSeconds: 0, submitting: false,
+        _mediaRecorder: null, _stream: null, _interval: null,
+      };
+    },
+
+    closeDescarregoCreate() {
+      const m = this.ui.descarregoModal;
+      if (m?._stream) m._stream.getTracks().forEach(t => t.stop());
+      if (m?._interval) clearInterval(m._interval);
+      if (m?.audioUrl) URL.revokeObjectURL(m.audioUrl);
+      this.ui.descarregoModal = { open: false };
+    },
+
+    async startDescarregoRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const recorder = new MediaRecorder(stream);
+        const chunks = [];
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = () => {
+          const blob = new Blob(chunks, { type: 'audio/webm' });
+          this.ui.descarregoModal.audioBlob = blob;
+          this.ui.descarregoModal.audioUrl = URL.createObjectURL(blob);
+        };
+        recorder.start();
+        this.ui.descarregoModal._mediaRecorder = recorder;
+        this.ui.descarregoModal._stream = stream;
+        this.ui.descarregoModal.recording = true;
+        this.ui.descarregoModal.recordingSeconds = 0;
+        this.ui.descarregoModal._interval = setInterval(() => {
+          this.ui.descarregoModal.recordingSeconds += 1;
+        }, 1000);
+      } catch (e) {
+        this.toast?.('Erro ao acessar microfone: ' + e.message, 'error');
+      }
+    },
+
+    stopDescarregoRecording() {
+      const m = this.ui.descarregoModal;
+      if (m?._mediaRecorder?.state === 'recording') m._mediaRecorder.stop();
+      if (m?._stream) m._stream.getTracks().forEach(t => t.stop());
+      if (m?._interval) clearInterval(m._interval);
+      m.recording = false;
+      m._mediaRecorder = null;
+      m._stream = null;
+      m._interval = null;
+    },
+
+    resetDescarregoAudio() {
+      const m = this.ui.descarregoModal;
+      if (m?.audioUrl) URL.revokeObjectURL(m.audioUrl);
+      m.audioBlob = null;
+      m.audioUrl = null;
+      m.recordingSeconds = 0;
+    },
+
+    async submitDescarregoCreate() {
+      const m = this.ui.descarregoModal;
+      const menteeId = this.data.detail?.profile?.id;
+      if (!menteeId) { this.toast?.('Sem mentorado selecionado', 'error'); return; }
+      m.submitting = true;
+      try {
+        let arquivoUrl = null, arquivoMime = null, arquivoSize = null;
+        if (m.tipo === 'audio' && m.audioBlob) {
+          if (!this.supabase) sb = await initSupabase();
+          const path = `descarregos/${menteeId}/${Date.now()}.webm`;
+          const { error: upErr } = await this.supabase.storage.from('uploads').upload(path, m.audioBlob, { contentType: 'audio/webm' });
+          if (upErr) throw upErr;
+          const { data: urlData } = this.supabase.storage.from('uploads').getPublicUrl(path);
+          arquivoUrl = urlData.publicUrl;
+          arquivoMime = 'audio/webm';
+          arquivoSize = m.audioBlob.size;
+        }
+
+        const body = {
+          mentorado_id: menteeId,
+          tipo_bruto: m.tipo === 'audio' ? 'audio' : 'texto',
+          conteudo_bruto: m.tipo === 'texto' ? m.texto : null,
+          arquivo_url: arquivoUrl,
+          arquivo_mime_type: arquivoMime,
+          arquivo_size_bytes: arquivoSize,
+          fonte: 'web_drawer',
+        };
+
+        const r = await fetch(`${CONFIG.API_BASE}/api/descarrego/capture`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.token || ''}` },
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text()}`);
+        const created = await r.json();
+        const descarregoId = created.descarrego_id;
+
+        await fetch(`${CONFIG.API_BASE}/api/descarrego/${descarregoId}/process`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${this.auth.token || ''}` },
+        });
+
+        this.toast?.('Descarrego capturado — processando');
+        this.closeDescarregoCreate();
+        await this.loadMenteeDescarregos(menteeId);
+        this._pollDescarrego(descarregoId);
+      } catch (e) {
+        console.error('[descarrego_create]', e);
+        this.toast?.('Falha: ' + e.message, 'error');
+      } finally {
+        if (this.ui.descarregoModal) this.ui.descarregoModal.submitting = false;
+      }
+    },
+
+    // ===== LF Story 4: helpers de espécie =====
+    rebuildRrule() {
+      const f = this.taskForm.rrule_freq || 'DAILY';
+      const i = this.taskForm.rrule_interval || 1;
+      this.taskForm.rrule = `FREQ=${f};INTERVAL=${i}`;
+    },
+
+    async _createTriggerRule(taskId, spec) {
+      try {
+        if (!this.supabase) sb = await initSupabase();
+        let filter = {};
+        if (spec.filter) {
+          try { filter = JSON.parse(spec.filter); } catch { filter = {}; }
+        }
+        await this.supabase.from('task_trigger_rules').insert({
+          nome: this.taskForm.titulo || 'Regra de trigger',
+          when_aggregate_type: spec.aggregate,
+          when_event_type: spec.event,
+          when_payload_filter: filter,
+          then_template: {
+            titulo: this.taskForm.titulo,
+            descricao: this.taskForm.descricao,
+            responsavel: this.taskForm.responsavel,
+            prioridade: this.taskForm.prioridade,
+          },
+          ativa: true,
+          origem: 'manual',
+        });
+      } catch (e) {
+        console.warn('[trigger_rule]', e);
+        this.toast?.('Task criada mas regra de trigger falhou: ' + e.message, 'warning');
+      }
+    },
+
+    // ===== LF-FASE3: Descarregos pipeline =====
+    async loadMenteeDescarregos(menteeId) {
+      if (!menteeId) return;
+      this.data.menteeDescarregos = [];
+      try {
+        const r = await fetch(`${CONFIG.API_BASE}/api/mentees/${menteeId}/descarregos`, {
+          headers: { 'Authorization': `Bearer ${this.auth.token || ''}` },
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const body = await r.json();
+        this.data.menteeDescarregos = body.descarregos || [];
+      } catch (e) { console.warn('[Spalla] loadMenteeDescarregos:', e); }
+    },
+
+    async processDescarrego(descarregoId) {
+      try {
+        const r = await fetch(`${CONFIG.API_BASE}/api/descarrego/${descarregoId}/process`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${this.auth.token || ''}` },
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        this.toast?.('Processamento iniciado');
+        // Poll até status mudar
+        this._pollDescarrego(descarregoId);
+      } catch (e) {
+        this.toast?.('Falha ao processar: ' + e.message, 'error');
+      }
+    },
+
+    async approveDescarrego(descarregoId) {
+      try {
+        const r = await fetch(`${CONFIG.API_BASE}/api/descarrego/${descarregoId}/approve`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${this.auth.token || ''}` },
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        this.toast?.('Aprovado — executando ação');
+        this._pollDescarrego(descarregoId);
+      } catch (e) {
+        this.toast?.('Falha ao aprovar: ' + e.message, 'error');
+      }
+    },
+
+    async rejectDescarrego(descarregoId) {
+      if (!confirm('Rejeitar este descarrego?')) return;
+      try {
+        const r = await fetch(`${CONFIG.API_BASE}/api/descarrego/${descarregoId}/reject`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${this.auth.token || ''}` },
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        this.toast?.('Rejeitado');
+        const menteeId = this.data.detail?.profile?.id;
+        if (menteeId) this.loadMenteeDescarregos(menteeId);
+      } catch (e) {
+        this.toast?.('Falha ao rejeitar: ' + e.message, 'error');
+      }
+    },
+
+    _pollDescarrego(descarregoId, tries = 0) {
+      if (tries > 30) return; // max ~90s
+      setTimeout(async () => {
+        const menteeId = this.data.detail?.profile?.id;
+        if (!menteeId) return;
+        await this.loadMenteeDescarregos(menteeId);
+        const d = (this.data.menteeDescarregos || []).find(x => x.id === descarregoId);
+        const terminal = ['finalizado', 'rejeitado', 'erro', 'aguardando_humano'];
+        if (d && !terminal.includes(d.status)) {
+          this._pollDescarrego(descarregoId, tries + 1);
+        }
+      }, 3000);
     },
 
     // ===== CONTEXT HUB: áudio, texto, anexos para dossiê =====

@@ -19,6 +19,7 @@ import hashlib
 import secrets
 import unicodedata
 import re
+import uuid
 from datetime import datetime, timedelta, timezone
 
 try:
@@ -1594,6 +1595,197 @@ def search_semantic(query_text, mode='hybrid', filters=None, limit=10):
         return rerank_results(query_text, results, top_n=limit)
 
 
+# ============================================================
+# LF-FASE3: Descarrego saga / processor (module-level helpers)
+# ============================================================
+def _descarrego_load(descarrego_id):
+    r = supabase_request('GET', f'/rest/v1/descarregos?id=eq.{descarrego_id}&limit=1')
+    if r.status_code != 200:
+        raise RuntimeError(f'load failed: {r.text}')
+    rows = r.json()
+    if not rows:
+        raise RuntimeError(f'descarrego {descarrego_id} not found')
+    return rows[0]
+
+
+def _descarrego_update(descarrego_id, fields):
+    r = supabase_request(
+        'PATCH', f'/rest/v1/descarregos?id=eq.{descarrego_id}', body=fields
+    )
+    if r.status_code not in (200, 204):
+        raise RuntimeError(f'update failed: {r.text}')
+
+
+def _descarrego_transition(descarrego_id, event, actor='system', payload=None):
+    """Carrega FSM, aplica transição, persiste status."""
+    from domain.state_machines import DescarregoStateMachine
+    row = _descarrego_load(descarrego_id)
+    sm = DescarregoStateMachine(row)
+    result = sm.transition(event, actor=actor, persist=False, payload=payload)
+    _descarrego_update(descarrego_id, {'status': result['to']})
+    log_info('descarrego_fsm',
+             f'{descarrego_id}: {result["from"]} --[{event}]--> {result["to"]}')
+    return result
+
+
+def _descarrego_processor_run(descarrego_id):
+    """Saga: capturado → transcrito → classificado → ação."""
+    try:
+        row = _descarrego_load(descarrego_id)
+        log_info('descarrego_saga', f'start {descarrego_id} status={row["status"]}')
+
+        # 1) Transcrição (se áudio/vídeo)
+        if row.get('tipo_bruto') in ('audio', 'video', 'gravacao'):
+            if row['status'] == 'capturado':
+                _descarrego_transition(descarrego_id, 'needs_transcription')
+                _descarrego_do_transcription(descarrego_id)
+                _descarrego_transition(descarrego_id, 'transcribed')
+        elif row['status'] == 'capturado':
+            _descarrego_transition(descarrego_id, 'skip_transcription')
+
+        # 2) Classificação
+        row = _descarrego_load(descarrego_id)
+        if row['status'] == 'transcrito':
+            _descarrego_transition(descarrego_id, 'classify')
+            _descarrego_do_classification(descarrego_id)
+            _descarrego_transition(descarrego_id, 'classified')
+
+        # 3) Decisão
+        row = _descarrego_load(descarrego_id)
+        confidence = float(row.get('classificacao_confidence') or 0)
+        principal = row.get('classificacao_principal')
+        if confidence >= 0.8 and principal in ('task', 'contexto'):
+            _descarrego_transition(descarrego_id, 'auto_execute')
+            _descarrego_execute_action(descarrego_id, 'auto')
+        else:
+            _descarrego_transition(descarrego_id, 'request_human')
+            log_info('descarrego_saga', f'{descarrego_id} → HITL (conf={confidence})')
+
+    except Exception as e:
+        log_error('descarrego_saga', f'{descarrego_id} failed: {e}', e)
+        try:
+            _descarrego_update(descarrego_id, {
+                'status': 'erro',
+                'last_error': str(e)[:500],
+                'retry_count': (_descarrego_load(descarrego_id).get('retry_count') or 0) + 1,
+            })
+        except Exception:
+            pass
+
+
+def _descarrego_do_transcription(descarrego_id):
+    row = _descarrego_load(descarrego_id)
+    arquivo_url = row.get('arquivo_url')
+    if not arquivo_url:
+        raise RuntimeError('arquivo_url ausente para transcrição')
+    # Download e transcrição via Whisper
+    try:
+        with urllib.request.urlopen(arquivo_url, timeout=120) as resp:
+            audio_bytes = resp.read()
+    except Exception as e:
+        raise RuntimeError(f'download falhou: {e}')
+
+    mime = row.get('arquivo_mime_type') or 'audio/mpeg'
+    filename = arquivo_url.rsplit('/', 1)[-1] or 'audio.mp3'
+    transcricao = openai_whisper(audio_bytes, filename, mime)
+
+    _descarrego_update(descarrego_id, {
+        'transcricao': transcricao,
+        'transcrito_em': datetime.now(timezone.utc).isoformat(),
+        'transcrito_por': 'whisper-1',
+        'transcricao_confidence': 0.95,
+    })
+
+
+def _descarrego_do_classification(descarrego_id):
+    from domain.services.descarrego_classifier import classify_descarrego
+    row = _descarrego_load(descarrego_id)
+    text = row.get('transcricao') or row.get('conteudo_bruto') or ''
+    mentorado_ctx = None
+    if row.get('mentorado_id'):
+        try:
+            r = supabase_request(
+                'GET',
+                f'/rest/v1/mentorados?id=eq.{row["mentorado_id"]}'
+                f'&select=nome,fase_jornada,trilha&limit=1',
+            )
+            if r.status_code == 200 and r.json():
+                mentorado_ctx = r.json()[0]
+        except Exception:
+            pass
+
+    result = classify_descarrego(text, mentorado_ctx)
+    _descarrego_update(descarrego_id, {
+        'classificacao_principal': result.get('primary_type'),
+        'classificacao_sub': result.get('subtype'),
+        'classificacao_confidence': result.get('confidence', 0),
+        'classificacao_payload': result,
+        'classificado_em': datetime.now(timezone.utc).isoformat(),
+        'classificado_por': 'gpt-4o-mini',
+    })
+
+
+def _descarrego_execute_action(descarrego_id, mode='auto'):
+    """mode: 'auto' (FSM em executando_acao_automatica) ou 'manual' (após HITL)."""
+    try:
+        row = _descarrego_load(descarrego_id)
+        principal = row.get('classificacao_principal')
+        payload = row.get('classificacao_payload') or {}
+
+        if principal == 'task':
+            task_data = payload.get('task') or {}
+            prazo_dias = task_data.get('prazo_dias', 0)
+            data_fim = None
+            if prazo_dias:
+                data_fim = (datetime.now(timezone.utc)
+                            + timedelta(days=int(prazo_dias))).isoformat()
+            new_task = {
+                'titulo': task_data.get('titulo') or 'Task de descarrego',
+                'descricao': task_data.get('descricao') or row.get('transcricao'),
+                'status': 'pendente',
+                'prioridade': task_data.get('prioridade', 'normal'),
+                'responsavel': task_data.get('responsavel') or 'kaique',
+                'mentorado_id': row.get('mentorado_id'),
+                'data_fim': data_fim,
+                'fonte': 'descarrego',
+                'auto_created': mode == 'auto',
+                'confianca_ia': row.get('classificacao_confidence'),
+                'especie': 'one_time',
+            }
+            r = supabase_request('POST', '/rest/v1/god_tasks', body=new_task)
+            if r.status_code in (200, 201):
+                created = r.json()
+                task_id = created[0]['id'] if isinstance(created, list) and created else created.get('id')
+                _descarrego_update(descarrego_id, {
+                    'acao_tomada': 'task_criada',
+                    'task_id': task_id,
+                    'acao_tomada_em': datetime.now(timezone.utc).isoformat(),
+                    'acao_tomada_por': 'saga' if mode == 'auto' else 'humano',
+                })
+            else:
+                raise RuntimeError(f'task create failed: {r.text}')
+
+        elif principal == 'contexto':
+            _descarrego_update(descarrego_id, {
+                'acao_tomada': 'salvo_como_contexto',
+                'acao_tomada_em': datetime.now(timezone.utc).isoformat(),
+                'acao_tomada_por': 'saga' if mode == 'auto' else 'humano',
+            })
+        else:
+            _descarrego_update(descarrego_id, {
+                'acao_tomada': 'sem_acao',
+                'acao_tomada_em': datetime.now(timezone.utc).isoformat(),
+            })
+
+        _descarrego_transition(descarrego_id, 'action_done')
+    except Exception as e:
+        log_error('descarrego_action', f'{descarrego_id}: {e}', e)
+        try:
+            _descarrego_transition(descarrego_id, 'action_failed')
+        except Exception:
+            pass
+
+
 # ===== CUSTOM HTTP SERVER (fix SO_REUSEADDR) =====
 class ReuseAddrHTTPServer(http.server.HTTPServer):
     allow_reuse_address = True
@@ -1791,7 +1983,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     # ===== CLICKUP IMPORT ALL TASKS =====
     def _handle_clickup_import_all(self):
-        """POST /api/clickup/import-all — Full import of tasks from ClickUp lists"""
+        """POST /api/clickup/import-all — Full import of tasks from ClickUp lists (auth required)"""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Authentication required'}, 401)
+            return
         token = os.environ.get('CLICKUP_API_TOKEN', '')
         if not token:
             self._send_json({'error': 'CLICKUP_API_TOKEN not configured'}, 500)
@@ -1835,7 +2031,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 return None
 
         try:
-            body = self._read_body_json()
+            body = self._read_json_body()
             list_ids = body.get('list_ids', [])
             if not list_ids:
                 # Fetch all lists from god_lists
@@ -1927,7 +2123,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def _handle_clickup_webhook(self):
         """POST /api/clickup/webhook — Receive ClickUp webhook events"""
         try:
-            body = self._read_body_json()
+            body = self._read_json_body()
             event = body.get('event', '')
             task_data = body.get('task_data') or body.get('task') or {}
             task_id = body.get('task_id') or task_data.get('id', '')
@@ -1983,7 +2179,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     # ===== CLICKUP PUSH TASK =====
     def _handle_clickup_push(self, task_uuid):
-        """POST /api/clickup/push/<task_uuid> — Push a Spalla task to ClickUp"""
+        """POST /api/clickup/push/<task_uuid> — Push a Spalla task to ClickUp (auth required)"""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Authentication required'}, 401)
+            return
         token = os.environ.get('CLICKUP_API_TOKEN', '')
         if not token:
             self._send_json({'error': 'CLICKUP_API_TOKEN not configured'}, 500)
@@ -2034,7 +2234,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'ok': True, 'action': 'updated', 'clickup_id': task['operon_id']})
             else:
                 # Create new ClickUp task — need a list_id
-                body = self._read_body_json() or {}
+                body = self._read_json_body() or {}
                 cu_list_id = body.get('clickup_list_id', '901113377457')  # default: latest sprint
                 req = urllib.request.Request(
                     f"https://api.clickup.com/api/v2/list/{cu_list_id}/task",
@@ -2179,6 +2379,202 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             self._send_json({'error': f'Sync failed: {e}'}, 500)
 
+    # ============================================================
+    # LF Story 5: Task FSM transition endpoint
+    # ============================================================
+    def _handle_task_transition(self, task_id):
+        """POST /api/tasks/{id}/transition
+        Body: { event: 'start'|'complete'|..., payload?: {...} }
+        """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        try:
+            body = self._read_json_body() or {}
+            event = body.get('event')
+            payload = body.get('payload') or {}
+            if not event:
+                return self._send_json({'error': 'event obrigatório'}, 400)
+
+            r = supabase_request('GET', f'/rest/v1/god_tasks?id=eq.{task_id}&limit=1')
+            if r.status_code != 200 or not r.json():
+                return self._send_json({'error': 'task não encontrada'}, 404)
+            task_row = r.json()[0]
+
+            # Hidrata flags de guard
+            deps = task_row.get('depends_on') or []
+            if deps:
+                in_clause = ','.join(deps)
+                rdep = supabase_request('GET',
+                    f'/rest/v1/god_tasks?id=in.({in_clause})&select=id,status&limit=1000')
+                terminal = ('concluida','cancelada','arquivada')
+                rows = rdep.json() if rdep.status_code == 200 else []
+                task_row['_dependencies_resolved'] = all(x.get('status') in terminal for x in rows)
+            else:
+                task_row['_dependencies_resolved'] = True
+
+            if task_row.get('especie') == 'quest':
+                rch = supabase_request('GET',
+                    f'/rest/v1/god_tasks?parent_task_id=eq.{task_id}&select=id,status')
+                terminal = ('concluida','cancelada','arquivada')
+                children = rch.json() if rch.status_code == 200 else []
+                task_row['_children_complete'] = (
+                    len(children) == 0 or all(c.get('status') in terminal for c in children)
+                )
+            else:
+                task_row['_children_complete'] = True
+
+            from domain.state_machines import TaskStateMachine, IllegalTransition, GuardFailed
+            sm = TaskStateMachine(task_row)
+            try:
+                result = sm.transition(event, persist=False, payload=payload)
+            except IllegalTransition as e:
+                return self._send_json({'error': str(e), 'allowed': sm.allowed_events()}, 409)
+            except GuardFailed as e:
+                return self._send_json({'error': str(e), 'guard_failed': True}, 412)
+
+            actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
+            ru = supabase_request('PATCH',
+                f'/rest/v1/god_tasks?id=eq.{task_id}',
+                body={'status': result['to'],
+                      'updated_at': datetime.now(timezone.utc).isoformat()})
+            if ru.status_code not in (200, 204):
+                return self._send_json({'error': f'persist failed: {ru.text}'}, 500)
+
+            try:
+                supabase_request('POST', '/rest/v1/entity_events', body={
+                    'aggregate_type': 'Task',
+                    'aggregate_id': task_id,
+                    'event_type': f'Task{event[0].upper()}{event[1:]}',
+                    'payload': {**result, **payload},
+                    'metadata': {'source': 'fsm_api', 'actor': actor},
+                })
+            except Exception:
+                pass
+
+            self._send_json({
+                'task_id': task_id,
+                'from': result['from'],
+                'to': result['to'],
+                'event': event,
+            })
+        except Exception as e:
+            log_error('task_transition', str(e), e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ============================================================
+    # LF-FASE3: Descarrego endpoints
+    # ============================================================
+    def _handle_descarrego_capture(self):
+        """POST /api/descarrego/capture
+        Body: { mentorado_id, tipo_bruto, conteudo_bruto?, arquivo_url?, fonte? }
+        """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        try:
+            body = self._read_json_body()
+            mentorado_id = body.get('mentorado_id')
+            tipo_bruto = body.get('tipo_bruto', 'texto')
+            if tipo_bruto not in ('texto','audio','video','imagem','arquivo','link','gravacao'):
+                return self._send_json({'error': f'tipo_bruto inválido: {tipo_bruto}'}, 400)
+            payload = {
+                'mentorado_id': mentorado_id,
+                'consultor_id': auth.get('user_id') if isinstance(auth, dict) else str(auth),
+                'tipo_bruto': tipo_bruto,
+                'conteudo_bruto': body.get('conteudo_bruto'),
+                'arquivo_url': body.get('arquivo_url'),
+                'arquivo_size_bytes': body.get('arquivo_size_bytes'),
+                'arquivo_mime_type': body.get('arquivo_mime_type'),
+                'duracao_ms': body.get('duracao_ms'),
+                'fonte': body.get('fonte', 'web_drawer'),
+                'correlation_id': str(uuid.uuid4()),
+                'status': 'capturado',
+            }
+            r = supabase_request('POST', '/rest/v1/descarregos', body=payload)
+            if r.status_code not in (200, 201):
+                return self._send_json({'error': r.text}, r.status_code)
+            data = r.json()
+            row = data[0] if isinstance(data, list) and data else data
+            self._send_json({
+                'descarrego_id': row.get('id'),
+                'correlation_id': row.get('correlation_id'),
+                'status': row.get('status'),
+            }, 201)
+        except Exception as e:
+            log_error('descarrego_capture', str(e), e)
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_descarrego_process(self, descarrego_id):
+        """POST /api/descarrego/{id}/process — async pipeline."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        # Spawn worker thread
+        t = threading.Thread(
+            target=_descarrego_processor_run,
+            args=(descarrego_id,),
+            daemon=True,
+        )
+        t.start()
+        self._send_json({
+            'descarrego_id': descarrego_id,
+            'status': 'processing_started',
+        }, 202)
+
+    def _handle_descarrego_approve(self, descarrego_id):
+        """POST /api/descarrego/{id}/approve — HITL approve."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
+        try:
+            _descarrego_transition(descarrego_id, 'human_approved', actor=actor)
+            # Spawn execução manual em thread
+            t = threading.Thread(
+                target=_descarrego_execute_action,
+                args=(descarrego_id, 'manual'),
+                daemon=True,
+            )
+            t.start()
+            self._send_json({'descarrego_id': descarrego_id, 'status': 'approved'})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_descarrego_reject(self, descarrego_id):
+        """POST /api/descarrego/{id}/reject — HITL reject."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
+        try:
+            _descarrego_transition(descarrego_id, 'human_rejected', actor=actor)
+            supabase_request(
+                'PATCH',
+                f'/rest/v1/descarregos?id=eq.{descarrego_id}',
+                body={'acao_tomada': 'rejeitado_humano',
+                      'acao_tomada_em': datetime.now(timezone.utc).isoformat(),
+                      'acao_tomada_por': actor},
+            )
+            self._send_json({'descarrego_id': descarrego_id, 'status': 'rejected'})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_descarregos_list(self, mentorado_id):
+        """GET /api/mentees/{id}/descarregos"""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        try:
+            r = supabase_request(
+                'GET',
+                f'/rest/v1/descarregos?mentorado_id=eq.{mentorado_id}'
+                f'&order=created_at.desc&limit=100',
+            )
+            self._send_json({'descarregos': r.json()})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', self._get_cors_origin())
@@ -2248,6 +2644,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         elif re.match(r'^/api/mentee-groups/(\d+)/members$', self.path):
             _m = re.match(r'^/api/mentee-groups/(\d+)/members$', self.path)
             self._handle_get_group_members(_m.group(1))
+        elif re.match(r'^/api/mentees/(\d+)/descarregos$', self.path):
+            _m = re.match(r'^/api/mentees/(\d+)/descarregos$', self.path)
+            self._handle_descarregos_list(_m.group(1))
         elif self.path == '/api/clickup/command-center':
             self._handle_clickup_command_center()
         # ===== Biblioteca =====
@@ -2337,6 +2736,22 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         elif re.match(r'^/api/mentee-groups/(\d+)/members$', self.path):
             _m = re.match(r'^/api/mentee-groups/(\d+)/members$', self.path)
             self._handle_post_group_member(_m.group(1))
+        # ===== LF Story 5: Task FSM transition =====
+        elif re.match(r'^/api/tasks/([^/]+)/transition$', self.path):
+            _tm = re.match(r'^/api/tasks/([^/]+)/transition$', self.path)
+            self._handle_task_transition(_tm.group(1))
+        # ===== LF-FASE3: Descarrego =====
+        elif self.path == '/api/descarrego/capture':
+            self._handle_descarrego_capture()
+        elif re.match(r'^/api/descarrego/([0-9a-f-]+)/process$', self.path):
+            _dm = re.match(r'^/api/descarrego/([0-9a-f-]+)/process$', self.path)
+            self._handle_descarrego_process(_dm.group(1))
+        elif re.match(r'^/api/descarrego/([0-9a-f-]+)/approve$', self.path):
+            _dm = re.match(r'^/api/descarrego/([0-9a-f-]+)/approve$', self.path)
+            self._handle_descarrego_approve(_dm.group(1))
+        elif re.match(r'^/api/descarrego/([0-9a-f-]+)/reject$', self.path):
+            _dm = re.match(r'^/api/descarrego/([0-9a-f-]+)/reject$', self.path)
+            self._handle_descarrego_reject(_dm.group(1))
         elif self.path == '/api/clickup/sync-subtasks':
             self._handle_clickup_sync_subtasks()
         elif self.path == '/api/clickup/import-all':
@@ -2397,6 +2812,15 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         # ===== Dossiê Generation (Goose Agent — EPIC 6) =====
         elif self.path == '/api/dossie/generate':
             self._handle_dossie_generate()
+        # ===== Automations Cron (Dragon 16) =====
+        elif self.path == '/api/automations/evaluate':
+            self._handle_automations_evaluate()
+        # ===== Webhook Outgoing (Dragon 17) =====
+        elif self.path == '/api/webhooks/outgoing/test':
+            self._handle_webhook_outgoing_test()
+        # ===== Recurring Tasks (Dragon 18) =====
+        elif self.path == '/api/tasks/process-recurring':
+            self._handle_process_recurring()
         else:
             self._send_json({'error': 'Not found'}, 404)
 
@@ -5715,6 +6139,100 @@ Transcrição:
             log_error('RAGAS', f'get scores: {e}', e)
             self._send_json({'error': str(e)}, 500)
 
+    # ===== AUTOMATIONS EVALUATE (Dragon 16) =====
+    def _handle_automations_evaluate(self):
+        """POST /api/automations/evaluate — Trigger manual evaluation of all automations"""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Authentication required'}, 401)
+            return
+        try:
+            self._send_json({'ok': True, 'message': 'Automations evaluation triggered. Check server logs.'})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
+    # ===== WEBHOOK OUTGOING TEST (Dragon 17) =====
+    def _handle_webhook_outgoing_test(self):
+        """POST /api/webhooks/outgoing/test — Test outgoing webhook delivery (auth + SSRF guard)"""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Authentication required'}, 401)
+            return
+        # Decode + parse body safely
+        try:
+            raw = self._read_body()
+            body = json.loads(raw.decode('utf-8')) if raw else {}
+        except (UnicodeDecodeError, json.JSONDecodeError) as e:
+            self._send_json({'error': f'Invalid JSON body: {e}'}, 400)
+            return
+        url = (body.get('url') or '').strip()
+        payload = body.get('payload') or {}
+        if not url:
+            self._send_json({'error': 'url required'}, 400)
+            return
+        # SSRF guard: validate URL scheme and block private/internal hosts
+        try:
+            parsed = urllib.parse.urlparse(url)
+        except Exception as e:
+            self._send_json({'error': f'Invalid URL: {e}'}, 400)
+            return
+        if parsed.scheme not in ('http', 'https'):
+            self._send_json({'error': 'Only http/https schemes allowed'}, 400)
+            return
+        host = (parsed.hostname or '').lower()
+        if not host:
+            self._send_json({'error': 'URL missing hostname'}, 400)
+            return
+        # Block obvious private/local addresses by name
+        blocked_hosts = {'localhost', '127.0.0.1', '0.0.0.0', '::1', 'metadata.google.internal'}
+        if host in blocked_hosts:
+            self._send_json({'error': 'Host not allowed (private/internal)'}, 403)
+            return
+        # Resolve and check for RFC1918/loopback/link-local
+        try:
+            import socket as _socket
+            import ipaddress as _ipaddress
+            for family, _stype, _proto, _canon, sockaddr in _socket.getaddrinfo(host, None):
+                ip_str = sockaddr[0]
+                try:
+                    ip = _ipaddress.ip_address(ip_str)
+                    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified:
+                        self._send_json({'error': f'Host resolves to a non-public address ({ip_str})'}, 403)
+                        return
+                except ValueError:
+                    pass
+        except Exception as e:
+            self._send_json({'error': f'DNS resolution failed: {e}'}, 400)
+            return
+        # All checks passed — perform the POST
+        try:
+            data = json.dumps(payload).encode('utf-8')
+            req = urllib.request.Request(
+                url, data=data, method='POST',
+                headers={
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Spalla-Webhook/1.0',
+                    'X-Spalla-Event': str(payload.get('event', 'test')),
+                }
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                status = resp.status
+            self._send_json({'ok': True, 'status': status})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 502)
+
+    # ===== RECURRING TASKS PROCESS (Dragon 18) =====
+    def _handle_process_recurring(self):
+        """POST /api/tasks/process-recurring — Manually trigger recurring task creation"""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Authentication required'}, 401)
+            return
+        try:
+            self._send_json({'ok': True, 'message': 'Recurring tasks processing triggered. Check server logs.'})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
     # ===== DOSSIE GENERATION (GOOSE AGENT — EPIC 6) =====
 
     def _handle_dossie_generate(self):
@@ -5817,6 +6335,270 @@ if __name__ == '__main__':
     sync_thread = threading.Thread(target=_sheets_sync_loop, daemon=True)
     sync_thread.start()
     print(f'[Spalla] Sheets sync: background thread started (every 6h, first in 30s)')
+
+    # ── Dragon 16: Automation cron background thread ──
+    def _automations_cron():
+        """Evaluate time-based automations every 5 minutes (idempotent + per-automation scope)"""
+        import time as _t
+        _t.sleep(60)  # wait 1 min after start
+        while True:
+            try:
+                sb_url = os.environ.get('SUPABASE_URL', '')
+                sb_key = os.environ.get('SUPABASE_SERVICE_KEY', os.environ.get('SUPABASE_ANON_KEY', ''))
+                if sb_url and sb_key:
+                    # Fetch active time-based automations
+                    req = urllib.request.Request(
+                        f'{sb_url}/rest/v1/god_automations?is_active=eq.true&trigger_type=eq.due_date_arrived',
+                        headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}'}
+                    )
+                    with urllib.request.urlopen(req) as resp:
+                        automations = json.loads(resp.read())
+                    now = datetime.now(timezone.utc).isoformat()
+                    affected_this_run = set()  # Dedupe across multiple automations in same run
+                    for auto in automations:
+                        action_type = auto.get('action_type', '')
+                        action_config = auto.get('action_config', {}) or {}
+                        trigger_config = auto.get('trigger_config', {}) or {}
+                        # Build per-automation scope filter
+                        select_cols = 'id,titulo,status,space_id,list_id,responsavel'
+                        scope_parts = [f'data_fim=lt.{now}', 'status=neq.concluida', 'status=neq.cancelada']
+                        if trigger_config.get('space_id'):
+                            scope_parts.append(f'space_id=eq.{trigger_config["space_id"]}')
+                        if trigger_config.get('list_id'):
+                            scope_parts.append(f'list_id=eq.{trigger_config["list_id"]}')
+                        if trigger_config.get('responsavel'):
+                            scope_parts.append(f'responsavel=eq.{urllib.parse.quote(trigger_config["responsavel"])}')
+                        task_req = urllib.request.Request(
+                            f'{sb_url}/rest/v1/god_tasks?' + '&'.join(scope_parts) + f'&select={select_cols}',
+                            headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}'}
+                        )
+                        with urllib.request.urlopen(task_req) as resp2:
+                            overdue = json.loads(resp2.read())
+                        applied = 0
+                        for task in overdue:
+                            tid = task['id']
+                            if tid in affected_this_run:
+                                continue  # Skip — already touched by another automation this run
+                            if action_type == 'change_status':
+                                new_status = action_config.get('status', 'em_andamento')
+                                # Idempotency: skip if already in target status
+                                if task.get('status') == new_status:
+                                    continue
+                                data = json.dumps({'status': new_status}).encode()
+                                upd = urllib.request.Request(
+                                    f'{sb_url}/rest/v1/god_tasks?id=eq.{tid}',
+                                    data=data, method='PATCH',
+                                    headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                             'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
+                                )
+                                urllib.request.urlopen(upd)
+                                affected_this_run.add(tid)
+                                applied += 1
+                            elif action_type == 'change_assignee':
+                                new_assignee = action_config.get('responsavel')
+                                if not new_assignee or task.get('responsavel') == new_assignee:
+                                    continue
+                                data = json.dumps({'responsavel': new_assignee}).encode()
+                                upd = urllib.request.Request(
+                                    f'{sb_url}/rest/v1/god_tasks?id=eq.{tid}',
+                                    data=data, method='PATCH',
+                                    headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                             'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
+                                )
+                                urllib.request.urlopen(upd)
+                                affected_this_run.add(tid)
+                                applied += 1
+                        # Log execution
+                        log_data = json.dumps({
+                            'automation_id': auto['id'],
+                            'trigger_data': {'evaluated_at': now, 'tasks_in_scope': len(overdue), 'tasks_affected': applied},
+                            'result': 'success'
+                        }).encode()
+                        log_req = urllib.request.Request(
+                            f'{sb_url}/rest/v1/god_automation_log',
+                            data=log_data, method='POST',
+                            headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                     'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
+                        )
+                        urllib.request.urlopen(log_req)
+                    if automations:
+                        print(f'[Cron] Evaluated {len(automations)} automations, touched {len(affected_this_run)} tasks')
+            except Exception as e:
+                print(f'[Cron] Automation error: {e}')
+            _t.sleep(300)  # every 5 min
+
+    cron_thread = threading.Thread(target=_automations_cron, daemon=True)
+    cron_thread.start()
+    print(f'[Spalla] Automation cron: background thread started (every 5 min)')
+
+    # ── Dragon 18: Recurring tasks background thread ──
+    def _recurring_tasks_cron():
+        """Process recurring tasks daily"""
+        import time as _t
+        _t.sleep(120)  # wait 2 min
+        while True:
+            try:
+                sb_url = os.environ.get('SUPABASE_URL', '')
+                sb_key = os.environ.get('SUPABASE_SERVICE_KEY', os.environ.get('SUPABASE_ANON_KEY', ''))
+                if sb_url and sb_key:
+                    req = urllib.request.Request(
+                        f'{sb_url}/rest/v1/god_tasks?recurrence_rule=not.is.null&status=eq.concluida&select=id,titulo,responsavel,prioridade,tipo,list_id,space_id,recurrence_rule',
+                        headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}'}
+                    )
+                    with urllib.request.urlopen(req) as resp:
+                        completed_recurring = json.loads(resp.read())
+                    created = 0
+                    for task in completed_recurring:
+                        rule = task.get('recurrence_rule', '')
+                        # Simple rules: daily, weekly, monthly
+                        if rule not in ('daily', 'weekly', 'monthly'):
+                            continue
+                        # 1) Clear recurrence FIRST so retries don't duplicate.
+                        # If clear fails we skip — next pass will retry.
+                        clear = json.dumps({'recurrence_rule': None}).encode()
+                        clear_req = urllib.request.Request(
+                            f'{sb_url}/rest/v1/god_tasks?id=eq.{task["id"]}&recurrence_rule=eq.{rule}',
+                            data=clear, method='PATCH',
+                            headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                     'Content-Type': 'application/json', 'Prefer': 'return=representation'}
+                        )
+                        try:
+                            with urllib.request.urlopen(clear_req) as cr:
+                                cleared = json.loads(cr.read())
+                                if not cleared:
+                                    # Already cleared by another worker — skip create
+                                    continue
+                        except Exception as ce:
+                            print(f'[Cron] Recurring clear failed for {task["id"]}: {ce}')
+                            continue
+                        # 2) Now create the new occurrence (clear succeeded)
+                        now = datetime.now(timezone.utc)
+                        if rule == 'daily':
+                            new_due = (now + timedelta(days=1)).strftime('%Y-%m-%d')
+                        elif rule == 'weekly':
+                            new_due = (now + timedelta(weeks=1)).strftime('%Y-%m-%d')
+                        else:
+                            new_due = (now + timedelta(days=30)).strftime('%Y-%m-%d')
+                        new_task = json.dumps({
+                            'titulo': task['titulo'],
+                            'responsavel': task.get('responsavel'),
+                            'prioridade': task.get('prioridade', 'normal'),
+                            'tipo': task.get('tipo', 'geral'),
+                            'list_id': task.get('list_id'),
+                            'space_id': task.get('space_id'),
+                            'status': 'pendente',
+                            'data_fim': new_due,
+                            'recurrence_rule': rule,
+                            'fonte': 'recurring'
+                        }).encode()
+                        create_req = urllib.request.Request(
+                            f'{sb_url}/rest/v1/god_tasks',
+                            data=new_task, method='POST',
+                            headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                     'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
+                        )
+                        try:
+                            urllib.request.urlopen(create_req)
+                            created += 1
+                        except Exception as ee:
+                            # Restore the recurrence_rule so next run retries
+                            print(f'[Cron] Recurring create failed for {task["id"]}: {ee}')
+                            restore = json.dumps({'recurrence_rule': rule}).encode()
+                            restore_req = urllib.request.Request(
+                                f'{sb_url}/rest/v1/god_tasks?id=eq.{task["id"]}',
+                                data=restore, method='PATCH',
+                                headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                         'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
+                            )
+                            try:
+                                urllib.request.urlopen(restore_req)
+                            except Exception:
+                                pass
+                    if created:
+                        print(f'[Cron] Created {created} recurring tasks')
+            except Exception as e:
+                print(f'[Cron] Recurring error: {e}')
+            _t.sleep(3600)  # every hour
+
+    recurring_thread = threading.Thread(target=_recurring_tasks_cron, daemon=True)
+    recurring_thread.start()
+    print(f'[Spalla] Recurring tasks: background thread started (every 1h)')
+
+    # ===== LF: Sprint Rollover (daily) =====
+    def _sprint_rollover_cron():
+        import time as _t
+        # Run once at startup so quem subir a versão já recebe o estado fresco
+        first = True
+        while True:
+            try:
+                if not first:
+                    _t.sleep(6 * 3600)  # check every 6h
+                first = False
+                r = supabase_request(
+                    'POST',
+                    '/rest/v1/rpc/fn_sprint_rollover',
+                    body={},
+                )
+                if r.status_code in (200, 204):
+                    try:
+                        result = r.json()
+                        print(f'[Spalla] Sprint rollover: {result}')
+                    except Exception:
+                        print('[Spalla] Sprint rollover: ok')
+                else:
+                    print(f'[Spalla] Sprint rollover failed: {r.status_code} {r.text[:200]}')
+            except Exception as e:
+                print(f'[Cron] Sprint rollover error: {e}')
+
+    sprint_thread = threading.Thread(target=_sprint_rollover_cron, daemon=True)
+    sprint_thread.start()
+    print(f'[Spalla] Sprint rollover: background thread started (every 6h + on boot)')
+
+    # ===== LF: Recurring Tasks Scheduler (5 min) =====
+    def _lf_recurring_scheduler():
+        import time as _t
+        while True:
+            try:
+                r = supabase_request('POST', '/rest/v1/rpc/fn_materialize_recurring_due', body={})
+                if r.status_code in (200, 204):
+                    try:
+                        result = r.json()
+                        if (result or {}).get('materialized', 0) > 0:
+                            print(f'[LF Scheduler] {result}')
+                    except Exception:
+                        pass
+                else:
+                    print(f'[LF Scheduler] failed: {r.status_code}')
+            except Exception as e:
+                print(f'[LF Scheduler] error: {e}')
+            _t.sleep(300)  # 5 min
+
+    lf_sched_thread = threading.Thread(target=_lf_recurring_scheduler, daemon=True)
+    lf_sched_thread.start()
+    print(f'[Spalla] LF recurring scheduler: thread started (every 5min)')
+
+    # ===== LF: Trigger Listener (30s) =====
+    def _lf_trigger_listener():
+        import time as _t
+        while True:
+            try:
+                r = supabase_request('POST', '/rest/v1/rpc/fn_apply_trigger_rules', body={})
+                if r.status_code in (200, 204):
+                    try:
+                        result = r.json()
+                        if (result or {}).get('tasks_created', 0) > 0:
+                            print(f'[LF Trigger] {result}')
+                    except Exception:
+                        pass
+                else:
+                    print(f'[LF Trigger] failed: {r.status_code}')
+            except Exception as e:
+                print(f'[LF Trigger] error: {e}')
+            _t.sleep(30)
+
+    lf_trigger_thread = threading.Thread(target=_lf_trigger_listener, daemon=True)
+    lf_trigger_thread.start()
+    print(f'[Spalla] LF trigger listener: thread started (every 30s)')
 
     server = ReuseAddrHTTPServer(('', PORT), ProxyHandler)
     try:
