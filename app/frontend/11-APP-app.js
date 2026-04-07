@@ -199,6 +199,10 @@ function operon() {
       mentionQuery: '',        // texto digitado após @
       mentionStart: -1,        // posição do @ no textarea
       taskGanttRange: 'month', // 'week' | 'month' | 'quarter'
+      calYear: new Date().getFullYear(),
+      calMonth: new Date().getMonth(),
+      bulkSelected: {}, // { taskId: true }
+      bulkMode: false,
       taskSpaceFilter: 'all', // space_id filter
       taskListFilter: 'all', // list_id filter
       taskSprintFilter: 'all', // sprint_id filter
@@ -7382,6 +7386,92 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     // Gantt helpers
+    // ── Bulk Actions ──
+    get bulkCount() { return Object.values(this.ui.bulkSelected).filter(Boolean).length; },
+    bulkToggle(taskId) { this.ui.bulkSelected = { ...this.ui.bulkSelected, [taskId]: !this.ui.bulkSelected[taskId] }; },
+    bulkSelectAll() {
+      const sel = {};
+      this.data.tasks.forEach(t => { sel[t.id] = true; });
+      this.ui.bulkSelected = sel;
+    },
+    bulkClear() { this.ui.bulkSelected = {}; this.ui.bulkMode = false; },
+    async bulkUpdateField(field, value) {
+      const ids = Object.entries(this.ui.bulkSelected).filter(([,v]) => v).map(([id]) => id);
+      if (!ids.length) return;
+      if (!confirm(`Atualizar ${ids.length} tarefa(s)?`)) return;
+      try {
+        const { error } = await sb.from('god_tasks').update({ [field]: value }).in('id', ids);
+        if (error) throw error;
+        this.data.tasks = this.data.tasks.map(t => ids.includes(t.id) ? { ...t, [field]: value } : t);
+        this.toast(`${ids.length} tarefa(s) atualizada(s)`, 'success');
+        this.bulkClear();
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+    async bulkDelete() {
+      const ids = Object.entries(this.ui.bulkSelected).filter(([,v]) => v).map(([id]) => id);
+      if (!ids.length) return;
+      if (!confirm(`Excluir ${ids.length} tarefa(s) permanentemente?`)) return;
+      try {
+        const { error } = await sb.from('god_tasks').delete().in('id', ids);
+        if (error) throw error;
+        this.data.tasks = this.data.tasks.filter(t => !ids.includes(t.id));
+        this.toast(`${ids.length} tarefa(s) excluida(s)`, 'success');
+        this.bulkClear();
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    // ── Calendar View helpers ──
+    calMonthLabel() {
+      const d = new Date(this.ui.calYear, this.ui.calMonth, 1);
+      return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase());
+    },
+    calNavMonth(delta) {
+      let m = this.ui.calMonth + delta;
+      let y = this.ui.calYear;
+      if (m < 0) { m = 11; y--; } else if (m > 11) { m = 0; y++; }
+      this.ui.calMonth = m;
+      this.ui.calYear = y;
+    },
+    calCells() {
+      const y = this.ui.calYear, m = this.ui.calMonth;
+      const first = new Date(y, m, 1);
+      const startDay = first.getDay(); // 0=Sun
+      const daysInMonth = new Date(y, m + 1, 0).getDate();
+      const today = new Date(); today.setHours(0,0,0,0);
+      const cells = [];
+      // Previous month padding
+      const prevDays = new Date(y, m, 0).getDate();
+      for (let i = startDay - 1; i >= 0; i--) {
+        const d = prevDays - i;
+        const dt = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        cells.push({ key: 'p' + d, day: d, date: new Date(y, m - 1, d).toISOString().slice(0,10), inMonth: false, isToday: false });
+      }
+      // Current month
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dt = new Date(y, m, d);
+        const iso = dt.toISOString().slice(0, 10);
+        cells.push({ key: 'c' + d, day: d, date: iso, inMonth: true, isToday: dt.getTime() === today.getTime() });
+      }
+      // Next month padding (fill to 42 cells = 6 rows)
+      const remaining = 42 - cells.length;
+      for (let d = 1; d <= remaining; d++) {
+        cells.push({ key: 'n' + d, day: d, date: new Date(y, m + 1, d).toISOString().slice(0,10), inMonth: false, isToday: false });
+      }
+      return cells;
+    },
+    calTasksForDate(dateStr) {
+      return this.data.tasks.filter(t => {
+        const due = t.data_fim || t.prazo;
+        if (!due) return false;
+        return due.slice(0, 10) === dateStr;
+      }).slice(0, 5); // max 5 per cell
+    },
+    async calDropTask(event, dateStr) {
+      const taskId = event.dataTransfer?.getData('text/plain');
+      if (!taskId) return;
+      await this.updateTaskField(taskId, 'data_fim', dateStr);
+    },
+
     get ganttTasks() {
       let tasks = this._filterTasks([...this.data.tasks].filter(t => t.status !== 'concluida'));
       return tasks.filter(t => t.data_inicio || t.data_fim || t.prazo).sort((a, b) => {
