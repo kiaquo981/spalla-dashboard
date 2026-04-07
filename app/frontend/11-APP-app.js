@@ -10688,11 +10688,18 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     get meuTrabalhoGroupedByStatus() {
-      const groups = { pendente: [], em_andamento: [], em_revisao: [], bloqueada: [], pausada: [] };
+      const map = { pendente: [], em_andamento: [], em_revisao: [], bloqueada: [], pausada: [] };
       for (const t of this.meuTrabalho || []) {
-        if (groups[t.status]) groups[t.status].push(t);
+        if (map[t.status]) map[t.status].push(t);
       }
-      return groups;
+      // Alpine x-for precisa de array, não objeto
+      return [
+        { status: 'pendente',     label: 'Pendente',      color: '#f3f4f6', tasks: map.pendente },
+        { status: 'em_andamento', label: 'Em andamento',  color: '#dbeafe', tasks: map.em_andamento },
+        { status: 'em_revisao',   label: 'Em revisão',    color: '#fef3c7', tasks: map.em_revisao },
+        { status: 'bloqueada',    label: 'Bloqueada',     color: '#fee2e2', tasks: map.bloqueada },
+        { status: 'pausada',      label: 'Pausada',       color: '#ede9fe', tasks: map.pausada },
+      ].filter(g => g.tasks.length > 0);
     },
 
     // ===== LF-FASE3: Criar descarrego direto pelo frontend =====
