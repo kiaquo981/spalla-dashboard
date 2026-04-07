@@ -534,6 +534,10 @@
               <div class="op-sidebar__user-role" x-text="'Membro CASE'"></div>
             </div>
           </div>
+          <button class="op-sidebar__logout" @click="toggleDarkMode()" :title="darkMode ? 'Modo claro' : 'Modo escuro'" style="margin-right:4px">
+            <svg x-show="!darkMode" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <svg x-show="darkMode" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          </button>
           <button class="op-sidebar__logout" @click="logout()" title="Sair">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           </button>
@@ -1879,8 +1883,6 @@
                 </button>
               </div>
               <div class="detail-hero__kpis">
-                <div class="stat-box"><div class="stat-box__val" x-text="formatCurrency(data.detail?.financial?.faturamento_atual)"></div><div class="stat-box__label">Total Vendido</div></div>
-                <div class="stat-box"><div class="stat-box__val" x-text="data.detail?.financial?.qtd_vendas_total || 0"></div><div class="stat-box__label">Vendas</div></div>
                 <div class="stat-box"><div class="stat-box__val" x-text="(data.detail?.phase?.engagement_score || 0) + '%'"></div><div class="stat-box__label">Engajamento</div></div>
                 <div class="stat-box"><div class="stat-box__val" x-text="(data.detail?.phase?.implementation_score || 0) + '%'"></div><div class="stat-box__label">Implementacao</div></div>
               </div>
@@ -1906,13 +1908,6 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
                 WhatsApp
               </button>
-              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'docs_drive' }" @click="ui.activeDetailTab = 'docs_drive'; syncDriveFiles()">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Drive
-              </button>
-              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'vendas' }" @click="ui.activeDetailTab = 'vendas'">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                Vendas
-              </button>
               <button class="op-tab" :class="{ active: ui.activeDetailTab === 'plano_acao' }" @click="ui.activeDetailTab = 'plano_acao'; loadMenteePa()">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                 Plano de Acao
@@ -1933,11 +1928,6 @@
               <button class="op-tab" :class="{ active: ui.activeDetailTab === 'financeiro' }" @click="ui.activeDetailTab = 'financeiro'; loadFinDetailLogs()">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                 Financeiro
-              </button>
-              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'timeline' }" @click="ui.activeDetailTab = 'timeline'; loadTimeline(data.detail?.profile?.id)">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                Timeline
-                <span class="op-tab__count" x-show="data.timeline.length" x-text="data.timeline.length"></span>
               </button>
               <!-- Mensagens tab removed — replaced by WhatsApp tab -->
             </div>
@@ -2091,16 +2081,6 @@
                       <template x-if="!data.detail?.last_interactions?.length && data.detail?._waLoaded">
                         <div style="text-align:center;color:#94a3b8;padding:8px;font-size:13px">Não foi possível carregar mensagens recentes.</div>
                       </template>
-                    </div>
-                  </div>
-                  <!-- Sales mini -->
-                  <div class="card" x-show="data.detail?.financial">
-                    <div class="card__header"><h3>Vendas</h3></div>
-                    <div class="card__body">
-                      <div class="vendas-grid">
-                        <div class="stat-box"><div class="stat-box__val" x-text="data.detail?.financial?.qtd_vendas_total || 0"></div><div class="stat-box__label">Vendas</div></div>
-                        <div class="stat-box"><div class="stat-box__val" x-text="formatCurrency(data.detail?.financial?.faturamento_atual)"></div><div class="stat-box__label">Faturamento</div></div>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -2783,54 +2763,6 @@
               </div>
             </div>
 
-            <!-- ===== TAB: DOCUMENTOS (Google Drive) ===== -->
-            <div class="op-tab-content" x-show="ui.activeDetailTab === 'docs_drive'">
-              <div class="op-tab-header">
-                <h3>Documentos (Google Drive)</h3>
-                <button class="btn btn--sm btn--brand" @click="syncDriveFiles()" :disabled="ui.driveSyncing" x-text="ui.driveSyncing ? 'Sincronizando...' : 'Sincronizar'"></button>
-              </div>
-              <div x-show="ui.driveSyncing" style="text-align:center;padding:24px;color:var(--neutral-400)">Buscando arquivos no Drive...</div>
-              <div x-show="driveFiles.folder_url && !ui.driveSyncing" style="margin-bottom:12px">
-                <a :href="driveFiles.folder_url" target="_blank" rel="noopener" class="btn btn--sm" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;border-color:#4285f4;color:#4285f4">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                  Abrir pasta no Drive
-                </a>
-                <span x-show="driveFiles.created_folder" class="badge badge--success badge--sm" style="margin-left:8px">Pasta criada!</span>
-              </div>
-              <div style="display:flex;flex-direction:column;gap:4px">
-                <template x-for="f in driveFiles.files || []" :key="f.id">
-                  <a :href="f.url" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;text-decoration:none;color:var(--neutral-800);transition:border-color .15s" @mouseenter="$el.style.borderColor='#4285f4'" @mouseleave="$el.style.borderColor='var(--border)'">
-                    <span x-text="f.type?.includes('folder') ? '📁' : f.type?.includes('document') ? '📄' : f.type?.includes('spreadsheet') ? '📊' : f.type?.includes('presentation') ? '📽' : f.type?.includes('pdf') ? '📕' : f.type?.includes('image') ? '🖼' : '📎'" style="font-size:16px"></span>
-                    <div style="flex:1;min-width:0">
-                      <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="f.name"></div>
-                      <div style="font-size:11px;color:var(--neutral-400)" x-text="f.modified ? new Date(f.modified).toLocaleDateString('pt-BR') : ''"></div>
-                    </div>
-                    <span x-show="f.size" style="font-size:11px;color:var(--neutral-400)" x-text="(f.size / 1024).toFixed(0) + ' KB'"></span>
-                  </a>
-                </template>
-                <div x-show="!(driveFiles.files || []).length && !ui.driveSyncing" style="text-align:center;padding:16px;color:var(--neutral-400);font-size:12px">Nenhum arquivo. Clique "Sincronizar" para buscar ou criar a pasta.</div>
-              </div>
-            </div>
-
-            <!-- ===== TAB: VENDAS ===== -->
-            <div class="op-tab-content" x-show="ui.activeDetailTab === 'vendas'">
-              <div class="op-tab-header"><h3>Vendas e Resultados</h3></div>
-              <div class="card" x-show="data.detail?.financial">
-                <div class="card__body">
-                  <div class="vendas-grid vendas-grid--full">
-                    <div class="stat-box stat-box--lg"><div class="stat-box__val" x-text="data.detail?.financial?.qtd_vendas_total || 0"></div><div class="stat-box__label">Total Vendas</div></div>
-                    <div class="stat-box stat-box--lg"><div class="stat-box__val" x-text="formatCurrency(data.detail?.financial?.faturamento_atual)"></div><div class="stat-box__label">Faturamento Atual</div></div>
-                    <div class="stat-box stat-box--lg"><div class="stat-box__val" x-text="formatCurrency(data.detail?.financial?.meta_faturamento)"></div><div class="stat-box__label">Meta</div></div>
-                    <div class="stat-box stat-box--lg"><div class="stat-box__val" x-text="data.detail?.financial?.meta_faturamento ? Math.round((data.detail.financial.faturamento_atual / data.detail.financial.meta_faturamento) * 100) + '%' : '-'"></div><div class="stat-box__label">Meta Atingida</div></div>
-                  </div>
-                  <div style="margin-top:16px;display:flex;gap:16px;flex-wrap:wrap">
-                    <div class="badge" :class="data.detail?.financial?.ja_vendeu ? 'badge--success' : 'badge--neutral'" x-text="data.detail?.financial?.ja_vendeu ? 'Ja vendeu' : 'Ainda nao vendeu'"></div>
-                    <div class="badge" :class="data.detail?.financial?.tem_produto ? 'badge--info' : 'badge--neutral'" x-text="data.detail?.financial?.tem_produto ? 'Tem produto' : 'Sem produto definido'"></div>
-                  </div>
-                </div>
-              </div>
-              <div class="empty-state" x-show="!data.detail?.financial"><p>Dados financeiros nao disponiveis.</p></div>
-            </div>
 
             <!-- ===== TAB: PLANO DE AÇÃO ===== -->
             <div class="op-tab-content" x-show="ui.activeDetailTab === 'plano_acao'">
@@ -3130,39 +3062,6 @@
               </div>
             </div>
 
-            <!-- ===== TAB: TIMELINE UNIFICADA (Wave 1 F1.2) ===== -->
-            <div class="op-tab-content" x-show="ui.activeDetailTab === 'timeline'" x-cloak>
-              <div class="timeline-wrap">
-                <!-- Type filters -->
-                <div class="timeline-filters" role="group" aria-label="Filtrar eventos">
-                  <button type="button" class="timeline-filter-btn" :class="{ active: ui.timelineFilter === '' }" :aria-pressed="ui.timelineFilter === ''" @click="ui.timelineFilter = ''">Todos</button>
-                  <button type="button" class="timeline-filter-btn" :class="{ active: ui.timelineFilter === 'call' }" :aria-pressed="ui.timelineFilter === 'call'" @click="ui.timelineFilter = 'call'">Calls</button>
-                  <button type="button" class="timeline-filter-btn" :class="{ active: ui.timelineFilter === 'task' }" :aria-pressed="ui.timelineFilter === 'task'" @click="ui.timelineFilter = 'task'">Tarefas</button>
-                  <button type="button" class="timeline-filter-btn" :class="{ active: ui.timelineFilter === 'wa' }" :aria-pressed="ui.timelineFilter === 'wa'" @click="ui.timelineFilter = 'wa'">WhatsApp</button>
-                  <button type="button" class="timeline-filter-btn" :class="{ active: ui.timelineFilter === 'financeiro' }" :aria-pressed="ui.timelineFilter === 'financeiro'" @click="ui.timelineFilter = 'financeiro'">Financeiro</button>
-                </div>
-                <!-- Empty state: no data at all -->
-                <div class="timeline-empty" x-show="!data.timeline.length">
-                  Nenhum evento encontrado.
-                </div>
-                <!-- Empty state: filter returns no results -->
-                <div class="timeline-empty" x-show="data.timeline.length && ui.timelineFilter && !data.timeline.filter(i => i.tipo === ui.timelineFilter).length">
-                  Sem eventos para este filtro.
-                </div>
-                <!-- Timeline items -->
-                <div class="timeline-list" x-show="data.timeline.length">
-                  <template x-for="item in data.timeline.filter(i => !ui.timelineFilter || i.tipo === ui.timelineFilter)" :key="(item.id ? String(item.id) : '') + '-' + (item.tipo || '') + '-' + (item.data || '')">
-                    <div class="timeline-item">
-                      <div class="timeline-dot" :class="'timeline-dot--' + (item.tipo || 'default')"></div>
-                      <div class="timeline-item__date" x-text="item.data ? new Date(item.data).toLocaleDateString('pt-BR', { day:'2-digit', month:'short', year:'numeric' }) : ''"></div>
-                      <div class="timeline-item__title" x-text="item.titulo || item.tipo"></div>
-                      <div class="timeline-item__desc" x-show="item.descricao" x-text="item.descricao"></div>
-                    </div>
-                  </template>
-                </div>
-              </div>
-            </div>
-
             <!-- TAB: MENSAGENS removed — Chatwoot deprecated, replaced by WhatsApp tab -->
 
             <!-- ===== TAB: CONTEXTO (Context Hub — áudio, texto, links, arquivos) ===== -->
@@ -3320,10 +3219,11 @@
 
                 <div style="display:flex;flex-direction:column;gap:10px">
                   <template x-for="ctx in filteredMenteeContext" :key="ctx.id">
-                    <div style="border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--bg-card)">
+                    <div style="border:1px solid var(--border);border-radius:10px;background:var(--bg-card);transition:box-shadow .15s"
+                         :style="ui.ctxExpanded[ctx.id] ? 'box-shadow:0 2px 12px rgba(0,0,0,.08);border-color:var(--brand-300,#c4b896)' : ''">
 
-                      <!-- Header do card -->
-                      <div style="display:flex;align-items:flex-start;gap:10px">
+                      <!-- Header do card — clicavel -->
+                      <div @click="ctxToggle(ctx.id)" style="display:flex;align-items:center;gap:10px;padding:12px;cursor:pointer;user-select:none">
                         <!-- Ícone tipo -->
                         <div style="width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:17px"
                              :style="{'audio':'background:#fef3c7;color:#d97706','gravacao':'background:#fee2e2;color:#dc2626','arquivo':'background:#dbeafe;color:#2563eb','link':'background:#ede9fe;color:#7c3aed','texto':'background:#f0fdf4;color:#16a34a'}[ctx.tipo] || 'background:#f3f4f6'">
@@ -3332,76 +3232,128 @@
 
                         <!-- Título + meta -->
                         <div style="flex:1;min-width:0">
-                          <div style="font-size:13px;font-weight:600;margin-bottom:2px" x-text="ctx.titulo || ctx.tipo"></div>
-                          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                          <div style="display:flex;align-items:center;gap:6px">
+                            <span x-show="ctx.ativo_codigo" style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;background:#8a7d52;color:#fff;letter-spacing:.5px;flex-shrink:0" x-text="ctx.ativo_codigo"></span>
+                            <span style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="ctx.titulo || ctx.tipo"></span>
+                          </div>
+                          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px">
                             <span style="font-size:10px;padding:1px 6px;border-radius:3px;background:var(--bg-subtle);color:var(--text-secondary)" x-text="ctx.fase?.replaceAll('_',' ')"></span>
+                            <span x-show="ctx.origem === 'whatsapp'" style="font-size:10px;padding:1px 5px;border-radius:3px;background:#dcfce7;color:#166534">WA</span>
                             <span style="font-size:10px;color:var(--text-secondary)" x-text="ctx.criado_por?.split('@')[0] || 'sistema'"></span>
                             <span style="font-size:10px;color:var(--text-secondary)" x-text="new Date(ctx.created_at).toLocaleDateString('pt-BR', {day:'2-digit',month:'short',year:'numeric'})"></span>
                           </div>
                         </div>
 
-                        <!-- Arquivar + Deletar -->
-                        <div style="display:flex;gap:2px;flex-shrink:0">
-                          <button @click="archiveContext(ctx.id)" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:13px;padding:2px 4px" @mouseover="$el.style.color='#d97706'" @mouseout="$el.style.color='#9ca3af'" title="Arquivar (manter no banco mas ocultar)">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                        <!-- Preview do conteúdo (quando colapsado) -->
+                        <span x-show="!ui.ctxExpanded[ctx.id] && ctx.conteudo" style="font-size:11px;color:var(--text-secondary);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0"
+                              x-text="ctx.conteudo?.substring(0, 60)"></span>
+
+                        <!-- Expand chevron -->
+                        <svg :style="ui.ctxExpanded[ctx.id] ? 'transform:rotate(180deg)' : ''" style="flex-shrink:0;transition:transform .15s;color:var(--text-secondary)" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                      </div>
+
+                      <!-- Conteúdo expandido -->
+                      <div x-show="ui.ctxExpanded[ctx.id]" x-cloak style="padding:0 12px 12px;border-top:1px solid var(--border)">
+
+                        <!-- Actions bar -->
+                        <div style="display:flex;gap:6px;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:10px">
+                          <button x-show="!ui.ctxEditing[ctx.id]" @click.stop="ctxStartEdit(ctx)" style="font-size:11px;padding:3px 10px;border:1px solid var(--brand-500,#8a7d52);border-radius:4px;background:transparent;cursor:pointer;color:var(--brand-500,#8a7d52);display:flex;align-items:center;gap:4px">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            Editar
                           </button>
-                          <button @click="deleteContext(ctx.id)" style="background:none;border:none;cursor:pointer;color:#9ca3af;font-size:13px;padding:2px 4px" @mouseover="$el.style.color='#dc2626'" @mouseout="$el.style.color='#9ca3af'" title="Excluir permanentemente">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                          <button @click.stop="archiveContext(ctx.id)" style="font-size:11px;padding:3px 10px;border:1px solid #d97706;border-radius:4px;background:transparent;cursor:pointer;color:#d97706;display:flex;align-items:center;gap:4px">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/></svg>
+                            Arquivar
                           </button>
+                          <button @click.stop="deleteContext(ctx.id)" style="font-size:11px;padding:3px 10px;border:1px solid #dc2626;border-radius:4px;background:transparent;cursor:pointer;color:#dc2626;display:flex;align-items:center;gap:4px">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            Excluir
+                          </button>
+                          <!-- Botão Transcrever -->
+                          <button x-show="['audio','gravacao'].includes(ctx.tipo) && ctx.arquivo_url && !ctx.transcricao"
+                                  @click.stop="transcribeContext(ctx.id)"
+                                  :disabled="ui.ctxTranscribing[ctx.id]"
+                                  style="font-size:11px;padding:3px 10px;border:1px solid #d97706;border-radius:4px;background:transparent;cursor:pointer;color:#d97706;display:flex;align-items:center;gap:4px"
+                                  :style="ui.ctxTranscribing[ctx.id] ? 'opacity:0.6;cursor:not-allowed' : ''">
+                            <span x-show="!ui.ctxTranscribing[ctx.id]">Transcrever</span>
+                            <span x-show="ui.ctxTranscribing[ctx.id]">Transcrevendo...</span>
+                          </button>
+                        </div>
+
+                        <!-- Inline edit mode -->
+                        <div x-show="ui.ctxEditing[ctx.id]" @click.stop style="margin-bottom:12px;padding:10px;background:var(--bg-subtle);border-radius:8px">
+                          <div style="margin-bottom:8px">
+                            <label style="font-size:10px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:3px">Titulo</label>
+                            <input type="text" :value="ui.ctxEditing[ctx.id]?.titulo" @input="ui.ctxEditing[ctx.id].titulo = $event.target.value"
+                                   style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;box-sizing:border-box">
+                          </div>
+                          <div style="margin-bottom:8px">
+                            <label style="font-size:10px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:3px">Conteudo</label>
+                            <textarea :value="ui.ctxEditing[ctx.id]?.conteudo" @input="ui.ctxEditing[ctx.id].conteudo = $event.target.value"
+                                      rows="5" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>
+                          </div>
+                          <div style="display:flex;align-items:center;gap:8px">
+                            <label style="font-size:10px;font-weight:600;color:var(--text-secondary)">Fase</label>
+                            <select :value="ui.ctxEditing[ctx.id]?.fase" @change="ui.ctxEditing[ctx.id].fase = $event.target.value"
+                                    style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:11px">
+                              <option value="onboarding">Onboarding</option>
+                              <option value="travas">Travas / Bloqueios</option>
+                              <option value="momentos">Momentos / Insights</option>
+                              <option value="acoes">Acoes / Execucoes</option>
+                              <option value="dossie_oferta">Dossie Oferta</option>
+                              <option value="dossie_posicionamento">Dossie Posicionamento</option>
+                              <option value="dossie_funil">Dossie Funil</option>
+                              <option value="funil_novo">Novo Funil</option>
+                              <option value="campanha">Campanha</option>
+                              <option value="conteudo">Conteudo</option>
+                              <option value="financeiro">Financeiro</option>
+                              <option value="geral">Geral</option>
+                            </select>
+                            <div style="margin-left:auto;display:flex;gap:6px">
+                              <button @click.stop="ctxCancelEdit(ctx.id)" style="font-size:11px;padding:4px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);cursor:pointer;color:var(--text-secondary)">Cancelar</button>
+                              <button @click.stop="ctxSaveEdit(ctx.id)" class="btn btn--brand btn--sm" style="font-size:11px;padding:4px 12px">Salvar</button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <!-- Imagem inline preview -->
+                        <div x-show="ctx.arquivo_tipo?.startsWith('image/')" style="margin-bottom:10px">
+                          <img :src="ctx.arquivo_url" :alt="ctx.arquivo_nome" style="max-width:100%;max-height:300px;border-radius:6px;object-fit:contain;border:1px solid var(--border)">
+                        </div>
+
+                        <!-- Texto / conteúdo (read mode) -->
+                        <div x-show="ctx.conteudo && !ui.ctxEditing[ctx.id] && !ctx.arquivo_tipo?.startsWith('image/')" style="margin-bottom:10px">
+                          <div style="font-size:12px;color:var(--text-primary);line-height:1.6;white-space:pre-wrap" x-text="ctx.conteudo"></div>
+                        </div>
+
+                        <!-- Transcrição (se existir) -->
+                        <div x-show="ctx.transcricao" style="margin-bottom:10px;padding:8px 10px;background:#f0fdf4;border-radius:6px;border-left:3px solid #16a34a">
+                          <div style="font-size:10px;font-weight:600;color:#16a34a;margin-bottom:4px">TRANSCRICAO</div>
+                          <div style="font-size:12px;color:var(--text-primary);line-height:1.5;white-space:pre-wrap" x-text="ctx.transcricao"></div>
+                        </div>
+
+                        <!-- Arquivo / Link -->
+                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                          <a x-show="ctx.arquivo_url && !ctx.arquivo_tipo?.startsWith('image/')"
+                             :href="ctx.arquivo_url" target="_blank" @click.stop
+                             style="font-size:11px;color:var(--brand-500);text-decoration:none;display:flex;align-items:center;gap:4px">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            <span x-text="ctx.arquivo_nome || 'Baixar arquivo'"></span>
+                            <span x-show="ctx.arquivo_tamanho" style="color:var(--text-secondary)" x-text="'(' + Math.round(ctx.arquivo_tamanho/1024) + ' KB)'"></span>
+                          </a>
+                          <a x-show="ctx.link_url" :href="ctx.link_url" target="_blank" @click.stop
+                             style="font-size:11px;color:#7c3aed;text-decoration:none;display:flex;align-items:center;gap:4px">
+                            <span x-text="ctx.link_url?.replace(/^https?:\/\//, '').substring(0, 50)"></span>
+                          </a>
+                        </div>
+
+                        <!-- Metadata footer -->
+                        <div x-show="ctx.origem || ctx.wa_group_jid" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;gap:10px;font-size:10px;color:var(--text-secondary)">
+                          <span x-show="ctx.origem" x-text="'Origem: ' + ctx.origem"></span>
+                          <span x-show="ctx.wa_group_jid" x-text="'Grupo WA: ' + ctx.wa_group_jid.split('@')[0]"></span>
                         </div>
                       </div>
 
-                      <!-- Imagem inline preview -->
-                      <div x-show="ctx.arquivo_tipo?.startsWith('image/')" style="margin-top:10px">
-                        <img :src="ctx.arquivo_url" :alt="ctx.arquivo_nome" style="max-width:100%;max-height:200px;border-radius:6px;object-fit:contain;border:1px solid var(--border)">
-                      </div>
-
-                      <!-- Texto / conteúdo -->
-                      <div x-show="ctx.conteudo && !ctx.arquivo_tipo?.startsWith('image/')" style="margin-top:8px">
-                        <div style="font-size:12px;color:var(--text-primary);line-height:1.6;white-space:pre-wrap"
-                             x-text="ui.ctxExpanded[ctx.id] ? ctx.conteudo : (ctx.conteudo?.substring(0, 280) + (ctx.conteudo?.length > 280 ? '…' : ''))"></div>
-                        <button x-show="ctx.conteudo?.length > 280" @click="ui.ctxExpanded = {...ui.ctxExpanded, [ctx.id]: !ui.ctxExpanded[ctx.id]}"
-                                style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--brand-500);padding:4px 0;margin-top:2px"
-                                x-text="ui.ctxExpanded[ctx.id] ? '▲ Ver menos' : '▼ Ver mais'"></button>
-                      </div>
-
-                      <!-- Transcrição (se existir) -->
-                      <div x-show="ctx.transcricao" style="margin-top:8px;padding:8px 10px;background:#f0fdf4;border-radius:6px;border-left:3px solid #16a34a">
-                        <div style="font-size:10px;font-weight:600;color:#16a34a;margin-bottom:4px">TRANSCRIÇÃO</div>
-                        <div style="font-size:12px;color:var(--text-primary);line-height:1.5;white-space:pre-wrap"
-                             x-text="ui.ctxExpanded['t_' + ctx.id] ? ctx.transcricao : (ctx.transcricao?.substring(0, 240) + (ctx.transcricao?.length > 240 ? '…' : ''))"></div>
-                        <button x-show="ctx.transcricao?.length > 240" @click="ui.ctxExpanded = {...ui.ctxExpanded, ['t_' + ctx.id]: !ui.ctxExpanded['t_' + ctx.id]}"
-                                style="background:none;border:none;cursor:pointer;font-size:11px;color:#16a34a;padding:2px 0"
-                                x-text="ui.ctxExpanded['t_' + ctx.id] ? '▲ Ver menos' : '▼ Ver mais'"></button>
-                      </div>
-
-                      <!-- Actions: arquivo download + botão transcrever -->
-                      <div style="display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap">
-                        <!-- Download / abrir arquivo (não-imagem) -->
-                        <a x-show="ctx.arquivo_url && !ctx.arquivo_tipo?.startsWith('image/')"
-                           :href="ctx.arquivo_url" target="_blank"
-                           style="font-size:11px;color:var(--brand-500);text-decoration:none;display:flex;align-items:center;gap:4px">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                          <span x-text="ctx.arquivo_nome || 'Baixar arquivo'"></span>
-                          <span x-show="ctx.arquivo_tamanho" style="color:var(--text-secondary)" x-text="'(' + Math.round(ctx.arquivo_tamanho/1024) + ' KB)'"></span>
-                        </a>
-
-                        <!-- Link externo -->
-                        <a x-show="ctx.link_url" :href="ctx.link_url" target="_blank"
-                           style="font-size:11px;color:#7c3aed;text-decoration:none;display:flex;align-items:center;gap:4px">
-                          🔗 <span x-text="ctx.link_url?.replace(/^https?:\/\//, '').substring(0, 50)"></span>
-                        </a>
-
-                        <!-- Botão Transcrever (só p/ áudio/gravacao sem transcrição ainda) -->
-                        <button x-show="['audio','gravacao'].includes(ctx.tipo) && ctx.arquivo_url && !ctx.transcricao"
-                                @click="transcribeContext(ctx.id)"
-                                :disabled="ui.ctxTranscribing[ctx.id]"
-                                style="display:flex;align-items:center;gap:4px;padding:3px 10px;border:1px solid #d97706;border-radius:4px;background:transparent;cursor:pointer;font-size:11px;color:#d97706"
-                                :style="ui.ctxTranscribing[ctx.id] ? 'opacity:0.6;cursor:not-allowed' : ''">
-                          <span x-show="!ui.ctxTranscribing[ctx.id]">🤖 Transcrever</span>
-                          <span x-show="ui.ctxTranscribing[ctx.id]">Transcrevendo...</span>
-                        </button>
-                      </div>
                     </div>
                   </template>
                 </div>
@@ -3648,6 +3600,15 @@
                 <span class="tasks-sidebar__count" x-text="data.tasks.length"></span>
               </div>
 
+              <!-- Favorites (Dragon 49) -->
+              <div x-show="favoriteTasks.length > 0" class="tasks-sidebar__section-label" style="margin-top:4px">FAVORITAS</div>
+              <template x-for="ft in favoriteTasks.slice(0, 5)" :key="ft.id">
+                <div class="tasks-sidebar__item tasks-sidebar__item--list" style="font-size:11px" @click="openTaskDetail(ft.id)">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="#eab308" stroke="#eab308" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                  <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="ft.titulo"></span>
+                </div>
+              </template>
+
               <!-- Sprints — direto abaixo do Tudo -->
               <div class="tasks-sidebar__section-label">SPRINTS</div>
               <template x-for="sprint in data.sprints" :key="sprint.id">
@@ -3663,74 +3624,201 @@
                 </div>
               </template>
 
-              <!-- Spaces -->
+              <button @click="sprintCreate()" style="font-size:10px;padding:2px 8px;margin:4px 8px;border:1px dashed var(--border);border-radius:4px;background:none;cursor:pointer;color:var(--text-secondary);display:flex;align-items:center;gap:4px" @mouseover="$el.style.color='var(--brand)';$el.style.borderColor='var(--brand)'" @mouseout="$el.style.color='var(--text-secondary)';$el.style.borderColor='var(--border)'">+ Sprint</button>
+
+              <!-- Spaces (v2 — collapsible with CRUD) -->
               <div class="tasks-sidebar__section-label" style="margin-top:8px">SPACES</div>
               <template x-for="space in spaces" :key="space.id">
                 <div class="tasks-sidebar__space">
-                  <div class="tasks-sidebar__item tasks-sidebar__item--space" :class="{ active: ui.taskSpaceFilter === space.id && ui.taskListFilter === 'all' }" @click="ui.taskSpaceFilter = space.id; ui.taskListFilter = 'all'; ui.taskSprintFilter = 'all'">
+                  <div class="tasks-sidebar__item tasks-sidebar__item--space"
+                       :class="{ active: ui.taskSpaceFilter === space.id && ui.taskListFilter === 'all' }"
+                       @click="ui.taskSpaceFilter = space.id; ui.taskListFilter = 'all'; ui.taskSprintFilter = 'all'">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;transition:transform .15s;cursor:pointer"
+                         :style="ui.collapsedSpaces?.[space.id] ? '' : 'transform:rotate(90deg)'"
+                         @click.stop="ui.collapsedSpaces = {...(ui.collapsedSpaces||{}), [space.id]: !ui.collapsedSpaces?.[space.id]}"><polyline points="9 18 15 12 9 6"/></svg>
                     <span class="tasks-sidebar__space-dot" :style="'background:' + space.color"></span>
-                    <span x-text="space.name"></span>
+                    <span x-text="space.name" style="flex:1"></span>
                     <span class="tasks-sidebar__count" x-text="data.tasks.filter(t => t.space_id === space.id).length"></span>
+                    <button @click.stop="sidebarAddList(space.id)" style="background:none;border:none;cursor:pointer;color:#d1d5db;padding:0 2px;font-size:14px;line-height:1;display:none" :style="ui.taskSpaceFilter === space.id ? 'display:inline' : ''" title="Adicionar lista">+</button>
                   </div>
                   <template x-for="list in space.lists" :key="list.id">
-                    <div class="tasks-sidebar__item tasks-sidebar__item--list"
+                    <div x-show="!ui.collapsedSpaces?.[space.id]"
+                         class="tasks-sidebar__item tasks-sidebar__item--list"
                          :class="{ active: ui.taskListFilter === list.id }"
                          @click="ui.taskSpaceFilter = space.id; ui.taskListFilter = list.id; ui.taskSprintFilter = 'all'">
                       <span class="tasks-sidebar__list-dot" :style="'background:' + space.color"></span>
-                      <span x-text="list.name"></span>
+                      <span x-text="list.name" style="flex:1"></span>
                       <span class="tasks-sidebar__count" x-text="data.tasks.filter(t => t.list_id === list.id).length"></span>
                     </div>
                   </template>
                 </div>
               </template>
+              <!-- + Novo Espaco -->
+              <button @click="sidebarAddSpace()" style="font-size:11px;padding:6px 12px;margin:8px 8px 4px;border:none;background:none;cursor:pointer;color:#94a3b8;display:flex;align-items:center;gap:4px;width:calc(100% - 16px);border-radius:6px"
+                      @mouseenter="$el.style.background='#f8f7f4';$el.style.color='var(--brand)'" @mouseleave="$el.style.background='none';$el.style.color='#94a3b8'">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Novo Espaco
+              </button>
             </div>
 
             <!-- Main Tasks Content -->
             <div class="tasks-main">
+              <!-- ClickUp-style view tabs -->
+              <div class="cu-view-tabs">
+                <button class="cu-view-tab" :class="{ 'cu-view-tab--active': ui.taskView === 'list' }" @click="ui.taskView = 'list'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                  Lista
+                </button>
+                <button class="cu-view-tab" :class="{ 'cu-view-tab--active': ui.taskView === 'calendar' }" @click="ui.taskView = 'calendar'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  Calendario
+                </button>
+                <button class="cu-view-tab" :class="{ 'cu-view-tab--active': ui.taskView === 'board' }" @click="ui.taskView = 'board'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+                  Quadro
+                </button>
+                <button class="cu-view-tab" :class="{ 'cu-view-tab--active': ui.taskView === 'gantt' }" @click="ui.taskView = 'gantt'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="7" y="10" width="14" height="4" rx="1"/><rect x="5" y="16" width="10" height="4" rx="1"/></svg>
+                  Gantt
+                </button>
+                <button class="cu-view-tab" :class="{ 'cu-view-tab--active': ui.taskView === 'table' }" @click="ui.taskView = 'table'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+                  Tabela
+                </button>
+                <button class="cu-view-tab" :class="{ 'cu-view-tab--active': ui.taskView === 'form' }" @click="ui.taskView = 'form'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  Formulario
+                </button>
+                <button class="cu-view-tab" :class="{ 'cu-view-tab--active': ui.taskView === 'workload' }" @click="ui.taskView = 'workload'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  Carga
+                </button>
+                <!-- Saved views -->
+                <template x-for="sv in data.savedViews || []" :key="sv.id">
+                  <button class="cu-view-tab" @click="applySavedView(sv)" :title="'View: ' + sv.name" style="position:relative">
+                    <span x-text="sv.name"></span>
+                    <span @click.stop="deleteSavedView(sv.id)" style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;border-radius:50%;background:#fee2e2;color:#dc2626;font-size:10px;display:none;align-items:center;justify-content:center;cursor:pointer;line-height:1"
+                          @mouseenter="$el.style.display='flex'" @mouseleave="$el.style.display='none'">&times;</span>
+                  </button>
+                </template>
+                <button class="cu-view-tab" :class="{ 'cu-view-tab--active': ui.taskView === 'mywork' }" @click="ui.taskView = 'mywork'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  Meu Trabalho
+                </button>
+                <button class="cu-view-tab" :class="{ 'cu-view-tab--active': ui.taskView === 'matrix' }" @click="ui.taskView = 'matrix'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>
+                  Matriz
+                </button>
+                <!-- + Visualizacao -->
+                <button class="cu-view-tab" style="color:#94a3b8;border:none" @click="let n = prompt('Nome da view'); if(n) saveCurrentView(n)">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Visualizacao
+                </button>
+              </div>
+
               <div class="page-header">
                 <div>
-                  <h2>Gerenciamento de Tarefas</h2>
-                  <div class="task-board-stats">
-                    <span class="task-stat"><span class="task-stat__dot task-stat__dot--pending"></span><span x-text="taskBoardStats.pendente"></span> a fazer</span>
-                    <span class="task-stat"><span class="task-stat__dot task-stat__dot--progress"></span><span x-text="taskBoardStats.em_andamento"></span> em progresso</span>
-                    <span class="task-stat"><span class="task-stat__dot task-stat__dot--done"></span><span x-text="taskBoardStats.concluida"></span> concluidas</span>
-                    <span x-show="taskBoardStats.atrasada" class="task-stat task-stat--danger"><span x-text="taskBoardStats.atrasada"></span> atrasadas</span>
+                  <div style="display:flex;align-items:center;gap:12px;font-size:12px;color:var(--text-secondary)">
+                    <span style="display:flex;align-items:center;gap:4px"><span style="width:7px;height:7px;border-radius:50%;background:#3b82f6"></span> Em progresso <strong style="color:#3b82f6" x-text="taskBoardStats.em_andamento"></strong></span>
+                    <span style="display:flex;align-items:center;gap:4px"><span style="width:7px;height:7px;border-radius:50%;background:#94a3b8"></span> <span x-text="taskBoardStats.pendente + ' a fazer'"></span></span>
+                    <span style="display:flex;align-items:center;gap:4px"><span style="width:7px;height:7px;border-radius:50%;background:#22c55e"></span> <span x-text="taskBoardStats.concluida + ' concluidas'"></span></span>
+                    <span x-show="taskBoardStats.atrasada" style="color:#dc2626;font-weight:600" x-text="taskBoardStats.atrasada + ' atrasadas'"></span>
                   </div>
                 </div>
                 <div class="page-header__actions">
-                  <div class="view-toggle">
-                    <button class="view-toggle__btn" :class="{ active: ui.taskView === 'board' }" @click="ui.taskView = 'board'" title="Quadro">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
-                    </button>
-                    <button class="view-toggle__btn" :class="{ active: ui.taskView === 'list' }" @click="ui.taskView = 'list'" title="Lista">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-                    </button>
-                    <button class="view-toggle__btn" :class="{ active: ui.taskView === 'gantt' }" @click="ui.taskView = 'gantt'" title="Gantt">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="7" y="10" width="14" height="4" rx="1"/><rect x="5" y="16" width="10" height="4" rx="1"/></svg>
-                    </button>
-                  </div>
+                  <!-- Activity Timeline (Dragon 22) -->
+                  <button class="btn btn--sm" @click="loadActivityTimeline(); activityTimelineOpen = true" style="display:flex;align-items:center;gap:4px;border-color:#16a34a;color:#16a34a">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    Timeline
+                  </button>
+                  <!-- Focus Mode (Dragon 45) -->
+                  <button class="btn btn--sm" @click="toggleFocusMode()" :title="focusMode ? 'Sair do Zen' : 'Modo Zen'" style="display:flex;align-items:center;gap:4px;border-color:#7c3aed;color:#7c3aed">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+                    <span x-text="focusMode ? 'Sair' : 'Zen'"></span>
+                  </button>
                   <button class="btn btn--sm" style="display:flex;align-items:center;gap:4px;border-color:var(--brand);color:var(--brand)" @click="ui.batchTaskModal = true" title="Criar tarefas por áudio">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
                     Por áudio
                   </button>
+                  <button class="btn btn--sm" style="display:flex;align-items:center;gap:4px;border-color:#6366f1;color:#6366f1" @click="ui.automationsOpen = true" title="Automacoes">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                    Automatizar
+                  </button>
+                  <button class="btn btn--sm" style="display:flex;align-items:center;gap:4px;border-color:#d97706;color:#d97706" @click="ui.dashboardOpen = true" title="Dashboard">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                    Paineis
+                  </button>
+                  <!-- Export/Import -->
+                  <div style="position:relative;display:inline-block" x-data="{ csvMenu: false }">
+                    <button class="btn btn--sm" style="display:flex;align-items:center;gap:4px;border-color:#10b981;color:#10b981" @click="csvMenu = !csvMenu">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      CSV
+                    </button>
+                    <div x-show="csvMenu" @click.outside="csvMenu = false" style="position:absolute;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:4px;min-width:160px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:200">
+                      <button @click="exportTasksCSV(); csvMenu = false" style="width:100%;text-align:left;padding:8px 10px;border:none;background:none;cursor:pointer;font-size:12px;border-radius:6px" @mouseenter="$el.style.background='#f8f7f4'" @mouseleave="$el.style.background='none'">Exportar CSV</button>
+                      <label style="display:block;width:100%;text-align:left;padding:8px 10px;border:none;background:none;cursor:pointer;font-size:12px;border-radius:6px" @mouseenter="$el.style.background='#f8f7f4'" @mouseleave="$el.style.background='none'">
+                        Importar CSV
+                        <input type="file" accept=".csv" @change="importTasksCSV($event.target.files[0]); csvMenu = false" style="display:none">
+                      </label>
+                    </div>
+                  </div>
                   <button class="btn btn--brand" @click="openTaskModal()">+ Nova Tarefa</button>
                 </div>
               </div>
 
-              <!-- Task KPIs -->
-              <div class="task-kpis" x-show="auth.currentUser">
-                <div class="task-kpi task-kpi--warning">
-                  <span class="task-kpi__value" x-text="myTaskKpis.pendentes"></span>
-                  <span class="task-kpi__label">Minhas pendentes</span>
+              <!-- ClickUp-style Summary Cards -->
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:12px">
+                <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;cursor:pointer" @click="ui.taskFilter = 'pendente'">
+                  <div style="width:36px;height:36px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                  </div>
+                  <div>
+                    <div style="font-size:14px;font-weight:700" x-text="'Lista de pendencias'"></div>
+                    <div style="font-size:12px;color:var(--text-secondary)" x-text="taskBoardStats.pendente + ' tarefas adicionadas'"></div>
+                  </div>
                 </div>
-                <div class="task-kpi task-kpi--info">
-                  <span class="task-kpi__value" x-text="myTaskKpis.emAndamento"></span>
-                  <span class="task-kpi__label">Minhas em andamento</span>
+                <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;cursor:pointer" @click="ui.taskAssignee = ''">
+                  <div style="width:36px;height:36px;border-radius:50%;background:#fef3c7;display:flex;align-items:center;justify-content:center">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  </div>
+                  <div>
+                    <div style="font-size:14px;font-weight:700">Atribuido</div>
+                    <div style="font-size:12px;color:var(--text-secondary)" x-text="data.tasks.filter(t => !t.responsavel && t.status !== 'concluida').length + ' sem responsavel'"></div>
+                  </div>
                 </div>
-                <div class="task-kpi task-kpi--neutral">
-                  <span class="task-kpi__value" x-text="myTaskKpis.total"></span>
-                  <span class="task-kpi__label">Total equipe</span>
+                <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;cursor:pointer" @click="ui.taskFilter = 'atrasada'">
+                  <div style="width:36px;height:36px;border-radius:50%;background:#fee2e2;display:flex;align-items:center;justify-content:center">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  </div>
+                  <div>
+                    <div style="font-size:14px;font-weight:700">Atrasadas</div>
+                    <div style="font-size:12px;color:var(--text-secondary)" x-text="taskBoardStats.atrasada + ' tarefas vencidas'"></div>
+                  </div>
                 </div>
+              </div>
+
+              <!-- Bulk Actions Bar -->
+              <div x-show="bulkCount > 0" style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin-bottom:8px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px">
+                <span style="font-size:12px;font-weight:600;color:#1d4ed8" x-text="bulkCount + ' selecionada(s)'"></span>
+                <select @change="if($event.target.value) bulkUpdateField('status', $event.target.value); $event.target.value=''" style="font-size:11px;padding:3px 6px;border:1px solid #93c5fd;border-radius:4px;background:#fff">
+                  <option value="">Mover para...</option>
+                  <option value="pendente">Pendente</option>
+                  <option value="em_andamento">Em Andamento</option>
+                  <option value="concluida">Concluida</option>
+                </select>
+                <select @change="if($event.target.value) bulkUpdateField('prioridade', $event.target.value); $event.target.value=''" style="font-size:11px;padding:3px 6px;border:1px solid #93c5fd;border-radius:4px;background:#fff">
+                  <option value="">Prioridade...</option>
+                  <option value="urgente">Urgente</option>
+                  <option value="alta">Alta</option>
+                  <option value="normal">Normal</option>
+                  <option value="baixa">Baixa</option>
+                </select>
+                <select @change="if($event.target.value) bulkUpdateField('responsavel', $event.target.value); $event.target.value=''" style="font-size:11px;padding:3px 6px;border:1px solid #93c5fd;border-radius:4px;background:#fff">
+                  <option value="">Atribuir a...</option>
+                  <template x-for="m in data.members || []" :key="m.id"><option :value="m.nome_curto || m.name" x-text="m.nome_curto || m.name"></option></template>
+                </select>
+                <button @click="bulkDelete()" style="font-size:11px;padding:3px 8px;border:1px solid #fca5a5;border-radius:4px;background:#fff;color:#dc2626;cursor:pointer">Excluir</button>
+                <button @click="bulkClear()" style="font-size:11px;padding:3px 8px;border:1px solid #93c5fd;border-radius:4px;background:#fff;color:#1d4ed8;cursor:pointer;margin-left:auto">Cancelar</button>
               </div>
 
               <!-- Task Filters -->
@@ -3761,9 +3849,11 @@
                 </select>
                 <select class="op-toolbar__select" x-model="ui.taskGroupBy" style="width:auto;min-width:120px">
                   <option value="status">Agrupar: Status</option>
-                  <option value="assignee">Agrupar: Responsável</option>
+                  <option value="date">Agrupar: Data de vencimento</option>
+                  <option value="assignee">Agrupar: Responsavel</option>
                   <option value="priority">Agrupar: Prioridade</option>
                   <option value="list">Agrupar: Lista</option>
+                  <option value="mentorado">Agrupar: Mentorado</option>
                 </select>
                 <!-- Tag filter -->
                 <div class="task-tag-filter" style="position:relative">
@@ -3790,250 +3880,582 @@
                     <input type="text" x-model="ui.search" placeholder="Buscar tarefa..." style="padding:6px 8px 6px 28px;border:1px solid var(--border);border-radius:6px;font-size:12px;width:200px;background:var(--bg-subtle)">
                   </div>
                 </div>
-                <button class="btn btn--sm btn--outline" @click="syncClickUpSubtasks()" :disabled="ui.syncingSubtasks" style="display:flex;align-items:center;gap:6px" title="Sincronizar subtasks do ClickUp">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :style="ui.syncingSubtasks ? 'animation:spin 1s linear infinite' : ''"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-                  <span x-text="ui.syncingSubtasks ? 'Sincronizando…' : 'Sync ClickUp'"></span>
+                <button class="btn btn--sm" :class="ui.bulkMode ? 'btn--brand' : 'btn--outline'" @click="ui.bulkMode = !ui.bulkMode; if(!ui.bulkMode) bulkClear()" style="display:flex;align-items:center;gap:4px;font-size:11px" title="Selecionar multiplas tarefas">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                  Selecionar
                 </button>
+                <div style="position:relative;display:inline-block" x-data="{ syncMenu: false }">
+                  <button class="btn btn--sm btn--outline" @click="syncMenu = !syncMenu" :disabled="ui.syncingSubtasks" style="display:flex;align-items:center;gap:6px" title="ClickUp Sync">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :style="ui.syncingSubtasks ? 'animation:spin 1s linear infinite' : ''"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                    <span x-text="ui.syncingSubtasks ? 'Sincronizando…' : 'ClickUp'"></span>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                  <div x-show="syncMenu" @click.outside="syncMenu = false" style="position:absolute;right:0;top:100%;margin-top:4px;z-index:200;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:4px;min-width:200px;box-shadow:0 8px 24px rgba(0,0,0,.12)">
+                    <button @click="syncClickUpSubtasks(); syncMenu = false" style="width:100%;text-align:left;padding:8px 10px;border:none;background:none;cursor:pointer;font-size:12px;border-radius:6px;display:flex;align-items:center;gap:8px" @mouseover="$el.style.background='#f8fafc'" @mouseout="$el.style.background='none'">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                      Sync Subtasks
+                    </button>
+                    <button @click="clickupImportAll(); syncMenu = false" style="width:100%;text-align:left;padding:8px 10px;border:none;background:none;cursor:pointer;font-size:12px;border-radius:6px;display:flex;align-items:center;gap:8px" @mouseover="$el.style.background='#f8fafc'" @mouseout="$el.style.background='none'">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      Importar Tudo
+                    </button>
+                  </div>
+                </div>
                 <span class="op-toolbar__count" x-text="(ui.taskView === 'list' ? tasksTree.filter(t=>t._depth===0).length : data.tasks.length) + ' tarefas'"></span>
               </div>
 
-              <!-- BOARD VIEW -->
-              <div class="task-board" x-show="ui.taskView === 'board'">
+              <!-- QUICK FILTERS BAR (Dragon 39) -->
+              <div class="cu-quickfilters" x-show="ui.taskView !== 'mywork'">
+                <button class="cu-quickfilter" :class="{ 'cu-quickfilter--active': quickFilter === 'mine' }" @click="setQuickFilter('mine')">
+                  Minhas <span class="cu-quickfilter__count" x-text="quickFilterCounts.mine"></span>
+                </button>
+                <button class="cu-quickfilter" :class="{ 'cu-quickfilter--active': quickFilter === 'overdue' }" @click="setQuickFilter('overdue')">
+                  Atrasadas <span class="cu-quickfilter__count" x-text="quickFilterCounts.overdue"></span>
+                </button>
+                <button class="cu-quickfilter" :class="{ 'cu-quickfilter--active': quickFilter === 'unassigned' }" @click="setQuickFilter('unassigned')">
+                  Sem responsavel <span class="cu-quickfilter__count" x-text="quickFilterCounts.unassigned"></span>
+                </button>
+                <button class="cu-quickfilter" :class="{ 'cu-quickfilter--active': quickFilter === 'thisWeek' }" @click="setQuickFilter('thisWeek')">
+                  Esta semana <span class="cu-quickfilter__count" x-text="quickFilterCounts.thisWeek"></span>
+                </button>
+                <button class="cu-quickfilter" :class="{ 'cu-quickfilter--active': quickFilter === 'favorites' }" @click="setQuickFilter('favorites')">
+                  Favoritas <span class="cu-quickfilter__count" x-text="quickFilterCounts.favorites"></span>
+                </button>
+              </div>
+
+              <!-- MY WORK VIEW (Dragon 36) -->
+              <div x-show="ui.taskView === 'mywork'" style="padding:8px 0">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
+                  <!-- Overdue -->
+                  <div style="border:1px solid #fee2e2;border-radius:10px;padding:14px">
+                    <h4 style="margin:0 0 10px;font-size:13px;color:#dc2626;display:flex;align-items:center;gap:6px">
+                      <span style="width:8px;height:8px;border-radius:50%;background:#dc2626"></span>
+                      Atrasadas <span style="font-weight:400;color:#94a3b8" x-text="'(' + myWorkData.overdue.length + ')'"></span>
+                    </h4>
+                    <template x-for="t in myWorkData.overdue" :key="t.id">
+                      <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #fef2f2;cursor:pointer" @click="openTaskDetail(t.id)">
+                        <span class="cu-list__status-dot" style="background:#dc2626"></span>
+                        <span style="flex:1;font-size:12px" x-text="t.titulo"></span>
+                        <span style="font-size:10px;color:#dc2626" x-text="relativeDueDate(t.data_fim)"></span>
+                      </div>
+                    </template>
+                    <p x-show="!myWorkData.overdue.length" style="font-size:12px;color:#94a3b8;margin:0">Nenhuma atrasada</p>
+                  </div>
+                  <!-- Today -->
+                  <div style="border:1px solid #eff6ff;border-radius:10px;padding:14px">
+                    <h4 style="margin:0 0 10px;font-size:13px;color:#3b82f6;display:flex;align-items:center;gap:6px">
+                      <span style="width:8px;height:8px;border-radius:50%;background:#3b82f6"></span>
+                      Hoje <span style="font-weight:400;color:#94a3b8" x-text="'(' + myWorkData.today.length + ')'"></span>
+                    </h4>
+                    <template x-for="t in myWorkData.today" :key="t.id">
+                      <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #eff6ff;cursor:pointer" @click="openTaskDetail(t.id)">
+                        <input type="checkbox" :checked="t.status === 'concluida'" @change.stop="updateTaskStatus(t.id, $event.target.checked)" style="accent-color:#3b82f6">
+                        <span style="flex:1;font-size:12px" x-text="t.titulo"></span>
+                      </div>
+                    </template>
+                    <p x-show="!myWorkData.today.length" style="font-size:12px;color:#94a3b8;margin:0">Nada pra hoje</p>
+                  </div>
+                  <!-- Upcoming -->
+                  <div style="border:1px solid #f0fdf4;border-radius:10px;padding:14px">
+                    <h4 style="margin:0 0 10px;font-size:13px;color:#16a34a;display:flex;align-items:center;gap:6px">
+                      <span style="width:8px;height:8px;border-radius:50%;background:#16a34a"></span>
+                      Proximos 7 dias <span style="font-weight:400;color:#94a3b8" x-text="'(' + myWorkData.upcoming.length + ')'"></span>
+                    </h4>
+                    <template x-for="t in myWorkData.upcoming" :key="t.id">
+                      <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0fdf4;cursor:pointer" @click="openTaskDetail(t.id)">
+                        <span class="cu-list__status-dot" style="background:#16a34a"></span>
+                        <span style="flex:1;font-size:12px" x-text="t.titulo"></span>
+                        <span style="font-size:10px;color:#16a34a" x-text="relativeDueDate(t.data_fim)"></span>
+                      </div>
+                    </template>
+                    <p x-show="!myWorkData.upcoming.length" style="font-size:12px;color:#94a3b8;margin:0">Sem tarefas</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- CONTEXT MENU (Dragon 48) -->
+              <div x-show="contextMenu.show" @click.outside="hideContextMenu()" class="cu-context-menu"
+                   :style="'left:' + contextMenu.x + 'px;top:' + contextMenu.y + 'px'" x-cloak>
+                <div class="cu-context-menu__item" @click="contextAction('open')">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  Abrir
+                </div>
+                <div class="cu-context-menu__item" @click="contextAction('complete')">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                  Concluir
+                </div>
+                <div class="cu-context-menu__item" @click="contextAction('duplicate')">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  Duplicar
+                </div>
+                <div class="cu-context-menu__item" @click="contextAction('favorite')">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                  Favoritar
+                </div>
+                <div class="cu-context-menu__item" @click="contextAction('timer')">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  Iniciar timer
+                </div>
+                <div class="cu-context-menu__item" @click="contextAction('copy')">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                  Copiar link
+                </div>
+                <div class="cu-context-menu__divider"></div>
+                <div class="cu-context-menu__item cu-context-menu__item--danger" @click="contextAction('delete')">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14H7L5 6"/></svg>
+                  Excluir
+                </div>
+              </div>
+
+              <!-- FOCUS MODE EXIT (Dragon 45) -->
+              <button x-show="focusMode" class="cu-focus-exit" @click="toggleFocusMode()">Sair do Zen</button>
+
+              <!-- SKELETON LOADING (Dragon 12) -->
+              <div x-show="ui.loading && ui.page === 'tasks'" x-cloak>
+                <div x-show="ui.taskView === 'list' || ui.taskView === 'table'" style="padding:8px 0">
+                  <div class="cu-skeleton--row"></div>
+                  <div class="cu-skeleton--row"></div>
+                  <div class="cu-skeleton--row"></div>
+                  <div class="cu-skeleton--row"></div>
+                  <div class="cu-skeleton--row"></div>
+                  <div class="cu-skeleton--row"></div>
+                  <div class="cu-skeleton--row" style="width:80%"></div>
+                </div>
+                <div x-show="ui.taskView === 'board'" class="cu-skeleton-grid">
+                  <div class="cu-skeleton--card"></div>
+                  <div class="cu-skeleton--card"></div>
+                  <div class="cu-skeleton--card"></div>
+                  <div class="cu-skeleton--card"></div>
+                </div>
+                <div x-show="ui.taskView === 'calendar'" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;padding:16px 0">
+                  <template x-for="i in 35"><div class="cu-skeleton" style="height:80px"></div></template>
+                </div>
+              </div>
+
+              <!-- SPRINT DETAIL PANEL -->
+              <div x-show="activeSprintId" style="margin-bottom:12px;border:1px solid var(--border);border-radius:10px;padding:14px;background:var(--bg-card)">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+                  <h3 style="margin:0;font-size:15px" x-text="activeSprintData?.nome || 'Sprint'"></h3>
+                  <span style="font-size:11px;padding:2px 8px;border-radius:12px;font-weight:600"
+                        :style="activeSprintData?.status === 'ativo' ? 'background:#dcfce7;color:#166534' : activeSprintData?.status === 'encerrado' ? 'background:#f3f4f6;color:#6b7280' : 'background:#fef3c7;color:#92400e'"
+                        x-text="activeSprintData?.status === 'ativo' ? 'Ativo' : activeSprintData?.status === 'encerrado' ? 'Encerrado' : 'Planejado'"></span>
+                  <span style="font-size:11px;color:var(--text-secondary)" x-text="(activeSprintData?.inicio || '') + ' → ' + (activeSprintData?.fim || '')"></span>
+                  <div style="margin-left:auto;display:flex;gap:6px">
+                    <button x-show="activeSprintData?.status === 'planejado'" @click="sprintActivate(activeSprintId)" class="btn btn--sm btn--brand" style="font-size:11px;padding:3px 10px">Ativar</button>
+                    <button x-show="activeSprintData?.status === 'ativo'" @click="sprintClose(activeSprintId)" class="btn btn--sm" style="font-size:11px;padding:3px 10px;border-color:#d97706;color:#d97706">Encerrar</button>
+                    <select x-show="activeSprintData?.status === 'encerrado'" @change="if($event.target.value) sprintCarryOver(activeSprintId, $event.target.value); $event.target.value=''" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:4px">
+                      <option value="">Carry-over para...</option>
+                      <template x-for="sp in data.sprints.filter(s => s.id !== activeSprintId && s.status !== 'encerrado')" :key="sp.id">
+                        <option :value="sp.id" x-text="sp.nome"></option>
+                      </template>
+                    </select>
+                  </div>
+                </div>
+                <!-- Sprint KPIs -->
+                <div style="display:flex;gap:12px;flex-wrap:wrap">
+                  <div style="flex:1;min-width:80px;text-align:center;padding:8px;background:var(--bg-subtle);border-radius:8px">
+                    <div style="font-size:20px;font-weight:700" x-text="sprintStats.total"></div>
+                    <div style="font-size:10px;color:var(--text-secondary)">Total</div>
+                  </div>
+                  <div style="flex:1;min-width:80px;text-align:center;padding:8px;background:#dcfce7;border-radius:8px">
+                    <div style="font-size:20px;font-weight:700;color:#166534" x-text="sprintStats.done"></div>
+                    <div style="font-size:10px;color:#166534">Concluidas</div>
+                  </div>
+                  <div style="flex:1;min-width:80px;text-align:center;padding:8px;background:#fef3c7;border-radius:8px">
+                    <div style="font-size:20px;font-weight:700;color:#92400e" x-text="sprintStats.pending"></div>
+                    <div style="font-size:10px;color:#92400e">Restantes</div>
+                  </div>
+                  <div style="flex:1;min-width:80px;text-align:center;padding:8px;background:#eff6ff;border-radius:8px">
+                    <div style="font-size:20px;font-weight:700;color:#1d4ed8" x-text="sprintStats.points + ' pts'"></div>
+                    <div style="font-size:10px;color:#1d4ed8">Total Points</div>
+                  </div>
+                  <div style="flex:1;min-width:80px;text-align:center;padding:8px;background:#f0fdf4;border-radius:8px">
+                    <div style="font-size:20px;font-weight:700;color:#16a34a" x-text="sprintStats.donePoints + ' pts'"></div>
+                    <div style="font-size:10px;color:#16a34a">Done Points</div>
+                  </div>
+                  <div style="flex:1;min-width:80px;text-align:center;padding:8px;border-radius:8px;position:relative;overflow:hidden">
+                    <div style="position:absolute;inset:0;background:#22c55e;opacity:.15;border-radius:8px"></div>
+                    <div style="position:absolute;left:0;top:0;bottom:0;background:#22c55e;opacity:.25;border-radius:8px;transition:width .3s" :style="'width:' + sprintStats.pct + '%'"></div>
+                    <div style="position:relative;font-size:20px;font-weight:700" x-text="sprintStats.pct + '%'"></div>
+                    <div style="position:relative;font-size:10px;color:var(--text-secondary)">Progresso</div>
+                  </div>
+                </div>
+                <!-- Burndown mini (ASCII-style with bars) -->
+                <div x-show="sprintStats.total > 0" style="margin-top:12px">
+                  <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Burndown</div>
+                  <div style="display:flex;align-items:flex-end;gap:2px;height:40px">
+                    <template x-for="(val, i) in (sprintBurndownData()?.actual || [])" :key="i">
+                      <div style="flex:1;border-radius:2px 2px 0 0;min-width:4px;transition:height .2s"
+                           :style="'height:' + (sprintStats.points ? Math.max(4, val / sprintStats.points * 40) : 4) + 'px;background:' + (i === (sprintBurndownData()?.actual?.length - 1) ? '#3b82f6' : '#93c5fd')"
+                           :title="(sprintBurndownData()?.labels?.[i] || '') + ': ' + val + ' pts restantes'"></div>
+                    </template>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-secondary);margin-top:2px">
+                    <span x-text="sprintBurndownData()?.labels?.[0] || ''"></span>
+                    <span x-text="sprintBurndownData()?.labels?.slice(-1)?.[0] || ''"></span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- BOARD VIEW — ClickUp-style clean cards -->
+              <!-- BOARD VIEW v2 — CSS-driven (CU-01.3) -->
+              <div class="cu-board" x-show="ui.taskView === 'board'">
                 <template x-for="col in boardColumns" :key="col.key">
-                  <div class="task-board__column">
-                    <div class="task-board__column-header" :class="col.cssClass || ''" :style="col.color ? 'background:' + col.color + '; border-top:3px solid ' + col.color : ''">
-                      <span class="task-status-dot" :class="col.cssClass ? 'task-status-dot--' + col.key : ''" :style="col.color ? 'background:#fff' : ''"></span>
-                      <span x-text="col.label"></span>
-                      <span class="task-board__column-count" x-text="tasksByStatus[col.key]?.length || 0"></span>
+                  <div class="cu-board__col">
+                    <div class="cu-board__col-header" :style="'--col-color:' + (col.color || '#94a3b8')">
+                      <span class="cu-board__col-dot"></span>
+                      <span class="cu-board__col-label" x-text="col.label"></span>
+                      <span class="cu-board__col-count" x-text="tasksByStatus[col.key]?.length || 0"></span>
                     </div>
-                    <div class="task-board__column-body" @dragover.prevent="onDragOver($event, col.key)" @dragleave="onDragLeave($event, col.key)" @drop="onDrop($event, col.key)" :class="{'task-board__column-body--dragover': dragOverColumn === col.key}">
+                    <div class="cu-board__cards" :class="{ 'cu-board__cards--dragover': dragOverColumn === col.key }"
+                         @dragover.prevent="onDragOver($event, col.key)" @dragleave="onDragLeave($event, col.key)" @drop="onDrop($event, col.key)">
                       <template x-for="t in tasksByStatus[col.key]" :key="t.id">
-                        <div class="task-board__card" draggable="true" @dragstart="onDragStart($event, t.id)" @dragend="onDragEnd($event)" @click="openTaskDetail(t.id)" :class="{ 'task-board__card--overdue': status === 'pendente' && isOverdue(t.data_fim || t.prazo), 'task-board__card--mine': isMyTask(t) }">
-                          <div class="task-board__card-header">
-                            <span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span>
-                            <span x-show="t.follow_up_responded_at" class="badge badge--sm badge--success" title="Mentorado respondeu">✉️ respondeu</span>
-                            <div class="task-board__card-actions">
-                              <button class="task-card__btn" @click.stop="openTaskModal(t)" title="Editar">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                              </button>
-                            </div>
+                        <div class="cu-card" :class="{ 'cu-card--selected': ui.bulkSelected[t.id] }"
+                             :data-task-id="t.id"
+                             draggable="true" @dragstart="onDragStart($event, t.id)" @dragend="onDragEnd($event)"
+                             @contextmenu="showContextMenu($event, t.id)"
+                             @click="ui.bulkMode ? bulkToggle(t.id, $event) : openTaskDetail(t.id)">
+                          <!-- Priority + type -->
+                          <div style="display:flex;align-items:center;gap:6px">
+                            <span class="cu-card__prio" :class="'cu-card__prio--' + (t.prioridade || 'normal')" x-text="prioLabel(t.prioridade)"></span>
+                            <span x-show="t.tipo && t.tipo !== 'geral'" style="font-size:12px" x-text="taskTipoIcon(t.tipo)"></span>
                           </div>
-                          <div class="task-board__card-title">
-                            <span class="task-tipo-icon" x-show="t.tipo && t.tipo !== 'geral'" x-text="taskTipoIcon(t.tipo)" :title="taskTipoLabel(t.tipo)"></span>
-                            <span x-text="t.titulo"></span>
-                            <span class="task-auto-badge" x-show="t.fonte && t.fonte.startsWith('auto')">Auto</span>
-                            <span class="task-recurring-badge" x-show="t.recorrencia && t.recorrencia !== 'nenhuma'" :title="'Recorrente: ' + recorrenciaLabel(t.recorrencia)">
-                              <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                          <!-- Title -->
+                          <div class="cu-card__title" x-text="t.titulo"></div>
+                          <!-- Indicators -->
+                          <div class="cu-card__meta">
+                            <span x-show="subtaskProgress(t).total > 0" class="cu-card__meta-item">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                              <span x-text="subtaskProgress(t).done + '/' + subtaskProgress(t).total"></span>
                             </span>
-                          </div>
-                          <!-- Tags -->
-                          <div x-show="t.tags?.length" class="task-board__card-tags">
-                            <template x-for="tag in (t.tags || []).slice(0, 3)" :key="tag.id || tag.name || tag">
-                              <span class="task-tag" :style="(tag.color) ? 'background:' + tag.color + '22;color:' + tag.color + ';border-color:' + tag.color + '55' : ''" x-text="tag.name || tag"></span>
+                            <span x-show="t.comments?.length" class="cu-card__meta-item">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                              <span x-text="t.comments.length"></span>
+                            </span>
+                            <span x-show="t.points" class="cu-card__meta-item" style="color:#6366f1;font-weight:700" x-text="t.points + ' pts'"></span>
+                            <template x-for="tag in (t.tags || []).slice(0, 2)" :key="tag.id || tag.name || tag">
+                              <span class="cu-card__tag" :style="tag.color ? 'background:'+tag.color : 'background:#94a3b8'" x-text="tag.name || tag"></span>
                             </template>
-                            <span x-show="(t.tags || []).length > 3" class="task-tag task-tag--more" x-text="'+' + ((t.tags||[]).length - 3)"></span>
+                            <span x-show="(t.tags||[]).length > 2" class="cu-card__meta-item" x-text="'+' + ((t.tags||[]).length - 2)"></span>
                           </div>
-                          <div class="task-board__card-meta">
-                            <span x-show="t.mentorado_nome" class="task-board__card-mentee">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                              <span x-text="t.mentorado_nome"></span>
-                            </span>
-                            <span x-show="t.data_inicio && t.data_fim" class="task-board__card-dates">
-                              <span x-text="formatDate(t.data_inicio)"></span> - <span x-text="formatDate(t.data_fim)"></span>
-                            </span>
-                            <span x-show="!t.data_inicio && (t.data_fim || t.prazo)" class="task-board__card-due" :class="{ 'task-board__card-due--overdue': isOverdue(t.data_fim || t.prazo) }">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                              <span x-text="formatDate(t.data_fim || t.prazo)"></span>
-                            </span>
-                          </div>
-                          <!-- Subtask progress + blocked badge -->
-                          <div x-show="subtaskProgress(t).total > 0 || t.is_blocked" style="display:flex;align-items:center;gap:6px;margin-top:4px">
-                            <div x-show="subtaskProgress(t).total > 0" class="task-board__card-progress" style="flex:1">
-                              <div class="task-card__progress-bar"><div class="task-card__progress-fill" :style="'width:' + subtaskProgress(t).pct + '%'"></div></div>
-                              <span class="task-card__progress-text" x-text="subtaskProgress(t).done + '/' + subtaskProgress(t).total"></span>
+                          <!-- Footer -->
+                          <div class="cu-card__footer">
+                            <div style="display:flex;align-items:center;gap:6px">
+                              <span x-show="t.responsavel" class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel)" x-text="avatarInitials(t.responsavel)" style="width:24px;height:24px;font-size:9px"></span>
+                              <span x-show="t.mentorado_nome" style="font-size:10px;color:#64748b;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="t.mentorado_nome"></span>
                             </div>
-                            <span x-show="t.is_blocked" style="font-size:10px;padding:1px 5px;border-radius:4px;background:#fee2e2;color:#991b1b;font-weight:600;flex-shrink:0">⛔ Bloqueada</span>
-                          </div>
-                          <!-- Parent task indicator -->
-                          <div x-show="t.parent_task_id" class="task-board__card-parent">
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-                            <span x-text="'Subtarefa'"></span>
-                          </div>
-                          <div class="task-board__card-footer">
-                            <span x-show="t.responsavel" class="task-board__card-assignee">
-                              <span class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel)" x-text="avatarInitials(t.responsavel)" style="width:22px;height:22px;font-size:9px"></span>
-                              <span x-text="t.responsavel"></span>
+                            <span x-show="t.data_fim || t.prazo" class="cu-card__due" :class="{ 'cu-card__due--overdue': isOverdue(t.data_fim || t.prazo) }">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                              <span x-text="relativeDueDate(t.data_fim || t.prazo)"></span>
                             </span>
-                            <span x-show="t.acompanhante" class="task-board__card-tracker" title="Acompanhante do time">
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                              <span x-text="t.acompanhante"></span>
-                            </span>
-                            <div class="task-board__card-indicators">
-                              <span x-show="t.comments?.length" title="Comentarios" style="font-size:11px;color:#94a3b8;display:flex;align-items:center;gap:2px">
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                                <span x-text="t.comments.length"></span>
-                              </span>
-                              <span x-show="t.attachments?.length" title="Anexos" style="font-size:11px;color:#94a3b8;display:flex;align-items:center;gap:2px">
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-                                <span x-text="t.attachments?.length || 0"></span>
-                              </span>
-                            </div>
-                          </div>
-                          <div x-show="t.handoffs?.length" class="task-board__card-handoff">
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/></svg>
-                            <span x-text="t.handoffs[t.handoffs.length-1]?.from + ' → ' + t.handoffs[t.handoffs.length-1]?.to"></span>
                           </div>
                         </div>
                       </template>
-                      <div class="task-board__empty" x-show="!tasksByStatus[col.key]?.length">Nenhuma tarefa</div>
-                      <button class="task-board__add" @click="openTaskModal()" x-show="col.key === 'pendente' || col.key === boardColumns[0]?.key">+ Adicionar tarefa</button>
+                      <div x-show="!tasksByStatus[col.key]?.length" class="cu-board__empty">Nenhuma tarefa</div>
+                      <button class="cu-board__add" @click="openTaskModal()">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Adicionar tarefa
+                      </button>
                     </div>
                   </div>
                 </template>
               </div>
 
-              <!-- LIST VIEW -->
-              <div class="task-list" x-show="ui.taskView === 'list'">
-                <div class="op-toolbar" style="margin-top:0">
-                  <select class="op-toolbar__select" x-model="ui.taskFilter"><option value="all">Todas</option><option value="pendente">Pendente</option><option value="em_andamento">Em Andamento</option><option value="concluida">Concluida</option><option value="atrasada">Atrasada</option></select>
-                </div>
-                <!-- List table header -->
-                <div class="task-list__header">
-                  <div class="task-list__col task-list__col--check"></div>
-                  <div class="task-list__col task-list__col--title">Tarefa</div>
-                  <div class="task-list__col task-list__col--assignee" x-show="ui.listColumns.responsavel.visible">Responsável</div>
-                  <div class="task-list__col task-list__col--tracker" x-show="ui.listColumns.acompanhante.visible">Acompanhante</div>
-                  <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.mentorado.visible">Mentorado</div>
-                  <div class="task-list__col task-list__col--dates" x-show="ui.listColumns.datas.visible">Datas</div>
-                  <div class="task-list__col task-list__col--prio" x-show="ui.listColumns.prioridade.visible">Prio</div>
-                  <div class="task-list__col task-list__col--prio" x-show="ui.listColumns.status.visible">Status</div>
-                  <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.tags.visible">Tags</div>
-                  <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.fonte.visible">Fonte</div>
-                  <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.space.visible">Space</div>
-                  <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.comentarios.visible">💬</div>
-                  <div class="task-list__col task-list__col--dates" x-show="ui.listColumns.criado_em.visible">Criado</div>
-                  <div class="task-list__col task-list__col--dates" x-show="ui.listColumns.atualizado.visible">Atualizado</div>
-                  <div class="task-list__col task-list__col--actions" style="position:relative">
-                    <button @click.stop="ui.listColumnsOpen = !ui.listColumnsOpen" title="Configurar colunas"
-                      style="background:none;border:none;cursor:pointer;padding:2px;color:#94a3b8;border-radius:4px"
-                      @mouseover="$el.style.color='#475569'" @mouseout="$el.style.color='#94a3b8'">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                    </button>
-                    <!-- Column config dropdown -->
-                    <div x-show="ui.listColumnsOpen" @click.outside="ui.listColumnsOpen = false"
-                      style="position:absolute;right:0;top:100%;z-index:200;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px;min-width:200px;box-shadow:0 8px 24px rgba(0,0,0,.12)">
-                      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding:0 4px">Colunas</div>
-                      <template x-for="(col, key) in ui.listColumns" :key="key">
-                        <label style="display:flex;align-items:center;gap:8px;padding:5px 4px;cursor:pointer;font-size:13px;color:#334155;border-radius:5px"
-                          @mouseover="$el.style.background='#f8fafc'" @mouseout="$el.style.background='transparent'">
-                          <input type="checkbox" x-model="ui.listColumns[key].visible" style="width:14px;height:14px;cursor:pointer;accent-color:#8b6f47">
-                          <span x-text="col.label"></span>
-                        </label>
-                      </template>
-                    </div>
-                  </div>
-                </div>
-                <template x-for="t in tasksTree" :key="t.id + '-' + t._depth">
+              <!-- LIST VIEW v2 — CSS-driven (CU-01.4) -->
+              <div class="cu-list" x-show="ui.taskView === 'list'">
+                <div class="cu-list__wrap">
+                <template x-for="t in tasksTree" :key="t.id + '-' + (t._depth||0)">
                   <div>
-                  <!-- Group header row -->
-                  <div x-show="t._isGroupHeader" class="task-list__group-header" :style="t._isGroupHeader ? 'border-left:3px solid ' + groupHeaderColor(t._groupBy, t._groupKey) : ''">
-                    <span class="task-list__group-label" x-text="t._groupLabel"></span>
-                    <span class="task-list__group-count" x-text="t._groupCount"></span>
-                  </div>
-                  <div x-show="!t._isGroupHeader" class="task-list__row" :class="{ 'task-list__row--done': t.status === 'concluida', 'task-list__row--overdue': t.status === 'pendente' && isOverdue(t.data_fim || t.prazo), 'task-list__row--mine': isMyTask(t), 'task-list__row--child': t._depth > 0 }" @click="t._isChecklist ? openTaskDetail(t._parentId) : t._isSubtask ? openTaskDetail(t._parentId) : t._isChildTask ? openTaskDetail(t.id) : openTaskDetail(t.id)">
-                    <div class="task-list__col task-list__col--check"><input type="checkbox" :checked="t.status === 'concluida'" @click.stop @change="t._isChecklist ? toggleCheckItem(t._parentId, t._checkIdx) : t._isSubtask ? toggleSubtask(t._parentId, t._subIdx) : updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"></div>
-                    <div class="task-list__col task-list__col--title" :style="t._depth > 0 ? 'padding-left:24px' : ''">
-                      <div style="display:flex;align-items:flex-start;gap:4px">
-                        <button x-show="t._depth === 0 && t._childCount > 0" @click.stop="toggleTaskExpand(t.id)" class="task-tree__toggle" :class="{ 'task-tree__toggle--open': ui.taskExpandedIds[t.id] }" :title="ui.taskExpandedIds[t.id] ? 'Recolher subtarefas' : 'Expandir subtarefas (' + t._childCount + ')'">
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-                        </button>
-                        <span x-show="t._depth === 0 && !t._childCount" style="display:inline-block;width:14px;flex-shrink:0"></span>
-                        <span x-show="t._depth > 0" class="task-tree__child-indicator">↳</span>
-                        <div style="flex:1;min-width:0">
-<div class="task-list__title"><span x-text="t.titulo"></span><span x-show="t.is_blocked" style="margin-left:4px;font-size:10px;padding:1px 4px;border-radius:3px;background:#fee2e2;color:#991b1b;font-weight:600">⛔</span><span class="task-auto-badge" x-show="t.fonte && t.fonte.startsWith('auto')">Auto</span><span class="task-recurring-badge" x-show="t.recorrencia && t.recorrencia !== 'nenhuma'" :title="'Recorrente: ' + recorrenciaLabel(t.recorrencia)"><svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span></div>
-                          <div class="task-list__tags" x-show="t.tags?.length"><template x-for="tag in (t.tags||[]).slice(0,2)" :key="tag.id||tag.name||tag"><span class="task-tag" :style="tag.color ? 'background:'+tag.color+'22;color:'+tag.color+';border-color:'+tag.color+'55' : ''" x-text="tag.name||tag"></span></template></div>
+                    <!-- Group Header -->
+                    <div x-show="t._isGroupHeader" class="cu-list__group"
+                         @click="ui.collapsedGroups = {...ui.collapsedGroups, [t._groupKey]: !ui.collapsedGroups?.[t._groupKey]}">
+                      <svg class="cu-list__group-chevron" :class="{ 'cu-list__group-chevron--open': !ui.collapsedGroups?.[t._groupKey] }" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                      <span class="cu-list__group-label" :style="'color:' + groupHeaderColor(t._groupBy, t._groupKey)" x-text="t._groupLabel"></span>
+                      <span class="cu-list__group-count" x-text="t._groupCount"></span>
+                      <span style="font-size:10px;color:#c4c0b8">...</span>
+                      <button class="cu-list__group-add" @click.stop="openTaskModal()">+</button>
+                    </div>
+                    <!-- Column headers -->
+                    <table x-show="t._isGroupHeader && !ui.collapsedGroups?.[t._groupKey]" style="width:100%;border-collapse:collapse;table-layout:fixed">
+                      <colgroup class="cu-list__colgroup"><col><col><col><col><col><col></colgroup>
+                      <tr style="border-bottom:1px solid var(--border)">
+                        <th></th>
+                        <th class="cu-list__th">Nome</th>
+                        <th class="cu-list__th">Responsavel</th>
+                        <th class="cu-list__th">Data de vencimento</th>
+                        <th class="cu-list__th">Prioridade</th>
+                        <template x-for="cf in visibleCustomFields()" :key="cf.field_id || cf.id">
+                          <th class="cu-list__th" x-text="cf.name"></th>
+                        </template>
+                        <th style="padding:4px">
+                          <button @click.stop="ui.fieldsModalOpen = true" class="cu-list__add-col-btn" title="Adicionar campo">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                          </button>
+                        </th>
+                      </tr>
+                    </table>
+
+                    <!-- Task Row -->
+                    <table x-show="!t._isGroupHeader && !ui.collapsedGroups?.[t._currentGroup]" style="width:100%;border-collapse:collapse;table-layout:fixed"
+                           :data-task-id="t.id" @contextmenu="showContextMenu($event, t._parentId || t.id)" @click="openTaskDetail(t._parentId || t.id)">
+                      <colgroup class="cu-list__colgroup"><col><col><col><col><col><col></colgroup>
+                      <tr class="cu-list__row" :class="{ 'cu-list__row--done': t.status === 'concluida' }">
+                        <td class="cu-list__td" @click.stop>
+                          <input type="checkbox" :checked="t.status === 'concluida'" @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"
+                                 style="width:15px;height:15px;cursor:pointer;accent-color:#22c55e">
+                        </td>
+                        <td class="cu-list__td cu-list__td--name">
+                          <div class="cu-list__td--name-inner" :style="(t._depth||0) > 0 ? 'padding-left:20px' : ''">
+                            <button x-show="t._childCount > 0" @click.stop="toggleTaskExpand(t.id)" class="cu-list__expand" :class="{ 'cu-list__expand--open': ui.taskExpandedIds[t.id] }">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+                            <span class="cu-list__status-dot" :style="'background:' + (t.status==='concluida' ? '#22c55e' : t.status==='em_andamento' ? '#3b82f6' : '#94a3b8')"></span>
+                            <span class="cu-list__title" :class="{ 'cu-list__title--done': t.status==='concluida' }" x-text="t.titulo"
+                                  contenteditable="true" @click.stop
+                                  @blur="inlineEditTitle(t.id, $el.innerText)"
+                                  @keydown.enter.prevent="$el.blur()"
+                                  @focus="$el.style.background='#fffbeb';$el.style.outline='2px solid #d97706';$el.style.outlineOffset='1px';$el.style.borderRadius='3px'"
+                                  @focusout="$el.style.background='';$el.style.outline='';$el.style.outlineOffset=''"></span>
+                            <span x-show="t.descricao" class="cu-list__indicator"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/></svg></span>
+                            <span x-show="subtaskProgress(t).total > 0" class="cu-list__indicator cu-list__indicator--subtask">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                              <span x-text="subtaskProgress(t).done + '/' + subtaskProgress(t).total"></span>
+                            </span>
+                            <span x-show="t.comments?.length" class="cu-list__indicator">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                              <span x-text="t.comments.length"></span>
+                            </span>
+                            <template x-for="tag in (t.tags||[]).slice(0,3)" :key="tag.id||tag.name||tag">
+                              <span class="cu-list__tag" :style="tag.color ? 'background:'+tag.color : 'background:#94a3b8'" x-text="tag.name||tag"></span>
+                            </template>
+                            <span x-show="(t.tags||[]).length > 3" class="cu-list__indicator" x-text="'+' + ((t.tags||[]).length - 3)"></span>
+                          </div>
+                        </td>
+                        <!-- Responsavel (inline edit) -->
+                        <td class="cu-list__td cu-list__td--editable" @click.stop>
+                          <div style="display:flex;align-items:center;gap:4px">
+                            <span x-show="t.responsavel" class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel)" x-text="avatarInitials(t.responsavel)" style="width:26px;height:26px;font-size:10px"></span>
+                            <select :value="t.responsavel || ''" @change="updateTaskField(t.id, 'responsavel', $event.target.value)" class="cu-list__inline-select">
+                              <option value="">+</option>
+                              <template x-for="m in data.members || []" :key="m.id"><option :value="m.nome_curto || m.name" x-text="m.nome_curto || m.name"></option></template>
+                            </select>
+                          </div>
+                        </td>
+                        <!-- Due date (inline edit) -->
+                        <td class="cu-list__td cu-list__td--editable" @click.stop>
+                          <div style="display:flex;align-items:center;gap:4px">
+                            <span class="cu-list__due" :class="{ 'cu-list__due--overdue': isOverdue(t.data_fim || t.prazo) && t.status !== 'concluida' }"
+                                  x-text="relativeDueDate(t.data_fim || t.prazo) || '-'"></span>
+                            <input type="date" :value="(t.data_fim || t.prazo || '').slice(0,10)" @change="updateTaskField(t.id, 'data_fim', $event.target.value)" class="cu-list__inline-date">
+                          </div>
+                        </td>
+                        <!-- Priority (inline edit) -->
+                        <td class="cu-list__td cu-list__td--editable" @click.stop>
+                          <select :value="t.prioridade || 'normal'" @change="updateTaskField(t.id, 'prioridade', $event.target.value)" class="cu-list__inline-prio"
+                                  :style="'color:' + (t.prioridade==='urgente' ? '#dc2626' : t.prioridade==='alta' ? '#ea580c' : '#64748b')">
+                            <option value="urgente">Urgente</option>
+                            <option value="alta">Alta</option>
+                            <option value="normal">Normal</option>
+                            <option value="baixa">Baixa</option>
+                          </select>
+                        </td>
+                        <!-- Custom field columns -->
+                        <template x-for="cf in visibleCustomFields()" :key="cf.field_id || cf.id">
+                          <td class="cu-list__td cu-list__td--editable" @click.stop style="font-size:12px;color:#64748b"
+                              x-text="getTaskFieldValue(t, cf.field_id || cf.id) || '-'"></td>
+                        </template>
+                        <td class="cu-list__td" @click.stop>
+                          <button class="cu-list__more" @click="openTaskModal(t)">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                          </button>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Quick Add task -->
+                    <div x-show="t._isGroupLast && !ui.collapsedGroups?.[t._currentGroup]" class="cu-list__add" x-data="{ quickInput: '' }">
+                      <div style="display:flex;align-items:center;gap:6px;width:100%">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" style="flex-shrink:0"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        <input type="text" x-model="quickInput" @keydown.enter="if(quickInput.trim()) { quickAddTask(quickInput); quickInput = '' }"
+                               placeholder="Adicionar Tarefa..." style="flex:1;border:none;outline:none;background:none;font-size:12px;color:#475569;padding:4px 0">
+                        <!-- Template dropdown -->
+                        <div x-show="(data.templates||[]).length" style="position:relative" x-data="{ tmplOpen: false }">
+                          <button @click="tmplOpen = !tmplOpen" style="background:none;border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;font-size:10px;color:#94a3b8;cursor:pointer;display:flex;align-items:center;gap:3px"
+                                  @mouseenter="$el.style.borderColor='#6366f1';$el.style.color='#6366f1'" @mouseleave="$el.style.borderColor='#e2e8f0';$el.style.color='#94a3b8'">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                            Template
+                          </button>
+                          <div x-show="tmplOpen" @click.outside="tmplOpen = false" style="position:absolute;bottom:100%;right:0;margin-bottom:4px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:4px;min-width:180px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:100">
+                            <template x-for="tmpl in data.templates || []" :key="tmpl.id">
+                              <button @click="createFromTemplate(tmpl.id); tmplOpen = false" style="width:100%;text-align:left;padding:6px 10px;border:none;background:none;cursor:pointer;font-size:12px;border-radius:4px;display:flex;align-items:center;gap:6px"
+                                      @mouseenter="$el.style.background='#f8f7f4'" @mouseleave="$el.style.background='none'">
+                                <span x-text="tmpl.name"></span>
+                                <span style="font-size:9px;color:#94a3b8;margin-left:auto" x-text="tmpl.usage_count ? tmpl.usage_count + 'x' : ''"></span>
+                              </button>
+                            </template>
+                          </div>
                         </div>
                       </div>
                     </div>
-                    <div class="task-list__col task-list__col--assignee" x-show="ui.listColumns.responsavel.visible" @click.stop>
-                      <div style="display:flex;align-items:center;gap:4px">
-                        <span class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel || '?')" x-text="avatarInitials(t.responsavel || '?')" style="width:20px;height:20px;font-size:8px;flex-shrink:0"></span>
-                        <select :value="t.responsavel || ''" @change="updateTaskField(t.id, 'responsavel', $event.target.value)"
-                          style="font-size:11px;padding:1px 2px;border:1px solid transparent;border-radius:4px;cursor:pointer;background:none;max-width:100px;appearance:none;-webkit-appearance:none"
-                          @focus="$el.style.borderColor='#8b6f47'" @blur="$el.style.borderColor='transparent'">
-                          <option value="">—</option>
-                          <template x-for="m in data.members || []" :key="m.id || m.name">
-                            <option :value="m.nome_curto || m.name" x-text="m.nome_curto || m.name"></option>
-                          </template>
-                        </select>
-                      </div>
-                    </div>
-                    <div class="task-list__col task-list__col--tracker" x-show="ui.listColumns.acompanhante.visible">
-                      <span x-show="t.acompanhante" class="task-list__tracker-pill">
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                        <span x-text="t.acompanhante"></span>
-                      </span>
-                    </div>
-                    <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.mentorado.visible" x-text="t.mentorado_nome || '-'"></div>
-                    <div class="task-list__col task-list__col--dates" x-show="ui.listColumns.datas.visible">
-                      <span x-show="t.data_inicio" x-text="formatDate(t.data_inicio)" style="font-size:11px"></span>
-                      <span x-show="t.data_inicio && (t.data_fim || t.prazo)" style="font-size:10px;color:#94a3b8"> → </span>
-                      <span x-show="t.data_fim || t.prazo" :class="{ 'text-red': isOverdue(t.data_fim || t.prazo) }" x-text="formatDate(t.data_fim || t.prazo)" style="font-size:11px"></span>
-                    </div>
-                    <div class="task-list__col task-list__col--prio" x-show="ui.listColumns.prioridade.visible" @click.stop>
-                      <select :value="t.prioridade" @change="updateTaskField(t.id, 'prioridade', $event.target.value)"
-                        style="font-size:11px;padding:2px 4px;border:1px solid transparent;border-radius:4px;cursor:pointer;background:none;font-weight:600;appearance:none;-webkit-appearance:none;text-align:center"
-                        :style="t.prioridade==='urgente' ? 'color:#dc2626;background:#fee2e2' : t.prioridade==='alta' ? 'color:#ea580c;background:#ffedd5' : t.prioridade==='normal' ? 'color:#64748b;background:#f1f5f9' : 'color:#94a3b8;background:#f8fafc'"
-                        @focus="$el.style.borderColor='#8b6f47'" @blur="$el.style.borderColor='transparent'">
-                        <option value="baixa">Baixa</option>
-                        <option value="normal">Normal</option>
-                        <option value="alta">Alta</option>
-                        <option value="urgente">Urgente</option>
-                      </select>
-                    </div>
-                    <div class="task-list__col task-list__col--prio" x-show="ui.listColumns.status.visible" @click.stop>
-                      <select :value="t.status" @change="updateTaskStatus(t.id, $event.target.value)"
-                        style="font-size:11px;padding:2px 4px;border:1px solid transparent;border-radius:4px;cursor:pointer;background:none;font-weight:600;appearance:none;-webkit-appearance:none;text-align:center"
-                        :style="t.status==='concluida' ? 'color:#16a34a;background:#dcfce7' : t.status==='em_andamento' ? 'color:#2563eb;background:#dbeafe' : 'color:#64748b;background:#f1f5f9'"
-                        @focus="$el.style.borderColor='#8b6f47'" @blur="$el.style.borderColor='transparent'">
-                        <option value="pendente">A Fazer</option>
-                        <option value="em_andamento">Em Progresso</option>
-                        <option value="concluida">Concluído</option>
-                      </select>
-                    </div>
-                    <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.tags.visible"><template x-for="tag in (t.tags||[]).slice(0,2)" :key="tag.id||tag.name||tag"><span class="task-tag" style="font-size:10px" :style="tag.color ? 'background:'+tag.color+'22;color:'+tag.color : ''" x-text="tag.name||tag"></span></template></div>
-                    <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.fonte.visible"><span class="badge badge--sm badge--neutral" x-text="t.fonte || 'manual'"></span></div>
-                    <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.space.visible" style="font-size:11px" x-text="getSpaceName(t.space_id) || '-'"></div>
-                    <div class="task-list__col task-list__col--mentee" x-show="ui.listColumns.comentarios.visible" style="font-size:11px;color:#64748b" x-text="(t.comments?.length || 0)"></div>
-                    <div class="task-list__col task-list__col--dates" x-show="ui.listColumns.criado_em.visible"><span style="font-size:11px" x-text="t.created_at ? formatDate(t.created_at) : '-'"></span></div>
-                    <div class="task-list__col task-list__col--dates" x-show="ui.listColumns.atualizado.visible"><span style="font-size:11px" x-text="t.updated_at ? formatDate(t.updated_at) : '-'"></span></div>
-                    <div class="task-list__col task-list__col--actions" @click.stop x-show="!t._isSubtask">
-                      <button class="task-card__btn" @click="openTaskModal(t)" title="Editar">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                      </button>
-                      <button class="task-card__btn task-card__btn--danger" @click="deleteTask(t.id)" title="Remover">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                      </button>
-                    </div>
-                  </div>
                   </div>
                 </template>
-                <div class="empty-state" x-show="!tasksTree.length"><p>Nenhuma tarefa encontrada.</p><button class="btn btn--brand" @click="openTaskModal()">Criar primeira tarefa</button></div>
+                </div>
+                <div x-show="!tasksTree.length && !ui.loading" class="cu-empty">
+                  <svg class="cu-empty__icon" viewBox="0 0 80 80" fill="none"><rect x="10" y="20" width="60" height="45" rx="6" stroke="currentColor" stroke-width="2"/><line x1="22" y1="35" x2="58" y2="35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="22" y1="43" x2="48" y2="43" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="22" y1="51" x2="38" y2="51" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="58" cy="18" r="10" fill="var(--brand-500,#8a7d52)" opacity=".2"/><path d="M55 18h6M58 15v6" stroke="var(--brand-500,#8a7d52)" stroke-width="2" stroke-linecap="round"/></svg>
+                  <h3 class="cu-empty__title">Nenhuma tarefa encontrada</h3>
+                  <p class="cu-empty__desc">Crie sua primeira tarefa para comecar a organizar o trabalho da equipe.</p>
+                  <button class="cu-empty__action" @click="openTaskModal()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Nova Tarefa
+                  </button>
+                </div>
+              </div>
+
+              <!-- TABLE VIEW — Spreadsheet-style (Dragon 10) -->
+              <div x-show="ui.taskView === 'table'" class="cu-table">
+                <div class="cu-table__wrap">
+                  <table class="cu-table__grid">
+                    <thead>
+                      <tr>
+                        <th class="cu-table__th cu-table__th--check" style="width:36px">
+                          <input type="checkbox" @change="$event.target.checked ? bulkSelectAll() : bulkClear()">
+                        </th>
+                        <th class="cu-table__th cu-table__th--name" style="min-width:280px">Nome</th>
+                        <th class="cu-table__th" style="width:120px">Status</th>
+                        <th class="cu-table__th" style="width:140px">Responsavel</th>
+                        <th class="cu-table__th" style="width:130px">Data inicio</th>
+                        <th class="cu-table__th" style="width:130px">Data fim</th>
+                        <th class="cu-table__th" style="width:100px">Prioridade</th>
+                        <th class="cu-table__th" style="width:70px">Pontos</th>
+                        <th class="cu-table__th" style="width:100px">Tipo</th>
+                        <th class="cu-table__th" style="width:120px">Mentorado</th>
+                        <template x-for="cf in visibleCustomFields()" :key="cf.field_id || cf.id">
+                          <th class="cu-table__th" style="width:120px" x-text="cf.field_name || cf.name"></th>
+                        </template>
+                        <th class="cu-table__th" style="width:40px">
+                          <button @click="ui.fieldsModalOpen = true" class="cu-list__add-col-btn" title="Adicionar campo">+</button>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <template x-for="t in data.tasks.filter(t => !t.parent_task_id)" :key="t.id">
+                        <tr class="cu-table__row" :class="{ 'cu-table__row--done': t.status === 'concluida', 'cu-table__row--selected': ui.bulkSelected[t.id] }">
+                          <td class="cu-table__td cu-table__td--check">
+                            <input type="checkbox" :checked="ui.bulkSelected[t.id]" @change="bulkToggle(t.id, $event)">
+                          </td>
+                          <td class="cu-table__td cu-table__td--name" @click="openTaskDetail(t.id)">
+                            <span class="cu-list__status-dot" :style="'background:' + (t.status==='concluida' ? '#22c55e' : t.status==='em_andamento' ? '#3b82f6' : '#94a3b8')"></span>
+                            <span class="cu-table__cell-text" x-text="t.titulo" contenteditable="true" @click.stop
+                                  @blur="inlineEditTitle(t.id, $el.innerText)" @keydown.enter.prevent="$el.blur()"></span>
+                          </td>
+                          <td class="cu-table__td" @click.stop>
+                            <select :value="t.status" @change="updateTaskStatus(t.id, $event.target.value === 'true')" class="cu-table__select cu-table__select--status"
+                                    :style="'color:' + (t.status==='concluida' ? '#22c55e' : t.status==='em_andamento' ? '#3b82f6' : '#94a3b8')">
+                              <option value="pendente">Pendente</option>
+                              <option value="em_andamento">Em andamento</option>
+                              <option value="concluida">Concluida</option>
+                              <option value="cancelada">Cancelada</option>
+                            </select>
+                          </td>
+                          <td class="cu-table__td" @click.stop>
+                            <div style="display:flex;align-items:center;gap:4px">
+                              <span x-show="t.responsavel" class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel)" x-text="avatarInitials(t.responsavel)" style="width:22px;height:22px;font-size:9px"></span>
+                              <select :value="t.responsavel || ''" @change="updateTaskField(t.id, 'responsavel', $event.target.value)" class="cu-table__select">
+                                <option value="">-</option>
+                                <template x-for="m in data.members || []" :key="m.id"><option :value="m.nome_curto || m.name" x-text="m.nome_curto || m.name"></option></template>
+                              </select>
+                            </div>
+                          </td>
+                          <td class="cu-table__td" @click.stop>
+                            <input type="date" :value="(t.data_inicio || '').slice(0,10)" @change="updateTaskField(t.id, 'data_inicio', $event.target.value)" class="cu-table__input-date">
+                          </td>
+                          <td class="cu-table__td" @click.stop>
+                            <input type="date" :value="(t.data_fim || t.prazo || '').slice(0,10)" @change="updateTaskField(t.id, 'data_fim', $event.target.value)" class="cu-table__input-date">
+                          </td>
+                          <td class="cu-table__td" @click.stop>
+                            <select :value="t.prioridade || 'normal'" @change="updateTaskField(t.id, 'prioridade', $event.target.value)" class="cu-table__select"
+                                    :style="'color:' + (t.prioridade==='urgente' ? '#dc2626' : t.prioridade==='alta' ? '#ea580c' : '#64748b')">
+                              <option value="urgente">Urgente</option>
+                              <option value="alta">Alta</option>
+                              <option value="normal">Normal</option>
+                              <option value="baixa">Baixa</option>
+                            </select>
+                          </td>
+                          <td class="cu-table__td" @click.stop>
+                            <input type="number" :value="t.points || ''" @change="updateTaskField(t.id, 'points', parseInt($event.target.value) || null)" class="cu-table__input-num" min="0" max="100" placeholder="-">
+                          </td>
+                          <td class="cu-table__td" @click.stop>
+                            <select :value="t.tipo || 'geral'" @change="updateTaskField(t.id, 'tipo', $event.target.value)" class="cu-table__select">
+                              <option value="geral">Geral</option>
+                              <option value="dossie">Dossie</option>
+                              <option value="mentorado">Mentorado</option>
+                              <option value="operacional">Operacional</option>
+                              <option value="bug">Bug</option>
+                            </select>
+                          </td>
+                          <td class="cu-table__td" style="font-size:11px;color:#64748b" x-text="t.mentorado_nome || '-'"></td>
+                          <template x-for="cf in visibleCustomFields()" :key="cf.field_id || cf.id">
+                            <td class="cu-table__td" @click.stop style="font-size:11px;color:#64748b"
+                                x-text="getTaskFieldValue(t.id, cf.field_id || cf.id) || '-'"></td>
+                          </template>
+                          <td class="cu-table__td"></td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+                <div x-show="!data.tasks.length" style="text-align:center;padding:40px;color:var(--text-secondary)">
+                  <p>Nenhuma tarefa encontrada.</p>
+                </div>
+              </div>
+
+              <!-- CALENDAR VIEW -->
+              <!-- CALENDAR VIEW v2 — CSS-driven (CU-01.5) -->
+              <div class="cu-cal" x-show="ui.taskView === 'calendar'">
+                <div class="cu-cal__nav">
+                  <button class="cu-cal__nav-btn" @click="calNavMonth(-1)">&lt;</button>
+                  <h3 class="cu-cal__month" x-text="calMonthLabel()"></h3>
+                  <button class="cu-cal__nav-btn" @click="calNavMonth(1)">&gt;</button>
+                  <button class="cu-cal__today-btn" @click="ui.calYear = new Date().getFullYear(); ui.calMonth = new Date().getMonth()">Hoje</button>
+                </div>
+                <div class="cu-cal__weekdays">
+                  <template x-for="d in ['Dom','Seg','Ter','Qua','Qui','Sex','Sab']">
+                    <div class="cu-cal__weekday" x-text="d"></div>
+                  </template>
+                </div>
+                <div class="cu-cal__grid">
+                  <template x-for="cell in calCells()" :key="cell.key">
+                    <div class="cu-cal__cell" :class="{ 'cu-cal__cell--today': cell.isToday, 'cu-cal__cell--other': !cell.inMonth }"
+                         @dragover.prevent @drop.prevent="calDropTask($event, cell.date)">
+                      <div class="cu-cal__day"><span :class="{ 'cu-cal__day--today': cell.isToday }" x-text="cell.day"></span></div>
+                      <template x-for="t in calTasksForDate(cell.date)" :key="t.id">
+                        <div class="cu-cal__task" :class="'cu-cal__task--' + (t.prioridade || 'normal') + (t.status === 'concluida' ? ' cu-cal__task--done' : '')"
+                             draggable="true" @dragstart="onDragStart($event, t.id)" @click="openTaskDetail(t.id)">
+                          <span x-text="t.titulo?.substring(0, 28)"></span>
+                        </div>
+                      </template>
+                      <div x-show="calAllTasksForDate(cell.date).length > 5" class="cu-cal__more"
+                           x-text="'+' + (calAllTasksForDate(cell.date).length - 5) + ' mais'"></div>
+                    </div>
+                  </template>
+                </div>
               </div>
 
               <!-- GANTT VIEW -->
+              <!-- GANTT VIEW v2 (CU-02.6) -->
               <div class="gantt-view" x-show="ui.taskView === 'gantt'">
-                <div class="gantt-controls">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
                   <div class="view-toggle">
                     <button class="view-toggle__btn" :class="{ active: ui.taskGanttRange === 'week' }" @click="ui.taskGanttRange = 'week'">Semana</button>
                     <button class="view-toggle__btn" :class="{ active: ui.taskGanttRange === 'month' }" @click="ui.taskGanttRange = 'month'">Mes</button>
                     <button class="view-toggle__btn" :class="{ active: ui.taskGanttRange === 'quarter' }" @click="ui.taskGanttRange = 'quarter'">Trimestre</button>
                   </div>
+                  <span style="font-size:11px;color:#94a3b8" x-text="ganttTasks.length + ' tarefas com datas'"></span>
                 </div>
-                <div class="gantt-chart">
+                <div class="gantt-chart" style="position:relative">
                   <!-- Day headers -->
                   <div class="gantt-header">
-                    <div class="gantt-header__label">Tarefa</div>
+                    <div class="gantt-header__label" style="font-size:11px">Tarefa</div>
                     <div class="gantt-header__timeline">
                       <template x-for="(dh, dhi) in ganttDayHeaders()" :key="dhi">
                         <div class="gantt-header__day" :class="{ 'gantt-header__day--today': dh.isToday, 'gantt-header__day--weekend': dh.isWeekend }" x-text="dh.label"></div>
@@ -4041,30 +4463,394 @@
                     </div>
                   </div>
                   <!-- Task rows -->
-                  <template x-for="t in ganttTasks" :key="t.id">
-                    <div class="gantt-row" @click="openTaskDetail(t.id)">
-                      <div class="gantt-row__label">
-                        <span class="gantt-row__title" x-text="t.titulo"></span>
-                        <span class="gantt-row__assignee" x-text="t.responsavel"></span>
+                  <template x-for="(t, ti) in ganttTasks" :key="t.id">
+                    <div class="gantt-row" @click="openTaskDetail(t.id)" style="position:relative">
+                      <div class="gantt-row__label" style="display:flex;align-items:center;gap:6px">
+                        <span style="width:6px;height:6px;border-radius:50%;flex-shrink:0"
+                              :style="'background:' + (t.status==='concluida' ? '#22c55e' : t.status==='em_andamento' ? '#3b82f6' : '#94a3b8')"></span>
+                        <span class="gantt-row__title" x-text="t.titulo" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+                        <span x-show="t.responsavel" class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel)" x-text="avatarInitials(t.responsavel)" style="width:20px;height:20px;font-size:8px;flex-shrink:0"></span>
                       </div>
                       <div class="gantt-row__timeline">
-                        <div class="gantt-bar" :style="ganttBarStyle(t)" :title="t.titulo">
-                          <span class="gantt-bar__text" x-text="t.titulo.length > 20 ? t.titulo.substring(0,20) + '...' : t.titulo"></span>
+                        <div class="gantt-bar" :style="ganttBarStyle(t)" :title="t.titulo + ' (' + (t.data_inicio || '?') + ' → ' + (t.data_fim || t.prazo || '?') + ')'">
+                          <span class="gantt-bar__text" x-text="t.titulo.length > 15 ? t.titulo.substring(0,15) + '…' : t.titulo"></span>
                         </div>
-                        <!-- Today line -->
+                        <!-- Dependency arrow: if this task has parent_task_id and parent is also in ganttTasks -->
+                        <template x-if="t.parent_task_id && ganttTasks.find(p => p.id === t.parent_task_id)">
+                          <svg style="position:absolute;top:0;left:200px;width:calc(100% - 200px);height:100%;pointer-events:none;overflow:visible">
+                            <line x1="0" :y1="14" x2="20" :y2="14" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="4 2" marker-end="url(#arrowhead)"/>
+                          </svg>
+                        </template>
+                        <!-- Gridlines -->
                         <template x-for="(dh, dhi) in ganttDayHeaders()" :key="'grid'+dhi">
                           <div class="gantt-row__gridline" :class="{ 'gantt-row__gridline--today': dh.isToday }" :style="'left:' + (dhi / ganttDayHeaders().length * 100) + '%'"></div>
                         </template>
                       </div>
                     </div>
                   </template>
+                  <!-- SVG arrowhead definition -->
+                  <svg style="position:absolute;width:0;height:0">
+                    <defs><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#6366f1"/></marker></defs>
+                  </svg>
                   <div class="empty-state" x-show="!ganttTasks.length" style="padding:40px"><p>Nenhuma tarefa com datas para exibir no Gantt.</p></div>
+                </div>
+              </div>
+
+              <!-- FORM VIEW (Dragon 6) -->
+              <div x-show="ui.taskView === 'form'" style="max-width:600px;margin:0 auto;padding:20px 0">
+                <div style="background:#fff;border:1px solid #e8e5de;border-radius:12px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,.04)">
+                  <h3 style="margin:0 0 4px;font-size:16px;font-weight:700">Nova Tarefa</h3>
+                  <p style="margin:0 0 20px;font-size:12px;color:#94a3b8">Preencha o formulario para criar uma tarefa.</p>
+                  <div x-data="{ formData: { titulo: '', descricao: '', prioridade: 'normal', responsavel: '', data_fim: '', mentorado_nome: '' } }">
+                    <template x-for="field in formViewFields" :key="field.key">
+                      <div style="margin-bottom:14px">
+                        <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:4px">
+                          <span x-text="field.label"></span>
+                          <span x-show="field.required" style="color:#dc2626">*</span>
+                        </label>
+                        <template x-if="field.type === 'text'">
+                          <input type="text" x-model="formData[field.key]" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box" @focus="$el.style.borderColor='#8a7d52'" @blur="$el.style.borderColor='#e2e8f0'">
+                        </template>
+                        <template x-if="field.type === 'textarea'">
+                          <textarea x-model="formData[field.key]" rows="3" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box;resize:vertical;font-family:inherit" @focus="$el.style.borderColor='#8a7d52'" @blur="$el.style.borderColor='#e2e8f0'"></textarea>
+                        </template>
+                        <template x-if="field.type === 'date'">
+                          <input type="date" x-model="formData[field.key]" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box">
+                        </template>
+                        <template x-if="field.type === 'select'">
+                          <select x-model="formData[field.key]" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box">
+                            <option value="">Selecionar...</option>
+                            <template x-for="opt in field.options" :key="opt"><option :value="opt" x-text="opt"></option></template>
+                          </select>
+                        </template>
+                      </div>
+                    </template>
+                    <button @click="submitFormView(formData).then(ok => { if(ok) formData = { titulo:'', descricao:'', prioridade:'normal', responsavel:'', data_fim:'', mentorado_nome:'' } })"
+                            class="btn btn--brand" style="width:100%;padding:10px;font-size:14px" :disabled="!formData.titulo?.trim()">Criar Tarefa</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- WORKLOAD VIEW (Dragon 7) -->
+              <div x-show="ui.taskView === 'workload'" style="padding:12px 0">
+                <h3 style="margin:0 0 16px;font-size:15px;font-weight:700">Carga de Trabalho por Membro</h3>
+                <div style="display:flex;flex-direction:column;gap:12px">
+                  <template x-for="w in workloadData" :key="w.name">
+                    <div style="background:#fff;border:1px solid #e8e5de;border-radius:10px;padding:14px 16px">
+                      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+                        <span class="avatar avatar--sm" :style="'background:' + w.color" x-text="w.name.substring(0,2).toUpperCase()" style="width:32px;height:32px;font-size:11px;flex-shrink:0"></span>
+                        <div style="flex:1">
+                          <div style="font-size:14px;font-weight:600" x-text="w.name"></div>
+                          <div style="font-size:11px;color:#94a3b8" x-text="w.count + ' tarefas pendentes' + (w.overdue ? ' (' + w.overdue + ' atrasadas)' : '')"></div>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center">
+                          <span x-show="w.points" style="font-size:11px;font-weight:600;color:#6366f1;background:#eff6ff;padding:2px 8px;border-radius:10px" x-text="w.points + ' pts'"></span>
+                          <span x-show="w.estimate" style="font-size:11px;color:#64748b" x-text="Math.round(w.estimate/60) + 'h'"></span>
+                        </div>
+                      </div>
+                      <!-- Capacity bar -->
+                      <div style="height:8px;background:#f1f5f9;border-radius:4px;overflow:hidden;margin-bottom:6px">
+                        <div style="height:100%;border-radius:4px;transition:width .3s"
+                             :style="'width:' + Math.min(100, w.count * 5) + '%;background:' + (w.count > 15 ? '#dc2626' : w.count > 10 ? '#f59e0b' : '#22c55e')"></div>
+                      </div>
+                      <!-- Priority breakdown -->
+                      <div style="display:flex;gap:6px">
+                        <span x-show="w.byPrio.urgente" style="font-size:10px;padding:1px 6px;border-radius:3px;background:#fee2e2;color:#dc2626;font-weight:600" x-text="w.byPrio.urgente + ' urgente'"></span>
+                        <span x-show="w.byPrio.alta" style="font-size:10px;padding:1px 6px;border-radius:3px;background:#ffedd5;color:#ea580c;font-weight:600" x-text="w.byPrio.alta + ' alta'"></span>
+                        <span x-show="w.byPrio.normal" style="font-size:10px;padding:1px 6px;border-radius:3px;background:#f1f5f9;color:#64748b" x-text="w.byPrio.normal + ' normal'"></span>
+                      </div>
+                    </div>
+                  </template>
+                  <div x-show="!workloadData.length" style="text-align:center;padding:40px;color:#94a3b8">Nenhum membro da equipe encontrado.</div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- ACTIVITY TIMELINE MODAL (Dragon 22) -->
+          <div x-show="activityTimelineOpen" x-transition.opacity class="cu-modal-overlay" @click.self="activityTimelineOpen = false">
+            <div @click.stop class="cu-modal-box cu-modal-box--lg">
+              <div class="cu-modal-header">
+                <h3>Timeline de Atividades</h3>
+                <button @click="activityTimelineOpen = false" class="cu-modal-close">&times;</button>
+              </div>
+              <div class="cu-modal-body" style="max-height:70vh;overflow-y:auto">
+                <template x-for="group in activityByDay" :key="group.day">
+                  <div style="margin-bottom:16px">
+                    <div style="font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border,#e8e5de)" x-text="group.day"></div>
+                    <template x-for="a in group.items" :key="a.id">
+                      <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #f5f4f0">
+                        <span class="avatar avatar--sm" :style="'background:' + avatarGradient(a.actor || a.user_name || 'S')" x-text="avatarInitials(a.actor || a.user_name || 'Sistema')" style="width:28px;height:28px;font-size:10px;flex-shrink:0"></span>
+                        <div style="flex:1">
+                          <div style="font-size:12px"><strong x-text="a.actor || a.user_name || 'Sistema'"></strong> <span style="color:#94a3b8" x-text="a.action || 'atualizou'"></span> <span style="color:var(--text-primary)" x-text="a.task_title || a.details?.titulo || ''"></span></div>
+                          <div style="font-size:10px;color:#94a3b8;margin-top:2px" x-text="formatDateFull(a.created_at)"></div>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+                <div x-show="!activityTimeline.length" class="cu-empty">
+                  <p class="cu-empty__desc">Nenhuma atividade registrada</p>
                 </div>
               </div>
             </div>
           </div>
 
+          <!-- PRIORITY MATRIX / EISENHOWER (Dragon 38) -->
+          <div x-show="ui.taskView === 'matrix'" style="display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:12px;padding:8px 0;min-height:400px">
+            <div style="border:2px solid #fee2e2;border-radius:10px;padding:12px;background:#fffbfb">
+              <h4 style="margin:0 0 8px;font-size:12px;color:#dc2626;text-transform:uppercase;letter-spacing:.04em">Urgente + Importante</h4>
+              <template x-for="t in priorityMatrix.urgentImportant.slice(0,8)" :key="t.id">
+                <div style="font-size:11px;padding:4px 0;cursor:pointer;border-bottom:1px solid #fee2e2" @click="openTaskDetail(t.id)" x-text="t.titulo"></div>
+              </template>
+              <span x-show="!priorityMatrix.urgentImportant.length" style="font-size:11px;color:#94a3b8">Nenhuma</span>
+            </div>
+            <div style="border:2px solid #fef3c7;border-radius:10px;padding:12px;background:#fffef7">
+              <h4 style="margin:0 0 8px;font-size:12px;color:#d97706;text-transform:uppercase;letter-spacing:.04em">Importante, Nao Urgente</h4>
+              <template x-for="t in priorityMatrix.notUrgentImportant.slice(0,8)" :key="t.id">
+                <div style="font-size:11px;padding:4px 0;cursor:pointer;border-bottom:1px solid #fef3c7" @click="openTaskDetail(t.id)" x-text="t.titulo"></div>
+              </template>
+              <span x-show="!priorityMatrix.notUrgentImportant.length" style="font-size:11px;color:#94a3b8">Nenhuma</span>
+            </div>
+            <div style="border:2px solid #dbeafe;border-radius:10px;padding:12px;background:#f8faff">
+              <h4 style="margin:0 0 8px;font-size:12px;color:#3b82f6;text-transform:uppercase;letter-spacing:.04em">Urgente, Nao Importante</h4>
+              <template x-for="t in priorityMatrix.urgentNotImportant.slice(0,8)" :key="t.id">
+                <div style="font-size:11px;padding:4px 0;cursor:pointer;border-bottom:1px solid #dbeafe" @click="openTaskDetail(t.id)" x-text="t.titulo"></div>
+              </template>
+              <span x-show="!priorityMatrix.urgentNotImportant.length" style="font-size:11px;color:#94a3b8">Nenhuma</span>
+            </div>
+            <div style="border:2px solid #f1f0ec;border-radius:10px;padding:12px;background:#fafaf8">
+              <h4 style="margin:0 0 8px;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em">Nem Urgente, Nem Importante</h4>
+              <template x-for="t in priorityMatrix.notUrgentNotImportant.slice(0,8)" :key="t.id">
+                <div style="font-size:11px;padding:4px 0;cursor:pointer;border-bottom:1px solid #f1f0ec" @click="openTaskDetail(t.id)" x-text="t.titulo"></div>
+              </template>
+              <span x-show="!priorityMatrix.notUrgentNotImportant.length" style="font-size:11px;color:#94a3b8">Nenhuma</span>
+            </div>
+          </div>
+
           <!-- Task Detail Drawer (ClickUp-style 2-panel) -->
+          <!-- ===== AUTOMATIONS PANEL ===== -->
+          <div x-show="ui.automationsOpen" x-transition.opacity class="cu-modal-overlay" @click.self="ui.automationsOpen = false">
+            <div @click.stop class="cu-modal-box cu-modal-box--sm">
+              <div class="cu-modal-header">
+                <h3>Automacoes</h3>
+                <button @click="ui.automationsOpen = false" class="cu-modal-close">&times;</button>
+              </div>
+              <!-- Existing automations -->
+              <div style="padding:12px 20px">
+                <template x-for="auto in data.automations || []" :key="auto.id">
+                  <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #f1f5f9;border-radius:8px;margin-bottom:6px">
+                    <div style="position:relative;width:36px;height:20px;cursor:pointer;flex-shrink:0" @click="toggleAutomation(auto.id)">
+                      <div style="width:36px;height:20px;border-radius:10px;transition:background .2s" :style="auto.is_active ? 'background:#22c55e' : 'background:#d1d5db'"></div>
+                      <div style="position:absolute;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .2s" :style="auto.is_active ? 'left:18px' : 'left:2px'"></div>
+                    </div>
+                    <div style="flex:1;min-width:0">
+                      <div style="font-size:13px;font-weight:600" x-text="auto.name"></div>
+                      <div style="font-size:11px;color:#94a3b8">
+                        Quando <strong x-text="auto.trigger_type.replace(/_/g,' ')"></strong> → <strong x-text="auto.action_type.replace(/_/g,' ')"></strong>
+                        <span x-show="auto.execution_count" x-text="' (' + auto.execution_count + 'x)'"></span>
+                      </div>
+                    </div>
+                    <button @click="deleteAutomation(auto.id)" style="background:none;border:none;cursor:pointer;color:#d1d5db;padding:4px" @mouseenter="$el.style.color='#dc2626'" @mouseleave="$el.style.color='#d1d5db'">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                  </div>
+                </template>
+                <div x-show="!(data.automations||[]).length" style="text-align:center;padding:20px;color:#94a3b8;font-size:13px">Nenhuma automacao criada</div>
+              </div>
+              <!-- Create new -->
+              <div style="padding:12px 20px 20px;border-top:1px solid #f1f5f9">
+                <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;margin-bottom:8px">Nova automacao</div>
+                <input type="text" x-model="ui.autoForm.name" placeholder="Nome (ex: Auto-assign Kaique)" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;margin-bottom:8px;box-sizing:border-box">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+                  <div>
+                    <label style="font-size:10px;font-weight:600;color:#94a3b8;display:block;margin-bottom:3px">QUANDO</label>
+                    <select x-model="ui.autoForm.trigger_type" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px">
+                      <option value="status_changed">Status mudou</option>
+                      <option value="task_created">Task criada</option>
+                      <option value="assignee_changed">Responsavel mudou</option>
+                      <option value="priority_changed">Prioridade mudou</option>
+                      <option value="due_date_arrived">Data de vencimento chegou</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style="font-size:10px;font-weight:600;color:#94a3b8;display:block;margin-bottom:3px">ENTAO</label>
+                    <select x-model="ui.autoForm.action_type" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px">
+                      <option value="change_status">Mudar status</option>
+                      <option value="change_assignee">Atribuir responsavel</option>
+                      <option value="change_priority">Mudar prioridade</option>
+                      <option value="add_tag">Adicionar tag</option>
+                      <option value="send_notification">Enviar notificacao</option>
+                    </select>
+                  </div>
+                </div>
+                <!-- Action config based on type -->
+                <div style="margin-bottom:8px">
+                  <template x-if="ui.autoForm.action_type === 'change_status'">
+                    <select x-model="ui.autoForm.action_config.status" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px">
+                      <option value="pendente">Para: Pendente</option>
+                      <option value="em_andamento">Para: Em Andamento</option>
+                      <option value="concluida">Para: Concluida</option>
+                    </select>
+                  </template>
+                  <template x-if="ui.autoForm.action_type === 'change_assignee'">
+                    <select x-model="ui.autoForm.action_config.assignee" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px">
+                      <option value="">Selecionar...</option>
+                      <template x-for="m in data.members || []" :key="m.id"><option :value="m.nome_curto || m.name" x-text="m.nome_curto || m.name"></option></template>
+                    </select>
+                  </template>
+                  <template x-if="ui.autoForm.action_type === 'change_priority'">
+                    <select x-model="ui.autoForm.action_config.priority" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px">
+                      <option value="urgente">Para: Urgente</option>
+                      <option value="alta">Para: Alta</option>
+                      <option value="normal">Para: Normal</option>
+                      <option value="baixa">Para: Baixa</option>
+                    </select>
+                  </template>
+                  <template x-if="ui.autoForm.action_type === 'send_notification'">
+                    <input type="text" x-model="ui.autoForm.action_config.message" placeholder="Mensagem da notificacao" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;box-sizing:border-box">
+                  </template>
+                </div>
+                <button @click="saveAutomation({...ui.autoForm}); ui.autoForm = { name: '', trigger_type: 'status_changed', trigger_config: {}, condition_config: {}, action_type: 'change_status', action_config: {} }"
+                        class="btn btn--brand btn--sm" style="width:100%" :disabled="!ui.autoForm.name?.trim()">Criar automacao</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== DASHBOARD MODAL ===== -->
+          <div x-show="ui.dashboardOpen" x-transition.opacity class="cu-modal-overlay" @click.self="ui.dashboardOpen = false">
+            <div @click.stop class="cu-modal-box">
+              <div class="cu-modal-header">
+                <h3>Dashboard</h3>
+                <button @click="ui.dashboardOpen = false" class="cu-modal-close">&times;</button>
+              </div>
+              <div style="padding:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
+                <!-- KPI cards -->
+                <div style="padding:16px;background:#f8f7f4;border-radius:10px;text-align:center">
+                  <div style="font-size:28px;font-weight:700" x-text="dashboardStats.total"></div>
+                  <div style="font-size:11px;color:#94a3b8">Total</div>
+                </div>
+                <div style="padding:16px;background:#eff6ff;border-radius:10px;text-align:center">
+                  <div style="font-size:28px;font-weight:700;color:#2563eb" x-text="dashboardStats.inProgress"></div>
+                  <div style="font-size:11px;color:#2563eb">Em progresso</div>
+                </div>
+                <div style="padding:16px;background:#dcfce7;border-radius:10px;text-align:center">
+                  <div style="font-size:28px;font-weight:700;color:#16a34a" x-text="dashboardStats.done"></div>
+                  <div style="font-size:11px;color:#16a34a">Concluidas</div>
+                </div>
+                <div style="padding:16px;background:#fee2e2;border-radius:10px;text-align:center">
+                  <div style="font-size:28px;font-weight:700;color:#dc2626" x-text="dashboardStats.overdue"></div>
+                  <div style="font-size:11px;color:#dc2626">Atrasadas</div>
+                </div>
+                <div style="padding:16px;background:#fef3c7;border-radius:10px;text-align:center">
+                  <div style="font-size:28px;font-weight:700;color:#d97706" x-text="dashboardStats.recentDone"></div>
+                  <div style="font-size:11px;color:#d97706">Concluidas (7 dias)</div>
+                </div>
+              </div>
+              <!-- By assignee -->
+              <div style="padding:0 20px 16px">
+                <h4 style="font-size:13px;font-weight:700;color:#475569;margin:16px 0 8px">Por responsavel (pendentes)</h4>
+                <template x-for="[name, count] in dashboardStats.byAssignee" :key="name">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                    <span class="avatar avatar--sm" :style="'background:' + avatarGradient(name)" x-text="avatarInitials(name)" style="width:24px;height:24px;font-size:9px;flex-shrink:0"></span>
+                    <span style="font-size:12px;flex:1" x-text="name"></span>
+                    <div style="flex:2;height:8px;background:#f1f5f9;border-radius:4px;overflow:hidden">
+                      <div style="height:100%;background:#6366f1;border-radius:4px;transition:width .3s" :style="'width:' + Math.min(100, count / Math.max(...dashboardStats.byAssignee.map(a=>a[1])) * 100) + '%'"></div>
+                    </div>
+                    <span style="font-size:12px;font-weight:600;color:#475569;min-width:30px;text-align:right" x-text="count"></span>
+                  </div>
+                </template>
+              </div>
+              <!-- By priority -->
+              <div style="padding:0 20px 20px">
+                <h4 style="font-size:13px;font-weight:700;color:#475569;margin:0 0 8px">Por prioridade (pendentes)</h4>
+                <div style="display:flex;gap:8px">
+                  <template x-for="[prio, color] in [['urgente','#dc2626'],['alta','#ea580c'],['normal','#64748b'],['baixa','#94a3b8']]" :key="prio">
+                    <div style="flex:1;padding:10px;border-radius:8px;text-align:center" :style="'background:' + color + '11'">
+                      <div style="font-size:20px;font-weight:700" :style="'color:' + color" x-text="dashboardStats.byPriority[prio]"></div>
+                      <div style="font-size:10px;text-transform:capitalize" :style="'color:' + color" x-text="prio"></div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== CUSTOM FIELDS MODAL (CU-02.3) ===== -->
+          <div x-show="ui.fieldsModalOpen" x-transition.opacity class="cu-modal-overlay cu-modal-overlay--top" @click.self="ui.fieldsModalOpen = false">
+            <div @click.stop class="cu-modal-box cu-modal-box--sm" style="width:400px">
+              <!-- Header -->
+              <div class="cu-modal-header">
+                <h3>Campos</h3>
+                <button @click="ui.fieldsModalOpen = false" class="cu-modal-close">&times;</button>
+              </div>
+              <!-- Search -->
+              <div style="padding:12px 20px 8px">
+                <input type="text" placeholder="Pesquise campos novos ou existentes" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box" @focus="$el.style.borderColor='#8a7d52'" @blur="$el.style.borderColor='#e2e8f0'">
+              </div>
+              <!-- Tabs -->
+              <div style="display:flex;gap:0;padding:0 20px;border-bottom:1px solid #e8e5de">
+                <button @click="ui.fieldsModalTab = 'create'" style="padding:8px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent"
+                        :style="ui.fieldsModalTab === 'create' ? 'border-color:#1e293b;color:#1e293b' : 'color:#94a3b8'">Criar novo</button>
+                <button @click="ui.fieldsModalTab = 'add'" style="padding:8px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent"
+                        :style="ui.fieldsModalTab === 'add' ? 'border-color:#1e293b;color:#1e293b' : 'color:#94a3b8'">Adicionar um existente</button>
+              </div>
+              <!-- Tab: Create New -->
+              <div x-show="ui.fieldsModalTab === 'create'" style="padding:12px 20px 20px">
+                <div style="margin-bottom:12px">
+                  <input type="text" x-model="ui.newFieldName" placeholder="Nome do campo" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box;margin-bottom:8px">
+                  <select x-model="ui.newFieldType" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box">
+                    <option value="text">Texto</option>
+                    <option value="number">Numero</option>
+                    <option value="date">Data</option>
+                    <option value="select">Lista suspensa</option>
+                    <option value="multi_select">Rotulos (multi-select)</option>
+                    <option value="checkbox">Caixa de selecao</option>
+                    <option value="url">Site / URL</option>
+                    <option value="rating">Avaliacao</option>
+                    <option value="progress">Progresso (manual)</option>
+                    <option value="user">Pessoas</option>
+                  </select>
+                </div>
+                <button @click="createCustomField()" class="btn btn--brand btn--sm" style="width:100%" :disabled="!ui.newFieldName?.trim()">Criar campo</button>
+                <div style="margin-top:16px;font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Sugeridos</div>
+                <div style="display:flex;flex-direction:column;gap:4px">
+                  <template x-for="s in [{n:'Objetivo do Sprint',t:'text',i:'🎯'},{n:'Feedback do Cliente',t:'text',i:'💬'},{n:'Data de Revisao',t:'date',i:'📅'},{n:'Esforco',t:'select',i:'💪'},{n:'Hub Task ID',t:'text',i:'🔗'}]" :key="s.n">
+                    <button @click="ui.newFieldName = s.n; ui.newFieldType = s.t" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:none;background:none;cursor:pointer;border-radius:6px;font-size:13px;text-align:left;width:100%"
+                            @mouseenter="$el.style.background='#f8f7f4'" @mouseleave="$el.style.background='none'">
+                      <span x-text="s.i"></span>
+                      <span x-text="s.n"></span>
+                    </button>
+                  </template>
+                </div>
+              </div>
+              <!-- Tab: Add Existing (show/hide toggle) -->
+              <div x-show="ui.fieldsModalTab === 'add'" style="padding:12px 20px 20px">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                  <span style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase">Mostrados</span>
+                  <button @click="data.fieldDefs.forEach(f => { ui.visibleFieldIds = {...ui.visibleFieldIds, [f.field_id || f.id]: false} })" style="font-size:11px;color:#94a3b8;background:none;border:none;cursor:pointer">Ocultar tudo</button>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:2px">
+                  <template x-for="f in (data.fieldDefs || [])" :key="f.field_id || f.id">
+                    <label style="display:flex;align-items:center;justify-content:space-between;padding:8px 4px;cursor:pointer;border-radius:6px"
+                           @mouseenter="$el.style.background='#f8f7f4'" @mouseleave="$el.style.background='none'">
+                      <div style="display:flex;align-items:center;gap:8px;font-size:13px">
+                        <span style="font-size:14px" x-text="{'text':'Aa','number':'#','date':'📅','select':'📋','multi_select':'🏷','checkbox':'☑','url':'🔗','rating':'⭐','progress':'📊','user':'👤'}[f.field_type] || '📝'"></span>
+                        <span x-text="f.field_name || f.name"></span>
+                      </div>
+                      <div style="position:relative;width:36px;height:20px;cursor:pointer" @click="toggleFieldVisibility(f.field_id || f.id)">
+                        <div style="width:36px;height:20px;border-radius:10px;transition:background .2s" :style="ui.visibleFieldIds[f.field_id || f.id] ? 'background:#6366f1' : 'background:#d1d5db'"></div>
+                        <div style="position:absolute;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .2s" :style="ui.visibleFieldIds[f.field_id || f.id] ? 'left:18px' : 'left:2px'"></div>
+                      </div>
+                    </label>
+                  </template>
+                  <div x-show="!(data.fieldDefs || []).length" style="text-align:center;padding:20px;color:#94a3b8;font-size:13px">Nenhum campo criado ainda</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="op-drawer-overlay" x-show="ui.taskDetailDrawer" x-transition.opacity @click.self="closeTaskDetail()"
                style="display:flex;align-items:center;justify-content:center">
             <div x-show="ui.taskDetailDrawer" x-transition:enter="slide-in" @click.stop
@@ -4092,8 +4878,36 @@
                         <option value="">Sem sprint</option>
                         <template x-for="sp in data.sprints" :key="sp.id"><option :value="sp.id" x-text="sp.nome"></option></template>
                       </select>
+                      <!-- Recurrence (Dragon 18) -->
+                      <select style="font-size:11px;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;cursor:pointer;padding:2px 6px;border-radius:4px;margin-left:4px" x-model="activeTaskDetail.recurrence_rule" @change="updateTaskField(activeTaskDetail.id, 'recurrence_rule', activeTaskDetail.recurrence_rule || null)">
+                        <option value="">Sem recorrencia</option>
+                        <option value="daily">Diaria</option>
+                        <option value="weekly">Semanal</option>
+                        <option value="monthly">Mensal</option>
+                      </select>
                     </div>
                     <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+                      <!-- Favorite (Dragon 24) -->
+                      <button @click="toggleFavorite(activeTaskDetail.id)" :title="isFavorite(activeTaskDetail.id) ? 'Remover favorito' : 'Favoritar'" style="padding:6px;border-radius:6px;border:none;background:none;cursor:pointer;transition:background .1s" :style="isFavorite(activeTaskDetail.id) ? 'color:#eab308' : 'color:#64748b'" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'">
+                        <svg width="14" height="14" viewBox="0 0 24 24" :fill="isFavorite(activeTaskDetail.id) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                      </button>
+                      <!-- Duplicate (Dragon 28) -->
+                      <button @click="duplicateTask(activeTaskDetail.id)" title="Duplicar" style="padding:6px;border-radius:6px;border:none;background:none;cursor:pointer;color:#64748b;transition:background .1s" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                      </button>
+                      <!-- Time Tracker (Dragon 20) -->
+                      <button x-show="timeTracker.taskId !== activeTaskDetail.id" @click="startTimeTracker(activeTaskDetail.id)" title="Iniciar timer" style="padding:6px;border-radius:6px;border:none;background:none;cursor:pointer;color:#64748b;transition:background .1s" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                      </button>
+                      <button x-show="timeTracker.taskId === activeTaskDetail.id" @click="const r = stopTimeTracker(); saveTimeEntry(r.taskId, r.elapsed)" title="Parar timer" style="padding:4px 8px;border-radius:6px;border:none;background:#fee2e2;cursor:pointer;color:#dc2626;font-size:11px;font-weight:600;display:flex;align-items:center;gap:4px">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                        <span x-text="formatDuration(timeTracker.elapsed)"></span>
+                      </button>
+                      <!-- Watch (Dragon 23) -->
+                      <button @click="toggleWatcher(activeTaskDetail.id)" :title="isWatching(activeTaskDetail.id) ? 'Parar de acompanhar' : 'Acompanhar'" style="padding:6px;border-radius:6px;border:none;background:none;cursor:pointer;transition:background .1s" :style="isWatching(activeTaskDetail.id) ? 'color:#3b82f6' : 'color:#64748b'" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'">
+                        <svg width="14" height="14" viewBox="0 0 24 24" :fill="isWatching(activeTaskDetail.id) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      </button>
+                      <!-- Copy link -->
                       <button @click="copyTaskLink(activeTaskDetail.id)" title="Copiar link" style="padding:6px;border-radius:6px;border:none;background:none;cursor:pointer;color:#64748b;transition:background .1s" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                       </button>
@@ -4174,7 +4988,25 @@
                             <option value="baixa" :selected="activeTaskDetail.prioridade === 'baixa'">Baixa</option>
                           </select>
                         </div>
-                        <!-- Row 3: Etiquetas -->
+                        <!-- Row 3: Estimativa de tempo | Pontos do Sprint -->
+                        <div style="padding:var(--sp-3) var(--sp-4);background:var(--cream-50);color:var(--neutral-500);font-weight:var(--fw-medium);border-bottom:1px solid var(--neutral-200);display:flex;align-items:center;gap:var(--sp-2)">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Estimativa de tempo
+                        </div>
+                        <div style="padding:var(--sp-2) var(--sp-4);border-bottom:1px solid var(--neutral-200);display:flex;align-items:center;gap:4px;font-size:var(--text-sm)">
+                          <input type="number" min="0" placeholder="min" :value="activeTaskDetail.time_estimate || ''"
+                                 @change="let v = parseInt($event.target.value) || null; activeTaskDetail.time_estimate = v; if(typeof sb !== 'undefined' && sb) sb.from('god_tasks').update({time_estimate: v}).eq('id', activeTaskDetail.id)"
+                                 style="width:60px;padding:4px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;outline:none;background:#fafaf8">
+                          <span style="color:#94a3b8;font-size:11px">min</span>
+                        </div>
+                        <div style="padding:var(--sp-3) var(--sp-4);background:var(--cream-50);color:var(--neutral-500);font-weight:var(--fw-medium);border-bottom:1px solid var(--neutral-200);display:flex;align-items:center;gap:var(--sp-2)">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Pontos do Sprint
+                        </div>
+                        <div style="padding:var(--sp-2) var(--sp-4);border-bottom:1px solid var(--neutral-200);display:flex;align-items:center">
+                          <input type="number" min="0" placeholder="pts" :value="activeTaskDetail.points || ''"
+                                 @change="let v = parseInt($event.target.value) || null; activeTaskDetail.points = v; if(typeof sb !== 'undefined' && sb) sb.from('god_tasks').update({points: v}).eq('id', activeTaskDetail.id)"
+                                 style="width:60px;padding:4px 8px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;outline:none;background:#fafaf8">
+                        </div>
+                        <!-- Row 4: Etiquetas -->
                         <div style="padding:10px 14px;background:#fafaf8;color:#64748b;font-weight:500;display:flex;align-items:center;gap:6px">
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg> Etiquetas
                         </div>
@@ -4239,7 +5071,7 @@
                           <template x-for="field in data.fieldDefs" :key="field.field_id">
                             <template x-if="true">
                               <div style="display:contents">
-                                <div style="color:#64748b;font-weight:500;padding:6px 0" x-text="field.name"></div>
+                                <div style="color:#64748b;font-weight:500;padding:6px 0" x-text="field.field_name || field.name"></div>
                                 <div style="padding:6px 0">
                                   <!-- URL field -->
                                   <template x-if="field.field_type === 'url'">
@@ -4313,23 +5145,46 @@
                         </h4>
                         <div class="task-drawer__subtasks">
                           <template x-for="(st, si) in activeTaskDetail.subtasks || []" :key="si">
-                            <div style="margin-bottom:4px;padding:8px 10px;border:1px solid var(--neutral-100, #f1f5f9);border-radius:8px;background:#fafaf8;transition:border-color .15s"
-                                 @mouseover="$el.style.borderColor='var(--neutral-300, #cbd5e1)'" @mouseout="$el.style.borderColor='var(--neutral-100, #f1f5f9)'">
+                            <div style="margin-bottom:4px;padding:8px 10px;border:1px solid var(--neutral-100, #f1f5f9);border-radius:8px;background:#fafaf8;transition:border-color .15s;cursor:pointer"
+                                 @mouseover="$el.style.borderColor='var(--neutral-300, #cbd5e1)'" @mouseout="$el.style.borderColor='var(--neutral-100, #f1f5f9)'"
+                                 @click="ui.subtaskExpanded = ui.subtaskExpanded === si ? null : si">
+                              <!-- Main row -->
                               <div style="display:flex;align-items:center;gap:8px">
-                                <input type="checkbox" :checked="st.done" @change="toggleSubtask(activeTaskDetail.id, si)" style="width:15px;height:15px;flex-shrink:0;cursor:pointer;accent-color:#2d4a3e;border-radius:4px">
+                                <input type="checkbox" :checked="st.done" @click.stop @change="toggleSubtask(activeTaskDetail.id, si)" style="width:15px;height:15px;flex-shrink:0;cursor:pointer;accent-color:#2d4a3e">
                                 <span :class="{ 'line-through': st.done }" :style="st.done ? 'color:#94a3b8' : 'color:#1e293b'" style="flex:1;font-size:13px" x-text="st.text"></span>
+                                <span x-show="st.responsavel" class="avatar avatar--sm" :style="'background:' + avatarGradient(st.responsavel)" x-text="avatarInitials(st.responsavel)" style="width:20px;height:20px;font-size:8px;flex-shrink:0"></span>
                                 <span style="font-size:10px;padding:2px 6px;border-radius:4px;font-weight:500"
-                                  :style="st.status==='concluida' ? 'background:#dcfce7;color:#166534' : st.status==='bloqueada' ? 'background:#fee2e2;color:#991b1b' : st.status==='em_andamento' ? 'background:#dbeafe;color:#1e40af' : 'background:#f1f5f9;color:#64748b'"
+                                  :style="st.status==='concluida' ? 'background:#dcfce7;color:#166534' : st.status==='em_andamento' ? 'background:#dbeafe;color:#1e40af' : 'background:#f1f5f9;color:#64748b'"
                                   x-text="st.status || 'pendente'"></span>
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" style="flex-shrink:0;transition:transform .15s"
+                                     :style="ui.subtaskExpanded === si ? 'transform:rotate(180deg)' : ''"><polyline points="6 9 12 15 18 9"/></svg>
                               </div>
-                              <div x-show="st.responsavel || st.data_inicio || st.data_fim || (st.prioridade && st.prioridade !== 'normal')" style="display:flex;gap:8px;flex-wrap:wrap;font-size:11px;color:#94a3b8;margin-top:4px;padding-left:23px">
-                                <span x-show="st.responsavel" style="display:flex;align-items:center;gap:3px">
-                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                                  <span x-text="st.responsavel"></span>
-                                </span>
-                                <span x-show="st.data_inicio" x-text="st.data_inicio"></span>
-                                <span x-show="st.data_fim" x-text="st.data_fim"></span>
-                                <span x-show="st.prioridade && st.prioridade !== 'normal'" style="padding:1px 5px;border-radius:4px;background:#fef3c7;color:#92400e" x-text="st.prioridade"></span>
+                              <!-- Expanded: editable fields -->
+                              <div x-show="ui.subtaskExpanded === si" @click.stop style="margin-top:8px;padding-top:8px;border-top:1px solid #f1f5f9;display:grid;grid-template-columns:100px 1fr;gap:6px 8px;font-size:12px">
+                                <span style="color:#94a3b8;font-weight:500">Responsavel</span>
+                                <select :value="st.responsavel || ''" @change="st.responsavel = $event.target.value; _sbSyncSubtasks(activeTaskDetail.id, activeTaskDetail.subtasks)"
+                                        style="padding:3px 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:11px;background:#fff">
+                                  <option value="">—</option>
+                                  <template x-for="m in data.members || []" :key="m.id"><option :value="m.nome_curto || m.name" x-text="m.nome_curto || m.name"></option></template>
+                                </select>
+                                <span style="color:#94a3b8;font-weight:500">Status</span>
+                                <select :value="st.status || 'pendente'" @change="st.status = $event.target.value; st.done = ($event.target.value === 'concluida'); _sbSyncSubtasks(activeTaskDetail.id, activeTaskDetail.subtasks)"
+                                        style="padding:3px 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:11px;background:#fff">
+                                  <option value="pendente">Pendente</option>
+                                  <option value="em_andamento">Em Andamento</option>
+                                  <option value="concluida">Concluida</option>
+                                </select>
+                                <span style="color:#94a3b8;font-weight:500">Data fim</span>
+                                <input type="date" :value="st.data_fim || ''" @change="st.data_fim = $event.target.value; _sbSyncSubtasks(activeTaskDetail.id, activeTaskDetail.subtasks)"
+                                       style="padding:3px 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:11px;background:#fff">
+                                <span style="color:#94a3b8;font-weight:500">Prioridade</span>
+                                <select :value="st.prioridade || 'normal'" @change="st.prioridade = $event.target.value; _sbSyncSubtasks(activeTaskDetail.id, activeTaskDetail.subtasks)"
+                                        style="padding:3px 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:11px;background:#fff">
+                                  <option value="normal">Normal</option>
+                                  <option value="alta">Alta</option>
+                                  <option value="urgente">Urgente</option>
+                                  <option value="baixa">Baixa</option>
+                                </select>
                               </div>
                             </div>
                           </template>
@@ -4427,6 +5282,14 @@
                         </template>
                       </div>
 
+                      <!-- Add dependency link -->
+                      <div style="display:flex;align-items:center;gap:6px;margin-bottom:24px;padding:8px 12px;border:1px dashed #e2e8f0;border-radius:8px;cursor:pointer;color:#94a3b8;font-size:12px;transition:border-color .15s,color .15s"
+                           @click="toast('Vincular dependencias: em desenvolvimento', 'info')"
+                           @mouseenter="$el.style.borderColor='#6366f1';$el.style.color='#6366f1'" @mouseleave="$el.style.borderColor='#e2e8f0';$el.style.color='#94a3b8'">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                        Vincular itens ou adicionar dependencias
+                      </div>
+
                       <!-- Bottom action links -->
                       <div style="display:flex;flex-wrap:wrap;gap:10px;padding-top:16px;border-top:1px solid var(--neutral-100, #f1f5f9)">
                         <button @click="$refs.drawerSubtaskInput && $refs.drawerSubtaskInput.focus()"
@@ -4513,6 +5376,13 @@
                               </button>
                             </div>
                             <div class="task-drawer__comment-text" x-html="renderCommentText(cm.text)" style="font-size:13px;color:#475569;line-height:1.55"></div>
+                            <!-- Action Item from Comment (Dragon 34/51) -->
+                            <button @click.stop="createActionFromComment(activeTaskDetail.id, cm.text, cm.author)" title="Criar item de acao"
+                                    style="display:inline-flex;align-items:center;gap:4px;margin-top:4px;padding:3px 8px;font-size:10px;color:#6366f1;background:#eff6ff;border:1px solid #dbeafe;border-radius:6px;cursor:pointer;opacity:.6;transition:opacity .15s"
+                                    @mouseover="$el.style.opacity='1'" @mouseout="$el.style.opacity='.6'">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                              Criar acao
+                            </button>
                             <!-- Reactions + Reply -->
                             <div style="display:flex;align-items:center;gap:4px;margin-top:8px;padding-top:6px;border-top:1px solid #f8fafc">
                               <!-- Existing reactions -->
@@ -10814,7 +11684,39 @@
 
   </div>
 
+  <!-- COMMAND PALETTE (Dragon 25) — Cmd+K -->
+  <div x-show="cmdPalette" x-transition.opacity class="cu-modal-overlay" style="z-index:9999;background:rgba(0,0,0,.5)" @click.self="cmdPalette = false">
+    <div @click.stop class="cu-cmd-palette">
+      <div class="cu-cmd-palette__input-wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="cmd-palette-input" type="text" x-model="cmdQuery" @keydown="cmdKeyDown($event)"
+               placeholder="Buscar tarefas, navegar, executar acao..." autocomplete="off"
+               class="cu-cmd-palette__input">
+        <kbd class="cu-cmd-palette__kbd">ESC</kbd>
+      </div>
+      <div class="cu-cmd-palette__results" x-show="cmdResults.length > 0">
+        <template x-for="(r, i) in cmdResults" :key="i">
+          <div class="cu-cmd-palette__item" :class="{ 'cu-cmd-palette__item--active': cmdSelectedIdx === i }"
+               @click="cmdExec(i)" @mouseenter="cmdSelectedIdx = i">
+            <span x-text="r.icon" style="font-size:16px;flex-shrink:0"></span>
+            <div style="flex:1;min-width:0">
+              <div class="cu-cmd-palette__label" x-text="r.label"></div>
+              <div x-show="r.sublabel" class="cu-cmd-palette__sublabel" x-text="r.sublabel"></div>
+            </div>
+            <span x-show="r.sublabel && r.type==='action'" class="cu-cmd-palette__shortcut" x-text="r.sublabel"></span>
+          </div>
+        </template>
+      </div>
+      <div class="cu-cmd-palette__footer">
+        <span><kbd>↑↓</kbd> navegar</span>
+        <span><kbd>↵</kbd> selecionar</span>
+        <span><kbd>esc</kbd> fechar</span>
+      </div>
+    </div>
+  </div>
+
   <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.98.0/dist/umd/supabase.min.js" integrity="sha384-Sm2s7OXxsAMTyJ4iIyRBgVpeGUvMPk2lRQnnZhE78Wej7oggIoolKt+SCt0XJbUB" crossorigin="anonymous"></script>
   <script src="12-APP-data.js?v=73"></script>

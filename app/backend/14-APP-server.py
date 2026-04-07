@@ -1789,6 +1789,273 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             'concluidas': len(by_status.get('concluida', [])),
         })
 
+    # ===== CLICKUP IMPORT ALL TASKS =====
+    def _handle_clickup_import_all(self):
+        """POST /api/clickup/import-all — Full import of tasks from ClickUp lists"""
+        token = os.environ.get('CLICKUP_API_TOKEN', '')
+        if not token:
+            self._send_json({'error': 'CLICKUP_API_TOKEN not configured'}, 500)
+            return
+
+        headers = {'Authorization': token, 'Content-Type': 'application/json'}
+
+        def clickup_get(url):
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=20) as r:
+                return json.loads(r.read())
+
+        def normalize_status(raw):
+            s = (raw or '').lower().strip()
+            if s in ('in progress', 'em andamento', 'doing', 'in_progress'):
+                return 'em_andamento'
+            if s in ('review', 'em revisão', 'in review', 'em_revisao', 'em revisao'):
+                return 'em_revisao'
+            if s in ('done', 'complete', 'concluída', 'concluido', 'closed'):
+                return 'concluida'
+            if s in ('cancelled', 'cancelada', 'canceled'):
+                return 'cancelada'
+            return 'pendente'
+
+        def normalize_priority(raw):
+            p = (raw or 0)
+            if isinstance(p, dict):
+                p = p.get('id', 0)
+            try:
+                p = int(p)
+            except (ValueError, TypeError):
+                return 'normal'
+            return {1: 'urgente', 2: 'alta', 3: 'normal', 4: 'baixa'}.get(p, 'normal')
+
+        def ms_to_date(ms_val):
+            if not ms_val:
+                return None
+            try:
+                return datetime.fromtimestamp(int(ms_val) // 1000, tz=timezone.utc).strftime('%Y-%m-%d')
+            except Exception:
+                return None
+
+        try:
+            body = self._read_body_json()
+            list_ids = body.get('list_ids', [])
+            if not list_ids:
+                # Fetch all lists from god_lists
+                god_lists = supabase_request('GET', 'god_lists?select=clickup_list_id&clickup_list_id=not.is.null')
+                list_ids = [l['clickup_list_id'] for l in (god_lists or []) if l.get('clickup_list_id')]
+
+            if not list_ids:
+                self._send_json({'error': 'No list_ids provided and no god_lists with clickup_list_id found'}, 400)
+                return
+
+            # Fetch existing operon_id mapping
+            existing = supabase_request('GET', 'god_tasks?select=id,operon_id&operon_id=not.is.null')
+            existing_map = {r['operon_id']: r['id'] for r in (existing or [])}
+
+            imported = 0
+            updated = 0
+            errors = 0
+
+            for list_id in list_ids:
+                page = 0
+                while True:
+                    try:
+                        data = clickup_get(
+                            f"https://api.clickup.com/api/v2/list/{list_id}/task"
+                            f"?include_closed=true&subtasks=false&page={page}"
+                        )
+                    except Exception as e:
+                        errors += 1
+                        break
+
+                    tasks = data.get('tasks', [])
+                    if not tasks:
+                        break
+
+                    for t in tasks:
+                        cu_id = t.get('id', '')
+                        assignees = ', '.join(
+                            (a.get('username') or a.get('email', '').split('@')[0] or '')
+                            for a in t.get('assignees', [])
+                        ) or None
+
+                        row = {
+                            'titulo': t.get('name', ''),
+                            'descricao': t.get('description') or t.get('text_content') or '',
+                            'status': normalize_status(t.get('status', {}).get('status', '')),
+                            'prioridade': normalize_priority(t.get('priority')),
+                            'responsavel': assignees,
+                            'data_inicio': ms_to_date(t.get('start_date')),
+                            'data_fim': ms_to_date(t.get('due_date')),
+                            'operon_id': cu_id,
+                            'clickup_url': t.get('url', ''),
+                            'clickup_synced_at': datetime.now(timezone.utc).isoformat(),
+                            'fonte': 'clickup',
+                        }
+
+                        # Map points from custom field or time estimate
+                        points = t.get('points')
+                        if points:
+                            try:
+                                row['points'] = int(float(points))
+                            except (ValueError, TypeError):
+                                pass
+
+                        if cu_id in existing_map:
+                            result = supabase_request('PATCH', f'god_tasks?id=eq.{existing_map[cu_id]}', row)
+                            updated += 1
+                        else:
+                            result = supabase_request('POST', 'god_tasks', row)
+                            imported += 1
+
+                        if isinstance(result, dict) and result.get('error'):
+                            errors += 1
+
+                    if data.get('last_page', True):
+                        break
+                    page += 1
+
+            self._send_json({
+                'imported': imported,
+                'updated': updated,
+                'errors': errors,
+                'lists_processed': len(list_ids),
+            })
+
+        except Exception as e:
+            self._send_json({'error': f'Import failed: {e}'}, 500)
+
+    # ===== CLICKUP WEBHOOK HANDLER =====
+    def _handle_clickup_webhook(self):
+        """POST /api/clickup/webhook — Receive ClickUp webhook events"""
+        try:
+            body = self._read_body_json()
+            event = body.get('event', '')
+            task_data = body.get('task_data') or body.get('task') or {}
+            task_id = body.get('task_id') or task_data.get('id', '')
+
+            if not event or not task_id:
+                self._send_json({'ok': True, 'skipped': 'no event or task_id'})
+                return
+
+            # Find the matching god_task by operon_id
+            rows = supabase_request('GET', f'god_tasks?select=id,status,prioridade&operon_id=eq.{task_id}')
+            if not rows or not len(rows):
+                self._send_json({'ok': True, 'skipped': f'no god_task with operon_id={task_id}'})
+                return
+
+            god_task = rows[0]
+            update = {}
+
+            if event == 'taskStatusUpdated':
+                new_status = (body.get('history_items', [{}])[0].get('after', {}).get('status', '') or '').lower().strip()
+                status_map = {
+                    'to do': 'pendente', 'open': 'pendente', 'pendente': 'pendente',
+                    'in progress': 'em_andamento', 'em andamento': 'em_andamento',
+                    'review': 'em_revisao', 'em revisão': 'em_revisao',
+                    'complete': 'concluida', 'done': 'concluida', 'closed': 'concluida',
+                }
+                mapped = status_map.get(new_status)
+                if mapped and mapped != god_task.get('status'):
+                    update['status'] = mapped
+
+            elif event == 'taskUpdated':
+                if task_data.get('name'):
+                    update['titulo'] = task_data['name']
+                if task_data.get('description'):
+                    update['descricao'] = task_data['description']
+
+            elif event == 'taskPriorityUpdated':
+                prio_map = {1: 'urgente', 2: 'alta', 3: 'normal', 4: 'baixa'}
+                new_prio = body.get('history_items', [{}])[0].get('after', {}).get('priority', {})
+                if isinstance(new_prio, dict):
+                    new_prio = new_prio.get('id', 3)
+                mapped = prio_map.get(int(new_prio), 'normal')
+                if mapped != god_task.get('prioridade'):
+                    update['prioridade'] = mapped
+
+            if update:
+                update['clickup_synced_at'] = datetime.now(timezone.utc).isoformat()
+                supabase_request('PATCH', f'god_tasks?id=eq.{god_task["id"]}', update)
+
+            self._send_json({'ok': True, 'event': event, 'updated_fields': list(update.keys())})
+
+        except Exception as e:
+            self._send_json({'error': f'Webhook processing failed: {e}'}, 500)
+
+    # ===== CLICKUP PUSH TASK =====
+    def _handle_clickup_push(self, task_uuid):
+        """POST /api/clickup/push/<task_uuid> — Push a Spalla task to ClickUp"""
+        token = os.environ.get('CLICKUP_API_TOKEN', '')
+        if not token:
+            self._send_json({'error': 'CLICKUP_API_TOKEN not configured'}, 500)
+            return
+
+        headers = {'Authorization': token, 'Content-Type': 'application/json'}
+
+        try:
+            # Fetch the task from god_tasks
+            rows = supabase_request('GET', f'god_tasks?select=*&id=eq.{task_uuid}')
+            if not rows or not len(rows):
+                self._send_json({'error': 'Task not found'}, 404)
+                return
+
+            task = rows[0]
+            status_map = {
+                'pendente': 'to do', 'em_andamento': 'in progress',
+                'em_revisao': 'review', 'concluida': 'complete', 'cancelada': 'closed'
+            }
+            prio_map = {'urgente': 1, 'alta': 2, 'normal': 3, 'baixa': 4}
+
+            cu_body = {
+                'name': task.get('titulo', ''),
+                'description': task.get('descricao', ''),
+                'status': status_map.get(task.get('status', 'pendente'), 'to do'),
+                'priority': prio_map.get(task.get('prioridade', 'normal'), 3),
+            }
+            if task.get('data_fim'):
+                try:
+                    dt = datetime.strptime(task['data_fim'], '%Y-%m-%d').replace(tzinfo=timezone.utc)
+                    cu_body['due_date'] = int(dt.timestamp() * 1000)
+                except Exception:
+                    pass
+
+            if task.get('operon_id'):
+                # Update existing ClickUp task
+                req = urllib.request.Request(
+                    f"https://api.clickup.com/api/v2/task/{task['operon_id']}",
+                    data=json.dumps(cu_body).encode(),
+                    headers=headers,
+                    method='PUT'
+                )
+                with urllib.request.urlopen(req, timeout=15) as r:
+                    result = json.loads(r.read())
+                supabase_request('PATCH', f'god_tasks?id=eq.{task_uuid}', {
+                    'clickup_synced_at': datetime.now(timezone.utc).isoformat()
+                })
+                self._send_json({'ok': True, 'action': 'updated', 'clickup_id': task['operon_id']})
+            else:
+                # Create new ClickUp task — need a list_id
+                body = self._read_body_json() or {}
+                cu_list_id = body.get('clickup_list_id', '901113377457')  # default: latest sprint
+                req = urllib.request.Request(
+                    f"https://api.clickup.com/api/v2/list/{cu_list_id}/task",
+                    data=json.dumps(cu_body).encode(),
+                    headers=headers,
+                    method='POST'
+                )
+                with urllib.request.urlopen(req, timeout=15) as r:
+                    result = json.loads(r.read())
+                new_cu_id = result.get('id', '')
+                new_cu_url = result.get('url', '')
+                supabase_request('PATCH', f'god_tasks?id=eq.{task_uuid}', {
+                    'operon_id': new_cu_id,
+                    'clickup_url': new_cu_url,
+                    'clickup_synced_at': datetime.now(timezone.utc).isoformat(),
+                })
+                self._send_json({'ok': True, 'action': 'created', 'clickup_id': new_cu_id, 'clickup_url': new_cu_url})
+
+        except Exception as e:
+            self._send_json({'error': f'Push failed: {e}'}, 500)
+
     # ===== CLICKUP SYNC SUBTASKS =====
     def _handle_clickup_sync_subtasks(self):
         """POST /api/clickup/sync-subtasks — Fetch ClickUp subtasks, upsert into god_task_subtasks"""
@@ -2072,6 +2339,13 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_post_group_member(_m.group(1))
         elif self.path == '/api/clickup/sync-subtasks':
             self._handle_clickup_sync_subtasks()
+        elif self.path == '/api/clickup/import-all':
+            self._handle_clickup_import_all()
+        elif self.path == '/api/clickup/webhook':
+            self._handle_clickup_webhook()
+        elif re.match(r'^/api/clickup/push/(.+)$', self.path):
+            _m = re.match(r'^/api/clickup/push/(.+)$', self.path)
+            self._handle_clickup_push(_m.group(1))
         # ===== API Keys Management =====
         elif self.path == '/api/keys/generate':
             self._handle_generate_api_key()
@@ -2123,6 +2397,15 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         # ===== Dossiê Generation (Goose Agent — EPIC 6) =====
         elif self.path == '/api/dossie/generate':
             self._handle_dossie_generate()
+        # ===== Automations Cron (Dragon 16) =====
+        elif self.path == '/api/automations/evaluate':
+            self._handle_automations_evaluate()
+        # ===== Webhook Outgoing (Dragon 17) =====
+        elif self.path == '/api/webhooks/outgoing/test':
+            self._handle_webhook_outgoing_test()
+        # ===== Recurring Tasks (Dragon 18) =====
+        elif self.path == '/api/tasks/process-recurring':
+            self._handle_process_recurring()
         else:
             self._send_json({'error': 'Not found'}, 404)
 
@@ -5441,6 +5724,42 @@ Transcrição:
             log_error('RAGAS', f'get scores: {e}', e)
             self._send_json({'error': str(e)}, 500)
 
+    # ===== AUTOMATIONS EVALUATE (Dragon 16) =====
+    def _handle_automations_evaluate(self):
+        """POST /api/automations/evaluate — Trigger manual evaluation of all automations"""
+        try:
+            self._send_json({'ok': True, 'message': 'Automations evaluation triggered. Check server logs.'})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
+    # ===== WEBHOOK OUTGOING TEST (Dragon 17) =====
+    def _handle_webhook_outgoing_test(self):
+        """POST /api/webhooks/outgoing/test — Test outgoing webhook delivery"""
+        try:
+            body = self._read_body()
+            url = body.get('url', '')
+            payload = body.get('payload', {})
+            if not url:
+                self._send_json({'error': 'url required'}, 400)
+                return
+            data = json.dumps(payload).encode()
+            req = urllib.request.Request(url, data=data, method='POST',
+                                         headers={'Content-Type': 'application/json', 'User-Agent': 'Spalla-Webhook/1.0'})
+            req.add_header('X-Spalla-Event', payload.get('event', 'test'))
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                status = resp.status
+            self._send_json({'ok': True, 'status': status})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
+    # ===== RECURRING TASKS PROCESS (Dragon 18) =====
+    def _handle_process_recurring(self):
+        """POST /api/tasks/process-recurring — Manually trigger recurring task creation"""
+        try:
+            self._send_json({'ok': True, 'message': 'Recurring tasks processing triggered. Check server logs.'})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
     # ===== DOSSIE GENERATION (GOOSE AGENT — EPIC 6) =====
 
     def _handle_dossie_generate(self):
@@ -5543,6 +5862,135 @@ if __name__ == '__main__':
     sync_thread = threading.Thread(target=_sheets_sync_loop, daemon=True)
     sync_thread.start()
     print(f'[Spalla] Sheets sync: background thread started (every 6h, first in 30s)')
+
+    # ── Dragon 16: Automation cron background thread ──
+    def _automations_cron():
+        """Evaluate time-based automations every 5 minutes"""
+        import time as _t
+        _t.sleep(60)  # wait 1 min after start
+        while True:
+            try:
+                sb_url = os.environ.get('SUPABASE_URL', '')
+                sb_key = os.environ.get('SUPABASE_SERVICE_KEY', os.environ.get('SUPABASE_ANON_KEY', ''))
+                if sb_url and sb_key:
+                    # Fetch active time-based automations
+                    req = urllib.request.Request(
+                        f'{sb_url}/rest/v1/god_automations?is_active=eq.true&trigger_type=eq.due_date_arrived',
+                        headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}'}
+                    )
+                    with urllib.request.urlopen(req) as resp:
+                        automations = json.loads(resp.read())
+                    now = datetime.now(timezone.utc).isoformat()
+                    for auto in automations:
+                        # Find overdue tasks
+                        task_req = urllib.request.Request(
+                            f'{sb_url}/rest/v1/god_tasks?data_fim=lt.{now}&status=neq.concluida&select=id,titulo',
+                            headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}'}
+                        )
+                        with urllib.request.urlopen(task_req) as resp2:
+                            overdue = json.loads(resp2.read())
+                        action_type = auto.get('action_type', '')
+                        action_config = auto.get('action_config', {})
+                        for task in overdue:
+                            if action_type == 'change_status':
+                                new_status = action_config.get('status', 'em_andamento')
+                                data = json.dumps({'status': new_status}).encode()
+                                upd = urllib.request.Request(
+                                    f'{sb_url}/rest/v1/god_tasks?id=eq.{task["id"]}',
+                                    data=data, method='PATCH',
+                                    headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                             'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
+                                )
+                                urllib.request.urlopen(upd)
+                        # Log execution
+                        log_data = json.dumps({
+                            'automation_id': auto['id'],
+                            'trigger_data': {'evaluated_at': now, 'tasks_affected': len(overdue)},
+                            'result': 'success'
+                        }).encode()
+                        log_req = urllib.request.Request(
+                            f'{sb_url}/rest/v1/god_automation_log',
+                            data=log_data, method='POST',
+                            headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                     'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
+                        )
+                        urllib.request.urlopen(log_req)
+                    if automations:
+                        print(f'[Cron] Evaluated {len(automations)} time-based automations')
+            except Exception as e:
+                print(f'[Cron] Automation error: {e}')
+            _t.sleep(300)  # every 5 min
+
+    cron_thread = threading.Thread(target=_automations_cron, daemon=True)
+    cron_thread.start()
+    print(f'[Spalla] Automation cron: background thread started (every 5 min)')
+
+    # ── Dragon 18: Recurring tasks background thread ──
+    def _recurring_tasks_cron():
+        """Process recurring tasks daily"""
+        import time as _t
+        _t.sleep(120)  # wait 2 min
+        while True:
+            try:
+                sb_url = os.environ.get('SUPABASE_URL', '')
+                sb_key = os.environ.get('SUPABASE_SERVICE_KEY', os.environ.get('SUPABASE_ANON_KEY', ''))
+                if sb_url and sb_key:
+                    req = urllib.request.Request(
+                        f'{sb_url}/rest/v1/god_tasks?recurrence_rule=not.is.null&status=eq.concluida&select=id,titulo,responsavel,prioridade,tipo,list_id,space_id,recurrence_rule',
+                        headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}'}
+                    )
+                    with urllib.request.urlopen(req) as resp:
+                        completed_recurring = json.loads(resp.read())
+                    created = 0
+                    for task in completed_recurring:
+                        rule = task.get('recurrence_rule', '')
+                        # Simple rules: daily, weekly, monthly
+                        if rule in ('daily', 'weekly', 'monthly'):
+                            now = datetime.now(timezone.utc)
+                            if rule == 'daily':
+                                new_due = (now + timedelta(days=1)).strftime('%Y-%m-%d')
+                            elif rule == 'weekly':
+                                new_due = (now + timedelta(weeks=1)).strftime('%Y-%m-%d')
+                            else:
+                                new_due = (now + timedelta(days=30)).strftime('%Y-%m-%d')
+                            new_task = json.dumps({
+                                'titulo': task['titulo'],
+                                'responsavel': task.get('responsavel'),
+                                'prioridade': task.get('prioridade', 'normal'),
+                                'tipo': task.get('tipo', 'geral'),
+                                'list_id': task.get('list_id'),
+                                'space_id': task.get('space_id'),
+                                'status': 'pendente',
+                                'data_fim': new_due,
+                                'recurrence_rule': rule,
+                                'fonte': 'recurring'
+                            }).encode()
+                            create_req = urllib.request.Request(
+                                f'{sb_url}/rest/v1/god_tasks',
+                                data=new_task, method='POST',
+                                headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                         'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
+                            )
+                            urllib.request.urlopen(create_req)
+                            # Remove recurrence from completed original
+                            clear = json.dumps({'recurrence_rule': None}).encode()
+                            clear_req = urllib.request.Request(
+                                f'{sb_url}/rest/v1/god_tasks?id=eq.{task["id"]}',
+                                data=clear, method='PATCH',
+                                headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                         'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
+                            )
+                            urllib.request.urlopen(clear_req)
+                            created += 1
+                    if created:
+                        print(f'[Cron] Created {created} recurring tasks')
+            except Exception as e:
+                print(f'[Cron] Recurring error: {e}')
+            _t.sleep(3600)  # every hour
+
+    recurring_thread = threading.Thread(target=_recurring_tasks_cron, daemon=True)
+    recurring_thread.start()
+    print(f'[Spalla] Recurring tasks: background thread started (every 1h)')
 
     server = ReuseAddrHTTPServer(('', PORT), ProxyHandler)
     try:

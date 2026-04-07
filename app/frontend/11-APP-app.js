@@ -170,6 +170,12 @@ function operon() {
     _detailCache: {},
 
     // --- UI State ---
+    darkMode: localStorage.getItem('spalla_dark') === 'true',
+    toggleDarkMode() {
+      this.darkMode = !this.darkMode;
+      localStorage.setItem('spalla_dark', this.darkMode);
+      document.documentElement.setAttribute('data-theme', this.darkMode ? 'dark' : 'light');
+    },
     ui: {
       page: localStorage.getItem('spalla_page') || CONFIG.DEFAULT_PAGE,
       sidebarOpen: true,
@@ -199,6 +205,22 @@ function operon() {
       mentionQuery: '',        // texto digitado após @
       mentionStart: -1,        // posição do @ no textarea
       taskGanttRange: 'month', // 'week' | 'month' | 'quarter'
+      calYear: new Date().getFullYear(),
+      calMonth: new Date().getMonth(),
+      bulkSelected: {}, // { taskId: true }
+      bulkMode: false,
+      collapsedGroups: {},
+      fieldsModalOpen: false,
+      fieldsModalTab: 'add', // 'create' | 'add'
+      newFieldName: '',
+      newFieldType: 'text',
+      visibleFieldIds: {}, // { fieldId: true } — which custom fields show as columns
+      collapsedSpaces: {}, // { spaceId: true }
+      subtaskExpanded: null, // index of expanded subtask in drawer
+      automationsOpen: false,
+      autoForm: { name: '', trigger_type: 'status_changed', trigger_config: {}, condition_config: {}, action_type: 'change_status', action_config: {} },
+      dashboardOpen: false,
+      notificationsOpen: false,
       taskSpaceFilter: 'all', // space_id filter
       taskListFilter: 'all', // list_id filter
       taskSprintFilter: 'all', // sprint_id filter
@@ -219,6 +241,7 @@ function operon() {
       ctxLinkUrl: '',
       ctxFilter: { tipo: 'all', fase: 'all' },
       ctxExpanded: {},
+      ctxEditing: {},   // { [ctxId]: { titulo, conteudo, fase } }
       ctxTranscribing: {},
       ctxRecording: false,
       ctxMediaRecorder: null,
@@ -466,6 +489,9 @@ function operon() {
       // Tags & Custom Fields
       taskTags: [],             // god_task_tags — all available tags
       fieldDefs: [],            // applicable god_task_field_defs for current modal
+      automations: [],          // god_automations rules
+      savedViews: [],           // god_saved_views
+      templates: [],            // god_task_templates
       finDetailLogs: [],        // financial logs for mentee detail tab
       menteeNotes: [],          // notes for current notes drawer
       waSelectedMentees: [],    // IDs selected in bulk mode
@@ -575,42 +601,9 @@ function operon() {
     // --- Media Cache ---
     waMediaUrls: {},  // messageId → presigned URL
 
-    // Task organization: 5 Spaces — Entregas + Atendimento + Mentorado + Produto + Tecnologia
-    spaces: [
-      { id: 'space_entregas', name: 'Entregas', icon: '◇', color: '#8b5cf6',
-        lists: [
-          { id: 'list_dossies', name: 'Dossiês', icon: '◇' },
-          { id: 'list_materiais_mentorado', name: 'Materiais & Manuais', icon: '■' },
-        ]
-      },
-      { id: 'space_atendimento', name: 'Atendimento', icon: '◎', color: '#6366f1',
-        lists: [
-          { id: 'list_analises', name: 'Análises & Revisões', icon: '◉' },
-          { id: 'list_poscall', name: 'Pós-call', icon: '★' },
-          { id: 'list_operacional', name: 'Operacional', icon: '✦' },
-        ]
-      },
-      { id: 'space_mentorado', name: 'Mentorado', icon: '●', color: '#10b981',
-        lists: [
-          { id: 'list_tarefas_mentorado', name: 'Tarefas do Mentorado', icon: '▸' },
-          { id: 'list_checklist_mentorado', name: 'Checklists', icon: '✓' },
-        ]
-      },
-      { id: 'space_produto', name: 'Produto', icon: '◈', color: '#f59e0b',
-        lists: [
-          { id: 'list_aulas', name: 'Aulas & Gravações', icon: '▸' },
-          { id: 'list_manuais', name: 'Manuais & Kits', icon: '■' },
-          { id: 'list_planejamento', name: 'Planejamento de Produto', icon: '●' },
-        ]
-      },
-      // Tecnologia — sprints populados dinamicamente por loadGodLists()
-      { id: 'space_tecnologia', name: 'Tecnologia', icon: '◈', color: '#0ea5e9',
-        lists: [
-          { id: 'list_maestro', name: 'Maestro', icon: '◆' },
-          { id: 'list_agentes', name: 'Agentes & Automações', icon: '◉' },
-        ]
-      },
-    ],
+    // Task organization — loaded dynamically from god_spaces + god_lists + god_statuses
+    spaces: [],
+    allStatuses: [], // god_statuses rows
 
     // --- Task Type Icons ---
     TASK_TIPO_MAP: {
@@ -1528,13 +1521,13 @@ function operon() {
         const checklistCount = (task.checklist || []).length;
         const totalChildren = subtaskCount + childTasks.length + checklistCount;
 
-        result.push({ ...task, _depth: 0, _childCount: totalChildren });
+        result.push({ ...task, _depth: 0, _childCount: totalChildren, _currentGroup: 'all', _isGroupLast: false });
 
         if (this.ui.taskExpandedIds[task.id] && totalChildren > 0) {
           // 1) Child tasks (real god_tasks with parent_task_id)
           for (const child of childTasks) {
             const grandchildren = (child.subtasks || []).length + (childTasksByParent[child.id] || []).length;
-            result.push({ ...child, _depth: 1, _childCount: grandchildren, _isChildTask: true, _parentId: task.id });
+            result.push({ ...child, _depth: 1, _childCount: grandchildren, _isChildTask: true, _parentId: task.id, _currentGroup: 'all', _isGroupLast: false });
           }
           // 2) Inline subtasks
           (task.subtasks || []).forEach((sub, idx) => {
@@ -1548,7 +1541,7 @@ function operon() {
               data_inicio: sub.data_inicio || null,
               data_fim: sub.data_fim || null, prazo: sub.data_fim || null,
               tags: [], is_blocked: false, recorrencia: 'nenhuma',
-              _depth: 1, _childCount: 0, _isSubtask: true, _parentId: task.id, _subIdx: idx,
+              _depth: 1, _childCount: 0, _isSubtask: true, _parentId: task.id, _subIdx: idx, _currentGroup: 'all', _isGroupLast: false,
             });
           });
           // 3) Checklist items
@@ -1562,7 +1555,7 @@ function operon() {
               acompanhante: null, mentorado_nome: null,
               data_inicio: null, data_fim: ci.due_date || null, prazo: ci.due_date || null,
               tags: [], is_blocked: false, recorrencia: 'nenhuma',
-              _depth: 1, _childCount: 0, _isChecklist: true, _parentId: task.id, _checkIdx: idx,
+              _depth: 1, _childCount: 0, _isChecklist: true, _parentId: task.id, _checkIdx: idx, _currentGroup: 'all', _isGroupLast: false,
             });
           });
         }
@@ -1576,9 +1569,24 @@ function operon() {
         for (const item of result) {
           if (item._depth > 0) continue; // Group only top-level
           let key;
-          if (groupBy === 'assignee') key = item.responsavel || 'Sem responsável';
+          if (groupBy === 'assignee') key = item.responsavel || 'Sem responsavel';
           else if (groupBy === 'priority') key = item.prioridade || 'normal';
           else if (groupBy === 'list') key = this.getListName(item.list_id) || 'Sem lista';
+          else if (groupBy === 'mentorado') key = item.mentorado_nome || 'Sem mentorado';
+          else if (groupBy === 'date') {
+            const due = item.data_fim || item.prazo;
+            if (!due) { key = 'sem_data'; }
+            else {
+              const d = new Date(due + 'T00:00:00');
+              const today = new Date(); today.setHours(0,0,0,0);
+              const diff = Math.round((d - today) / 86400000);
+              if (diff < 0) key = 'em_atraso';
+              else if (diff === 0) key = 'hoje';
+              else if (diff === 1) key = 'amanha';
+              else if (diff <= 7) key = d.toLocaleDateString('pt-BR', { weekday: 'long' }).replace(/^\w/, c => c.toUpperCase());
+              else key = 'futuro';
+            }
+          }
           else key = item.status || 'pendente';
           if (!grouped[key]) { grouped[key] = []; groupOrder.push(key); }
           grouped[key].push(item);
@@ -1589,25 +1597,35 @@ function operon() {
         // For status, use a fixed order
         const keys = groupBy === 'status' ? ['pendente', 'em_andamento', 'concluida'].filter(k => grouped[k]) :
                      groupBy === 'priority' ? ['urgente', 'alta', 'normal', 'baixa'].filter(k => grouped[k]) :
+                     groupBy === 'date' ? ['em_atraso', 'hoje', 'amanha'].concat(groupOrder.filter(k => !['em_atraso','hoje','amanha','futuro','sem_data'].includes(k))).concat(['futuro', 'sem_data']).filter(k => grouped[k]) :
                      groupOrder;
         // Add any keys not in the fixed order
         for (const k of groupOrder) { if (!keys.includes(k)) keys.push(k); }
         for (const key of keys) {
           const items = grouped[key] || [];
           if (!items.length) continue;
+          const dateLabels = { em_atraso: 'Em atraso', hoje: 'Hoje', amanha: 'Amanha', futuro: 'Futuro', sem_data: 'Sem data' };
           const label = groupBy === 'status' ? this.statusLabel(key) :
                         groupBy === 'priority' ? this.priorityLabel(key) :
+                        groupBy === 'date' ? (dateLabels[key] || key) :
                         key ? key.charAt(0).toUpperCase() + key.slice(1) : 'Sem responsavel';
           finalResult.push({ id: 'group_' + key, _isGroupHeader: true, _groupLabel: label, _groupKey: key, _groupBy: groupBy, _groupCount: items.length, _depth: 0 });
-          for (const item of items) {
+          for (let idx = 0; idx < items.length; idx++) {
+            const item = items[idx];
+            item._currentGroup = key;
+            item._isGroupLast = (idx === items.length - 1);
             finalResult.push(item);
             for (const child of childItems) {
-              if (child._parentId === item.id) finalResult.push(child);
+              if (child._parentId === item.id) { child._currentGroup = key; finalResult.push(child); }
             }
           }
         }
         return finalResult;
       }
+
+      // Mark last top-level item for "+ Adicionar Tarefa" button
+      const topLevel = result.filter(t => t._depth === 0);
+      if (topLevel.length) topLevel[topLevel.length - 1]._isGroupLast = true;
 
       return result;
     },
@@ -1618,6 +1636,7 @@ function operon() {
     groupHeaderColor(groupBy, key) {
       if (groupBy === 'status') return { pendente: '#64748b', em_andamento: '#2563eb', concluida: '#16a34a' }[key] || '#64748b';
       if (groupBy === 'priority') return { urgente: '#dc2626', alta: '#ea580c', normal: '#64748b', baixa: '#94a3b8' }[key] || '#64748b';
+      if (groupBy === 'date') return { em_atraso: '#dc2626', hoje: '#d97706', amanha: '#2563eb', futuro: '#64748b', sem_data: '#94a3b8' }[key] || '#8b6f47';
       return '#8b6f47';
     },
 
@@ -1643,11 +1662,30 @@ function operon() {
         this.data.tasks.forEach(t => { lists.add(t.list_id || ''); });
         return [...lists].map(id => ({ key: id, label: this.getListName(id) || id || 'Sem lista', color: '#8b6f47' }));
       }
-      // Default: status — use CSS class instead of inline color
+      // Default: status — use god_statuses if available, else fallback
+      const spaceFilter = this.ui.taskSpaceFilter;
+      const spaceStatuses = (this.allStatuses || [])
+        .filter(s => spaceFilter === 'all' || s.space_id === spaceFilter)
+        .filter(s => s.status_group !== 'closed');
+      if (spaceStatuses.length) {
+        // Dedupe by name (when "all" spaces, same name appears per space)
+        const seen = new Set();
+        return spaceStatuses.filter(s => {
+          if (seen.has(s.name)) return false;
+          seen.add(s.name);
+          return true;
+        }).map(s => ({
+          key: s.name.toLowerCase().replace(/\s+/g, '_').normalize('NFD').replace(/[\u0300-\u036f]/g, ''),
+          statusId: s.id,
+          label: s.name,
+          color: s.color || '',
+          statusGroup: s.status_group,
+        }));
+      }
       return [
-        { key: 'pendente', label: 'A Fazer', color: '', cssClass: 'task-board__column-header--pendente' },
-        { key: 'em_andamento', label: 'Em Progresso', color: '', cssClass: 'task-board__column-header--em_andamento' },
-        { key: 'concluida', label: 'Concluido', color: '', cssClass: 'task-board__column-header--concluida' },
+        { key: 'pendente', label: 'A Fazer', color: '#94a3b8' },
+        { key: 'em_andamento', label: 'Em Progresso', color: '#f59e0b' },
+        { key: 'concluida', label: 'Concluido', color: '#22c55e' },
       ];
     },
 
@@ -1823,6 +1861,8 @@ function operon() {
 
     async init() {
       try {
+        // Apply stored dark mode
+        if (this.darkMode) document.documentElement.setAttribute('data-theme', 'dark');
         // Deep-link: resolve URL pathname to page
         const pathname = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
         // Deep-link: /mentorado/:id — store for after auth
@@ -1932,6 +1972,14 @@ function operon() {
         this.loadTaskTags(); // non-blocking
         this.loadSpallaMembers(); // non-blocking: popula data.members
         this.loadGodLists();     // non-blocking: popula data.lists + data.sprints
+        this.loadFieldDefs();    // non-blocking: popula data.fieldDefs for custom columns
+        this.loadAutomations();  // non-blocking: popula data.automations
+        this.loadSavedViews();   // non-blocking: popula data.savedViews
+        this.loadTemplates();    // non-blocking: popula data.templates
+        this._subscribeRealtime(); // Supabase Realtime for live task updates
+        this._initKeyboardShortcuts(); // N=new, /=search, Esc=close, Alt+1-4=views
+        this.$watch('ui.taskView', () => setTimeout(() => this._initSortable(), 200));
+        setTimeout(() => this._initSortable(), 500); // Initial sortable setup
 
         if (this.auth.authenticated) {
           // Auto-refresh token before it expires (every 45 min)
@@ -4743,51 +4791,89 @@ function operon() {
     },
 
     // Carrega listas e sprints de god_lists (substitui arrays hardcoded)
-    async loadGodLists() {
+    async loadSpacesAndStatuses() {
       if (!sb) return;
       try {
-        const { data, error } = await sb.from('god_lists').select('*').eq('ativo', true).order('ordem');
-        if (!error && data?.length) {
-          this.data.lists = data;
+        const [spacesRes, listsRes, statusesRes] = await Promise.all([
+          sb.from('god_spaces').select('*').eq('ativo', true).order('ordem'),
+          sb.from('god_lists').select('*').eq('ativo', true).order('ordem'),
+          sb.from('god_statuses').select('*').order('sort_order'),
+        ]);
+        const spacesData = spacesRes.data || [];
+        const listsData = listsRes.data || [];
+        const statusesData = statusesRes.data || [];
 
-          // Atualiza data.sprints com os dados reais do banco
-          const sprints = data
-            .filter(l => l.tipo === 'sprint')
+        this.allStatuses = statusesData;
+        this.data.lists = listsData;
+
+        // Build sprints
+        const sprints = listsData
+          .filter(l => l.tipo === 'sprint')
+          .map(l => ({
+            id: l.id, nome: l.nome, inicio: l.sprint_inicio, fim: l.sprint_fim,
+            status: l.sprint_status, total: l.sprint_total || 0,
+            concluidas: l.sprint_concluidas || 0, highlights: [],
+          }));
+        if (sprints.length) this.data.sprints = sprints;
+
+        // Build spaces with nested lists
+        this.spaces = spacesData.map(sp => {
+          const spLists = listsData
+            .filter(l => l.space_id === sp.id && l.tipo !== 'sprint')
+            .map(l => ({ id: l.id, name: l.nome, icon: l.tipo === 'backlog' ? '📋' : '▸' }));
+          // Add sprints to their parent space
+          const spSprints = listsData
+            .filter(l => l.space_id === sp.id && l.tipo === 'sprint')
             .map(l => ({
-              id: l.id,
-              nome: l.nome,
-              inicio: l.sprint_inicio,
-              fim: l.sprint_fim,
-              status: l.sprint_status,
-              total: l.sprint_total || 0,
-              concluidas: l.sprint_concluidas || 0,
-              highlights: [],
+              id: l.id, name: l.nome, isSprint: true, status: l.sprint_status,
+              icon: l.sprint_status === 'ativo' ? '⚡' : (l.sprint_status === 'encerrado' ? '✓' : '○'),
             }));
-          if (sprints.length) {
-            this.data.sprints = sprints;
-          }
-
-          // Popula space_tecnologia.lists com sprints como items navegáveis
-          // Usa map() no array inteiro para garantir reatividade Alpine.js
-          if (sprints.length) {
-            this.spaces = this.spaces.map(s => {
-              if (s.id !== 'space_tecnologia') return s;
-              return {
-                ...s,
-                lists: sprints.map(sp => ({
-                  id: sp.id,
-                  name: sp.nome,
-                  icon: sp.status === 'ativo' ? '⚡' : (sp.status === 'encerrado' ? '✓' : '○'),
-                  isSprint: true,
-                  status: sp.status,
-                })),
-              };
-            });
-          }
-        }
+          return {
+            id: sp.id, name: sp.nome, icon: sp.icone || '◇', color: sp.cor || '#6366f1',
+            lists: [...spLists, ...spSprints],
+          };
+        });
       } catch (e) {
-        console.warn('[Spalla] loadGodLists failed:', e.message);
+        console.warn('[Spalla] loadSpacesAndStatuses failed:', e.message);
       }
+      // Fallback: if no spaces loaded (migration not run yet), use defaults
+      if (!this.spaces.length) {
+        this.spaces = [
+          { id: 'space_jornada', name: 'Jornada do Mentorado', icon: '🗺️', color: '#10b981', lists: [] },
+          { id: 'space_gestao', name: 'Gestao Interna', icon: '⚙️', color: '#6366f1', lists: [] },
+          { id: 'space_ia', name: 'IA & Automacao', icon: '🤖', color: '#f59e0b', lists: [] },
+          { id: 'space_sistema', name: 'Sistema & Dev', icon: '💻', color: '#0ea5e9', lists: [] },
+        ];
+      }
+    },
+
+    // Legacy alias — kept for any callers
+    // Sidebar CRUD
+    async sidebarAddSpace() {
+      const name = prompt('Nome do novo espaco');
+      if (!name?.trim()) return;
+      const slug = 'space_' + name.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
+      try {
+        const { error } = await sb.from('god_spaces').insert({ id: slug, nome: name, cor: '#6366f1', icone: '◇', ordem: this.spaces.length + 1 });
+        if (error) throw error;
+        await this.loadSpacesAndStatuses();
+        this.toast('Espaco criado: ' + name, 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+    async sidebarAddList(spaceId) {
+      const name = prompt('Nome da nova lista');
+      if (!name?.trim()) return;
+      const slug = 'list_' + name.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
+      try {
+        const { error } = await sb.from('god_lists').insert({ id: slug, nome: name, space_id: spaceId, tipo: 'list', ordem: 99 });
+        if (error) throw error;
+        await this.loadSpacesAndStatuses();
+        this.toast('Lista criada: ' + name, 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    async loadGodLists() {
+      return this.loadSpacesAndStatuses();
     },
 
     navigateWithFilter(page, filter) {
@@ -6983,6 +7069,34 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       }
     },
 
+    async clickupImportAll() {
+      if (!confirm('Importar todas as tarefas do ClickUp? Tarefas existentes serao atualizadas.')) return;
+      this.ui.syncingSubtasks = true;
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/clickup/import-all`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const json = await res.json();
+        if (!res.ok) { this.toast(json.error || 'Erro ao importar', 'error'); return; }
+        this.toast(`Importadas: ${json.imported}, Atualizadas: ${json.updated}`, 'success');
+        await this.loadTasks();
+      } catch (e) { this.toast('Erro de conexao', 'error'); }
+      finally { this.ui.syncingSubtasks = false; }
+    },
+
+    async clickupPushTask(taskId) {
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/clickup/push/${taskId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const json = await res.json();
+        if (!res.ok) { this.toast(json.error || 'Erro ao enviar', 'error'); return; }
+        if (json.clickup_url) {
+          const idx = this.data.tasks.findIndex(t => t.id === taskId);
+          if (idx >= 0) {
+            this.data.tasks[idx] = { ...this.data.tasks[idx], operon_id: json.clickup_id, clickup_url: json.clickup_url };
+          }
+        }
+        this.toast(`Task ${json.action === 'created' ? 'criada' : 'atualizada'} no ClickUp`, 'success');
+      } catch (e) { this.toast('Erro ao enviar pro ClickUp', 'error'); }
+    },
+
     addSubtask() {
       if (this.taskForm.newSubtask.trim()) {
         this.taskForm.subtasks.push({
@@ -7309,6 +7423,41 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     // --- Custom Fields ---
+    // Custom Fields — column helpers
+    visibleCustomFields() {
+      return (this.data.fieldDefs || []).filter(f => this.ui.visibleFieldIds[f.field_id || f.id]);
+    },
+    getTaskFieldValue(task, fieldId) {
+      const cf = task.custom_fields_json || task.custom_fields || [];
+      if (Array.isArray(cf)) {
+        const found = cf.find(f => f.field_id === fieldId);
+        return found?.value?.v ?? '';
+      }
+      return '';
+    },
+    toggleFieldVisibility(fieldId) {
+      this.ui.visibleFieldIds = { ...this.ui.visibleFieldIds, [fieldId]: !this.ui.visibleFieldIds[fieldId] };
+    },
+    async createCustomField() {
+      const name = this.ui.newFieldName?.trim();
+      if (!name) return;
+      const spaceId = this.ui.taskSpaceFilter !== 'all' ? this.ui.taskSpaceFilter : 'global';
+      const scope = spaceId === 'global' ? 'global' : 'space:' + spaceId;
+      try {
+        const { data, error } = await sb.from('god_task_field_defs').insert({
+          name,
+          field_type: this.ui.newFieldType || 'text',
+          scope,
+          sort_order: (this.data.fieldDefs?.length || 0) + 1,
+        }).select().single();
+        if (error) throw error;
+        this.ui.newFieldName = '';
+        this.ui.visibleFieldIds = { ...this.ui.visibleFieldIds, [data.id]: true };
+        await this.loadFieldDefs(this.ui.taskSpaceFilter !== 'all' ? this.ui.taskSpaceFilter : null);
+        this.toast('Campo criado: ' + name, 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
     async loadFieldDefs(spaceId = null, listId = null, taskId = null) {
       if (!sb) return;
       const p_task_id = taskId || '00000000-0000-0000-0000-000000000000';
@@ -7381,6 +7530,1094 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     // Gantt helpers
+    // ── Bulk Actions ──
+    get bulkCount() { return Object.values(this.ui.bulkSelected).filter(Boolean).length; },
+    _lastBulkIdx: -1,
+    bulkToggle(taskId, event) {
+      const tree = this.tasksTree.filter(t => !t._isGroupHeader);
+      const idx = tree.findIndex(t => t.id === taskId);
+      // Shift+Click range selection
+      if (event?.shiftKey && this._lastBulkIdx >= 0 && idx >= 0) {
+        const from = Math.min(this._lastBulkIdx, idx);
+        const to = Math.max(this._lastBulkIdx, idx);
+        const sel = { ...this.ui.bulkSelected };
+        for (let i = from; i <= to; i++) {
+          if (tree[i]) sel[tree[i].id] = true;
+        }
+        this.ui.bulkSelected = sel;
+      } else {
+        this.ui.bulkSelected = { ...this.ui.bulkSelected, [taskId]: !this.ui.bulkSelected[taskId] };
+      }
+      if (idx >= 0) this._lastBulkIdx = idx;
+    },
+    bulkSelectAll() {
+      const sel = {};
+      this.data.tasks.forEach(t => { sel[t.id] = true; });
+      this.ui.bulkSelected = sel;
+    },
+    bulkClear() { this.ui.bulkSelected = {}; this.ui.bulkMode = false; },
+    async bulkUpdateField(field, value) {
+      const ids = Object.entries(this.ui.bulkSelected).filter(([,v]) => v).map(([id]) => id);
+      if (!ids.length) return;
+      if (!confirm(`Atualizar ${ids.length} tarefa(s)?`)) return;
+      try {
+        const { error } = await sb.from('god_tasks').update({ [field]: value }).in('id', ids);
+        if (error) throw error;
+        this.data.tasks = this.data.tasks.map(t => ids.includes(t.id) ? { ...t, [field]: value } : t);
+        this.toast(`${ids.length} tarefa(s) atualizada(s)`, 'success');
+        this.bulkClear();
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+    async bulkDelete() {
+      const ids = Object.entries(this.ui.bulkSelected).filter(([,v]) => v).map(([id]) => id);
+      if (!ids.length) return;
+      if (!confirm(`Excluir ${ids.length} tarefa(s) permanentemente?`)) return;
+      try {
+        const { error } = await sb.from('god_tasks').delete().in('id', ids);
+        if (error) throw error;
+        this.data.tasks = this.data.tasks.filter(t => !ids.includes(t.id));
+        this.toast(`${ids.length} tarefa(s) excluida(s)`, 'success');
+        this.bulkClear();
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    // ── Command Palette (Dragon 25) ──
+    cmdPalette: false,
+    cmdQuery: '',
+    cmdSelectedIdx: 0,
+    get cmdResults() {
+      const q = (this.cmdQuery || '').toLowerCase().trim();
+      if (!q) return this._cmdDefaultActions();
+      const results = [];
+      // Search tasks
+      this.data.tasks.filter(t => t.titulo?.toLowerCase().includes(q)).slice(0, 8).forEach(t => {
+        results.push({ type: 'task', icon: '📋', label: t.titulo, sublabel: t.responsavel || '', action: () => { this.openTaskDetail(t.id); this.cmdPalette = false; } });
+      });
+      // Search pages
+      const pages = [
+        { key: 'dashboard', label: 'Dashboard', icon: '📊' },
+        { key: 'tasks', label: 'Tarefas', icon: '✅' },
+        { key: 'mentorados', label: 'Mentorados', icon: '👥' },
+        { key: 'calls', label: 'Calls', icon: '📞' },
+        { key: 'docs', label: 'Documentos', icon: '📁' },
+      ];
+      pages.filter(p => p.label.toLowerCase().includes(q)).forEach(p => {
+        results.push({ type: 'nav', icon: p.icon, label: 'Ir para ' + p.label, sublabel: '', action: () => { this.goToPage(p.key); this.cmdPalette = false; } });
+      });
+      // Search members
+      (this.data.members || []).filter(m => (m.nome_curto || m.name || '').toLowerCase().includes(q)).slice(0, 4).forEach(m => {
+        results.push({ type: 'member', icon: '👤', label: m.nome_curto || m.name, sublabel: 'Membro', action: () => { this.ui.taskAssigneeFilter = m.nome_curto || m.name; this.goToPage('tasks'); this.cmdPalette = false; } });
+      });
+      // Actions
+      if ('nova tarefa'.includes(q) || 'criar'.includes(q) || 'new task'.includes(q)) {
+        results.push({ type: 'action', icon: '➕', label: 'Criar nova tarefa', sublabel: 'N', action: () => { this.openTaskModal(); this.cmdPalette = false; } });
+      }
+      if ('dark'.includes(q) || 'escuro'.includes(q) || 'claro'.includes(q) || 'tema'.includes(q)) {
+        results.push({ type: 'action', icon: '🌙', label: this.darkMode ? 'Modo claro' : 'Modo escuro', sublabel: '', action: () => { this.toggleDarkMode(); this.cmdPalette = false; } });
+      }
+      return results;
+    },
+    _cmdDefaultActions() {
+      return [
+        { type: 'action', icon: '➕', label: 'Criar nova tarefa', sublabel: 'N', action: () => { this.openTaskModal(); this.cmdPalette = false; } },
+        { type: 'nav', icon: '✅', label: 'Ir para Tarefas', sublabel: '', action: () => { this.goToPage('tasks'); this.cmdPalette = false; } },
+        { type: 'nav', icon: '👥', label: 'Ir para Mentorados', sublabel: '', action: () => { this.goToPage('mentorados'); this.cmdPalette = false; } },
+        { type: 'nav', icon: '📞', label: 'Ir para Calls', sublabel: '', action: () => { this.goToPage('calls'); this.cmdPalette = false; } },
+        { type: 'action', icon: '🌙', label: this.darkMode ? 'Modo claro' : 'Modo escuro', sublabel: '', action: () => { this.toggleDarkMode(); this.cmdPalette = false; } },
+        { type: 'action', icon: '🔍', label: 'Buscar tarefa...', sublabel: '/', action: () => { this.goToPage('tasks'); this.cmdPalette = false; setTimeout(() => document.querySelector('.tasks-main input[type="text"]')?.focus(), 200); } },
+      ];
+    },
+    cmdExec(idx) {
+      const item = this.cmdResults[idx || this.cmdSelectedIdx];
+      if (item?.action) item.action();
+    },
+    cmdKeyDown(e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); this.cmdSelectedIdx = Math.min(this.cmdSelectedIdx + 1, this.cmdResults.length - 1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); this.cmdSelectedIdx = Math.max(this.cmdSelectedIdx - 1, 0); }
+      else if (e.key === 'Enter') { e.preventDefault(); this.cmdExec(); }
+      else if (e.key === 'Escape') { this.cmdPalette = false; }
+    },
+
+    // ── Quick Filters (Dragon 39) ──
+    quickFilter: null, // 'mine' | 'overdue' | 'unassigned' | 'thisWeek' | 'favorites'
+    setQuickFilter(filter) {
+      this.quickFilter = this.quickFilter === filter ? null : filter;
+    },
+    get quickFilterCounts() {
+      const tasks = this.data.tasks;
+      const me = this.auth?.currentUser?.user_metadata?.full_name || '';
+      const now = new Date();
+      const weekEnd = new Date(now); weekEnd.setDate(now.getDate() + 7);
+      return {
+        mine: tasks.filter(t => t.responsavel && me && t.responsavel.toLowerCase().includes(me.toLowerCase().split(' ')[0])).length,
+        overdue: tasks.filter(t => t.data_fim && new Date(t.data_fim) < now && t.status !== 'concluida').length,
+        unassigned: tasks.filter(t => !t.responsavel).length,
+        thisWeek: tasks.filter(t => t.data_fim && new Date(t.data_fim) >= now && new Date(t.data_fim) <= weekEnd).length,
+        favorites: this.favorites.length,
+      };
+    },
+
+    // ── Task Age (Dragon 43) ──
+    taskAge(createdAt) {
+      if (!createdAt) return null;
+      const days = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000);
+      if (days <= 3) return { label: 'Novo', cls: 'cu-age--fresh' };
+      if (days <= 7) return { label: days + 'd', cls: 'cu-age--week' };
+      if (days <= 30) return { label: days + 'd', cls: 'cu-age--stale' };
+      return { label: Math.floor(days / 30) + 'mo', cls: 'cu-age--ancient' };
+    },
+
+    // ── Focus/Zen Mode (Dragon 45) ──
+    focusMode: false,
+    toggleFocusMode() {
+      this.focusMode = !this.focusMode;
+      document.documentElement.classList.toggle('cu-focus-mode', this.focusMode);
+    },
+
+    // ── Context Menu (Dragon 48) ──
+    contextMenu: { show: false, x: 0, y: 0, taskId: null },
+    showContextMenu(e, taskId) {
+      e.preventDefault();
+      this.contextMenu = { show: true, x: e.clientX, y: e.clientY, taskId };
+    },
+    hideContextMenu() { this.contextMenu.show = false; },
+    contextAction(action) {
+      const id = this.contextMenu.taskId;
+      this.hideContextMenu();
+      if (!id) return;
+      switch(action) {
+        case 'open': this.openTaskDetail(id); break;
+        case 'duplicate': this.duplicateTask(id); break;
+        case 'favorite': this.toggleFavorite(id); break;
+        case 'complete': this.updateTaskStatus(id, true); break;
+        case 'delete': if (confirm('Excluir?')) this.deleteTask(id); break;
+        case 'timer': this.startTimeTracker(id); break;
+        case 'copy': navigator.clipboard.writeText(window.location.origin + '/tasks?task=' + id); this.toast('Link copiado', 'success'); break;
+      }
+    },
+
+    // ── Batch Move (Dragon 42) ──
+    async bulkMoveToList(listId) {
+      const ids = Object.entries(this.ui.bulkSelected).filter(([,v]) => v).map(([id]) => id);
+      if (!ids.length || !sb) return;
+      try {
+        const { error } = await sb.from('god_tasks').update({ list_id: listId }).in('id', ids);
+        if (error) throw error;
+        this.data.tasks = this.data.tasks.map(t => ids.includes(t.id) ? { ...t, list_id: listId } : t);
+        this.toast(`${ids.length} tarefa(s) movida(s)`, 'success');
+        this.bulkClear();
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    // ── Task Archive (Dragon 35) ──
+    async archiveTask(taskId) {
+      if (!sb) return;
+      try {
+        await sb.from('god_tasks').update({ status: 'arquivada' }).eq('id', taskId);
+        const task = this.data.tasks.find(t => t.id === taskId);
+        if (task) task.status = 'arquivada';
+        this.toast('Tarefa arquivada', 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+    async restoreTask(taskId) {
+      if (!sb) return;
+      try {
+        await sb.from('god_tasks').update({ status: 'pendente' }).eq('id', taskId);
+        const task = this.data.tasks.find(t => t.id === taskId);
+        if (task) task.status = 'pendente';
+        this.toast('Tarefa restaurada', 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    // ── Action Items from Comments (Dragon 51) ──
+    async createActionFromComment(taskId, commentText, assignee) {
+      if (!sb || !commentText) return;
+      try {
+        const parent = this.data.tasks.find(t => t.id === taskId);
+        const { data, error } = await sb.from('god_tasks').insert({
+          titulo: commentText.slice(0, 200),
+          responsavel: assignee || null,
+          parent_task_id: taskId,
+          status: 'pendente',
+          prioridade: 'normal',
+          tipo: 'acao',
+          space_id: parent?.space_id,
+          list_id: parent?.list_id,
+          fonte: 'comment_action'
+        }).select().single();
+        if (error) throw error;
+        this.data.tasks.push(data);
+        this.toast('Item de acao criado', 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    // ── My Work View (Dragon 36) ──
+    get myWorkData() {
+      const me = this.auth?.currentUser?.user_metadata?.full_name || '';
+      const meFirst = me.toLowerCase().split(' ')[0];
+      if (!meFirst) return { overdue: [], today: [], upcoming: [], done: [] };
+      const myTasks = this.data.tasks.filter(t => t.responsavel && t.responsavel.toLowerCase().includes(meFirst));
+      const now = new Date();
+      const todayStr = now.toISOString().slice(0, 10);
+      const weekEnd = new Date(now); weekEnd.setDate(now.getDate() + 7);
+      return {
+        overdue: myTasks.filter(t => t.data_fim && new Date(t.data_fim) < now && t.status !== 'concluida'),
+        today: myTasks.filter(t => t.data_fim && t.data_fim.slice(0, 10) === todayStr && t.status !== 'concluida'),
+        upcoming: myTasks.filter(t => t.data_fim && new Date(t.data_fim) > now && new Date(t.data_fim) <= weekEnd && t.status !== 'concluida'),
+        done: myTasks.filter(t => t.status === 'concluida').slice(0, 10),
+      };
+    },
+
+    // ── Activity Timeline (Dragon 22) ──
+    activityTimeline: [],
+    activityTimelineOpen: false,
+    async loadActivityTimeline() {
+      if (!sb) return;
+      try {
+        const { data, error } = await sb.from('god_task_activity')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(100);
+        if (!error && data) this.activityTimeline = data;
+      } catch (e) { console.warn('[Activity]', e.message); }
+    },
+    get activityByDay() {
+      const groups = {};
+      for (const a of this.activityTimeline) {
+        const day = (a.created_at || '').slice(0, 10);
+        if (!groups[day]) groups[day] = [];
+        groups[day].push(a);
+      }
+      return Object.entries(groups).map(([day, items]) => ({ day, items }));
+    },
+
+    // ── Task Watchers (Dragon 23) ──
+    async toggleWatcher(taskId) {
+      const me = this.auth?.currentUser?.user_metadata?.full_name || this.auth?.currentUser?.email || 'user';
+      const task = this.data.tasks.find(t => t.id === taskId);
+      if (!task) return;
+      const watchers = task.watchers || [];
+      const idx = watchers.indexOf(me);
+      if (idx >= 0) watchers.splice(idx, 1);
+      else watchers.push(me);
+      task.watchers = [...watchers];
+      if (sb) {
+        try {
+          await sb.from('god_tasks').update({ watchers }).eq('id', taskId);
+        } catch (e) { console.warn('[Watch]', e.message); }
+      }
+    },
+    isWatching(taskId) {
+      const me = this.auth?.currentUser?.user_metadata?.full_name || '';
+      const task = this.data.tasks.find(t => t.id === taskId);
+      return (task?.watchers || []).includes(me);
+    },
+
+    // ── Global Search (Dragon 32) ──
+    globalSearchOpen: false,
+    globalSearchQuery: '',
+    get globalSearchResults() {
+      const q = (this.globalSearchQuery || '').toLowerCase().trim();
+      if (!q || q.length < 2) return { tasks: [], mentorados: [], calls: [] };
+      return {
+        tasks: this.data.tasks.filter(t => t.titulo?.toLowerCase().includes(q)).slice(0, 10),
+        mentorados: (this.data.mentorados || []).filter(m => (m.nome || '').toLowerCase().includes(q)).slice(0, 5),
+        calls: (this.data.calls || []).filter(c => (c.titulo || c.assunto || '').toLowerCase().includes(q)).slice(0, 5),
+      };
+    },
+
+    // ── Sprint Velocity (Dragon 37) ──
+    get sprintVelocityData() {
+      const sprints = (this.data.sprints || []).filter(s => s.status === 'encerrado' || s.status === 'ativo');
+      return sprints.map(s => {
+        const tasks = this.data.tasks.filter(t => t.sprint_id === s.id);
+        const done = tasks.filter(t => t.status === 'concluida');
+        return {
+          name: s.nome || 'Sprint',
+          committed: tasks.reduce((sum, t) => sum + (t.points || 1), 0),
+          completed: done.reduce((sum, t) => sum + (t.points || 1), 0),
+          taskCount: tasks.length,
+          doneCount: done.length,
+        };
+      });
+    },
+
+    // ── Priority Matrix / Eisenhower (Dragon 38) ──
+    get priorityMatrix() {
+      const tasks = this.data.tasks.filter(t => t.status !== 'concluida' && t.status !== 'cancelada');
+      const now = new Date();
+      const urgent = t => t.data_fim && new Date(t.data_fim) <= new Date(now.getTime() + 3 * 86400000);
+      return {
+        urgentImportant: tasks.filter(t => urgent(t) && (t.prioridade === 'urgente' || t.prioridade === 'alta')),
+        notUrgentImportant: tasks.filter(t => !urgent(t) && (t.prioridade === 'urgente' || t.prioridade === 'alta')),
+        urgentNotImportant: tasks.filter(t => urgent(t) && t.prioridade !== 'urgente' && t.prioridade !== 'alta'),
+        notUrgentNotImportant: tasks.filter(t => !urgent(t) && t.prioridade !== 'urgente' && t.prioridade !== 'alta'),
+      };
+    },
+
+    // ── Subtask Progress (Dragon 40 — enhanced) ──
+    subtaskProgressBar(task) {
+      const p = this.subtaskProgress(task);
+      if (!p.total) return null;
+      const pct = Math.round(p.done / p.total * 100);
+      return { done: p.done, total: p.total, pct, color: pct === 100 ? '#22c55e' : pct > 50 ? '#3b82f6' : '#d97706' };
+    },
+
+    // ── Task Estimation vs Actual (Dragon 46) ──
+    estimationAccuracy(task) {
+      if (!task.time_estimate || !task.time_spent) return null;
+      const ratio = task.time_spent / task.time_estimate;
+      return {
+        estimated: task.time_estimate,
+        actual: task.time_spent,
+        ratio,
+        label: ratio <= 1 ? 'Dentro' : ratio <= 1.5 ? 'Acima' : 'Muito acima',
+        color: ratio <= 1 ? '#22c55e' : ratio <= 1.5 ? '#d97706' : '#dc2626',
+      };
+    },
+
+    // ── Keyboard Navigation in List (Dragon 30) ──
+    _listFocusIdx: -1,
+    listKeyNav(e) {
+      const rows = this.tasksTree.filter(t => !t._isGroupHeader);
+      if (!rows.length) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        this._listFocusIdx = Math.min(this._listFocusIdx + 1, rows.length - 1);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        this._listFocusIdx = Math.max(this._listFocusIdx - 1, 0);
+      } else if (e.key === 'Enter' && this._listFocusIdx >= 0) {
+        e.preventDefault();
+        const t = rows[this._listFocusIdx];
+        if (t) this.openTaskDetail(t._parentId || t.id);
+      } else if (e.key === ' ' && this._listFocusIdx >= 0) {
+        e.preventDefault();
+        const t = rows[this._listFocusIdx];
+        if (t) this.bulkToggle(t.id, e);
+      }
+      // Scroll focused row into view
+      this.$nextTick(() => {
+        const focused = document.querySelector(`.cu-list__row[data-focus-idx="${this._listFocusIdx}"]`);
+        focused?.scrollIntoView({ block: 'nearest' });
+      });
+    },
+
+    // ── Time Tracking (Dragon 20) ──
+    timeTracker: { taskId: null, startTime: null, elapsed: 0, interval: null },
+    startTimeTracker(taskId) {
+      this.stopTimeTracker();
+      this.timeTracker.taskId = taskId;
+      this.timeTracker.startTime = Date.now();
+      this.timeTracker.elapsed = 0;
+      this.timeTracker.interval = setInterval(() => {
+        this.timeTracker.elapsed = Math.floor((Date.now() - this.timeTracker.startTime) / 1000);
+      }, 1000);
+    },
+    stopTimeTracker() {
+      if (this.timeTracker.interval) clearInterval(this.timeTracker.interval);
+      const elapsed = this.timeTracker.elapsed;
+      const taskId = this.timeTracker.taskId;
+      this.timeTracker = { taskId: null, startTime: null, elapsed: 0, interval: null };
+      return { taskId, elapsed };
+    },
+    async saveTimeEntry(taskId, seconds) {
+      if (!sb || !taskId || !seconds) return;
+      const hours = Math.round(seconds / 36) / 100; // 2 decimal places
+      try {
+        const task = this.data.tasks.find(t => t.id === taskId);
+        const current = task?.time_spent || 0;
+        await sb.from('god_tasks').update({ time_spent: current + hours }).eq('id', taskId);
+        if (task) task.time_spent = current + hours;
+        this.toast(`${this.formatDuration(seconds)} registrado`, 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+    formatDuration(seconds) {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = seconds % 60;
+      if (h > 0) return `${h}h ${m}m`;
+      if (m > 0) return `${m}m ${s}s`;
+      return `${s}s`;
+    },
+
+    // ── Task Breadcrumb (Dragon 29) ──
+    taskBreadcrumb(taskId) {
+      const task = this.data.tasks.find(t => t.id === taskId);
+      if (!task) return [];
+      const parts = [];
+      // Find space
+      const list = (this.data.lists || []).find(l => l.id === task.list_id);
+      const space = list ? (this.data.spaces || []).find(s => s.id === list.space_id) : null;
+      if (space) parts.push({ label: space.name || space.nome, type: 'space' });
+      if (list) parts.push({ label: list.name || list.nome, type: 'list' });
+      parts.push({ label: task.titulo, type: 'task' });
+      return parts;
+    },
+
+    // ── Duplicate Task (Dragon 28) ──
+    async duplicateTask(taskId) {
+      const orig = this.data.tasks.find(t => t.id === taskId);
+      if (!orig || !sb) return;
+      const copy = { ...orig };
+      delete copy.id;
+      delete copy.created_at;
+      delete copy.updated_at;
+      copy.titulo = orig.titulo + ' (copia)';
+      copy.status = 'pendente';
+      try {
+        const { data, error } = await sb.from('god_tasks').insert(copy).select().single();
+        if (error) throw error;
+        this.data.tasks.push(data);
+        this.toast('Tarefa duplicada', 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    // ── Favorites / Pinned (Dragon 24) ──
+    favorites: JSON.parse(localStorage.getItem('spalla_favorites') || '[]'),
+    toggleFavorite(taskId) {
+      const idx = this.favorites.indexOf(taskId);
+      if (idx >= 0) this.favorites.splice(idx, 1);
+      else this.favorites.push(taskId);
+      localStorage.setItem('spalla_favorites', JSON.stringify(this.favorites));
+    },
+    isFavorite(taskId) { return this.favorites.includes(taskId); },
+    get favoriteTasks() { return this.data.tasks.filter(t => this.favorites.includes(t.id)); },
+
+    // ── Sprint Management ──
+    get activeSprintId() {
+      return this.ui.taskSprintFilter !== 'all' ? this.ui.taskSprintFilter : null;
+    },
+    get activeSprintData() {
+      const id = this.activeSprintId;
+      if (!id) return null;
+      return (this.data.sprints || []).find(s => s.id === id) || null;
+    },
+    get sprintTasks() {
+      const id = this.activeSprintId;
+      if (!id) return [];
+      return this.data.tasks.filter(t => t.sprint_id === id);
+    },
+    get sprintStats() {
+      const tasks = this.sprintTasks;
+      const total = tasks.length;
+      const done = tasks.filter(t => t.status === 'concluida').length;
+      const points = tasks.reduce((s, t) => s + (t.points || 0), 0);
+      const donePoints = tasks.filter(t => t.status === 'concluida').reduce((s, t) => s + (t.points || 0), 0);
+      return { total, done, pending: total - done, points, donePoints, remainingPoints: points - donePoints, pct: total ? Math.round(done / total * 100) : 0 };
+    },
+    sprintBurndownData() {
+      // Returns { labels: [dates], ideal: [points], actual: [points] }
+      const sp = this.activeSprintData;
+      if (!sp?.inicio || !sp?.fim) return null;
+      const start = new Date(sp.inicio);
+      const end = new Date(sp.fim);
+      const totalDays = Math.ceil((end - start) / 86400000) + 1;
+      const totalPoints = this.sprintStats.points || this.sprintStats.total;
+      const labels = [];
+      const ideal = [];
+      for (let i = 0; i < totalDays; i++) {
+        const d = new Date(start); d.setDate(d.getDate() + i);
+        labels.push(d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }));
+        ideal.push(Math.round(totalPoints * (1 - i / (totalDays - 1))));
+      }
+      // Actual: remaining per day from snapshots (or estimate from current data)
+      const remaining = this.sprintStats.remainingPoints || (this.sprintStats.total - this.sprintStats.done);
+      const today = new Date();
+      const daysPassed = Math.min(totalDays, Math.ceil((today - start) / 86400000) + 1);
+      const actual = [];
+      for (let i = 0; i < daysPassed; i++) {
+        // Linear interpolation from totalPoints to remaining (simplified — real data comes from snapshots)
+        actual.push(Math.round(totalPoints - (totalPoints - remaining) * (i / (daysPassed - 1 || 1))));
+      }
+      return { labels, ideal, actual };
+    },
+    async sprintCreate() {
+      const name = prompt('Nome do sprint (ex: Sprint 4)');
+      if (!name) return;
+      const inicio = prompt('Data inicio (YYYY-MM-DD)');
+      if (!inicio) return;
+      const fim = prompt('Data fim (YYYY-MM-DD)');
+      if (!fim) return;
+      const spaceId = this.ui.taskSpaceFilter !== 'all' ? this.ui.taskSpaceFilter : 'space_sistema';
+      try {
+        const { data, error } = await sb.from('god_lists').insert({
+          id: 'sprint_' + Date.now(),
+          nome: name,
+          space_id: spaceId,
+          tipo: 'sprint',
+          sprint_inicio: inicio,
+          sprint_fim: fim,
+          sprint_status: 'planejado',
+          ordem: (this.data.sprints?.length || 0) + 1,
+        }).select().single();
+        if (error) throw error;
+        this.toast('Sprint criado', 'success');
+        await this.loadSpacesAndStatuses();
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+    async sprintClose(sprintId) {
+      if (!confirm('Encerrar este sprint? Tarefas incompletas podem ser movidas pro proximo.')) return;
+      try {
+        const { error } = await sb.from('god_lists').update({ sprint_status: 'encerrado' }).eq('id', sprintId);
+        if (error) throw error;
+        // Take final snapshot
+        await sb.rpc('fn_sprint_snapshot', { p_sprint_id: sprintId });
+        this.toast('Sprint encerrado', 'success');
+        await this.loadSpacesAndStatuses();
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+    async sprintActivate(sprintId) {
+      try {
+        const { error } = await sb.from('god_lists').update({ sprint_status: 'ativo' }).eq('id', sprintId);
+        if (error) throw error;
+        this.toast('Sprint ativado', 'success');
+        await this.loadSpacesAndStatuses();
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+    async sprintCarryOver(fromSprintId, toSprintId) {
+      const incomplete = this.data.tasks.filter(t => t.sprint_id === fromSprintId && t.status !== 'concluida');
+      if (!incomplete.length) { this.toast('Nenhuma tarefa incompleta', 'info'); return; }
+      if (!confirm(`Mover ${incomplete.length} tarefa(s) incompleta(s) pro sprint selecionado?`)) return;
+      const ids = incomplete.map(t => t.id);
+      try {
+        const { error } = await sb.from('god_tasks').update({ sprint_id: toSprintId }).in('id', ids);
+        if (error) throw error;
+        this.data.tasks = this.data.tasks.map(t => ids.includes(t.id) ? { ...t, sprint_id: toSprintId } : t);
+        this.toast(`${ids.length} tarefa(s) movida(s)`, 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+    async assignToSprint(taskId, sprintId) {
+      await this.updateTaskField(taskId, 'sprint_id', sprintId || null);
+    },
+    async updateTaskPoints(taskId, points) {
+      const val = parseInt(points) || null;
+      await this.updateTaskField(taskId, 'points', val);
+    },
+
+    // ── Dragon 4: Activity Feed (track all changes) ──
+    async logActivity(taskId, action, field = null, oldValue = null, newValue = null) {
+      if (!sb || !taskId) return;
+      try {
+        await sb.from('god_task_activity').insert({
+          task_id: taskId,
+          action,
+          field_name: field,
+          old_value: oldValue !== null ? JSON.stringify(oldValue) : null,
+          new_value: newValue !== null ? JSON.stringify(newValue) : null,
+          user_id: this.auth.currentUser?.email || 'system',
+        });
+      } catch (e) { /* silent */ }
+    },
+
+    // ── Dragon 5: Export CSV ──
+    exportTasksCSV() {
+      const tasks = this.data.tasks;
+      const headers = ['titulo','status','prioridade','responsavel','mentorado_nome','data_inicio','data_fim','space_id','list_id','tipo','fonte','created_at'];
+      const rows = tasks.map(t => headers.map(h => {
+        const v = t[h] ?? '';
+        return '"' + String(v).replace(/"/g, '""') + '"';
+      }).join(','));
+      const csv = headers.join(',') + '\n' + rows.join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'tarefas_' + new Date().toISOString().slice(0,10) + '.csv';
+      a.click(); URL.revokeObjectURL(url);
+      this.toast('CSV exportado: ' + tasks.length + ' tarefas', 'success');
+    },
+
+    async importTasksCSV(file) {
+      if (!file || !sb) return;
+      const text = await file.text();
+      const lines = text.split('\n').filter(l => l.trim());
+      if (lines.length < 2) { this.toast('CSV vazio', 'warn'); return; }
+      const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+      let imported = 0;
+      for (let i = 1; i < lines.length; i++) {
+        const vals = lines[i].match(/("([^"]|"")*"|[^,]*)/g) || [];
+        const row = {};
+        headers.forEach((h, j) => { row[h] = (vals[j] || '').replace(/^"|"$/g, '').replace(/""/g, '"').trim(); });
+        if (!row.titulo) continue;
+        try {
+          await sb.from('god_tasks').insert({
+            titulo: row.titulo,
+            status: row.status || 'pendente',
+            prioridade: row.prioridade || 'normal',
+            responsavel: row.responsavel || null,
+            mentorado_nome: row.mentorado_nome || null,
+            data_inicio: row.data_inicio || null,
+            data_fim: row.data_fim || null,
+            space_id: row.space_id || null,
+            list_id: row.list_id || null,
+            tipo: row.tipo || 'geral',
+            fonte: 'csv_import',
+          });
+          imported++;
+        } catch (e) { /* skip bad rows */ }
+      }
+      await this.loadTasks();
+      this.toast(`Importadas: ${imported} de ${lines.length - 1} linhas`, 'success');
+    },
+
+    // ── Dragon 6: Form View (public intake) ──
+    get formViewFields() {
+      return [
+        { key: 'titulo', label: 'Titulo da tarefa', type: 'text', required: true },
+        { key: 'descricao', label: 'Descricao', type: 'textarea', required: false },
+        { key: 'prioridade', label: 'Prioridade', type: 'select', options: ['normal','alta','urgente','baixa'], required: false },
+        { key: 'responsavel', label: 'Responsavel', type: 'select', options: (this.data.members || []).map(m => m.nome_curto || m.name), required: false },
+        { key: 'data_fim', label: 'Data de vencimento', type: 'date', required: false },
+        { key: 'mentorado_nome', label: 'Mentorado', type: 'text', required: false },
+      ];
+    },
+
+    async submitFormView(formData) {
+      if (!formData?.titulo?.trim() || !sb) { this.toast('Titulo obrigatorio', 'warn'); return; }
+      try {
+        const { error } = await sb.from('god_tasks').insert({
+          ...formData,
+          status: 'pendente',
+          fonte: 'form',
+          space_id: this.ui.taskSpaceFilter !== 'all' ? this.ui.taskSpaceFilter : null,
+          created_by: 'form_submission',
+        });
+        if (error) throw error;
+        await this.loadTasks();
+        this.toast('Tarefa criada via formulario', 'success');
+        return true;
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); return false; }
+    },
+
+    // ── Dragon 7: Workload View ──
+    get workloadData() {
+      const members = this.data.members || [];
+      const tasks = this.data.tasks.filter(t => t.status !== 'concluida');
+      return members.map(m => {
+        const name = m.nome_curto || m.name;
+        const myTasks = tasks.filter(t => t.responsavel === name);
+        const points = myTasks.reduce((s, t) => s + (t.points || 0), 0);
+        const estimate = myTasks.reduce((s, t) => s + (t.time_estimate || 0), 0);
+        const overdue = myTasks.filter(t => (t.data_fim || t.prazo) && new Date(t.data_fim || t.prazo) < new Date()).length;
+        const byPrio = { urgente: 0, alta: 0, normal: 0, baixa: 0 };
+        myTasks.forEach(t => { byPrio[t.prioridade || 'normal']++; });
+        return { name, color: m.cor || '#6366f1', count: myTasks.length, points, estimate, overdue, byPrio };
+      }).sort((a, b) => b.count - a.count);
+    },
+
+    // ── Task Templates ──
+    async loadTemplates() {
+      if (!sb) return;
+      try {
+        const { data } = await sb.from('god_task_templates').select('*').order('usage_count', { ascending: false });
+        if (data) this.data.templates = data;
+      } catch (e) { console.warn('[Spalla] loadTemplates:', e.message); }
+    },
+
+    async createFromTemplate(templateId) {
+      const tmpl = (this.data.templates || []).find(t => t.id === templateId);
+      if (!tmpl) return;
+      const td = tmpl.template_data || {};
+      const titulo = (td.titulo_prefix || '') + prompt('Nome da tarefa:');
+      if (!titulo?.trim()) return;
+      const task = {
+        titulo,
+        descricao: td.descricao || '',
+        prioridade: td.prioridade || 'normal',
+        tipo: td.tipo || 'geral',
+        space_id: td.space_id || this.ui.taskSpaceFilter !== 'all' ? this.ui.taskSpaceFilter : null,
+        list_id: td.list_id || this.ui.taskListFilter !== 'all' ? this.ui.taskListFilter : null,
+        status: 'pendente',
+        created_by: this.auth.currentUser?.email || 'dashboard',
+      };
+      try {
+        const { data, error } = await sb.from('god_tasks').insert(task).select().single();
+        if (error) throw error;
+        // Add subtasks from template
+        if (td.subtasks?.length && data?.id) {
+          const subs = td.subtasks.map((s, i) => ({ task_id: data.id, texto: s.text || s, done: false, sort_order: i }));
+          await sb.from('god_task_subtasks').insert(subs);
+        }
+        // Increment usage count
+        await sb.from('god_task_templates').update({ usage_count: (tmpl.usage_count || 0) + 1 }).eq('id', templateId);
+        await this.loadTasks();
+        this.toast('Tarefa criada do template: ' + tmpl.name, 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    // ── Quick Add (inline task creation in list view) ──
+    async quickAddTask(titulo) {
+      if (!titulo?.trim() || !sb) return;
+      const task = {
+        titulo: titulo.trim(),
+        status: 'pendente',
+        prioridade: 'normal',
+        space_id: this.ui.taskSpaceFilter !== 'all' ? this.ui.taskSpaceFilter : null,
+        list_id: this.ui.taskListFilter !== 'all' ? this.ui.taskListFilter : null,
+        sprint_id: this.ui.taskSprintFilter !== 'all' ? this.ui.taskSprintFilter : null,
+        created_by: this.auth.currentUser?.email || 'dashboard',
+      };
+      try {
+        const { data, error } = await sb.from('god_tasks').insert(task).select().single();
+        if (error) throw error;
+        this.data.tasks.unshift({ ...data, subtasks: [], checklist: [], comments: [], tags: [] });
+        this.toast('Tarefa criada', 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    // ── Saved Views ──
+    async loadSavedViews() {
+      if (!sb) return;
+      try {
+        const { data } = await sb.from('god_saved_views').select('*').order('is_pinned', { ascending: false }).order('name');
+        if (data) this.data.savedViews = data;
+      } catch (e) { console.warn('[Spalla] loadSavedViews:', e.message); }
+    },
+
+    async saveCurrentView(name) {
+      if (!name?.trim() || !sb) return;
+      const config = {
+        groupBy: this.ui.taskGroupBy,
+        spaceFilter: this.ui.taskSpaceFilter,
+        listFilter: this.ui.taskListFilter,
+        sprintFilter: this.ui.taskSprintFilter,
+        visibleFieldIds: this.ui.visibleFieldIds,
+      };
+      try {
+        const { error } = await sb.from('god_saved_views').insert({
+          name, view_type: this.ui.taskView, config,
+          space_id: this.ui.taskSpaceFilter !== 'all' ? this.ui.taskSpaceFilter : null,
+        });
+        if (error) throw error;
+        await this.loadSavedViews();
+        this.toast('View salva: ' + name, 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    applySavedView(view) {
+      this.ui.taskView = view.view_type || 'list';
+      const c = view.config || {};
+      if (c.groupBy) this.ui.taskGroupBy = c.groupBy;
+      if (c.spaceFilter) this.ui.taskSpaceFilter = c.spaceFilter;
+      if (c.listFilter) this.ui.taskListFilter = c.listFilter;
+      if (c.sprintFilter) this.ui.taskSprintFilter = c.sprintFilter;
+      if (c.visibleFieldIds) this.ui.visibleFieldIds = c.visibleFieldIds;
+    },
+
+    async deleteSavedView(id) {
+      if (!confirm('Excluir esta view?')) return;
+      await sb.from('god_saved_views').delete().eq('id', id);
+      this.data.savedViews = (this.data.savedViews || []).filter(v => v.id !== id);
+    },
+
+    // ── Realtime Subscriptions ──
+    _subscribeRealtime() {
+      if (!sb) return;
+      try {
+        sb.channel('god_tasks_changes')
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'god_tasks' }, (payload) => {
+            const existing = this.data.tasks.find(t => t.id === payload.new.id);
+            if (!existing) {
+              this.data.tasks.unshift(payload.new);
+              this.toast('Nova tarefa: ' + (payload.new.titulo || '').substring(0, 40), 'info');
+            }
+          })
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'god_tasks' }, (payload) => {
+            const idx = this.data.tasks.findIndex(t => t.id === payload.new.id);
+            if (idx >= 0) {
+              // Preserve nested data (subtasks, comments, etc.) that aren't in the update
+              const existing = this.data.tasks[idx];
+              this.data.tasks[idx] = { ...existing, ...payload.new };
+            }
+          })
+          .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'god_tasks' }, (payload) => {
+            this.data.tasks = this.data.tasks.filter(t => t.id !== payload.old.id);
+          })
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') console.log('[Spalla] Realtime: subscribed to god_tasks');
+          });
+      } catch (e) {
+        console.warn('[Spalla] Realtime subscription failed:', e.message);
+      }
+    },
+
+    // ── Inline Title Edit (list view) ──
+    inlineEditTitle(taskId, newTitle) {
+      const title = newTitle?.trim();
+      if (!title) return;
+      const task = this.data.tasks.find(t => t.id === taskId);
+      if (task && title !== task.titulo) {
+        task.titulo = title;
+        task.updated_at = new Date().toISOString();
+        if (sb) sb.from('god_tasks').update({ titulo: title }).eq('id', taskId);
+      }
+    },
+
+    // ── Keyboard Shortcuts ──
+    _initKeyboardShortcuts() {
+      // Global Cmd+K / Ctrl+K — Command Palette (works on ALL pages)
+      document.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+          e.preventDefault();
+          this.cmdPalette = !this.cmdPalette;
+          this.cmdQuery = '';
+          this.cmdSelectedIdx = 0;
+          if (this.cmdPalette) this.$nextTick(() => document.getElementById('cmd-palette-input')?.focus());
+        }
+      });
+      document.addEventListener('keydown', (e) => {
+        // Don't trigger in input/textarea/contenteditable (except cmd palette)
+        if (e.target.id === 'cmd-palette-input') return;
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+        if (this.ui.page !== 'tasks') return;
+
+        if (e.key === 'n' && !e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          this.openTaskModal();
+        } else if (e.key === '/' && !e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          document.querySelector('.tasks-main input[type="text"][placeholder*="Buscar"]')?.focus();
+        } else if (e.key === 'Escape') {
+          if (this.ui.taskDetailDrawer) this.closeTaskDetail();
+          else if (this.ui.fieldsModalOpen) this.ui.fieldsModalOpen = false;
+          else if (this.ui.automationsOpen) this.ui.automationsOpen = false;
+          else if (this.ui.dashboardOpen) this.ui.dashboardOpen = false;
+        } else if (e.key === '1' && e.altKey) {
+          this.ui.taskView = 'list';
+        } else if (e.key === '2' && e.altKey) {
+          this.ui.taskView = 'calendar';
+        } else if (e.key === '3' && e.altKey) {
+          this.ui.taskView = 'board';
+        } else if (e.key === '4' && e.altKey) {
+          this.ui.taskView = 'gantt';
+        }
+      });
+    },
+
+    // ── SortableJS — Drag & Drop Reorder (Dragon 8) ──
+    _sortableInstances: [],
+    _initSortable() {
+      // Destroy previous instances
+      this._sortableInstances.forEach(s => s.destroy());
+      this._sortableInstances = [];
+      if (typeof Sortable === 'undefined') return;
+
+      const self = this;
+
+      // Board columns: drag cards between status columns
+      this.$nextTick(() => {
+        document.querySelectorAll('.cu-board__cards').forEach(el => {
+          const inst = Sortable.create(el, {
+            group: 'board-tasks',
+            animation: 180,
+            ghostClass: 'cu-sortable-ghost',
+            chosenClass: 'cu-sortable-chosen',
+            dragClass: 'cu-sortable-drag',
+            handle: '.cu-card',
+            onEnd(evt) {
+              const taskId = evt.item?.getAttribute('data-task-id');
+              const toCol = evt.to?.closest('.cu-board__col');
+              const colLabel = toCol?.querySelector('.cu-board__col-label')?.textContent?.trim();
+              if (taskId && colLabel) {
+                // Find status key from label
+                const col = self.boardColumns.find(c => c.label === colLabel);
+                if (col) self.moveTask(taskId, col.key);
+              }
+            }
+          });
+          self._sortableInstances.push(inst);
+        });
+
+        // List view rows: reorder tasks within groups
+        document.querySelectorAll('.cu-list__body').forEach(el => {
+          const inst = Sortable.create(el, {
+            animation: 180,
+            ghostClass: 'cu-sortable-ghost',
+            chosenClass: 'cu-sortable-chosen',
+            handle: '.cu-list__row',
+            onEnd(evt) {
+              // Reorder in local data array
+              const items = Array.from(evt.from.children);
+              const taskIds = items.map(row => row.getAttribute('data-task-id')).filter(Boolean);
+              if (taskIds.length > 0) {
+                // Update sort_order in local state
+                taskIds.forEach((id, idx) => {
+                  const task = self.data.tasks.find(t => t.id === id);
+                  if (task) task.sort_order = idx;
+                });
+              }
+            }
+          });
+          self._sortableInstances.push(inst);
+        });
+      });
+    },
+
+    // ── Automations Engine ──
+    async loadAutomations() {
+      if (!sb) return;
+      try {
+        const { data, error } = await sb.from('god_automations').select('*').order('created_at', { ascending: false });
+        if (!error && data) this.data.automations = data;
+      } catch (e) { console.warn('[Spalla] loadAutomations:', e.message); }
+    },
+
+    async saveAutomation(auto) {
+      if (!sb) return;
+      try {
+        if (auto.id) {
+          const { error } = await sb.from('god_automations').update(auto).eq('id', auto.id);
+          if (error) throw error;
+        } else {
+          const { data, error } = await sb.from('god_automations').insert(auto).select().single();
+          if (error) throw error;
+          auto.id = data.id;
+        }
+        await this.loadAutomations();
+        this.toast('Automacao salva', 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    async toggleAutomation(id) {
+      const auto = (this.data.automations || []).find(a => a.id === id);
+      if (!auto) return;
+      auto.is_active = !auto.is_active;
+      await sb.from('god_automations').update({ is_active: auto.is_active }).eq('id', id);
+    },
+
+    async deleteAutomation(id) {
+      if (!confirm('Excluir esta automacao?')) return;
+      await sb.from('god_automations').delete().eq('id', id);
+      this.data.automations = (this.data.automations || []).filter(a => a.id !== id);
+      this.toast('Automacao excluida', 'success');
+    },
+
+    // Evaluate automations on task change
+    async evaluateAutomations(taskId, triggerType, triggerData = {}) {
+      const rules = (this.data.automations || []).filter(a => a.is_active && a.trigger_type === triggerType);
+      const task = this.data.tasks.find(t => t.id === taskId);
+      if (!task || !rules.length) return;
+
+      for (const rule of rules) {
+        // Check condition
+        const cond = rule.condition_config || {};
+        if (cond.space_id && task.space_id !== cond.space_id) continue;
+        if (cond.priority && task.prioridade !== cond.priority) continue;
+        if (cond.list_id && task.list_id !== cond.list_id) continue;
+
+        // Check trigger specifics
+        const trig = rule.trigger_config || {};
+        if (triggerType === 'status_changed' && trig.to && triggerData.newValue !== trig.to) continue;
+        if (triggerType === 'status_changed' && trig.from && triggerData.oldValue !== trig.from) continue;
+
+        // Execute action
+        const act = rule.action_config || {};
+        try {
+          if (rule.action_type === 'change_status') await this.updateTaskStatus(taskId, act.status);
+          else if (rule.action_type === 'change_assignee') await this.updateTaskField(taskId, 'responsavel', act.assignee);
+          else if (rule.action_type === 'change_priority') await this.updateTaskField(taskId, 'prioridade', act.priority);
+          else if (rule.action_type === 'send_notification') this.toast('Auto: ' + (act.message || rule.name), 'info');
+
+          // Log execution
+          await sb.from('god_automation_log').insert({
+            automation_id: rule.id, task_id: taskId,
+            trigger_data: triggerData, action_result: act, success: true,
+          });
+          await sb.from('god_automations').update({
+            execution_count: (rule.execution_count || 0) + 1,
+            last_executed_at: new Date().toISOString(),
+          }).eq('id', rule.id);
+        } catch (e) {
+          await sb.from('god_automation_log').insert({
+            automation_id: rule.id, task_id: taskId,
+            trigger_data: triggerData, success: false, error_message: e.message,
+          });
+        }
+      }
+    },
+
+    // ── Dashboard Stats ──
+    get dashboardStats() {
+      const tasks = this.data.tasks;
+      const now = new Date();
+      const weekAgo = new Date(now - 7 * 86400000);
+      const recentDone = tasks.filter(t => t.status === 'concluida' && t.updated_at && new Date(t.updated_at) > weekAgo).length;
+      const byAssignee = {};
+      tasks.filter(t => t.status !== 'concluida').forEach(t => {
+        const key = t.responsavel || 'Sem responsavel';
+        byAssignee[key] = (byAssignee[key] || 0) + 1;
+      });
+      const byPriority = { urgente: 0, alta: 0, normal: 0, baixa: 0 };
+      tasks.filter(t => t.status !== 'concluida').forEach(t => { byPriority[t.prioridade || 'normal']++; });
+      const overdue = tasks.filter(t => t.status === 'pendente' && (t.data_fim || t.prazo) && new Date(t.data_fim || t.prazo) < now).length;
+
+      return {
+        total: tasks.length,
+        pending: tasks.filter(t => t.status === 'pendente').length,
+        inProgress: tasks.filter(t => t.status === 'em_andamento').length,
+        done: tasks.filter(t => t.status === 'concluida').length,
+        overdue,
+        recentDone,
+        byAssignee: Object.entries(byAssignee).sort((a, b) => b[1] - a[1]),
+        byPriority,
+      };
+    },
+
+    // ── Calendar View helpers ──
+    calMonthLabel() {
+      const d = new Date(this.ui.calYear, this.ui.calMonth, 1);
+      return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase());
+    },
+    calNavMonth(delta) {
+      let m = this.ui.calMonth + delta;
+      let y = this.ui.calYear;
+      if (m < 0) { m = 11; y--; } else if (m > 11) { m = 0; y++; }
+      this.ui.calMonth = m;
+      this.ui.calYear = y;
+    },
+    calCells() {
+      const y = this.ui.calYear, m = this.ui.calMonth;
+      const first = new Date(y, m, 1);
+      const startDay = first.getDay(); // 0=Sun
+      const daysInMonth = new Date(y, m + 1, 0).getDate();
+      const today = new Date(); today.setHours(0,0,0,0);
+      const cells = [];
+      // Previous month padding
+      const prevDays = new Date(y, m, 0).getDate();
+      for (let i = startDay - 1; i >= 0; i--) {
+        const d = prevDays - i;
+        const dt = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        cells.push({ key: 'p' + d, day: d, date: new Date(y, m - 1, d).toISOString().slice(0,10), inMonth: false, isToday: false });
+      }
+      // Current month
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dt = new Date(y, m, d);
+        const iso = dt.toISOString().slice(0, 10);
+        cells.push({ key: 'c' + d, day: d, date: iso, inMonth: true, isToday: dt.getTime() === today.getTime() });
+      }
+      // Next month padding (fill to 42 cells = 6 rows)
+      const remaining = 42 - cells.length;
+      for (let d = 1; d <= remaining; d++) {
+        cells.push({ key: 'n' + d, day: d, date: new Date(y, m + 1, d).toISOString().slice(0,10), inMonth: false, isToday: false });
+      }
+      return cells;
+    },
+    calAllTasksForDate(dateStr) {
+      return this.data.tasks.filter(t => {
+        const due = t.data_fim || t.prazo;
+        if (!due) return false;
+        return due.slice(0, 10) === dateStr;
+      });
+    },
+    calTasksForDate(dateStr) {
+      return this.calAllTasksForDate(dateStr).slice(0, 5);
+    },
+    async calDropTask(event, dateStr) {
+      const taskId = event.dataTransfer?.getData('text/plain');
+      if (!taskId) return;
+      await this.updateTaskField(taskId, 'data_fim', dateStr);
+    },
+
     get ganttTasks() {
       let tasks = this._filterTasks([...this.data.tasks].filter(t => t.status !== 'concluida'));
       return tasks.filter(t => t.data_inicio || t.data_fim || t.prazo).sort((a, b) => {
@@ -9464,6 +10701,39 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           .update({ ativo: false })
           .eq('mentorado_id', menteeId);
       } catch (e) { console.warn('[Spalla] archiveContext:', e); }
+    },
+
+    // Context Hub — inline edit
+    ctxStartEdit(ctx) {
+      this.ui.ctxEditing = { ...this.ui.ctxEditing, [ctx.id]: { titulo: ctx.titulo || '', conteudo: ctx.conteudo || '', fase: ctx.fase || 'geral' } };
+    },
+    ctxCancelEdit(ctxId) {
+      const e = { ...this.ui.ctxEditing };
+      delete e[ctxId];
+      this.ui.ctxEditing = e;
+    },
+    async ctxSaveEdit(ctxId) {
+      const edit = this.ui.ctxEditing[ctxId];
+      if (!edit) return;
+      try {
+        const { error } = await sb.from('mentorado_context')
+          .update({ titulo: edit.titulo, conteudo: edit.conteudo, fase: edit.fase })
+          .eq('id', ctxId);
+        if (error) throw error;
+        const idx = this.data.menteeContext.findIndex(c => c.id === ctxId);
+        if (idx >= 0) {
+          this.data.menteeContext[idx] = { ...this.data.menteeContext[idx], titulo: edit.titulo, conteudo: edit.conteudo, fase: edit.fase };
+        }
+        this.ctxCancelEdit(ctxId);
+        this.toast('Contexto atualizado', 'success');
+      } catch (e) {
+        this.toast('Erro ao salvar: ' + e.message, 'error');
+      }
+    },
+
+    // Context Hub — toggle expand
+    ctxToggle(ctxId) {
+      this.ui.ctxExpanded = { ...this.ui.ctxExpanded, [ctxId]: !this.ui.ctxExpanded[ctxId] };
     },
 
     // Context Hub — filtered list (used in x-for)
@@ -12492,6 +13762,21 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     relativeTime(dateStr) { return this.timeAgo(dateStr); },
+
+    relativeDueDate(dateStr) {
+      if (!dateStr) return '';
+      const d = this._parseDate(dateStr);
+      if (!d) return dateStr;
+      const today = new Date(); today.setHours(0,0,0,0);
+      const target = new Date(d); target.setHours(0,0,0,0);
+      const diff = Math.round((target - today) / 86400000);
+      if (diff === 0) return 'Hoje';
+      if (diff === 1) return 'Amanha';
+      if (diff === -1) return 'Ontem';
+      if (diff < -1) return Math.abs(diff) + ' dias atras';
+      if (diff <= 7) return target.toLocaleDateString('pt-BR', { weekday: 'short' });
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    },
 
     timeAgo(dateStr) {
       if (!dateStr) return '-';
