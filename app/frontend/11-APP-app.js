@@ -484,6 +484,7 @@ function operon() {
       fieldDefs: [],            // applicable god_task_field_defs for current modal
       automations: [],          // god_automations rules
       savedViews: [],           // god_saved_views
+      templates: [],            // god_task_templates
       finDetailLogs: [],        // financial logs for mentee detail tab
       menteeNotes: [],          // notes for current notes drawer
       waSelectedMentees: [],    // IDs selected in bulk mode
@@ -1965,6 +1966,7 @@ function operon() {
         this.loadFieldDefs();    // non-blocking: popula data.fieldDefs for custom columns
         this.loadAutomations();  // non-blocking: popula data.automations
         this.loadSavedViews();   // non-blocking: popula data.savedViews
+        this.loadTemplates();    // non-blocking: popula data.templates
         this._subscribeRealtime(); // Supabase Realtime for live task updates
         this._initKeyboardShortcuts(); // N=new, /=search, Esc=close, Alt+1-4=views
 
@@ -7660,6 +7662,66 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     async updateTaskPoints(taskId, points) {
       const val = parseInt(points) || null;
       await this.updateTaskField(taskId, 'points', val);
+    },
+
+    // ── Task Templates ──
+    async loadTemplates() {
+      if (!sb) return;
+      try {
+        const { data } = await sb.from('god_task_templates').select('*').order('usage_count', { ascending: false });
+        if (data) this.data.templates = data;
+      } catch (e) { console.warn('[Spalla] loadTemplates:', e.message); }
+    },
+
+    async createFromTemplate(templateId) {
+      const tmpl = (this.data.templates || []).find(t => t.id === templateId);
+      if (!tmpl) return;
+      const td = tmpl.template_data || {};
+      const titulo = (td.titulo_prefix || '') + prompt('Nome da tarefa:');
+      if (!titulo?.trim()) return;
+      const task = {
+        titulo,
+        descricao: td.descricao || '',
+        prioridade: td.prioridade || 'normal',
+        tipo: td.tipo || 'geral',
+        space_id: td.space_id || this.ui.taskSpaceFilter !== 'all' ? this.ui.taskSpaceFilter : null,
+        list_id: td.list_id || this.ui.taskListFilter !== 'all' ? this.ui.taskListFilter : null,
+        status: 'pendente',
+        created_by: this.auth.currentUser?.email || 'dashboard',
+      };
+      try {
+        const { data, error } = await sb.from('god_tasks').insert(task).select().single();
+        if (error) throw error;
+        // Add subtasks from template
+        if (td.subtasks?.length && data?.id) {
+          const subs = td.subtasks.map((s, i) => ({ task_id: data.id, texto: s.text || s, done: false, sort_order: i }));
+          await sb.from('god_task_subtasks').insert(subs);
+        }
+        // Increment usage count
+        await sb.from('god_task_templates').update({ usage_count: (tmpl.usage_count || 0) + 1 }).eq('id', templateId);
+        await this.loadTasks();
+        this.toast('Tarefa criada do template: ' + tmpl.name, 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    // ── Quick Add (inline task creation in list view) ──
+    async quickAddTask(titulo) {
+      if (!titulo?.trim() || !sb) return;
+      const task = {
+        titulo: titulo.trim(),
+        status: 'pendente',
+        prioridade: 'normal',
+        space_id: this.ui.taskSpaceFilter !== 'all' ? this.ui.taskSpaceFilter : null,
+        list_id: this.ui.taskListFilter !== 'all' ? this.ui.taskListFilter : null,
+        sprint_id: this.ui.taskSprintFilter !== 'all' ? this.ui.taskSprintFilter : null,
+        created_by: this.auth.currentUser?.email || 'dashboard',
+      };
+      try {
+        const { data, error } = await sb.from('god_tasks').insert(task).select().single();
+        if (error) throw error;
+        this.data.tasks.unshift({ ...data, subtasks: [], checklist: [], comments: [], tags: [] });
+        this.toast('Tarefa criada', 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
     },
 
     // ── Saved Views ──
