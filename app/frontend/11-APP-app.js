@@ -456,6 +456,9 @@ function operon() {
     // --- Meu Trabalho (root-level for Alpine reactivity) ---
     meuTrabalho: [],
     meuTrabalhoLoading: false,
+    meuTrabalhoFilter: 'pendentes',  // default: só pendentes/em_andamento
+    meuTrabalhoGroupBy: '',
+    meuTrabalhoHideDone: true,
 
     // --- Sprints (root-level) ---
     sprintDashboard: [],
@@ -10699,19 +10702,73 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       }
     },
 
-    get meuTrabalhoGroupedByStatus() {
-      const map = { pendente: [], em_andamento: [], em_revisao: [], bloqueada: [], pausada: [] };
-      for (const t of this.meuTrabalho || []) {
-        if (map[t.status]) map[t.status].push(t);
-      }
-      // Alpine x-for precisa de array, não objeto
+    get meuTrabalhoQuickFilters() {
+      const all = this.meuTrabalho || [];
+      const now = new Date(); now.setHours(0,0,0,0);
+      const weekEnd = new Date(now); weekEnd.setDate(weekEnd.getDate() + (7 - weekEnd.getDay()));
+      const pendentes = all.filter(t => t.status !== 'concluida' && t.status !== 'cancelada' && t.status !== 'arquivada');
+      const atrasadas = all.filter(t => t.atrasada);
+      const semana = all.filter(t => {
+        if (!t.data_fim) return false;
+        const d = new Date(t.data_fim + 'T00:00:00');
+        return d >= now && d <= weekEnd;
+      });
+      const bloqueadas = all.filter(t => t.status === 'bloqueada' || t.bloqueada_por_dependencia);
       return [
-        { status: 'pendente',     label: 'Pendente',      color: '#f3f4f6', tasks: map.pendente },
-        { status: 'em_andamento', label: 'Em andamento',  color: '#dbeafe', tasks: map.em_andamento },
-        { status: 'em_revisao',   label: 'Em revisão',    color: '#fef3c7', tasks: map.em_revisao },
-        { status: 'bloqueada',    label: 'Bloqueada',     color: '#fee2e2', tasks: map.bloqueada },
-        { status: 'pausada',      label: 'Pausada',       color: '#ede9fe', tasks: map.pausada },
-      ].filter(g => g.tasks.length > 0);
+        { key: 'all', label: 'Todas', count: all.length },
+        { key: 'pendentes', label: 'Ativas', count: pendentes.length },
+        { key: 'atrasadas', label: 'Atrasadas', count: atrasadas.length },
+        { key: 'semana', label: 'Esta semana', count: semana.length },
+        { key: 'bloqueadas', label: 'Bloqueadas', count: bloqueadas.length },
+      ];
+    },
+
+    get meuTrabalhoFiltered() {
+      let items = this.meuTrabalho || [];
+      const f = this.meuTrabalhoFilter;
+      const now = new Date(); now.setHours(0,0,0,0);
+      const weekEnd = new Date(now); weekEnd.setDate(weekEnd.getDate() + (7 - weekEnd.getDay()));
+      if (f === 'pendentes') items = items.filter(t => t.status !== 'concluida' && t.status !== 'cancelada' && t.status !== 'arquivada');
+      else if (f === 'atrasadas') items = items.filter(t => t.atrasada);
+      else if (f === 'semana') items = items.filter(t => { if (!t.data_fim) return false; const d = new Date(t.data_fim+'T00:00:00'); return d >= now && d <= weekEnd; });
+      else if (f === 'bloqueadas') items = items.filter(t => t.status === 'bloqueada' || t.bloqueada_por_dependencia);
+      if (this.meuTrabalhoHideDone) items = items.filter(t => t.status !== 'concluida');
+      // Sort: urgente > alta > normal > baixa, then atrasadas first
+      const prioOrder = { urgente: 0, alta: 1, normal: 2, baixa: 3 };
+      items.sort((a, b) => {
+        if (a.atrasada && !b.atrasada) return -1;
+        if (!a.atrasada && b.atrasada) return 1;
+        return (prioOrder[a.prioridade] || 2) - (prioOrder[b.prioridade] || 2);
+      });
+      return items;
+    },
+
+    get meuTrabalhoGrouped() {
+      const items = this.meuTrabalhoFiltered;
+      const by = this.meuTrabalhoGroupBy;
+      if (!by) return [{ key: 'all', label: '', tasks: items }];
+      const map = {};
+      const order = [];
+      const labels = {
+        pendente: 'Pendente', em_andamento: 'Em andamento', em_revisao: 'Em revisao',
+        bloqueada: 'Bloqueada', pausada: 'Pausada', concluida: 'Concluida',
+        urgente: 'Urgente', alta: 'Alta', normal: 'Normal', baixa: 'Baixa',
+      };
+      for (const t of items) {
+        let key;
+        if (by === 'status') key = t.status || 'pendente';
+        else if (by === 'mentorado') key = t.mentorado_nome || 'Interno / Sem mentorado';
+        else if (by === 'prioridade') key = t.prioridade || 'normal';
+        else key = t.status || 'pendente';
+        if (!map[key]) { map[key] = []; order.push(key); }
+        map[key].push(t);
+      }
+      // Fixed order for status/priority
+      let keys = order;
+      if (by === 'status') keys = ['pendente','em_andamento','em_revisao','bloqueada','pausada','concluida'].filter(k => map[k]);
+      else if (by === 'prioridade') keys = ['urgente','alta','normal','baixa'].filter(k => map[k]);
+      for (const k of order) { if (!keys.includes(k)) keys.push(k); }
+      return keys.map(k => ({ key: k, label: labels[k] || k, tasks: map[k] || [] }));
     },
 
     // ===== SPRINT DASHBOARD =====
