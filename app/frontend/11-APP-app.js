@@ -170,6 +170,12 @@ function operon() {
     _detailCache: {},
 
     // --- UI State ---
+    darkMode: localStorage.getItem('spalla_dark') === 'true',
+    toggleDarkMode() {
+      this.darkMode = !this.darkMode;
+      localStorage.setItem('spalla_dark', this.darkMode);
+      document.documentElement.setAttribute('data-theme', this.darkMode ? 'dark' : 'light');
+    },
     ui: {
       page: localStorage.getItem('spalla_page') || CONFIG.DEFAULT_PAGE,
       sidebarOpen: true,
@@ -214,6 +220,7 @@ function operon() {
       automationsOpen: false,
       autoForm: { name: '', trigger_type: 'status_changed', trigger_config: {}, condition_config: {}, action_type: 'change_status', action_config: {} },
       dashboardOpen: false,
+      notificationsOpen: false,
       taskSpaceFilter: 'all', // space_id filter
       taskListFilter: 'all', // list_id filter
       taskSprintFilter: 'all', // sprint_id filter
@@ -1854,6 +1861,8 @@ function operon() {
 
     async init() {
       try {
+        // Apply stored dark mode
+        if (this.darkMode) document.documentElement.setAttribute('data-theme', 'dark');
         // Deep-link: resolve URL pathname to page
         const pathname = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
         // Deep-link: /mentorado/:id — store for after auth
@@ -1969,6 +1978,8 @@ function operon() {
         this.loadTemplates();    // non-blocking: popula data.templates
         this._subscribeRealtime(); // Supabase Realtime for live task updates
         this._initKeyboardShortcuts(); // N=new, /=search, Esc=close, Alt+1-4=views
+        this.$watch('ui.taskView', () => setTimeout(() => this._initSortable(), 200));
+        setTimeout(() => this._initSortable(), 500); // Initial sortable setup
 
         if (this.auth.authenticated) {
           // Auto-refresh token before it expires (every 45 min)
@@ -7521,7 +7532,24 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     // Gantt helpers
     // ── Bulk Actions ──
     get bulkCount() { return Object.values(this.ui.bulkSelected).filter(Boolean).length; },
-    bulkToggle(taskId) { this.ui.bulkSelected = { ...this.ui.bulkSelected, [taskId]: !this.ui.bulkSelected[taskId] }; },
+    _lastBulkIdx: -1,
+    bulkToggle(taskId, event) {
+      const tree = this.tasksTree.filter(t => !t._isGroupHeader);
+      const idx = tree.findIndex(t => t.id === taskId);
+      // Shift+Click range selection
+      if (event?.shiftKey && this._lastBulkIdx >= 0 && idx >= 0) {
+        const from = Math.min(this._lastBulkIdx, idx);
+        const to = Math.max(this._lastBulkIdx, idx);
+        const sel = { ...this.ui.bulkSelected };
+        for (let i = from; i <= to; i++) {
+          if (tree[i]) sel[tree[i].id] = true;
+        }
+        this.ui.bulkSelected = sel;
+      } else {
+        this.ui.bulkSelected = { ...this.ui.bulkSelected, [taskId]: !this.ui.bulkSelected[taskId] };
+      }
+      if (idx >= 0) this._lastBulkIdx = idx;
+    },
     bulkSelectAll() {
       const sel = {};
       this.data.tasks.forEach(t => { sel[t.id] = true; });
@@ -7552,6 +7580,301 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         this.bulkClear();
       } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
     },
+
+    // ── Command Palette (Dragon 25) ──
+    cmdPalette: false,
+    cmdQuery: '',
+    cmdSelectedIdx: 0,
+    get cmdResults() {
+      const q = (this.cmdQuery || '').toLowerCase().trim();
+      if (!q) return this._cmdDefaultActions();
+      const results = [];
+      // Search tasks
+      this.data.tasks.filter(t => t.titulo?.toLowerCase().includes(q)).slice(0, 8).forEach(t => {
+        results.push({ type: 'task', icon: '📋', label: t.titulo, sublabel: t.responsavel || '', action: () => { this.openTaskDetail(t.id); this.cmdPalette = false; } });
+      });
+      // Search pages
+      const pages = [
+        { key: 'dashboard', label: 'Dashboard', icon: '📊' },
+        { key: 'tasks', label: 'Tarefas', icon: '✅' },
+        { key: 'mentorados', label: 'Mentorados', icon: '👥' },
+        { key: 'calls', label: 'Calls', icon: '📞' },
+        { key: 'docs', label: 'Documentos', icon: '📁' },
+      ];
+      pages.filter(p => p.label.toLowerCase().includes(q)).forEach(p => {
+        results.push({ type: 'nav', icon: p.icon, label: 'Ir para ' + p.label, sublabel: '', action: () => { this.goToPage(p.key); this.cmdPalette = false; } });
+      });
+      // Search members
+      (this.data.members || []).filter(m => (m.nome_curto || m.name || '').toLowerCase().includes(q)).slice(0, 4).forEach(m => {
+        results.push({ type: 'member', icon: '👤', label: m.nome_curto || m.name, sublabel: 'Membro', action: () => { this.ui.taskAssigneeFilter = m.nome_curto || m.name; this.goToPage('tasks'); this.cmdPalette = false; } });
+      });
+      // Actions
+      if ('nova tarefa'.includes(q) || 'criar'.includes(q) || 'new task'.includes(q)) {
+        results.push({ type: 'action', icon: '➕', label: 'Criar nova tarefa', sublabel: 'N', action: () => { this.openTaskModal(); this.cmdPalette = false; } });
+      }
+      if ('dark'.includes(q) || 'escuro'.includes(q) || 'claro'.includes(q) || 'tema'.includes(q)) {
+        results.push({ type: 'action', icon: '🌙', label: this.darkMode ? 'Modo claro' : 'Modo escuro', sublabel: '', action: () => { this.toggleDarkMode(); this.cmdPalette = false; } });
+      }
+      return results;
+    },
+    _cmdDefaultActions() {
+      return [
+        { type: 'action', icon: '➕', label: 'Criar nova tarefa', sublabel: 'N', action: () => { this.openTaskModal(); this.cmdPalette = false; } },
+        { type: 'nav', icon: '✅', label: 'Ir para Tarefas', sublabel: '', action: () => { this.goToPage('tasks'); this.cmdPalette = false; } },
+        { type: 'nav', icon: '👥', label: 'Ir para Mentorados', sublabel: '', action: () => { this.goToPage('mentorados'); this.cmdPalette = false; } },
+        { type: 'nav', icon: '📞', label: 'Ir para Calls', sublabel: '', action: () => { this.goToPage('calls'); this.cmdPalette = false; } },
+        { type: 'action', icon: '🌙', label: this.darkMode ? 'Modo claro' : 'Modo escuro', sublabel: '', action: () => { this.toggleDarkMode(); this.cmdPalette = false; } },
+        { type: 'action', icon: '🔍', label: 'Buscar tarefa...', sublabel: '/', action: () => { this.goToPage('tasks'); this.cmdPalette = false; setTimeout(() => document.querySelector('.tasks-main input[type="text"]')?.focus(), 200); } },
+      ];
+    },
+    cmdExec(idx) {
+      const item = this.cmdResults[idx || this.cmdSelectedIdx];
+      if (item?.action) item.action();
+    },
+    cmdKeyDown(e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); this.cmdSelectedIdx = Math.min(this.cmdSelectedIdx + 1, this.cmdResults.length - 1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); this.cmdSelectedIdx = Math.max(this.cmdSelectedIdx - 1, 0); }
+      else if (e.key === 'Enter') { e.preventDefault(); this.cmdExec(); }
+      else if (e.key === 'Escape') { this.cmdPalette = false; }
+    },
+
+    // ── Quick Filters (Dragon 39) ──
+    quickFilter: null, // 'mine' | 'overdue' | 'unassigned' | 'thisWeek' | 'favorites'
+    setQuickFilter(filter) {
+      this.quickFilter = this.quickFilter === filter ? null : filter;
+    },
+    get quickFilterCounts() {
+      const tasks = this.data.tasks;
+      const me = this.auth?.currentUser?.user_metadata?.full_name || '';
+      const now = new Date();
+      const weekEnd = new Date(now); weekEnd.setDate(now.getDate() + 7);
+      return {
+        mine: tasks.filter(t => t.responsavel && me && t.responsavel.toLowerCase().includes(me.toLowerCase().split(' ')[0])).length,
+        overdue: tasks.filter(t => t.data_fim && new Date(t.data_fim) < now && t.status !== 'concluida').length,
+        unassigned: tasks.filter(t => !t.responsavel).length,
+        thisWeek: tasks.filter(t => t.data_fim && new Date(t.data_fim) >= now && new Date(t.data_fim) <= weekEnd).length,
+        favorites: this.favorites.length,
+      };
+    },
+
+    // ── Task Age (Dragon 43) ──
+    taskAge(createdAt) {
+      if (!createdAt) return null;
+      const days = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000);
+      if (days <= 3) return { label: 'Novo', cls: 'cu-age--fresh' };
+      if (days <= 7) return { label: days + 'd', cls: 'cu-age--week' };
+      if (days <= 30) return { label: days + 'd', cls: 'cu-age--stale' };
+      return { label: Math.floor(days / 30) + 'mo', cls: 'cu-age--ancient' };
+    },
+
+    // ── Focus/Zen Mode (Dragon 45) ──
+    focusMode: false,
+    toggleFocusMode() {
+      this.focusMode = !this.focusMode;
+      document.documentElement.classList.toggle('cu-focus-mode', this.focusMode);
+    },
+
+    // ── Context Menu (Dragon 48) ──
+    contextMenu: { show: false, x: 0, y: 0, taskId: null },
+    showContextMenu(e, taskId) {
+      e.preventDefault();
+      this.contextMenu = { show: true, x: e.clientX, y: e.clientY, taskId };
+    },
+    hideContextMenu() { this.contextMenu.show = false; },
+    contextAction(action) {
+      const id = this.contextMenu.taskId;
+      this.hideContextMenu();
+      if (!id) return;
+      switch(action) {
+        case 'open': this.openTaskDetail(id); break;
+        case 'duplicate': this.duplicateTask(id); break;
+        case 'favorite': this.toggleFavorite(id); break;
+        case 'complete': this.updateTaskStatus(id, true); break;
+        case 'delete': if (confirm('Excluir?')) this.deleteTask(id); break;
+        case 'timer': this.startTimeTracker(id); break;
+        case 'copy': navigator.clipboard.writeText(window.location.origin + '/tasks?task=' + id); this.toast('Link copiado', 'success'); break;
+      }
+    },
+
+    // ── Batch Move (Dragon 42) ──
+    async bulkMoveToList(listId) {
+      const ids = Object.entries(this.ui.bulkSelected).filter(([,v]) => v).map(([id]) => id);
+      if (!ids.length || !sb) return;
+      try {
+        const { error } = await sb.from('god_tasks').update({ list_id: listId }).in('id', ids);
+        if (error) throw error;
+        this.data.tasks = this.data.tasks.map(t => ids.includes(t.id) ? { ...t, list_id: listId } : t);
+        this.toast(`${ids.length} tarefa(s) movida(s)`, 'success');
+        this.bulkClear();
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    // ── Task Archive (Dragon 35) ──
+    async archiveTask(taskId) {
+      if (!sb) return;
+      try {
+        await sb.from('god_tasks').update({ status: 'arquivada' }).eq('id', taskId);
+        const task = this.data.tasks.find(t => t.id === taskId);
+        if (task) task.status = 'arquivada';
+        this.toast('Tarefa arquivada', 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+    async restoreTask(taskId) {
+      if (!sb) return;
+      try {
+        await sb.from('god_tasks').update({ status: 'pendente' }).eq('id', taskId);
+        const task = this.data.tasks.find(t => t.id === taskId);
+        if (task) task.status = 'pendente';
+        this.toast('Tarefa restaurada', 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    // ── Action Items from Comments (Dragon 51) ──
+    async createActionFromComment(taskId, commentText, assignee) {
+      if (!sb || !commentText) return;
+      try {
+        const parent = this.data.tasks.find(t => t.id === taskId);
+        const { data, error } = await sb.from('god_tasks').insert({
+          titulo: commentText.slice(0, 200),
+          responsavel: assignee || null,
+          parent_task_id: taskId,
+          status: 'pendente',
+          prioridade: 'normal',
+          tipo: 'acao',
+          space_id: parent?.space_id,
+          list_id: parent?.list_id,
+          fonte: 'comment_action'
+        }).select().single();
+        if (error) throw error;
+        this.data.tasks.push(data);
+        this.toast('Item de acao criado', 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    // ── My Work View (Dragon 36) ──
+    get myWorkData() {
+      const me = this.auth?.currentUser?.user_metadata?.full_name || '';
+      const meFirst = me.toLowerCase().split(' ')[0];
+      if (!meFirst) return { overdue: [], today: [], upcoming: [], done: [] };
+      const myTasks = this.data.tasks.filter(t => t.responsavel && t.responsavel.toLowerCase().includes(meFirst));
+      const now = new Date();
+      const todayStr = now.toISOString().slice(0, 10);
+      const weekEnd = new Date(now); weekEnd.setDate(now.getDate() + 7);
+      return {
+        overdue: myTasks.filter(t => t.data_fim && new Date(t.data_fim) < now && t.status !== 'concluida'),
+        today: myTasks.filter(t => t.data_fim && t.data_fim.slice(0, 10) === todayStr && t.status !== 'concluida'),
+        upcoming: myTasks.filter(t => t.data_fim && new Date(t.data_fim) > now && new Date(t.data_fim) <= weekEnd && t.status !== 'concluida'),
+        done: myTasks.filter(t => t.status === 'concluida').slice(0, 10),
+      };
+    },
+
+    // ── Keyboard Navigation in List (Dragon 30) ──
+    _listFocusIdx: -1,
+    listKeyNav(e) {
+      const rows = this.tasksTree.filter(t => !t._isGroupHeader);
+      if (!rows.length) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        this._listFocusIdx = Math.min(this._listFocusIdx + 1, rows.length - 1);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        this._listFocusIdx = Math.max(this._listFocusIdx - 1, 0);
+      } else if (e.key === 'Enter' && this._listFocusIdx >= 0) {
+        e.preventDefault();
+        const t = rows[this._listFocusIdx];
+        if (t) this.openTaskDetail(t._parentId || t.id);
+      } else if (e.key === ' ' && this._listFocusIdx >= 0) {
+        e.preventDefault();
+        const t = rows[this._listFocusIdx];
+        if (t) this.bulkToggle(t.id, e);
+      }
+      // Scroll focused row into view
+      this.$nextTick(() => {
+        const focused = document.querySelector(`.cu-list__row[data-focus-idx="${this._listFocusIdx}"]`);
+        focused?.scrollIntoView({ block: 'nearest' });
+      });
+    },
+
+    // ── Time Tracking (Dragon 20) ──
+    timeTracker: { taskId: null, startTime: null, elapsed: 0, interval: null },
+    startTimeTracker(taskId) {
+      this.stopTimeTracker();
+      this.timeTracker.taskId = taskId;
+      this.timeTracker.startTime = Date.now();
+      this.timeTracker.elapsed = 0;
+      this.timeTracker.interval = setInterval(() => {
+        this.timeTracker.elapsed = Math.floor((Date.now() - this.timeTracker.startTime) / 1000);
+      }, 1000);
+    },
+    stopTimeTracker() {
+      if (this.timeTracker.interval) clearInterval(this.timeTracker.interval);
+      const elapsed = this.timeTracker.elapsed;
+      const taskId = this.timeTracker.taskId;
+      this.timeTracker = { taskId: null, startTime: null, elapsed: 0, interval: null };
+      return { taskId, elapsed };
+    },
+    async saveTimeEntry(taskId, seconds) {
+      if (!sb || !taskId || !seconds) return;
+      const hours = Math.round(seconds / 36) / 100; // 2 decimal places
+      try {
+        const task = this.data.tasks.find(t => t.id === taskId);
+        const current = task?.time_spent || 0;
+        await sb.from('god_tasks').update({ time_spent: current + hours }).eq('id', taskId);
+        if (task) task.time_spent = current + hours;
+        this.toast(`${this.formatDuration(seconds)} registrado`, 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+    formatDuration(seconds) {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = seconds % 60;
+      if (h > 0) return `${h}h ${m}m`;
+      if (m > 0) return `${m}m ${s}s`;
+      return `${s}s`;
+    },
+
+    // ── Task Breadcrumb (Dragon 29) ──
+    taskBreadcrumb(taskId) {
+      const task = this.data.tasks.find(t => t.id === taskId);
+      if (!task) return [];
+      const parts = [];
+      // Find space
+      const list = (this.data.lists || []).find(l => l.id === task.list_id);
+      const space = list ? (this.data.spaces || []).find(s => s.id === list.space_id) : null;
+      if (space) parts.push({ label: space.name || space.nome, type: 'space' });
+      if (list) parts.push({ label: list.name || list.nome, type: 'list' });
+      parts.push({ label: task.titulo, type: 'task' });
+      return parts;
+    },
+
+    // ── Duplicate Task (Dragon 28) ──
+    async duplicateTask(taskId) {
+      const orig = this.data.tasks.find(t => t.id === taskId);
+      if (!orig || !sb) return;
+      const copy = { ...orig };
+      delete copy.id;
+      delete copy.created_at;
+      delete copy.updated_at;
+      copy.titulo = orig.titulo + ' (copia)';
+      copy.status = 'pendente';
+      try {
+        const { data, error } = await sb.from('god_tasks').insert(copy).select().single();
+        if (error) throw error;
+        this.data.tasks.push(data);
+        this.toast('Tarefa duplicada', 'success');
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); }
+    },
+
+    // ── Favorites / Pinned (Dragon 24) ──
+    favorites: JSON.parse(localStorage.getItem('spalla_favorites') || '[]'),
+    toggleFavorite(taskId) {
+      const idx = this.favorites.indexOf(taskId);
+      if (idx >= 0) this.favorites.splice(idx, 1);
+      else this.favorites.push(taskId);
+      localStorage.setItem('spalla_favorites', JSON.stringify(this.favorites));
+    },
+    isFavorite(taskId) { return this.favorites.includes(taskId); },
+    get favoriteTasks() { return this.data.tasks.filter(t => this.favorites.includes(t.id)); },
 
     // ── Sprint Management ──
     get activeSprintId() {
@@ -7924,8 +8247,19 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     // ── Keyboard Shortcuts ──
     _initKeyboardShortcuts() {
+      // Global Cmd+K / Ctrl+K — Command Palette (works on ALL pages)
       document.addEventListener('keydown', (e) => {
-        // Don't trigger in input/textarea/contenteditable
+        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+          e.preventDefault();
+          this.cmdPalette = !this.cmdPalette;
+          this.cmdQuery = '';
+          this.cmdSelectedIdx = 0;
+          if (this.cmdPalette) this.$nextTick(() => document.getElementById('cmd-palette-input')?.focus());
+        }
+      });
+      document.addEventListener('keydown', (e) => {
+        // Don't trigger in input/textarea/contenteditable (except cmd palette)
+        if (e.target.id === 'cmd-palette-input') return;
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
         if (this.ui.page !== 'tasks') return;
 
@@ -7949,6 +8283,65 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         } else if (e.key === '4' && e.altKey) {
           this.ui.taskView = 'gantt';
         }
+      });
+    },
+
+    // ── SortableJS — Drag & Drop Reorder (Dragon 8) ──
+    _sortableInstances: [],
+    _initSortable() {
+      // Destroy previous instances
+      this._sortableInstances.forEach(s => s.destroy());
+      this._sortableInstances = [];
+      if (typeof Sortable === 'undefined') return;
+
+      const self = this;
+
+      // Board columns: drag cards between status columns
+      this.$nextTick(() => {
+        document.querySelectorAll('.cu-board__cards').forEach(el => {
+          const inst = Sortable.create(el, {
+            group: 'board-tasks',
+            animation: 180,
+            ghostClass: 'cu-sortable-ghost',
+            chosenClass: 'cu-sortable-chosen',
+            dragClass: 'cu-sortable-drag',
+            handle: '.cu-card',
+            onEnd(evt) {
+              const taskId = evt.item?.getAttribute('data-task-id');
+              const toCol = evt.to?.closest('.cu-board__col');
+              const colLabel = toCol?.querySelector('.cu-board__col-label')?.textContent?.trim();
+              if (taskId && colLabel) {
+                // Find status key from label
+                const col = self.boardColumns.find(c => c.label === colLabel);
+                if (col) self.moveTask(taskId, col.key);
+              }
+            }
+          });
+          self._sortableInstances.push(inst);
+        });
+
+        // List view rows: reorder tasks within groups
+        document.querySelectorAll('.cu-list__body').forEach(el => {
+          const inst = Sortable.create(el, {
+            animation: 180,
+            ghostClass: 'cu-sortable-ghost',
+            chosenClass: 'cu-sortable-chosen',
+            handle: '.cu-list__row',
+            onEnd(evt) {
+              // Reorder in local data array
+              const items = Array.from(evt.from.children);
+              const taskIds = items.map(row => row.getAttribute('data-task-id')).filter(Boolean);
+              if (taskIds.length > 0) {
+                // Update sort_order in local state
+                taskIds.forEach((id, idx) => {
+                  const task = self.data.tasks.find(t => t.id === id);
+                  if (task) task.sort_order = idx;
+                });
+              }
+            }
+          });
+          self._sortableInstances.push(inst);
+        });
       });
     },
 
