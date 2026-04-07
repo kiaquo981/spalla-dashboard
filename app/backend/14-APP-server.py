@@ -2380,6 +2380,89 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': f'Sync failed: {e}'}, 500)
 
     # ============================================================
+    # LF Story 5: Task FSM transition endpoint
+    # ============================================================
+    def _handle_task_transition(self, task_id):
+        """POST /api/tasks/{id}/transition
+        Body: { event: 'start'|'complete'|..., payload?: {...} }
+        """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        try:
+            body = self._read_json_body() or {}
+            event = body.get('event')
+            payload = body.get('payload') or {}
+            if not event:
+                return self._send_json({'error': 'event obrigatório'}, 400)
+
+            r = supabase_request('GET', f'/rest/v1/god_tasks?id=eq.{task_id}&limit=1')
+            if r.status_code != 200 or not r.json():
+                return self._send_json({'error': 'task não encontrada'}, 404)
+            task_row = r.json()[0]
+
+            # Hidrata flags de guard
+            deps = task_row.get('depends_on') or []
+            if deps:
+                in_clause = ','.join(deps)
+                rdep = supabase_request('GET',
+                    f'/rest/v1/god_tasks?id=in.({in_clause})&select=id,status&limit=1000')
+                terminal = ('concluida','cancelada','arquivada')
+                rows = rdep.json() if rdep.status_code == 200 else []
+                task_row['_dependencies_resolved'] = all(x.get('status') in terminal for x in rows)
+            else:
+                task_row['_dependencies_resolved'] = True
+
+            if task_row.get('especie') == 'quest':
+                rch = supabase_request('GET',
+                    f'/rest/v1/god_tasks?parent_task_id=eq.{task_id}&select=id,status')
+                terminal = ('concluida','cancelada','arquivada')
+                children = rch.json() if rch.status_code == 200 else []
+                task_row['_children_complete'] = (
+                    len(children) == 0 or all(c.get('status') in terminal for c in children)
+                )
+            else:
+                task_row['_children_complete'] = True
+
+            from domain.state_machines import TaskStateMachine, IllegalTransition, GuardFailed
+            sm = TaskStateMachine(task_row)
+            try:
+                result = sm.transition(event, persist=False, payload=payload)
+            except IllegalTransition as e:
+                return self._send_json({'error': str(e), 'allowed': sm.allowed_events()}, 409)
+            except GuardFailed as e:
+                return self._send_json({'error': str(e), 'guard_failed': True}, 412)
+
+            actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
+            ru = supabase_request('PATCH',
+                f'/rest/v1/god_tasks?id=eq.{task_id}',
+                body={'status': result['to'],
+                      'updated_at': datetime.now(timezone.utc).isoformat()})
+            if ru.status_code not in (200, 204):
+                return self._send_json({'error': f'persist failed: {ru.text}'}, 500)
+
+            try:
+                supabase_request('POST', '/rest/v1/entity_events', body={
+                    'aggregate_type': 'Task',
+                    'aggregate_id': task_id,
+                    'event_type': f'Task{event[0].upper()}{event[1:]}',
+                    'payload': {**result, **payload},
+                    'metadata': {'source': 'fsm_api', 'actor': actor},
+                })
+            except Exception:
+                pass
+
+            self._send_json({
+                'task_id': task_id,
+                'from': result['from'],
+                'to': result['to'],
+                'event': event,
+            })
+        except Exception as e:
+            log_error('task_transition', str(e), e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ============================================================
     # LF-FASE3: Descarrego endpoints
     # ============================================================
     def _handle_descarrego_capture(self):
@@ -2653,6 +2736,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         elif re.match(r'^/api/mentee-groups/(\d+)/members$', self.path):
             _m = re.match(r'^/api/mentee-groups/(\d+)/members$', self.path)
             self._handle_post_group_member(_m.group(1))
+        # ===== LF Story 5: Task FSM transition =====
+        elif re.match(r'^/api/tasks/([^/]+)/transition$', self.path):
+            _tm = re.match(r'^/api/tasks/([^/]+)/transition$', self.path)
+            self._handle_task_transition(_tm.group(1))
         # ===== LF-FASE3: Descarrego =====
         elif self.path == '/api/descarrego/capture':
             self._handle_descarrego_capture()
