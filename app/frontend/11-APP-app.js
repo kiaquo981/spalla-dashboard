@@ -9758,10 +9758,14 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         if (inserted?.id && ['audio'].includes(d.tipo) && record.arquivo_url) {
           this._autoTranscribeWithUrl(inserted.id, record.arquivo_url);
         }
-        // Reload context if on context tab
-        if (d.source === 'wa_detail' && this.ui.activeDetailTab === 'contexto') {
-          await this.loadMenteeContext(d.menteeId);
+        // Navigate to mentorado detail → Contexto tab and reload
+        if (this.ui.page !== 'detail' || this.ui.selectedMenteeId !== d.menteeId) {
+          this.ui.selectedMenteeId = d.menteeId;
+          this.navigate('detail');
+          await this.loadMenteeDetail(d.menteeId);
         }
+        this.ui.activeDetailTab = 'contexto';
+        await this.loadMenteeContext(d.menteeId);
       } catch (e) {
         this.toast('Erro: ' + e.message, 'error');
       }
