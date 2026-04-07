@@ -3639,12 +3639,12 @@
             <div class="tasks-main">
               <div class="page-header">
                 <div>
-                  <h2>Gerenciamento de Tarefas</h2>
-                  <div class="task-board-stats">
-                    <span class="task-stat"><span class="task-stat__dot task-stat__dot--pending"></span><span x-text="taskBoardStats.pendente"></span> a fazer</span>
-                    <span class="task-stat"><span class="task-stat__dot task-stat__dot--progress"></span><span x-text="taskBoardStats.em_andamento"></span> em progresso</span>
-                    <span class="task-stat"><span class="task-stat__dot task-stat__dot--done"></span><span x-text="taskBoardStats.concluida"></span> concluidas</span>
-                    <span x-show="taskBoardStats.atrasada" class="task-stat task-stat--danger"><span x-text="taskBoardStats.atrasada"></span> atrasadas</span>
+                  <h2 style="margin:0;font-size:18px;font-weight:700">Gerenciamento de Tarefas</h2>
+                  <div style="display:flex;align-items:center;gap:12px;margin-top:4px;font-size:12px;color:var(--text-secondary)">
+                    <span style="display:flex;align-items:center;gap:4px"><span style="width:7px;height:7px;border-radius:50%;background:#3b82f6"></span> <span>Em progresso</span> <span style="font-weight:600;color:#3b82f6" x-text="taskBoardStats.em_andamento"></span></span>
+                    <span style="display:flex;align-items:center;gap:4px"><span style="width:7px;height:7px;border-radius:50%;background:#94a3b8"></span> <span x-text="taskBoardStats.pendente + ' a fazer'"></span></span>
+                    <span style="display:flex;align-items:center;gap:4px"><span style="width:7px;height:7px;border-radius:50%;background:#22c55e"></span> <span x-text="taskBoardStats.concluida + ' concluidas'"></span></span>
+                    <span x-show="taskBoardStats.atrasada" style="display:flex;align-items:center;gap:4px;color:#dc2626;font-weight:600"><span x-text="taskBoardStats.atrasada + ' atrasadas'"></span></span>
                   </div>
                 </div>
                 <div class="page-header__actions">
@@ -3667,19 +3667,34 @@
                 </div>
               </div>
 
-              <!-- Task KPIs -->
-              <div class="task-kpis" x-show="auth.currentUser">
-                <div class="task-kpi task-kpi--warning">
-                  <span class="task-kpi__value" x-text="myTaskKpis.pendentes"></span>
-                  <span class="task-kpi__label">Minhas pendentes</span>
+              <!-- ClickUp-style Summary Cards -->
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:12px">
+                <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;cursor:pointer" @click="ui.taskFilter = 'pendente'">
+                  <div style="width:36px;height:36px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                  </div>
+                  <div>
+                    <div style="font-size:14px;font-weight:700" x-text="'Lista de pendencias'"></div>
+                    <div style="font-size:12px;color:var(--text-secondary)" x-text="taskBoardStats.pendente + ' tarefas adicionadas'"></div>
+                  </div>
                 </div>
-                <div class="task-kpi task-kpi--info">
-                  <span class="task-kpi__value" x-text="myTaskKpis.emAndamento"></span>
-                  <span class="task-kpi__label">Minhas em andamento</span>
+                <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;cursor:pointer" @click="ui.taskAssignee = ''">
+                  <div style="width:36px;height:36px;border-radius:50%;background:#fef3c7;display:flex;align-items:center;justify-content:center">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  </div>
+                  <div>
+                    <div style="font-size:14px;font-weight:700">Atribuido</div>
+                    <div style="font-size:12px;color:var(--text-secondary)" x-text="data.tasks.filter(t => !t.responsavel && t.status !== 'concluida').length + ' sem responsavel'"></div>
+                  </div>
                 </div>
-                <div class="task-kpi task-kpi--neutral">
-                  <span class="task-kpi__value" x-text="myTaskKpis.total"></span>
-                  <span class="task-kpi__label">Total equipe</span>
+                <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;cursor:pointer" @click="ui.taskFilter = 'atrasada'">
+                  <div style="width:36px;height:36px;border-radius:50%;background:#fee2e2;display:flex;align-items:center;justify-content:center">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  </div>
+                  <div>
+                    <div style="font-size:14px;font-weight:700">Atrasadas</div>
+                    <div style="font-size:12px;color:var(--text-secondary)" x-text="taskBoardStats.atrasada + ' tarefas vencidas'"></div>
+                  </div>
                 </div>
               </div>
 
@@ -3853,100 +3868,80 @@
                 </div>
               </div>
 
-              <!-- BOARD VIEW -->
-              <div class="task-board" x-show="ui.taskView === 'board'">
+              <!-- BOARD VIEW — ClickUp-style clean cards -->
+              <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:8px" x-show="ui.taskView === 'board'">
                 <template x-for="col in boardColumns" :key="col.key">
-                  <div class="task-board__column">
-                    <div class="task-board__column-header" :class="col.cssClass || ''" :style="col.color ? 'background:' + col.color + '; border-top:3px solid ' + col.color : ''">
-                      <span class="task-status-dot" :class="col.cssClass ? 'task-status-dot--' + col.key : ''" :style="col.color ? 'background:#fff' : ''"></span>
-                      <span x-text="col.label"></span>
-                      <span class="task-board__column-count" x-text="tasksByStatus[col.key]?.length || 0"></span>
+                  <div style="min-width:280px;max-width:320px;flex:1;display:flex;flex-direction:column">
+                    <!-- Column header -->
+                    <div style="display:flex;align-items:center;gap:8px;padding:10px 8px;border-top:3px solid;border-radius:8px 8px 0 0;background:var(--bg-subtle)"
+                         :style="'border-color:' + (col.color || '#94a3b8')">
+                      <span style="width:8px;height:8px;border-radius:50%" :style="'background:' + (col.color || '#94a3b8')"></span>
+                      <span style="font-size:13px;font-weight:700" x-text="col.label"></span>
+                      <span style="font-size:11px;font-weight:600;color:var(--text-secondary);background:var(--bg-card);padding:1px 6px;border-radius:10px" x-text="tasksByStatus[col.key]?.length || 0"></span>
                     </div>
-                    <div class="task-board__column-body" @dragover.prevent="onDragOver($event, col.key)" @dragleave="onDragLeave($event, col.key)" @drop="onDrop($event, col.key)" :class="{'task-board__column-body--dragover': dragOverColumn === col.key}">
+                    <!-- Cards container -->
+                    <div style="flex:1;display:flex;flex-direction:column;gap:6px;padding:6px;background:#fafaf8;border-radius:0 0 8px 8px;min-height:60px"
+                         @dragover.prevent="onDragOver($event, col.key)" @dragleave="onDragLeave($event, col.key)" @drop="onDrop($event, col.key)"
+                         :style="dragOverColumn === col.key ? 'background:#f0f4ff;outline:2px dashed #93c5fd;outline-offset:-2px' : ''">
                       <template x-for="t in tasksByStatus[col.key]" :key="t.id">
-                        <div class="task-board__card" draggable="true" @dragstart="onDragStart($event, t.id)" @dragend="onDragEnd($event)" @click="ui.bulkMode ? bulkToggle(t.id) : openTaskDetail(t.id)" :class="{ 'task-board__card--overdue': status === 'pendente' && isOverdue(t.data_fim || t.prazo), 'task-board__card--mine': isMyTask(t) }" :style="ui.bulkSelected[t.id] ? 'outline:2px solid #3b82f6;outline-offset:-2px' : ''">
-                          <div class="task-board__card-header">
-                            <span class="badge badge--sm" :class="'badge--' + prioClass(t.prioridade)" x-text="prioLabel(t.prioridade)"></span>
-                            <span x-show="t.follow_up_responded_at" class="badge badge--sm badge--success" title="Mentorado respondeu">✉️ respondeu</span>
-                            <div class="task-board__card-actions">
-                              <button class="task-card__btn" @click.stop="openTaskModal(t)" title="Editar">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                              </button>
-                            </div>
+                        <div draggable="true" @dragstart="onDragStart($event, t.id)" @dragend="onDragEnd($event)"
+                             @click="ui.bulkMode ? bulkToggle(t.id) : openTaskDetail(t.id)"
+                             style="background:#fff;border:1px solid #e8e5de;border-radius:8px;padding:10px 12px;cursor:pointer;transition:box-shadow .15s,border-color .15s"
+                             @mouseenter="$el.style.boxShadow='0 2px 8px rgba(0,0,0,.08)';$el.style.borderColor='#d1cdc4'"
+                             @mouseleave="$el.style.boxShadow='none';$el.style.borderColor='#e8e5de'"
+                             :style="ui.bulkSelected[t.id] ? 'outline:2px solid #3b82f6;outline-offset:-1px' : ''">
+
+                          <!-- Priority badge row -->
+                          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                            <span style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:3px"
+                                  :style="t.prioridade==='urgente' ? 'background:#fee2e2;color:#dc2626' : t.prioridade==='alta' ? 'background:#ffedd5;color:#ea580c' : t.prioridade==='normal' ? 'background:#f1f5f9;color:#64748b' : 'background:#f8fafc;color:#94a3b8'"
+                                  x-text="prioLabel(t.prioridade)"></span>
+                            <span x-show="t.tipo && t.tipo !== 'geral'" style="font-size:12px" x-text="taskTipoIcon(t.tipo)"></span>
                           </div>
-                          <div class="task-board__card-title">
-                            <span class="task-tipo-icon" x-show="t.tipo && t.tipo !== 'geral'" x-text="taskTipoIcon(t.tipo)" :title="taskTipoLabel(t.tipo)"></span>
-                            <span x-text="t.titulo"></span>
-                            <span class="task-auto-badge" x-show="t.fonte && t.fonte.startsWith('auto')">Auto</span>
-                            <span class="task-recurring-badge" x-show="t.recorrencia && t.recorrencia !== 'nenhuma'" :title="'Recorrente: ' + recorrenciaLabel(t.recorrencia)">
-                              <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+
+                          <!-- Title -->
+                          <div style="font-size:13px;font-weight:600;line-height:1.4;margin-bottom:6px;color:#1e293b" x-text="t.titulo"></div>
+
+                          <!-- Inline indicators row -->
+                          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+                            <span x-show="subtaskProgress(t).total > 0" style="font-size:10px;color:#64748b;display:flex;align-items:center;gap:2px">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                              <span x-text="subtaskProgress(t).done + '/' + subtaskProgress(t).total"></span>
                             </span>
-                          </div>
-                          <!-- Tags -->
-                          <div x-show="t.tags?.length" class="task-board__card-tags">
-                            <template x-for="tag in (t.tags || []).slice(0, 3)" :key="tag.id || tag.name || tag">
-                              <span class="task-tag" :style="(tag.color) ? 'background:' + tag.color + '22;color:' + tag.color + ';border-color:' + tag.color + '55' : ''" x-text="tag.name || tag"></span>
+                            <span x-show="t.comments?.length" style="font-size:10px;color:#94a3b8;display:flex;align-items:center;gap:1px">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                              <span x-text="t.comments.length"></span>
+                            </span>
+                            <span x-show="t.points" style="font-size:10px;font-weight:700;color:#6366f1" x-text="t.points + ' pts'"></span>
+                            <!-- Tags -->
+                            <template x-for="tag in (t.tags || []).slice(0, 2)" :key="tag.id || tag.name || tag">
+                              <span style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:600"
+                                    :style="tag.color ? 'background:'+tag.color+';color:#fff' : 'background:#e2e8f0;color:#475569'"
+                                    x-text="tag.name || tag"></span>
                             </template>
-                            <span x-show="(t.tags || []).length > 3" class="task-tag task-tag--more" x-text="'+' + ((t.tags||[]).length - 3)"></span>
+                            <span x-show="(t.tags||[]).length > 2" style="font-size:9px;color:#94a3b8" x-text="'+' + ((t.tags||[]).length - 2)"></span>
                           </div>
-                          <div class="task-board__card-meta">
-                            <span x-show="t.mentorado_nome" class="task-board__card-mentee">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                              <span x-text="t.mentorado_nome"></span>
-                            </span>
-                            <span x-show="t.data_inicio && t.data_fim" class="task-board__card-dates">
-                              <span x-text="formatDate(t.data_inicio)"></span> - <span x-text="formatDate(t.data_fim)"></span>
-                            </span>
-                            <span x-show="!t.data_inicio && (t.data_fim || t.prazo)" class="task-board__card-due" :class="{ 'task-board__card-due--overdue': isOverdue(t.data_fim || t.prazo) }">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                              <span x-text="formatDate(t.data_fim || t.prazo)"></span>
-                            </span>
-                          </div>
-                          <!-- Subtask progress + blocked badge -->
-                          <div x-show="subtaskProgress(t).total > 0 || t.is_blocked" style="display:flex;align-items:center;gap:6px;margin-top:4px">
-                            <div x-show="subtaskProgress(t).total > 0" class="task-board__card-progress" style="flex:1">
-                              <div class="task-card__progress-bar"><div class="task-card__progress-fill" :style="'width:' + subtaskProgress(t).pct + '%'"></div></div>
-                              <span class="task-card__progress-text" x-text="subtaskProgress(t).done + '/' + subtaskProgress(t).total"></span>
+
+                          <!-- Footer: avatar + due date -->
+                          <div style="display:flex;align-items:center;justify-content:space-between">
+                            <div style="display:flex;align-items:center;gap:6px">
+                              <span x-show="t.responsavel" class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel)" x-text="avatarInitials(t.responsavel)" style="width:24px;height:24px;font-size:9px"></span>
+                              <span x-show="t.mentorado_nome" style="font-size:10px;color:#64748b;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="t.mentorado_nome"></span>
                             </div>
-                            <span x-show="t.is_blocked" style="font-size:10px;padding:1px 5px;border-radius:4px;background:#fee2e2;color:#991b1b;font-weight:600;flex-shrink:0">⛔ Bloqueada</span>
-                          </div>
-                          <!-- Parent task indicator -->
-                          <div x-show="t.parent_task_id" class="task-board__card-parent">
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-                            <span x-text="'Subtarefa'"></span>
-                          </div>
-                          <div x-show="t.points || t.sprint_id" style="display:flex;align-items:center;gap:6px;margin-top:4px">
-                            <span x-show="t.points" style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;background:#eff6ff;color:#1d4ed8" x-text="t.points + ' pts'"></span>
-                            <span x-show="t.sprint_id && !activeSprintId" style="font-size:10px;padding:1px 6px;border-radius:10px;background:#f3f4f6;color:#6b7280" x-text="data.sprints.find(s=>s.id===t.sprint_id)?.nome || ''"></span>
-                          </div>
-                          <div class="task-board__card-footer">
-                            <span x-show="t.responsavel" class="task-board__card-assignee">
-                              <span class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel)" x-text="avatarInitials(t.responsavel)" style="width:22px;height:22px;font-size:9px"></span>
-                              <span x-text="t.responsavel"></span>
+                            <span x-show="t.data_fim || t.prazo" style="font-size:10px;display:flex;align-items:center;gap:3px"
+                                  :style="isOverdue(t.data_fim || t.prazo) ? 'color:#dc2626;font-weight:600' : 'color:#94a3b8'">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                              <span x-text="relativeDueDate(t.data_fim || t.prazo)"></span>
                             </span>
-                            <span x-show="t.acompanhante" class="task-board__card-tracker" title="Acompanhante do time">
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                              <span x-text="t.acompanhante"></span>
-                            </span>
-                            <div class="task-board__card-indicators">
-                              <span x-show="t.comments?.length" title="Comentarios" style="font-size:11px;color:#94a3b8;display:flex;align-items:center;gap:2px">
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                                <span x-text="t.comments.length"></span>
-                              </span>
-                              <span x-show="t.attachments?.length" title="Anexos" style="font-size:11px;color:#94a3b8;display:flex;align-items:center;gap:2px">
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-                                <span x-text="t.attachments?.length || 0"></span>
-                              </span>
-                            </div>
-                          </div>
-                          <div x-show="t.handoffs?.length" class="task-board__card-handoff">
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/></svg>
-                            <span x-text="t.handoffs[t.handoffs.length-1]?.from + ' → ' + t.handoffs[t.handoffs.length-1]?.to"></span>
                           </div>
                         </div>
                       </template>
-                      <div class="task-board__empty" x-show="!tasksByStatus[col.key]?.length">Nenhuma tarefa</div>
-                      <button class="task-board__add" @click="openTaskModal()" x-show="col.key === 'pendente' || col.key === boardColumns[0]?.key">+ Adicionar tarefa</button>
+                      <div x-show="!tasksByStatus[col.key]?.length" style="text-align:center;padding:20px;color:#d1d5db;font-size:12px">Nenhuma tarefa</div>
+                      <button @click="openTaskModal()" style="width:100%;padding:6px;border:1px dashed #d1d5db;border-radius:6px;background:none;cursor:pointer;font-size:11px;color:#94a3b8;display:flex;align-items:center;justify-content:center;gap:4px;transition:color .1s,border-color .1s"
+                              @mouseenter="$el.style.color='var(--brand)';$el.style.borderColor='var(--brand)'" @mouseleave="$el.style.color='#94a3b8';$el.style.borderColor='#d1d5db'">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Adicionar tarefa
+                      </button>
                     </div>
                   </div>
                 </template>
