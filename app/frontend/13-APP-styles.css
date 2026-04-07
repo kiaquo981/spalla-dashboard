@@ -2955,7 +2955,67 @@ img { max-width: 100%; display: block; }
 .task-board__card-indicators { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .task-board__card-handoff { display: flex; align-items: center; gap: 4px; margin-top: 6px; font-size: 10px; color: #f59e0b; padding-top: 6px; border-top: 1px dashed #fde68a; }
 
-/* DELETED: .task-list__* and .task-tree__* (86 lines) — Story CU-01.2 */
+/* ================================================================
+   TASK LIST v2 — ClickUp-style table (Story CU-01.4)
+   ================================================================ */
+.cu-list { margin-top: 4px; overflow-x: auto; }
+.cu-list__wrap { min-width: 700px; }
+
+/* Group header */
+.cu-list__group { display: flex; align-items: center; gap: 8px; padding: 10px 0 6px; cursor: pointer; user-select: none; }
+.cu-list__group-chevron { transition: transform .15s; color: #64748b; }
+.cu-list__group-chevron--open { transform: rotate(90deg); }
+.cu-list__group-label { font-size: 14px; font-weight: 700; }
+.cu-list__group-count { font-size: 12px; color: #94a3b8; font-weight: 500; }
+.cu-list__group-add { font-size: 11px; background: none; border: none; cursor: pointer; color: #94a3b8; padding: 2px 4px; }
+.cu-list__group-add:hover { color: var(--brand-500, #8a7d52); }
+
+/* Column headers */
+.cu-list__colgroup col:nth-child(1) { width: 32px; }
+.cu-list__colgroup col:nth-child(3) { width: 120px; }
+.cu-list__colgroup col:nth-child(4) { width: 140px; }
+.cu-list__colgroup col:nth-child(5) { width: 100px; }
+.cu-list__colgroup col:nth-child(6) { width: 32px; }
+.cu-list__th { font-size: 10px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: .05em; text-align: left; padding: 4px 8px; }
+
+/* Task row */
+.cu-list__row { border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background .1s; }
+.cu-list__row:hover { background: #fafaf8; }
+.cu-list__row--done { opacity: .55; }
+.cu-list__td { padding: 7px 4px; vertical-align: middle; }
+.cu-list__td--name { padding: 7px 8px; overflow: hidden; }
+.cu-list__td--name-inner { display: flex; align-items: center; gap: 6px; min-width: 0; }
+
+/* Name cell elements */
+.cu-list__expand { background: none; border: none; cursor: pointer; padding: 0; color: #94a3b8; flex-shrink: 0; transition: transform .15s; }
+.cu-list__expand--open { transform: rotate(90deg); }
+.cu-list__status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.cu-list__title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cu-list__title--done { text-decoration: line-through; color: #94a3b8; }
+.cu-list__indicator { font-size: 10px; color: #94a3b8; flex-shrink: 0; display: inline-flex; align-items: center; gap: 2px; }
+.cu-list__indicator--subtask { color: #64748b; }
+.cu-list__tag { font-size: 10px; padding: 1px 6px; border-radius: 3px; font-weight: 600; flex-shrink: 0; white-space: nowrap; color: #fff; }
+
+/* Assignee */
+.cu-list__assign-empty { width: 26px; height: 26px; border-radius: 50%; border: 1.5px dashed #d1d5db; display: inline-flex; align-items: center; justify-content: center; color: #d1d5db; font-size: 14px; }
+
+/* Due date */
+.cu-list__due { font-size: 12px; color: var(--text-secondary); }
+.cu-list__due--overdue { color: #dc2626; font-weight: 600; }
+
+/* Priority */
+.cu-list__prio { display: inline-flex; align-items: center; gap: 4px; }
+.cu-list__prio-dot { width: 8px; height: 8px; border-radius: 50%; }
+.cu-list__prio-label { font-size: 12px; color: var(--text-secondary); }
+
+/* More button */
+.cu-list__more { background: none; border: none; cursor: pointer; color: #d1d5db; padding: 2px; }
+.cu-list__more:hover { color: #64748b; }
+
+/* Add task per group */
+.cu-list__add { padding: 6px 8px 16px 40px; }
+.cu-list__add-btn { font-size: 12px; color: #94a3b8; background: none; border: none; cursor: pointer; padding: 4px 0; display: flex; align-items: center; gap: 4px; }
+.cu-list__add-btn:hover { color: var(--brand-500, #8a7d52); }
 
 /* ================================================================
    GANTT VIEW
