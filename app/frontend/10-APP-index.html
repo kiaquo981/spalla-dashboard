@@ -3930,108 +3930,87 @@
                 </template>
               </div>
 
-              <!-- LIST VIEW — ClickUp-style grouped table -->
-              <div x-show="ui.taskView === 'list'" style="margin-top:4px;overflow-x:auto">
-                <div style="min-width:700px">
+              <!-- LIST VIEW v2 — CSS-driven (CU-01.4) -->
+              <div class="cu-list" x-show="ui.taskView === 'list'">
+                <div class="cu-list__wrap">
                 <template x-for="t in tasksTree" :key="t.id + '-' + (t._depth||0)">
                   <div>
-                    <!-- ═══ Group Header (collapsible) ═══ -->
-                    <div x-show="t._isGroupHeader" style="display:flex;align-items:center;gap:8px;padding:10px 0 6px;cursor:pointer;user-select:none"
+                    <!-- Group Header -->
+                    <div x-show="t._isGroupHeader" class="cu-list__group"
                          @click="ui.collapsedGroups = {...ui.collapsedGroups, [t._groupKey]: !ui.collapsedGroups?.[t._groupKey]}">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="transition:transform .15s"
-                           :style="ui.collapsedGroups?.[t._groupKey] ? '' : 'transform:rotate(90deg)'"><polyline points="9 18 15 12 9 6"/></svg>
-                      <span style="font-size:14px;font-weight:700" :style="'color:' + groupHeaderColor(t._groupBy, t._groupKey)" x-text="t._groupLabel"></span>
-                      <span style="font-size:12px;color:var(--text-secondary);font-weight:500" x-text="t._groupCount"></span>
-                      <span style="font-size:10px;color:var(--text-secondary)">...</span>
-                      <button @click.stop="openTaskModal()" style="font-size:11px;background:none;border:none;cursor:pointer;color:var(--text-secondary);padding:2px 4px" title="Adicionar tarefa">+</button>
+                      <svg class="cu-list__group-chevron" :class="{ 'cu-list__group-chevron--open': !ui.collapsedGroups?.[t._groupKey] }" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                      <span class="cu-list__group-label" :style="'color:' + groupHeaderColor(t._groupBy, t._groupKey)" x-text="t._groupLabel"></span>
+                      <span class="cu-list__group-count" x-text="t._groupCount"></span>
+                      <span style="font-size:10px;color:#c4c0b8">...</span>
+                      <button class="cu-list__group-add" @click.stop="openTaskModal()">+</button>
                     </div>
-                    <!-- Column headers (after group header, when not collapsed) -->
+                    <!-- Column headers -->
                     <table x-show="t._isGroupHeader && !ui.collapsedGroups?.[t._groupKey]" style="width:100%;border-collapse:collapse;table-layout:fixed">
-                      <colgroup><col style="width:32px"><col><col style="width:120px"><col style="width:140px"><col style="width:100px"><col style="width:32px"></colgroup>
+                      <colgroup class="cu-list__colgroup"><col><col><col><col><col><col></colgroup>
                       <tr style="border-bottom:1px solid var(--border)">
                         <th></th>
-                        <th style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:4px 8px">Nome</th>
-                        <th style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:4px">Responsavel</th>
-                        <th style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:4px">Data de vencimento</th>
-                        <th style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:4px">Prioridade</th>
+                        <th class="cu-list__th">Nome</th>
+                        <th class="cu-list__th">Responsavel</th>
+                        <th class="cu-list__th">Data de vencimento</th>
+                        <th class="cu-list__th">Prioridade</th>
                         <th></th>
                       </tr>
                     </table>
 
-                    <!-- ═══ Task Row ═══ -->
+                    <!-- Task Row -->
                     <table x-show="!t._isGroupHeader && !ui.collapsedGroups?.[t._currentGroup]" style="width:100%;border-collapse:collapse;table-layout:fixed"
                            @click="openTaskDetail(t.id)">
-                      <colgroup><col style="width:32px"><col><col style="width:120px"><col style="width:140px"><col style="width:100px"><col style="width:32px"></colgroup>
-                      <tr style="border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s"
-                          @mouseenter="$el.style.background='#fafaf8'" @mouseleave="$el.style.background='transparent'"
-                          :style="t.status === 'concluida' ? 'opacity:.6' : ''">
-
-                        <!-- Checkbox -->
-                        <td style="padding:6px 4px;vertical-align:middle" @click.stop>
+                      <colgroup class="cu-list__colgroup"><col><col><col><col><col><col></colgroup>
+                      <tr class="cu-list__row" :class="{ 'cu-list__row--done': t.status === 'concluida' }">
+                        <td class="cu-list__td" @click.stop>
                           <input type="checkbox" :checked="t.status === 'concluida'" @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"
                                  style="width:15px;height:15px;cursor:pointer;accent-color:#22c55e">
                         </td>
-
-                        <!-- Name cell -->
-                        <td style="padding:6px 8px;vertical-align:middle;overflow:hidden">
-                          <div style="display:flex;align-items:center;gap:6px;min-width:0" :style="(t._depth||0) > 0 ? 'padding-left:20px' : ''">
-                            <button x-show="t._childCount > 0" @click.stop="toggleTaskExpand(t.id)" style="background:none;border:none;cursor:pointer;padding:0;color:#94a3b8;flex-shrink:0;transition:transform .15s"
-                                    :style="ui.taskExpandedIds[t.id] ? 'transform:rotate(90deg)' : ''">
+                        <td class="cu-list__td cu-list__td--name">
+                          <div class="cu-list__td--name-inner" :style="(t._depth||0) > 0 ? 'padding-left:20px' : ''">
+                            <button x-show="t._childCount > 0" @click.stop="toggleTaskExpand(t.id)" class="cu-list__expand" :class="{ 'cu-list__expand--open': ui.taskExpandedIds[t.id] }">
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
                             </button>
-                            <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0"
-                                  :style="'background:' + (t.status==='concluida' ? '#22c55e' : t.status==='em_andamento' ? '#3b82f6' : '#94a3b8')"></span>
-                            <span style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" :style="t.status==='concluida' ? 'text-decoration:line-through;color:#94a3b8' : ''" x-text="t.titulo"></span>
-                            <span x-show="t.descricao" style="flex-shrink:0;color:#c4c0b8"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/></svg></span>
-                            <span x-show="subtaskProgress(t).total > 0" style="font-size:10px;color:#64748b;flex-shrink:0;display:inline-flex;align-items:center;gap:2px">
+                            <span class="cu-list__status-dot" :style="'background:' + (t.status==='concluida' ? '#22c55e' : t.status==='em_andamento' ? '#3b82f6' : '#94a3b8')"></span>
+                            <span class="cu-list__title" :class="{ 'cu-list__title--done': t.status==='concluida' }" x-text="t.titulo"></span>
+                            <span x-show="t.descricao" class="cu-list__indicator"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/></svg></span>
+                            <span x-show="subtaskProgress(t).total > 0" class="cu-list__indicator cu-list__indicator--subtask">
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                               <span x-text="subtaskProgress(t).done + '/' + subtaskProgress(t).total"></span>
                             </span>
-                            <span x-show="t.comments?.length" style="font-size:10px;color:#c4c0b8;flex-shrink:0;display:inline-flex;align-items:center;gap:1px">
+                            <span x-show="t.comments?.length" class="cu-list__indicator">
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                               <span x-text="t.comments.length"></span>
                             </span>
                             <template x-for="tag in (t.tags||[]).slice(0,3)" :key="tag.id||tag.name||tag">
-                              <span style="font-size:10px;padding:1px 6px;border-radius:3px;font-weight:600;flex-shrink:0;white-space:nowrap"
-                                    :style="tag.color ? 'background:'+tag.color+';color:#fff' : 'background:#e2e8f0;color:#475569'"
-                                    x-text="tag.name||tag"></span>
+                              <span class="cu-list__tag" :style="tag.color ? 'background:'+tag.color : 'background:#94a3b8'" x-text="tag.name||tag"></span>
                             </template>
-                            <span x-show="(t.tags||[]).length > 3" style="font-size:10px;color:#94a3b8;flex-shrink:0" x-text="'+' + ((t.tags||[]).length - 3)"></span>
+                            <span x-show="(t.tags||[]).length > 3" class="cu-list__indicator" x-text="'+' + ((t.tags||[]).length - 3)"></span>
                           </div>
                         </td>
-
-                        <!-- Responsavel -->
-                        <td style="padding:6px 4px;vertical-align:middle" @click.stop>
+                        <td class="cu-list__td" @click.stop>
                           <span x-show="t.responsavel" class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel)" x-text="avatarInitials(t.responsavel)" style="width:26px;height:26px;font-size:10px"></span>
-                          <span x-show="!t.responsavel" style="width:26px;height:26px;border-radius:50%;border:1.5px dashed #d1d5db;display:inline-flex;align-items:center;justify-content:center;color:#d1d5db;font-size:14px">+</span>
+                          <span x-show="!t.responsavel" class="cu-list__assign-empty">+</span>
                         </td>
-
-                        <!-- Due date -->
-                        <td style="padding:6px 4px;vertical-align:middle;font-size:12px" :style="isOverdue(t.data_fim || t.prazo) && t.status !== 'concluida' ? 'color:#dc2626;font-weight:600' : 'color:var(--text-secondary)'"
-                            x-text="relativeDueDate(t.data_fim || t.prazo) || '-'">
-                        </td>
-
-                        <!-- Priority -->
-                        <td style="padding:6px 4px;vertical-align:middle">
-                          <span style="display:inline-flex;align-items:center;gap:4px">
-                            <span style="width:8px;height:8px;border-radius:50%" :style="'background:' + (t.prioridade==='urgente' ? '#dc2626' : t.prioridade==='alta' ? '#ea580c' : t.prioridade==='normal' ? '#64748b' : '#d1d5db')"></span>
-                            <span style="font-size:12px;color:var(--text-secondary)" x-text="prioLabel(t.prioridade)"></span>
+                        <td class="cu-list__td cu-list__due" :class="{ 'cu-list__due--overdue': isOverdue(t.data_fim || t.prazo) && t.status !== 'concluida' }"
+                            x-text="relativeDueDate(t.data_fim || t.prazo) || '-'"></td>
+                        <td class="cu-list__td">
+                          <span class="cu-list__prio">
+                            <span class="cu-list__prio-dot" :style="'background:' + (t.prioridade==='urgente' ? '#dc2626' : t.prioridade==='alta' ? '#ea580c' : t.prioridade==='normal' ? '#64748b' : '#d1d5db')"></span>
+                            <span class="cu-list__prio-label" x-text="prioLabel(t.prioridade)"></span>
                           </span>
                         </td>
-
-                        <!-- More -->
-                        <td style="padding:6px 2px;vertical-align:middle" @click.stop>
-                          <button @click="openTaskModal(t)" style="background:none;border:none;cursor:pointer;color:#d1d5db;padding:2px" @mouseenter="$el.style.color='#64748b'" @mouseleave="$el.style.color='#d1d5db'">
+                        <td class="cu-list__td" @click.stop>
+                          <button class="cu-list__more" @click="openTaskModal(t)">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
                           </button>
                         </td>
                       </tr>
                     </table>
 
-                    <!-- "+ Adicionar Tarefa" after last item in group -->
-                    <div x-show="t._isGroupLast && !ui.collapsedGroups?.[t._currentGroup]" style="padding:6px 8px 16px 40px">
-                      <button @click="openTaskModal()" style="font-size:12px;color:#94a3b8;background:none;border:none;cursor:pointer;padding:4px 0;display:flex;align-items:center;gap:4px"
-                              @mouseenter="$el.style.color='var(--brand)'" @mouseleave="$el.style.color='#94a3b8'">
+                    <!-- Add task -->
+                    <div x-show="t._isGroupLast && !ui.collapsedGroups?.[t._currentGroup]" class="cu-list__add">
+                      <button class="cu-list__add-btn" @click="openTaskModal()">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                         Adicionar Tarefa
                       </button>
