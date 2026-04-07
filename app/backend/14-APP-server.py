@@ -2146,8 +2146,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 status_map = {
                     'to do': 'pendente', 'open': 'pendente', 'pendente': 'pendente',
                     'in progress': 'em_andamento', 'em andamento': 'em_andamento',
-                    'review': 'em_revisao', 'em revisão': 'em_revisao',
+                    'review': 'em_revisao', 'em revisão': 'em_revisao', 'in review': 'em_revisao',
+                    'blocked': 'bloqueada', 'bloqueada': 'bloqueada',
+                    'on hold': 'pausada', 'pausada': 'pausada',
                     'complete': 'concluida', 'done': 'concluida', 'closed': 'concluida',
+                    'cancelled': 'cancelada', 'cancelada': 'cancelada',
+                    'archived': 'arquivada', 'arquivada': 'arquivada',
                 }
                 mapped = status_map.get(new_status)
                 if mapped and mapped != god_task.get('status'):
@@ -6599,6 +6603,65 @@ if __name__ == '__main__':
     lf_trigger_thread = threading.Thread(target=_lf_trigger_listener, daemon=True)
     lf_trigger_thread.start()
     print(f'[Spalla] LF trigger listener: thread started (every 30s)')
+
+    # ===== ClickUp Auto-Sync (10 min) =====
+    def _clickup_auto_sync():
+        import time as _t
+        token = os.environ.get('CLICKUP_API_TOKEN', '')
+        if not token:
+            print('[ClickUp Sync] No CLICKUP_API_TOKEN, skipping auto-sync')
+            return
+        while True:
+            _t.sleep(600)  # 10 min
+            try:
+                # Find tasks with operon_id that were updated after last sync
+                r = supabase_request('GET',
+                    '/rest/v1/god_tasks?select=id,titulo,descricao,status,prioridade,data_fim,operon_id,clickup_synced_at,updated_at'
+                    '&operon_id=not.is.null'
+                    '&order=updated_at.desc&limit=50')
+                if r.status_code != 200:
+                    continue
+                tasks = r.json() or []
+                pushed = 0
+                for task in tasks:
+                    synced = task.get('clickup_synced_at') or '2000-01-01'
+                    updated = task.get('updated_at') or '2000-01-01'
+                    if updated > synced:
+                        # Push to ClickUp
+                        status_map = {
+                            'pendente': 'to do', 'em_andamento': 'in progress',
+                            'em_revisao': 'review', 'concluida': 'complete',
+                            'cancelada': 'closed', 'bloqueada': 'to do',
+                            'pausada': 'to do', 'arquivada': 'closed',
+                        }
+                        prio_map = {'urgente': 1, 'alta': 2, 'normal': 3, 'baixa': 4}
+                        cu_body = json.dumps({
+                            'name': task.get('titulo', ''),
+                            'description': task.get('descricao', '') or '',
+                            'status': status_map.get(task.get('status'), 'to do'),
+                            'priority': prio_map.get(task.get('prioridade'), 3),
+                        }).encode()
+                        try:
+                            req = urllib.request.Request(
+                                f"https://api.clickup.com/api/v2/task/{task['operon_id']}",
+                                data=cu_body,
+                                headers={'Authorization': token, 'Content-Type': 'application/json'},
+                                method='PUT')
+                            urllib.request.urlopen(req, timeout=15)
+                            supabase_request('PATCH',
+                                f"/rest/v1/god_tasks?id=eq.{task['id']}",
+                                body={'clickup_synced_at': datetime.now(timezone.utc).isoformat()})
+                            pushed += 1
+                        except Exception as e:
+                            print(f'[ClickUp Sync] Push failed for {task["id"]}: {e}')
+                if pushed:
+                    print(f'[ClickUp Sync] Auto-pushed {pushed} tasks')
+            except Exception as e:
+                print(f'[ClickUp Sync] Error: {e}')
+
+    cu_sync_thread = threading.Thread(target=_clickup_auto_sync, daemon=True)
+    cu_sync_thread.start()
+    print(f'[Spalla] ClickUp auto-sync: thread started (every 10min)')
 
     server = ReuseAddrHTTPServer(('', PORT), ProxyHandler)
     try:

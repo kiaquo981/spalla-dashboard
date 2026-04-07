@@ -8400,6 +8400,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     _subscribeRealtime() {
       if (!sb) return;
       try {
+        // Tasks realtime
         sb.channel('god_tasks_changes')
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'god_tasks' }, (payload) => {
             const existing = this.data.tasks.find(t => t.id === payload.new.id);
@@ -8407,21 +8408,69 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
               this.data.tasks.unshift(payload.new);
               this.toast('Nova tarefa: ' + (payload.new.titulo || '').substring(0, 40), 'info');
             }
+            // Refresh Meu Trabalho se estiver na página
+            if (this.ui.page === 'meu_trabalho') this.loadMeuTrabalho();
           })
           .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'god_tasks' }, (payload) => {
             const idx = this.data.tasks.findIndex(t => t.id === payload.new.id);
             if (idx >= 0) {
-              // Preserve nested data (subtasks, comments, etc.) that aren't in the update
               const existing = this.data.tasks[idx];
               this.data.tasks[idx] = { ...existing, ...payload.new };
             }
+            if (this.ui.page === 'meu_trabalho') this.loadMeuTrabalho();
           })
           .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'god_tasks' }, (payload) => {
             this.data.tasks = this.data.tasks.filter(t => t.id !== payload.old.id);
+            if (this.ui.page === 'meu_trabalho') this.loadMeuTrabalho();
           })
           .subscribe((status) => {
             if (status === 'SUBSCRIBED') console.log('[Spalla] Realtime: subscribed to god_tasks');
           });
+
+        // Descarregos realtime (substitui polling)
+        sb.channel('descarregos_changes')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'descarregos' }, (payload) => {
+            const menteeId = this.data.detail?.profile?.id;
+            const row = payload.new || payload.old;
+            if (menteeId && row?.mentorado_id == menteeId) {
+              this.loadMenteeDescarregos(menteeId);
+            }
+          })
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') console.log('[Spalla] Realtime: subscribed to descarregos');
+          });
+
+        // Mentorados realtime
+        sb.channel('mentorados_changes')
+          .on('postgres_changes', { event: 'UPDATE', schema: 'case', table: 'mentorados' }, (payload) => {
+            const idx = (this.data.mentees || []).findIndex(m => m.id === payload.new.id);
+            if (idx >= 0) {
+              this.data.mentees[idx] = { ...this.data.mentees[idx], ...payload.new };
+            }
+            // Refresh detail if open
+            if (this.data.detail?.profile?.id === payload.new.id) {
+              this.data.detail.profile = { ...this.data.detail.profile, ...payload.new };
+            }
+          })
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') console.log('[Spalla] Realtime: subscribed to mentorados');
+          });
+
+        // Comments realtime
+        sb.channel('comments_changes')
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'god_task_comments' }, (payload) => {
+            const taskId = payload.new?.task_id;
+            const task = this.data.tasks.find(t => t.id === taskId);
+            if (task) {
+              if (!task.comments) task.comments = [];
+              const exists = task.comments.find(c => c.id === payload.new.id);
+              if (!exists) task.comments.push(payload.new);
+            }
+          })
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') console.log('[Spalla] Realtime: subscribed to comments');
+          });
+
       } catch (e) {
         console.warn('[Spalla] Realtime subscription failed:', e.message);
       }
@@ -8705,12 +8754,14 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     get ganttTasks() {
-      let tasks = this._filterTasks([...this.data.tasks].filter(t => t.status !== 'concluida'));
+      let tasks = this._filterTasks([...this.data.tasks].filter(t =>
+        t.status !== 'arquivada' && t.status !== 'cancelada'
+      ));
       return tasks.filter(t => t.data_inicio || t.data_fim || t.prazo).sort((a, b) => {
         const da = a.data_inicio || a.prazo || a.created_at || '';
         const db = b.data_inicio || b.prazo || b.created_at || '';
         return da.localeCompare(db);
-      }).slice(0, 50);
+      }).slice(0, 80);
     },
 
     ganttBarStyle(task) {
