@@ -3659,32 +3659,78 @@
             <div style="font-size:13px">Quando alguem te marcar como responsavel ou acompanhante, aparece aqui.</div>
           </div>
 
-          <!-- Flat list — zero getters, Alpine x-for direto no array -->
-          <div x-show="!meuTrabalhoLoading && meuTrabalho.length" style="display:flex;flex-direction:column;gap:6px">
-            <template x-for="t in meuTrabalho" :key="t.id">
-              <div @click="openTaskDetail(t.id)" style="display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;transition:box-shadow .15s"
-                   :style="t.atrasada ? 'border-left:3px solid #d97706' : (t.bloqueada_por_dependencia ? 'border-left:3px solid #dc2626' : 'border-left:3px solid transparent')">
-                <!-- Status dot -->
-                <span style="width:10px;height:10px;border-radius:50%;flex-shrink:0"
-                      :style="{'pendente':'background:#94a3b8','em_andamento':'background:#3b82f6','em_revisao':'background:#f59e0b','bloqueada':'background:#ef4444','pausada':'background:#8b5cf6','concluida':'background:#22c55e'}[t.status] || 'background:#d1d5db'"></span>
-                <!-- Priority -->
-                <span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;flex-shrink:0;text-transform:uppercase"
-                      :style="{'urgente':'background:#dc2626;color:#fff','alta':'background:#ea580c;color:#fff','normal':'background:#e2e8f0;color:#475569','baixa':'background:#f1f5f9;color:#94a3b8'}[t.prioridade] || 'background:#f1f5f9'"
-                      x-text="(t.prioridade||'normal').slice(0,3)"></span>
-                <!-- Title + meta -->
-                <div style="flex:1;min-width:0">
-                  <div style="font-size:13px;font-weight:500;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="t.titulo"></div>
-                  <div style="display:flex;gap:8px;margin-top:2px;font-size:10px;color:var(--text-secondary)">
-                    <span x-show="t.mentorado_nome" x-text="t.mentorado_nome"></span>
-                    <span x-show="t.status" x-text="t.status.replace('_',' ')" style="text-transform:capitalize"></span>
-                  </div>
-                </div>
-                <!-- Due date -->
-                <span x-show="t.data_fim" style="font-size:10px;flex-shrink:0;white-space:nowrap"
-                      :style="t.atrasada ? 'color:#dc2626;font-weight:600' : 'color:var(--text-secondary)'"
-                      x-text="t.data_fim ? new Date(t.data_fim).toLocaleDateString('pt-BR') : ''"></span>
-              </div>
-            </template>
+          <!-- ClickUp-style table list -->
+          <div x-show="!meuTrabalhoLoading && meuTrabalho.length" class="cu-list">
+            <div class="cu-list__wrap">
+              <!-- Column headers -->
+              <table style="width:100%;border-collapse:collapse;table-layout:fixed">
+                <colgroup>
+                  <col style="width:36px">
+                  <col>
+                  <col style="width:120px">
+                  <col style="width:110px">
+                  <col style="width:100px">
+                  <col style="width:90px">
+                </colgroup>
+                <tr style="border-bottom:1px solid var(--border)">
+                  <th></th>
+                  <th class="cu-list__th">Nome</th>
+                  <th class="cu-list__th">Responsavel</th>
+                  <th class="cu-list__th">Vencimento</th>
+                  <th class="cu-list__th">Status</th>
+                  <th class="cu-list__th">Prioridade</th>
+                </tr>
+              </table>
+              <!-- Task rows -->
+              <template x-for="t in meuTrabalho" :key="t.id">
+                <table style="width:100%;border-collapse:collapse;table-layout:fixed" @click="openTaskDetail(t.id)">
+                  <colgroup>
+                    <col style="width:36px">
+                    <col>
+                    <col style="width:120px">
+                    <col style="width:110px">
+                    <col style="width:100px">
+                    <col style="width:90px">
+                  </colgroup>
+                  <tr class="cu-list__row" :class="{ 'cu-list__row--done': t.status === 'concluida' }">
+                    <td class="cu-list__td" @click.stop>
+                      <input type="checkbox" :checked="t.status === 'concluida'" @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"
+                             style="width:15px;height:15px;cursor:pointer;accent-color:#22c55e">
+                    </td>
+                    <td class="cu-list__td cu-list__td--name">
+                      <div style="display:flex;align-items:center;gap:8px">
+                        <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0"
+                              :style="{'pendente':'background:#94a3b8','em_andamento':'background:#3b82f6','em_revisao':'background:#f59e0b','bloqueada':'background:#ef4444','pausada':'background:#8b5cf6','concluida':'background:#22c55e'}[t.status] || 'background:#d1d5db'"></span>
+                        <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="t.titulo"></span>
+                        <span x-show="t.mentorado_nome" style="font-size:10px;color:var(--text-secondary);flex-shrink:0" x-text="'— ' + t.mentorado_nome"></span>
+                      </div>
+                    </td>
+                    <td class="cu-list__td">
+                      <div style="display:flex;align-items:center;gap:4px">
+                        <span class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel || '')" x-text="avatarInitials(t.responsavel || '')" style="width:22px;height:22px;font-size:8px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff"></span>
+                        <span style="font-size:11px;color:var(--text-secondary)" x-text="t.responsavel || '-'"></span>
+                      </div>
+                    </td>
+                    <td class="cu-list__td">
+                      <span x-show="t.data_fim" style="font-size:11px"
+                            :style="t.atrasada ? 'color:#dc2626;font-weight:600' : 'color:var(--text-secondary)'"
+                            x-text="t.data_fim ? relativeDueDate(t.data_fim) : ''"></span>
+                      <span x-show="!t.data_fim" style="font-size:11px;color:#d1d5db">-</span>
+                    </td>
+                    <td class="cu-list__td">
+                      <span style="font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600;white-space:nowrap"
+                            :style="{'pendente':'background:#f1f5f9;color:#64748b','em_andamento':'background:#dbeafe;color:#2563eb','em_revisao':'background:#fef3c7;color:#d97706','bloqueada':'background:#fee2e2;color:#dc2626','pausada':'background:#ede9fe;color:#7c3aed','concluida':'background:#dcfce7;color:#16a34a'}[t.status] || 'background:#f3f4f6'"
+                            x-text="({'pendente':'Pendente','em_andamento':'Em andamento','em_revisao':'Em revisao','bloqueada':'Bloqueada','pausada':'Pausada','concluida':'Concluida'})[t.status] || t.status"></span>
+                    </td>
+                    <td class="cu-list__td">
+                      <span style="font-size:10px;font-weight:600"
+                            :style="{'urgente':'color:#dc2626','alta':'color:#ea580c','normal':'color:#64748b','baixa':'color:#94a3b8'}[t.prioridade] || 'color:#94a3b8'"
+                            x-text="({'urgente':'Urgente','alta':'Alta','normal':'Normal','baixa':'Baixa'})[t.prioridade] || 'Normal'"></span>
+                    </td>
+                  </tr>
+                </table>
+              </template>
+            </div>
           </div>
         </div>
 
