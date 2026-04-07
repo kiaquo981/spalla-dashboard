@@ -3869,76 +3869,59 @@
               </div>
 
               <!-- BOARD VIEW — ClickUp-style clean cards -->
-              <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:8px" x-show="ui.taskView === 'board'">
+              <!-- BOARD VIEW v2 — CSS-driven (CU-01.3) -->
+              <div class="cu-board" x-show="ui.taskView === 'board'">
                 <template x-for="col in boardColumns" :key="col.key">
-                  <div style="min-width:280px;max-width:320px;flex:1;display:flex;flex-direction:column">
-                    <!-- Column header -->
-                    <div style="display:flex;align-items:center;gap:8px;padding:10px 8px;border-top:3px solid;border-radius:8px 8px 0 0;background:var(--bg-subtle)"
-                         :style="'border-color:' + (col.color || '#94a3b8')">
-                      <span style="width:8px;height:8px;border-radius:50%" :style="'background:' + (col.color || '#94a3b8')"></span>
-                      <span style="font-size:13px;font-weight:700" x-text="col.label"></span>
-                      <span style="font-size:11px;font-weight:600;color:var(--text-secondary);background:var(--bg-card);padding:1px 6px;border-radius:10px" x-text="tasksByStatus[col.key]?.length || 0"></span>
+                  <div class="cu-board__col">
+                    <div class="cu-board__col-header" :style="'--col-color:' + (col.color || '#94a3b8')">
+                      <span class="cu-board__col-dot"></span>
+                      <span class="cu-board__col-label" x-text="col.label"></span>
+                      <span class="cu-board__col-count" x-text="tasksByStatus[col.key]?.length || 0"></span>
                     </div>
-                    <!-- Cards container -->
-                    <div style="flex:1;display:flex;flex-direction:column;gap:6px;padding:6px;background:#fafaf8;border-radius:0 0 8px 8px;min-height:60px"
-                         @dragover.prevent="onDragOver($event, col.key)" @dragleave="onDragLeave($event, col.key)" @drop="onDrop($event, col.key)"
-                         :style="dragOverColumn === col.key ? 'background:#f0f4ff;outline:2px dashed #93c5fd;outline-offset:-2px' : ''">
+                    <div class="cu-board__cards" :class="{ 'cu-board__cards--dragover': dragOverColumn === col.key }"
+                         @dragover.prevent="onDragOver($event, col.key)" @dragleave="onDragLeave($event, col.key)" @drop="onDrop($event, col.key)">
                       <template x-for="t in tasksByStatus[col.key]" :key="t.id">
-                        <div draggable="true" @dragstart="onDragStart($event, t.id)" @dragend="onDragEnd($event)"
-                             @click="ui.bulkMode ? bulkToggle(t.id) : openTaskDetail(t.id)"
-                             style="background:#fff;border:1px solid #e8e5de;border-radius:8px;padding:10px 12px;cursor:pointer;transition:box-shadow .15s,border-color .15s"
-                             @mouseenter="$el.style.boxShadow='0 2px 8px rgba(0,0,0,.08)';$el.style.borderColor='#d1cdc4'"
-                             @mouseleave="$el.style.boxShadow='none';$el.style.borderColor='#e8e5de'"
-                             :style="ui.bulkSelected[t.id] ? 'outline:2px solid #3b82f6;outline-offset:-1px' : ''">
-
-                          <!-- Priority badge row -->
-                          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-                            <span style="font-size:10px;font-weight:600;padding:1px 6px;border-radius:3px"
-                                  :style="t.prioridade==='urgente' ? 'background:#fee2e2;color:#dc2626' : t.prioridade==='alta' ? 'background:#ffedd5;color:#ea580c' : t.prioridade==='normal' ? 'background:#f1f5f9;color:#64748b' : 'background:#f8fafc;color:#94a3b8'"
-                                  x-text="prioLabel(t.prioridade)"></span>
+                        <div class="cu-card" :class="{ 'cu-card--selected': ui.bulkSelected[t.id] }"
+                             draggable="true" @dragstart="onDragStart($event, t.id)" @dragend="onDragEnd($event)"
+                             @click="ui.bulkMode ? bulkToggle(t.id) : openTaskDetail(t.id)">
+                          <!-- Priority + type -->
+                          <div style="display:flex;align-items:center;gap:6px">
+                            <span class="cu-card__prio" :class="'cu-card__prio--' + (t.prioridade || 'normal')" x-text="prioLabel(t.prioridade)"></span>
                             <span x-show="t.tipo && t.tipo !== 'geral'" style="font-size:12px" x-text="taskTipoIcon(t.tipo)"></span>
                           </div>
-
                           <!-- Title -->
-                          <div style="font-size:13px;font-weight:600;line-height:1.4;margin-bottom:6px;color:#1e293b" x-text="t.titulo"></div>
-
-                          <!-- Inline indicators row -->
-                          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px">
-                            <span x-show="subtaskProgress(t).total > 0" style="font-size:10px;color:#64748b;display:flex;align-items:center;gap:2px">
+                          <div class="cu-card__title" x-text="t.titulo"></div>
+                          <!-- Indicators -->
+                          <div class="cu-card__meta">
+                            <span x-show="subtaskProgress(t).total > 0" class="cu-card__meta-item">
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                               <span x-text="subtaskProgress(t).done + '/' + subtaskProgress(t).total"></span>
                             </span>
-                            <span x-show="t.comments?.length" style="font-size:10px;color:#94a3b8;display:flex;align-items:center;gap:1px">
+                            <span x-show="t.comments?.length" class="cu-card__meta-item">
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                               <span x-text="t.comments.length"></span>
                             </span>
-                            <span x-show="t.points" style="font-size:10px;font-weight:700;color:#6366f1" x-text="t.points + ' pts'"></span>
-                            <!-- Tags -->
+                            <span x-show="t.points" class="cu-card__meta-item" style="color:#6366f1;font-weight:700" x-text="t.points + ' pts'"></span>
                             <template x-for="tag in (t.tags || []).slice(0, 2)" :key="tag.id || tag.name || tag">
-                              <span style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:600"
-                                    :style="tag.color ? 'background:'+tag.color+';color:#fff' : 'background:#e2e8f0;color:#475569'"
-                                    x-text="tag.name || tag"></span>
+                              <span class="cu-card__tag" :style="tag.color ? 'background:'+tag.color : 'background:#94a3b8'" x-text="tag.name || tag"></span>
                             </template>
-                            <span x-show="(t.tags||[]).length > 2" style="font-size:9px;color:#94a3b8" x-text="'+' + ((t.tags||[]).length - 2)"></span>
+                            <span x-show="(t.tags||[]).length > 2" class="cu-card__meta-item" x-text="'+' + ((t.tags||[]).length - 2)"></span>
                           </div>
-
-                          <!-- Footer: avatar + due date -->
-                          <div style="display:flex;align-items:center;justify-content:space-between">
+                          <!-- Footer -->
+                          <div class="cu-card__footer">
                             <div style="display:flex;align-items:center;gap:6px">
                               <span x-show="t.responsavel" class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel)" x-text="avatarInitials(t.responsavel)" style="width:24px;height:24px;font-size:9px"></span>
-                              <span x-show="t.mentorado_nome" style="font-size:10px;color:#64748b;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="t.mentorado_nome"></span>
+                              <span x-show="t.mentorado_nome" style="font-size:10px;color:#64748b;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="t.mentorado_nome"></span>
                             </div>
-                            <span x-show="t.data_fim || t.prazo" style="font-size:10px;display:flex;align-items:center;gap:3px"
-                                  :style="isOverdue(t.data_fim || t.prazo) ? 'color:#dc2626;font-weight:600' : 'color:#94a3b8'">
+                            <span x-show="t.data_fim || t.prazo" class="cu-card__due" :class="{ 'cu-card__due--overdue': isOverdue(t.data_fim || t.prazo) }">
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                               <span x-text="relativeDueDate(t.data_fim || t.prazo)"></span>
                             </span>
                           </div>
                         </div>
                       </template>
-                      <div x-show="!tasksByStatus[col.key]?.length" style="text-align:center;padding:20px;color:#d1d5db;font-size:12px">Nenhuma tarefa</div>
-                      <button @click="openTaskModal()" style="width:100%;padding:6px;border:1px dashed #d1d5db;border-radius:6px;background:none;cursor:pointer;font-size:11px;color:#94a3b8;display:flex;align-items:center;justify-content:center;gap:4px;transition:color .1s,border-color .1s"
-                              @mouseenter="$el.style.color='var(--brand)';$el.style.borderColor='var(--brand)'" @mouseleave="$el.style.color='#94a3b8';$el.style.borderColor='#d1d5db'">
+                      <div x-show="!tasksByStatus[col.key]?.length" class="cu-board__empty">Nenhuma tarefa</div>
+                      <button class="cu-board__add" @click="openTaskModal()">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                         Adicionar tarefa
                       </button>

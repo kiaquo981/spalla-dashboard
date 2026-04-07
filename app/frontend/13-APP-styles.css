@@ -1688,6 +1688,44 @@ img { max-width: 100%; display: block; }
    ================================================================ */
 
 /* ================================================================
+   TASK BOARD v2 — CSS-first, ClickUp-inspired (Story CU-01.3)
+   ================================================================ */
+.cu-board { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; min-height: calc(100vh - 340px); }
+.cu-board__col { min-width: 290px; max-width: 340px; flex: 1; display: flex; flex-direction: column; }
+.cu-board__col-header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 8px 8px 0 0; background: #f8f7f4; border-top: 3px solid var(--col-color, #94a3b8); }
+.cu-board__col-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--col-color, #94a3b8); }
+.cu-board__col-label { font-size: 13px; font-weight: 700; color: #1e293b; }
+.cu-board__col-count { font-size: 11px; font-weight: 600; color: #94a3b8; background: #fff; padding: 1px 7px; border-radius: 10px; }
+.cu-board__cards { flex: 1; display: flex; flex-direction: column; gap: 6px; padding: 6px 6px 8px; background: #f8f7f4; border-radius: 0 0 8px 8px; max-height: calc(100vh - 400px); overflow-y: auto; }
+.cu-board__cards--dragover { background: #f0f4ff; outline: 2px dashed #93c5fd; outline-offset: -2px; }
+
+/* Card */
+.cu-card { background: #fff; border: 1px solid #eae7e0; border-radius: 8px; padding: 10px 12px; cursor: pointer; transition: box-shadow .15s, border-color .15s; }
+.cu-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.07); border-color: #d4d0c8; }
+.cu-card--selected { outline: 2px solid #3b82f6; outline-offset: -1px; }
+.cu-card__prio { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 3px; display: inline-block; }
+.cu-card__prio--urgente { background: #fee2e2; color: #dc2626; }
+.cu-card__prio--alta { background: #ffedd5; color: #ea580c; }
+.cu-card__prio--normal { background: #f1f5f9; color: #64748b; }
+.cu-card__prio--baixa { background: #f8fafc; color: #94a3b8; }
+.cu-card__title { font-size: 13px; font-weight: 600; line-height: 1.4; margin: 6px 0; color: #1e293b; }
+.cu-card__meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.cu-card__meta-item { font-size: 10px; color: #94a3b8; display: inline-flex; align-items: center; gap: 2px; }
+.cu-card__tag { font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 600; color: #fff; }
+.cu-card__footer { display: flex; align-items: center; justify-content: space-between; }
+.cu-card__due { font-size: 10px; display: inline-flex; align-items: center; gap: 3px; color: #94a3b8; }
+.cu-card__due--overdue { color: #dc2626; font-weight: 600; }
+.cu-board__add { width: 100%; padding: 6px; border: 1px dashed #d1d5db; border-radius: 6px; background: none; cursor: pointer; font-size: 11px; color: #94a3b8; display: flex; align-items: center; justify-content: center; gap: 4px; transition: color .1s, border-color .1s; margin-top: 2px; }
+.cu-board__add:hover { border-color: var(--brand-400, #8a7d52); color: var(--brand-500, #8a7d52); }
+.cu-board__empty { text-align: center; padding: 20px; color: #d1d5db; font-size: 12px; }
+
+@media (max-width: 768px) {
+  .cu-board { flex-direction: column; }
+  .cu-board__col { min-width: 100%; max-width: 100%; }
+  .cu-board__cards { max-height: none; }
+}
+
+/* ================================================================
    VIEW TOGGLE
    ================================================================ */
 /* DELETED: .task-board through .task-stat (340 lines) — Story CU-01.2 */
