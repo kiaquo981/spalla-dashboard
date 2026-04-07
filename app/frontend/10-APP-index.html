@@ -3640,50 +3640,49 @@
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
             <div>
               <h1 style="font-size:22px;font-weight:600;margin:0;color:var(--text-primary)">Meu Trabalho</h1>
-              <p style="font-size:13px;color:var(--text-secondary);margin:4px 0 0">Tarefas onde você é responsável ou acompanhante. Independente de mentorado, sprint ou space.</p>
+              <p style="font-size:13px;color:var(--text-secondary);margin:4px 0 0">
+                Tarefas onde você é responsável ou acompanhante.
+                <span x-show="meuTrabalho.length" x-text="meuTrabalho.length + ' tarefas'" style="font-weight:600"></span>
+              </p>
             </div>
             <button @click="loadMeuTrabalho()" :disabled="meuTrabalhoLoading" style="font-size:12px;background:var(--brand-500,#b09b6e);color:#fff;border:none;border-radius:6px;padding:8px 14px;cursor:pointer">
               <span x-show="!meuTrabalhoLoading">↻ Atualizar</span>
-              <span x-show="meuTrabalhoLoading">Carregando…</span>
+              <span x-show="meuTrabalhoLoading">Carregando...</span>
             </button>
           </div>
 
-          <div x-show="!meuTrabalhoLoading && !(meuTrabalho||[]).length" style="text-align:center;padding:60px 20px;color:var(--text-secondary)">
+          <div x-show="meuTrabalhoLoading" style="text-align:center;padding:40px;color:var(--text-secondary)">Carregando...</div>
+
+          <div x-show="!meuTrabalhoLoading && !meuTrabalho.length" style="text-align:center;padding:60px 20px;color:var(--text-secondary)">
             <div style="font-size:48px;margin-bottom:12px">🎯</div>
-            <div style="font-size:15px;font-weight:600;margin-bottom:6px">Nenhuma tarefa atribuída a você</div>
-            <div style="font-size:13px">Quando alguém te marcar como responsável ou acompanhante, aparece aqui.</div>
+            <div style="font-size:15px;font-weight:600;margin-bottom:6px">Nenhuma tarefa atribuida a voce</div>
+            <div style="font-size:13px">Quando alguem te marcar como responsavel ou acompanhante, aparece aqui.</div>
           </div>
 
-          <div x-show="(meuTrabalho||[]).length" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
-            <template x-for="col in meuTrabalhoGroupedByStatus" :key="col.status">
-              <div style="border:1px solid var(--border);border-radius:10px;background:var(--bg-card);overflow:hidden">
-                <div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between"
-                     :style="'background:' + col.color">
-                  <span style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px" x-text="col.label"></span>
-                  <span style="font-size:11px;background:rgba(0,0,0,0.1);padding:2px 8px;border-radius:10px" x-text="col.tasks.length"></span>
+          <!-- Flat list — zero getters, Alpine x-for direto no array -->
+          <div x-show="!meuTrabalhoLoading && meuTrabalho.length" style="display:flex;flex-direction:column;gap:6px">
+            <template x-for="t in meuTrabalho" :key="t.id">
+              <div @click="openTaskDetail(t.id)" style="display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;transition:box-shadow .15s"
+                   :style="t.atrasada ? 'border-left:3px solid #d97706' : (t.bloqueada_por_dependencia ? 'border-left:3px solid #dc2626' : 'border-left:3px solid transparent')">
+                <!-- Status dot -->
+                <span style="width:10px;height:10px;border-radius:50%;flex-shrink:0"
+                      :style="{'pendente':'background:#94a3b8','em_andamento':'background:#3b82f6','em_revisao':'background:#f59e0b','bloqueada':'background:#ef4444','pausada':'background:#8b5cf6','concluida':'background:#22c55e'}[t.status] || 'background:#d1d5db'"></span>
+                <!-- Priority -->
+                <span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;flex-shrink:0;text-transform:uppercase"
+                      :style="{'urgente':'background:#dc2626;color:#fff','alta':'background:#ea580c;color:#fff','normal':'background:#e2e8f0;color:#475569','baixa':'background:#f1f5f9;color:#94a3b8'}[t.prioridade] || 'background:#f1f5f9'"
+                      x-text="(t.prioridade||'normal').slice(0,3)"></span>
+                <!-- Title + meta -->
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:500;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="t.titulo"></div>
+                  <div style="display:flex;gap:8px;margin-top:2px;font-size:10px;color:var(--text-secondary)">
+                    <span x-show="t.mentorado_nome" x-text="t.mentorado_nome"></span>
+                    <span x-show="t.status" x-text="t.status.replace('_',' ')" style="text-transform:capitalize"></span>
+                  </div>
                 </div>
-                <div style="padding:8px;display:flex;flex-direction:column;gap:6px;max-height:600px;overflow-y:auto">
-                  <template x-for="t in col.tasks" :key="t.id">
-                    <div @click="openTaskDetail(t.id)" style="padding:10px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;transition:box-shadow .15s"
-                         :style="t.bloqueada_por_dependencia ? 'border-color:#dc2626;background:#fef2f2' : (t.atrasada ? 'border-color:#d97706' : '')">
-                      <div style="display:flex;align-items:flex-start;gap:8px">
-                        <span style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;flex-shrink:0"
-                              :style="{'urgente':'background:#dc2626;color:#fff','alta':'background:#d97706;color:#fff','normal':'background:#e5e7eb;color:#374151','baixa':'background:#f3f4f6;color:#6b7280'}[t.prioridade] || 'background:#f3f4f6'"
-                              x-text="(t.prioridade||'normal').slice(0,3).toUpperCase()"></span>
-                        <div style="flex:1;min-width:0">
-                          <div style="font-size:13px;font-weight:500;color:var(--text-primary);margin-bottom:4px;word-wrap:break-word" x-text="t.titulo"></div>
-                          <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:10px;color:var(--text-secondary)">
-                            <span x-show="t.mentorado_nome" x-text="'👤 ' + t.mentorado_nome"></span>
-                            <span x-show="t.data_fim" x-text="'📅 ' + new Date(t.data_fim).toLocaleDateString('pt-BR')"></span>
-                            <span x-show="t.especie && t.especie !== 'one_time'" :style="{color: t.especie === 'quest' ? '#7c3aed' : '#0369a1'}" x-text="t.especie"></span>
-                            <span x-show="t.bloqueada_por_dependencia" style="color:#dc2626;font-weight:600">⛔ bloqueada</span>
-                            <span x-show="t.atrasada" style="color:#d97706;font-weight:600">⚠ atrasada</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </template>
-                </div>
+                <!-- Due date -->
+                <span x-show="t.data_fim" style="font-size:10px;flex-shrink:0;white-space:nowrap"
+                      :style="t.atrasada ? 'color:#dc2626;font-weight:600' : 'color:var(--text-secondary)'"
+                      x-text="t.data_fim ? new Date(t.data_fim).toLocaleDateString('pt-BR') : ''"></span>
               </div>
             </template>
           </div>
