@@ -576,42 +576,9 @@ function operon() {
     // --- Media Cache ---
     waMediaUrls: {},  // messageId → presigned URL
 
-    // Task organization: 5 Spaces — Entregas + Atendimento + Mentorado + Produto + Tecnologia
-    spaces: [
-      { id: 'space_entregas', name: 'Entregas', icon: '◇', color: '#8b5cf6',
-        lists: [
-          { id: 'list_dossies', name: 'Dossiês', icon: '◇' },
-          { id: 'list_materiais_mentorado', name: 'Materiais & Manuais', icon: '■' },
-        ]
-      },
-      { id: 'space_atendimento', name: 'Atendimento', icon: '◎', color: '#6366f1',
-        lists: [
-          { id: 'list_analises', name: 'Análises & Revisões', icon: '◉' },
-          { id: 'list_poscall', name: 'Pós-call', icon: '★' },
-          { id: 'list_operacional', name: 'Operacional', icon: '✦' },
-        ]
-      },
-      { id: 'space_mentorado', name: 'Mentorado', icon: '●', color: '#10b981',
-        lists: [
-          { id: 'list_tarefas_mentorado', name: 'Tarefas do Mentorado', icon: '▸' },
-          { id: 'list_checklist_mentorado', name: 'Checklists', icon: '✓' },
-        ]
-      },
-      { id: 'space_produto', name: 'Produto', icon: '◈', color: '#f59e0b',
-        lists: [
-          { id: 'list_aulas', name: 'Aulas & Gravações', icon: '▸' },
-          { id: 'list_manuais', name: 'Manuais & Kits', icon: '■' },
-          { id: 'list_planejamento', name: 'Planejamento de Produto', icon: '●' },
-        ]
-      },
-      // Tecnologia — sprints populados dinamicamente por loadGodLists()
-      { id: 'space_tecnologia', name: 'Tecnologia', icon: '◈', color: '#0ea5e9',
-        lists: [
-          { id: 'list_maestro', name: 'Maestro', icon: '◆' },
-          { id: 'list_agentes', name: 'Agentes & Automações', icon: '◉' },
-        ]
-      },
-    ],
+    // Task organization — loaded dynamically from god_spaces + god_lists + god_statuses
+    spaces: [],
+    allStatuses: [], // god_statuses rows
 
     // --- Task Type Icons ---
     TASK_TIPO_MAP: {
@@ -1644,11 +1611,30 @@ function operon() {
         this.data.tasks.forEach(t => { lists.add(t.list_id || ''); });
         return [...lists].map(id => ({ key: id, label: this.getListName(id) || id || 'Sem lista', color: '#8b6f47' }));
       }
-      // Default: status — use CSS class instead of inline color
+      // Default: status — use god_statuses if available, else fallback
+      const spaceFilter = this.ui.taskSpaceFilter;
+      const spaceStatuses = (this.allStatuses || [])
+        .filter(s => spaceFilter === 'all' || s.space_id === spaceFilter)
+        .filter(s => s.status_group !== 'closed');
+      if (spaceStatuses.length) {
+        // Dedupe by name (when "all" spaces, same name appears per space)
+        const seen = new Set();
+        return spaceStatuses.filter(s => {
+          if (seen.has(s.name)) return false;
+          seen.add(s.name);
+          return true;
+        }).map(s => ({
+          key: s.name.toLowerCase().replace(/\s+/g, '_').normalize('NFD').replace(/[\u0300-\u036f]/g, ''),
+          statusId: s.id,
+          label: s.name,
+          color: s.color || '',
+          statusGroup: s.status_group,
+        }));
+      }
       return [
-        { key: 'pendente', label: 'A Fazer', color: '', cssClass: 'task-board__column-header--pendente' },
-        { key: 'em_andamento', label: 'Em Progresso', color: '', cssClass: 'task-board__column-header--em_andamento' },
-        { key: 'concluida', label: 'Concluido', color: '', cssClass: 'task-board__column-header--concluida' },
+        { key: 'pendente', label: 'A Fazer', color: '#94a3b8' },
+        { key: 'em_andamento', label: 'Em Progresso', color: '#f59e0b' },
+        { key: 'concluida', label: 'Concluido', color: '#22c55e' },
       ];
     },
 
@@ -4744,51 +4730,65 @@ function operon() {
     },
 
     // Carrega listas e sprints de god_lists (substitui arrays hardcoded)
-    async loadGodLists() {
+    async loadSpacesAndStatuses() {
       if (!sb) return;
       try {
-        const { data, error } = await sb.from('god_lists').select('*').eq('ativo', true).order('ordem');
-        if (!error && data?.length) {
-          this.data.lists = data;
+        const [spacesRes, listsRes, statusesRes] = await Promise.all([
+          sb.from('god_spaces').select('*').eq('ativo', true).order('ordem'),
+          sb.from('god_lists').select('*').eq('ativo', true).order('ordem'),
+          sb.from('god_statuses').select('*').order('sort_order'),
+        ]);
+        const spacesData = spacesRes.data || [];
+        const listsData = listsRes.data || [];
+        const statusesData = statusesRes.data || [];
 
-          // Atualiza data.sprints com os dados reais do banco
-          const sprints = data
-            .filter(l => l.tipo === 'sprint')
+        this.allStatuses = statusesData;
+        this.data.lists = listsData;
+
+        // Build sprints
+        const sprints = listsData
+          .filter(l => l.tipo === 'sprint')
+          .map(l => ({
+            id: l.id, nome: l.nome, inicio: l.sprint_inicio, fim: l.sprint_fim,
+            status: l.sprint_status, total: l.sprint_total || 0,
+            concluidas: l.sprint_concluidas || 0, highlights: [],
+          }));
+        if (sprints.length) this.data.sprints = sprints;
+
+        // Build spaces with nested lists
+        this.spaces = spacesData.map(sp => {
+          const spLists = listsData
+            .filter(l => l.space_id === sp.id && l.tipo !== 'sprint')
+            .map(l => ({ id: l.id, name: l.nome, icon: l.tipo === 'backlog' ? '📋' : '▸' }));
+          // Add sprints to their parent space
+          const spSprints = listsData
+            .filter(l => l.space_id === sp.id && l.tipo === 'sprint')
             .map(l => ({
-              id: l.id,
-              nome: l.nome,
-              inicio: l.sprint_inicio,
-              fim: l.sprint_fim,
-              status: l.sprint_status,
-              total: l.sprint_total || 0,
-              concluidas: l.sprint_concluidas || 0,
-              highlights: [],
+              id: l.id, name: l.nome, isSprint: true, status: l.sprint_status,
+              icon: l.sprint_status === 'ativo' ? '⚡' : (l.sprint_status === 'encerrado' ? '✓' : '○'),
             }));
-          if (sprints.length) {
-            this.data.sprints = sprints;
-          }
-
-          // Popula space_tecnologia.lists com sprints como items navegáveis
-          // Usa map() no array inteiro para garantir reatividade Alpine.js
-          if (sprints.length) {
-            this.spaces = this.spaces.map(s => {
-              if (s.id !== 'space_tecnologia') return s;
-              return {
-                ...s,
-                lists: sprints.map(sp => ({
-                  id: sp.id,
-                  name: sp.nome,
-                  icon: sp.status === 'ativo' ? '⚡' : (sp.status === 'encerrado' ? '✓' : '○'),
-                  isSprint: true,
-                  status: sp.status,
-                })),
-              };
-            });
-          }
-        }
+          return {
+            id: sp.id, name: sp.nome, icon: sp.icone || '◇', color: sp.cor || '#6366f1',
+            lists: [...spLists, ...spSprints],
+          };
+        });
       } catch (e) {
-        console.warn('[Spalla] loadGodLists failed:', e.message);
+        console.warn('[Spalla] loadSpacesAndStatuses failed:', e.message);
       }
+      // Fallback: if no spaces loaded (migration not run yet), use defaults
+      if (!this.spaces.length) {
+        this.spaces = [
+          { id: 'space_jornada', name: 'Jornada do Mentorado', icon: '🗺️', color: '#10b981', lists: [] },
+          { id: 'space_gestao', name: 'Gestao Interna', icon: '⚙️', color: '#6366f1', lists: [] },
+          { id: 'space_ia', name: 'IA & Automacao', icon: '🤖', color: '#f59e0b', lists: [] },
+          { id: 'space_sistema', name: 'Sistema & Dev', icon: '💻', color: '#0ea5e9', lists: [] },
+        ];
+      }
+    },
+
+    // Legacy alias — kept for any callers
+    async loadGodLists() {
+      return this.loadSpacesAndStatuses();
     },
 
     navigateWithFilter(page, filter) {
