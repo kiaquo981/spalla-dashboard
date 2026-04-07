@@ -514,6 +514,7 @@ function operon() {
       timeline: [],
       menteeMessages: [],  // EPIC 1: Chatwoot messages for current mentorado
       menteeContext: [],   // Context Hub: áudios, notas, arquivos para dossiê
+      menteeDescarregos: [], // LF-FASE3: pipeline de descarregos (nova entidade)
       teamPerformance: [],
       feedbackList: [],           // TASK-10: god_feedback entries
       // Command Center static data
@@ -10619,6 +10620,79 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       } catch (e) {
         if (reqId === this._timelineReqId) console.warn('[Spalla] loadTimeline exception:', e);
       }
+    },
+
+    // ===== LF-FASE3: Descarregos pipeline =====
+    async loadMenteeDescarregos(menteeId) {
+      if (!menteeId) return;
+      this.data.menteeDescarregos = [];
+      try {
+        const r = await fetch(`${CONFIG.API_BASE}/api/mentees/${menteeId}/descarregos`, {
+          headers: { 'Authorization': `Bearer ${this.auth.token || ''}` },
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const body = await r.json();
+        this.data.menteeDescarregos = body.descarregos || [];
+      } catch (e) { console.warn('[Spalla] loadMenteeDescarregos:', e); }
+    },
+
+    async processDescarrego(descarregoId) {
+      try {
+        const r = await fetch(`${CONFIG.API_BASE}/api/descarrego/${descarregoId}/process`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${this.auth.token || ''}` },
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        this.toast?.('Processamento iniciado');
+        // Poll até status mudar
+        this._pollDescarrego(descarregoId);
+      } catch (e) {
+        this.toast?.('Falha ao processar: ' + e.message, 'error');
+      }
+    },
+
+    async approveDescarrego(descarregoId) {
+      try {
+        const r = await fetch(`${CONFIG.API_BASE}/api/descarrego/${descarregoId}/approve`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${this.auth.token || ''}` },
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        this.toast?.('Aprovado — executando ação');
+        this._pollDescarrego(descarregoId);
+      } catch (e) {
+        this.toast?.('Falha ao aprovar: ' + e.message, 'error');
+      }
+    },
+
+    async rejectDescarrego(descarregoId) {
+      if (!confirm('Rejeitar este descarrego?')) return;
+      try {
+        const r = await fetch(`${CONFIG.API_BASE}/api/descarrego/${descarregoId}/reject`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${this.auth.token || ''}` },
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        this.toast?.('Rejeitado');
+        const menteeId = this.data.detail?.profile?.id;
+        if (menteeId) this.loadMenteeDescarregos(menteeId);
+      } catch (e) {
+        this.toast?.('Falha ao rejeitar: ' + e.message, 'error');
+      }
+    },
+
+    _pollDescarrego(descarregoId, tries = 0) {
+      if (tries > 30) return; // max ~90s
+      setTimeout(async () => {
+        const menteeId = this.data.detail?.profile?.id;
+        if (!menteeId) return;
+        await this.loadMenteeDescarregos(menteeId);
+        const d = (this.data.menteeDescarregos || []).find(x => x.id === descarregoId);
+        const terminal = ['finalizado', 'rejeitado', 'erro', 'aguardando_humano'];
+        if (d && !terminal.includes(d.status)) {
+          this._pollDescarrego(descarregoId, tries + 1);
+        }
+      }, 3000);
     },
 
     // ===== CONTEXT HUB: áudio, texto, anexos para dossiê =====

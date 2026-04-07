@@ -1920,7 +1920,7 @@
                 Arquivos
                 <span class="op-tab__count" x-show="_detailArquivos.length" x-text="_detailArquivos.length"></span>
               </button>
-              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'contexto' }" @click="ui.activeDetailTab = 'contexto'; loadMenteeContext(data.detail?.profile?.id)">
+              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'contexto' }" @click="ui.activeDetailTab = 'contexto'; loadMenteeContext(data.detail?.profile?.id); loadMenteeDescarregos(data.detail?.profile?.id)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                 Contexto
                 <span class="op-tab__count" x-show="data.menteeContext?.length" x-text="data.menteeContext?.length"></span>
@@ -3211,8 +3211,47 @@
                   </div>
                 </div>
 
+                <!-- ── Pipeline Descarregos (LF-FASE3) ── -->
+                <div x-show="(data.menteeDescarregos || []).length" style="margin-bottom:16px;border:1px solid var(--border);border-radius:10px;background:var(--bg-subtle,#fafaf7);padding:12px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                    <div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--text-primary)">
+                      <span style="width:8px;height:8px;border-radius:50%;background:#16a34a;display:inline-block"></span>
+                      Pipeline de Descarregos
+                      <span x-text="(data.menteeDescarregos || []).length" style="background:var(--brand-300,#c4b896);color:#fff;border-radius:10px;padding:1px 8px;font-size:10px"></span>
+                    </div>
+                    <button @click="loadMenteeDescarregos(data.detail?.profile?.id)" style="font-size:11px;color:var(--text-secondary);background:none;border:1px solid var(--border);border-radius:4px;padding:3px 8px;cursor:pointer" title="Recarregar">↻</button>
+                  </div>
+
+                  <div style="display:flex;flex-direction:column;gap:8px">
+                    <template x-for="d in (data.menteeDescarregos || [])" :key="d.id">
+                      <div style="border:1px solid var(--border);border-radius:8px;padding:10px;background:#fff">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                          <span :style="{'capturado':'background:#e0f2fe;color:#0369a1','transcricao_pendente':'background:#fef3c7;color:#d97706','transcrito':'background:#e0f2fe;color:#0369a1','classificacao_pendente':'background:#fef3c7;color:#d97706','classificado':'background:#dcfce7;color:#15803d','aguardando_humano':'background:#fde68a;color:#b45309','executando_acao_automatica':'background:#fef3c7;color:#d97706','executando_acao_manual':'background:#fef3c7;color:#d97706','finalizado':'background:#dcfce7;color:#15803d','rejeitado':'background:#fee2e2;color:#dc2626','erro':'background:#fee2e2;color:#dc2626'}[d.status] || 'background:#f3f4f6'"
+                                style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;text-transform:uppercase" x-text="d.status"></span>
+                          <span style="font-size:11px;color:var(--text-secondary)" x-text="d.tipo_bruto"></span>
+                          <span x-show="d.classificacao_principal" style="font-size:11px;font-weight:600" x-text="'→ ' + d.classificacao_principal"></span>
+                          <span x-show="d.classificacao_confidence" style="font-size:10px;color:var(--text-secondary)" x-text="'(' + Math.round((d.classificacao_confidence||0)*100) + '%)'"></span>
+                          <span style="flex:1"></span>
+                          <span style="font-size:10px;color:var(--text-secondary)" x-text="new Date(d.created_at).toLocaleString('pt-BR')"></span>
+                        </div>
+                        <div style="font-size:12px;color:var(--text-primary);white-space:pre-wrap;line-height:1.4;max-height:80px;overflow:hidden" x-text="d.transcricao || d.conteudo_bruto || '(sem conteúdo)'"></div>
+                        <div x-show="d.classificacao_payload?.summary" style="font-size:11px;color:var(--text-secondary);font-style:italic;margin-top:4px" x-text="'Resumo IA: ' + d.classificacao_payload?.summary"></div>
+
+                        <!-- Ações -->
+                        <div style="display:flex;gap:6px;margin-top:8px">
+                          <button x-show="d.status === 'capturado' || d.status === 'erro'" @click="processDescarrego(d.id)" style="font-size:11px;background:var(--brand-500,#b09b6e);color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer">▶ Processar</button>
+                          <button x-show="d.status === 'aguardando_humano'" @click="approveDescarrego(d.id)" style="font-size:11px;background:#16a34a;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer">✓ Aprovar</button>
+                          <button x-show="d.status === 'aguardando_humano'" @click="rejectDescarrego(d.id)" style="font-size:11px;background:#dc2626;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer">✕ Rejeitar</button>
+                          <a x-show="d.task_id" :href="'#task-' + d.task_id" style="font-size:11px;color:var(--brand-500,#b09b6e);text-decoration:none;padding:4px 8px;border:1px solid var(--border);border-radius:4px">→ Task criada</a>
+                          <span x-show="d.last_error" style="font-size:10px;color:#dc2626" :title="d.last_error">⚠ erro</span>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+
                 <!-- ── Lista de contextos ── -->
-                <div x-show="!(data.menteeContext || []).length" style="text-align:center;padding:32px;color:var(--text-secondary);font-size:13px">
+                <div x-show="!(data.menteeContext || []).length && !(data.menteeDescarregos || []).length" style="text-align:center;padding:32px;color:var(--text-secondary);font-size:13px">
                   Nenhum contexto adicionado ainda.<br>
                   <span style="font-size:12px;opacity:.7">Áudios, notas e arquivos aparecerão aqui.</span>
                 </div>
