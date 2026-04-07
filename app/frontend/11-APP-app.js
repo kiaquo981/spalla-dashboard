@@ -7664,6 +7664,116 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       await this.updateTaskField(taskId, 'points', val);
     },
 
+    // ── Dragon 4: Activity Feed (track all changes) ──
+    async logActivity(taskId, action, field = null, oldValue = null, newValue = null) {
+      if (!sb || !taskId) return;
+      try {
+        await sb.from('god_task_activity').insert({
+          task_id: taskId,
+          action,
+          field_name: field,
+          old_value: oldValue !== null ? JSON.stringify(oldValue) : null,
+          new_value: newValue !== null ? JSON.stringify(newValue) : null,
+          user_id: this.auth.currentUser?.email || 'system',
+        });
+      } catch (e) { /* silent */ }
+    },
+
+    // ── Dragon 5: Export CSV ──
+    exportTasksCSV() {
+      const tasks = this.data.tasks;
+      const headers = ['titulo','status','prioridade','responsavel','mentorado_nome','data_inicio','data_fim','space_id','list_id','tipo','fonte','created_at'];
+      const rows = tasks.map(t => headers.map(h => {
+        const v = t[h] ?? '';
+        return '"' + String(v).replace(/"/g, '""') + '"';
+      }).join(','));
+      const csv = headers.join(',') + '\n' + rows.join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'tarefas_' + new Date().toISOString().slice(0,10) + '.csv';
+      a.click(); URL.revokeObjectURL(url);
+      this.toast('CSV exportado: ' + tasks.length + ' tarefas', 'success');
+    },
+
+    async importTasksCSV(file) {
+      if (!file || !sb) return;
+      const text = await file.text();
+      const lines = text.split('\n').filter(l => l.trim());
+      if (lines.length < 2) { this.toast('CSV vazio', 'warn'); return; }
+      const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+      let imported = 0;
+      for (let i = 1; i < lines.length; i++) {
+        const vals = lines[i].match(/("([^"]|"")*"|[^,]*)/g) || [];
+        const row = {};
+        headers.forEach((h, j) => { row[h] = (vals[j] || '').replace(/^"|"$/g, '').replace(/""/g, '"').trim(); });
+        if (!row.titulo) continue;
+        try {
+          await sb.from('god_tasks').insert({
+            titulo: row.titulo,
+            status: row.status || 'pendente',
+            prioridade: row.prioridade || 'normal',
+            responsavel: row.responsavel || null,
+            mentorado_nome: row.mentorado_nome || null,
+            data_inicio: row.data_inicio || null,
+            data_fim: row.data_fim || null,
+            space_id: row.space_id || null,
+            list_id: row.list_id || null,
+            tipo: row.tipo || 'geral',
+            fonte: 'csv_import',
+          });
+          imported++;
+        } catch (e) { /* skip bad rows */ }
+      }
+      await this.loadTasks();
+      this.toast(`Importadas: ${imported} de ${lines.length - 1} linhas`, 'success');
+    },
+
+    // ── Dragon 6: Form View (public intake) ──
+    get formViewFields() {
+      return [
+        { key: 'titulo', label: 'Titulo da tarefa', type: 'text', required: true },
+        { key: 'descricao', label: 'Descricao', type: 'textarea', required: false },
+        { key: 'prioridade', label: 'Prioridade', type: 'select', options: ['normal','alta','urgente','baixa'], required: false },
+        { key: 'responsavel', label: 'Responsavel', type: 'select', options: (this.data.members || []).map(m => m.nome_curto || m.name), required: false },
+        { key: 'data_fim', label: 'Data de vencimento', type: 'date', required: false },
+        { key: 'mentorado_nome', label: 'Mentorado', type: 'text', required: false },
+      ];
+    },
+
+    async submitFormView(formData) {
+      if (!formData?.titulo?.trim() || !sb) { this.toast('Titulo obrigatorio', 'warn'); return; }
+      try {
+        const { error } = await sb.from('god_tasks').insert({
+          ...formData,
+          status: 'pendente',
+          fonte: 'form',
+          space_id: this.ui.taskSpaceFilter !== 'all' ? this.ui.taskSpaceFilter : null,
+          created_by: 'form_submission',
+        });
+        if (error) throw error;
+        await this.loadTasks();
+        this.toast('Tarefa criada via formulario', 'success');
+        return true;
+      } catch (e) { this.toast('Erro: ' + e.message, 'error'); return false; }
+    },
+
+    // ── Dragon 7: Workload View ──
+    get workloadData() {
+      const members = this.data.members || [];
+      const tasks = this.data.tasks.filter(t => t.status !== 'concluida');
+      return members.map(m => {
+        const name = m.nome_curto || m.name;
+        const myTasks = tasks.filter(t => t.responsavel === name);
+        const points = myTasks.reduce((s, t) => s + (t.points || 0), 0);
+        const estimate = myTasks.reduce((s, t) => s + (t.time_estimate || 0), 0);
+        const overdue = myTasks.filter(t => (t.data_fim || t.prazo) && new Date(t.data_fim || t.prazo) < new Date()).length;
+        const byPrio = { urgente: 0, alta: 0, normal: 0, baixa: 0 };
+        myTasks.forEach(t => { byPrio[t.prioridade || 'normal']++; });
+        return { name, color: m.cor || '#6366f1', count: myTasks.length, points, estimate, overdue, byPrio };
+      }).sort((a, b) => b.count - a.count);
+    },
+
     // ── Task Templates ──
     async loadTemplates() {
       if (!sb) return;
