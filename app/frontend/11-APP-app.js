@@ -210,6 +210,7 @@ function operon() {
       newFieldType: 'text',
       visibleFieldIds: {}, // { fieldId: true } — which custom fields show as columns
       collapsedSpaces: {}, // { spaceId: true }
+      subtaskExpanded: null, // index of expanded subtask in drawer
       taskSpaceFilter: 'all', // space_id filter
       taskListFilter: 'all', // list_id filter
       taskSprintFilter: 'all', // sprint_id filter
