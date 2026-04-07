@@ -4569,7 +4569,7 @@
           </div>
 
           <!-- ACTIVITY TIMELINE MODAL (Dragon 22) -->
-          <div x-show="activityTimelineOpen" x-transition.opacity class="cu-modal-overlay" @click.self="activityTimelineOpen = false">
+          <div x-show="activityTimelineOpen" x-cloak x-transition.opacity style="position:fixed;inset:0;z-index:998;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center" @click.self="activityTimelineOpen = false">
             <div @click.stop class="cu-modal-box cu-modal-box--lg">
               <div class="cu-modal-header">
                 <h3>Timeline de Atividades</h3>
@@ -4631,7 +4631,7 @@
 
           <!-- Task Detail Drawer (ClickUp-style 2-panel) -->
           <!-- ===== AUTOMATIONS PANEL ===== -->
-          <div x-show="ui.automationsOpen" x-transition.opacity class="cu-modal-overlay" @click.self="ui.automationsOpen = false">
+          <div x-show="ui.automationsOpen" x-cloak x-transition.opacity style="position:fixed;inset:0;z-index:998;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center" @click.self="ui.automationsOpen = false">
             <div @click.stop class="cu-modal-box cu-modal-box--sm">
               <div class="cu-modal-header">
                 <h3>Automacoes</h3>
@@ -4719,7 +4719,7 @@
           </div>
 
           <!-- ===== DASHBOARD MODAL ===== -->
-          <div x-show="ui.dashboardOpen" x-transition.opacity class="cu-modal-overlay" @click.self="ui.dashboardOpen = false">
+          <div x-show="ui.dashboardOpen" x-cloak x-transition.opacity style="position:fixed;inset:0;z-index:998;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center" @click.self="ui.dashboardOpen = false">
             <div @click.stop class="cu-modal-box">
               <div class="cu-modal-header">
                 <h3>Dashboard</h3>
@@ -4778,7 +4778,7 @@
           </div>
 
           <!-- ===== CUSTOM FIELDS MODAL (CU-02.3) ===== -->
-          <div x-show="ui.fieldsModalOpen" x-transition.opacity class="cu-modal-overlay cu-modal-overlay--top" @click.self="ui.fieldsModalOpen = false">
+          <div x-show="ui.fieldsModalOpen" x-cloak x-transition.opacity style="position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center" @click.self="ui.fieldsModalOpen = false">
             <div @click.stop class="cu-modal-box cu-modal-box--sm" style="width:400px">
               <!-- Header -->
               <div class="cu-modal-header">
