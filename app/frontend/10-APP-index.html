@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="16-APP-operon-molecules.css?v=3">
   <link rel="stylesheet" href="17-APP-operon-utilities.css?v=2">
   <link rel="stylesheet" href="18-APP-operon-bridge.css?v=1">
-  <link rel="stylesheet" href="13-APP-styles.css?v=200">
+  <link rel="stylesheet" href="13-APP-styles.css?v=210">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1c1910,#35301d,#1c1910);font-family:'Inter',system-ui,sans-serif;color:var(--brand-500,#8a7d52);font-size:24px;font-weight:700;letter-spacing:0.05em; }
@@ -3653,28 +3653,26 @@
           </div>
 
           <!-- Quick filters -->
-          <div x-show="meuTrabalho.length" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+          <div x-show="meuTrabalho.length" class="mt-filters">
             <template x-for="f in meuTrabalhoQuickFilters" :key="f.key">
-              <button @click="meuTrabalhoFilter = (meuTrabalhoFilter === f.key ? 'all' : f.key)"
-                      :style="meuTrabalhoFilter === f.key ? 'background:var(--brand-500,#b09b6e);color:#fff;border-color:var(--brand-500)' : ''"
-                      style="font-size:11px;padding:5px 12px;border:1px solid var(--border);border-radius:16px;background:#fff;cursor:pointer;display:flex;align-items:center;gap:4px">
+              <button class="mt-pill" :class="{ 'mt-pill--active': meuTrabalhoFilter === f.key }"
+                      @click="meuTrabalhoFilter = (meuTrabalhoFilter === f.key ? 'all' : f.key)">
                 <span x-text="f.label"></span>
-                <span style="font-size:10px;font-weight:700;min-width:18px;text-align:center;padding:0 4px;border-radius:8px"
-                      :style="meuTrabalhoFilter === f.key ? 'background:rgba(255,255,255,.3)' : 'background:#f1f5f9'" x-text="f.count"></span>
+                <span class="mt-pill__count" x-text="f.count"></span>
               </button>
             </template>
           </div>
 
-          <!-- Group by -->
-          <div x-show="meuTrabalho.length" style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-            <span style="font-size:11px;color:var(--text-secondary)">Agrupar:</span>
-            <select x-model="meuTrabalhoGroupBy" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:#fff">
+          <!-- Toolbar: group by + hide done -->
+          <div x-show="meuTrabalho.length" class="mt-toolbar">
+            <span>Agrupar:</span>
+            <select x-model="meuTrabalhoGroupBy">
               <option value="">Nenhum</option>
               <option value="status">Status</option>
               <option value="mentorado">Mentorado</option>
               <option value="prioridade">Prioridade</option>
             </select>
-            <label style="font-size:11px;display:flex;align-items:center;gap:4px;color:var(--text-secondary);margin-left:12px;cursor:pointer">
+            <label>
               <input type="checkbox" x-model="meuTrabalhoHideDone" style="accent-color:var(--brand-500)">
               Esconder concluidas
             </label>
@@ -3693,9 +3691,9 @@
             <template x-for="group in meuTrabalhoGrouped" :key="group.key">
               <div style="margin-bottom:16px">
                 <!-- Group header (only when grouping) -->
-                <div x-show="meuTrabalhoGroupBy" style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:2px solid var(--border);margin-bottom:4px">
-                  <span style="font-size:12px;font-weight:700;text-transform:capitalize;color:var(--text-primary)" x-text="group.label"></span>
-                  <span style="font-size:10px;background:#e2e8f0;padding:1px 8px;border-radius:10px;color:#475569" x-text="group.tasks.length"></span>
+                <div x-show="meuTrabalhoGroupBy" class="mt-group-header">
+                  <span class="mt-group-label" x-text="group.label"></span>
+                  <span class="mt-group-count" x-text="group.tasks.length"></span>
                 </div>
                 <!-- Table -->
                 <div class="cu-list__wrap">
