@@ -4268,6 +4268,27 @@
               <!-- LIST VIEW v2 — CSS-driven (CU-01.4) -->
               <div class="cu-list" x-show="ui.taskView === 'list'">
                 <div class="cu-list__wrap">
+                <!-- Column headers for ungrouped mode -->
+                <table x-show="!ui.taskGroupBy" style="width:100%;border-collapse:collapse;table-layout:fixed">
+                  <colgroup class="cu-list__colgroup"><col><col><col><col><col><col><col><col></colgroup>
+                  <tr style="border-bottom:1px solid var(--border)">
+                    <th></th>
+                    <th class="cu-list__th">Nome</th>
+                    <th class="cu-list__th">Responsavel</th>
+                    <th class="cu-list__th">Data inicio</th>
+                    <th class="cu-list__th">Data de vencimento</th>
+                    <th class="cu-list__th">Prioridade</th>
+                    <th class="cu-list__th">Comentarios</th>
+                    <template x-for="cf in visibleCustomFields()" :key="cf.field_id || cf.id">
+                      <th class="cu-list__th" x-text="cf.name"></th>
+                    </template>
+                    <th style="padding:4px">
+                      <button @click.stop="ui.fieldsModalOpen = true" class="cu-list__add-col-btn" title="Adicionar campo">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      </button>
+                    </th>
+                  </tr>
+                </table>
                 <template x-for="t in tasksTree" :key="t.id + '-' + (t._depth||0)">
                   <div>
                     <!-- Group Header -->
