@@ -6467,6 +6467,52 @@ if __name__ == '__main__':
     sprint_thread.start()
     print(f'[Spalla] Sprint rollover: background thread started (every 6h + on boot)')
 
+    # ===== LF: Recurring Tasks Scheduler (5 min) =====
+    def _lf_recurring_scheduler():
+        import time as _t
+        while True:
+            try:
+                r = supabase_request('POST', '/rest/v1/rpc/fn_materialize_recurring_due', body={})
+                if r.status_code in (200, 204):
+                    try:
+                        result = r.json()
+                        if (result or {}).get('materialized', 0) > 0:
+                            print(f'[LF Scheduler] {result}')
+                    except Exception:
+                        pass
+                else:
+                    print(f'[LF Scheduler] failed: {r.status_code}')
+            except Exception as e:
+                print(f'[LF Scheduler] error: {e}')
+            _t.sleep(300)  # 5 min
+
+    lf_sched_thread = threading.Thread(target=_lf_recurring_scheduler, daemon=True)
+    lf_sched_thread.start()
+    print(f'[Spalla] LF recurring scheduler: thread started (every 5min)')
+
+    # ===== LF: Trigger Listener (30s) =====
+    def _lf_trigger_listener():
+        import time as _t
+        while True:
+            try:
+                r = supabase_request('POST', '/rest/v1/rpc/fn_apply_trigger_rules', body={})
+                if r.status_code in (200, 204):
+                    try:
+                        result = r.json()
+                        if (result or {}).get('tasks_created', 0) > 0:
+                            print(f'[LF Trigger] {result}')
+                    except Exception:
+                        pass
+                else:
+                    print(f'[LF Trigger] failed: {r.status_code}')
+            except Exception as e:
+                print(f'[LF Trigger] error: {e}')
+            _t.sleep(30)
+
+    lf_trigger_thread = threading.Thread(target=_lf_trigger_listener, daemon=True)
+    lf_trigger_thread.start()
+    print(f'[Spalla] LF trigger listener: thread started (every 30s)')
+
     server = ReuseAddrHTTPServer(('', PORT), ProxyHandler)
     try:
         server.serve_forever()
