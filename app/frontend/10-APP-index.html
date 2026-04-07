@@ -3668,6 +3668,14 @@
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="7" y="10" width="14" height="4" rx="1"/><rect x="5" y="16" width="10" height="4" rx="1"/></svg>
                   Gantt
                 </button>
+                <button class="cu-view-tab" :class="{ 'cu-view-tab--active': ui.taskView === 'form' }" @click="ui.taskView = 'form'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  Formulario
+                </button>
+                <button class="cu-view-tab" :class="{ 'cu-view-tab--active': ui.taskView === 'workload' }" @click="ui.taskView = 'workload'">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  Carga
+                </button>
                 <!-- Saved views -->
                 <template x-for="sv in data.savedViews || []" :key="sv.id">
                   <button class="cu-view-tab" @click="applySavedView(sv)" :title="'View: ' + sv.name" style="position:relative">
@@ -3705,6 +3713,20 @@
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
                     Paineis
                   </button>
+                  <!-- Export/Import -->
+                  <div style="position:relative;display:inline-block" x-data="{ csvMenu: false }">
+                    <button class="btn btn--sm" style="display:flex;align-items:center;gap:4px;border-color:#10b981;color:#10b981" @click="csvMenu = !csvMenu">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      CSV
+                    </button>
+                    <div x-show="csvMenu" @click.outside="csvMenu = false" style="position:absolute;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:4px;min-width:160px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:200">
+                      <button @click="exportTasksCSV(); csvMenu = false" style="width:100%;text-align:left;padding:8px 10px;border:none;background:none;cursor:pointer;font-size:12px;border-radius:6px" @mouseenter="$el.style.background='#f8f7f4'" @mouseleave="$el.style.background='none'">Exportar CSV</button>
+                      <label style="display:block;width:100%;text-align:left;padding:8px 10px;border:none;background:none;cursor:pointer;font-size:12px;border-radius:6px" @mouseenter="$el.style.background='#f8f7f4'" @mouseleave="$el.style.background='none'">
+                        Importar CSV
+                        <input type="file" accept=".csv" @change="importTasksCSV($event.target.files[0]); csvMenu = false" style="display:none">
+                      </label>
+                    </div>
+                  </div>
                   <button class="btn btn--brand" @click="openTaskModal()">+ Nova Tarefa</button>
                 </div>
               </div>
@@ -4205,6 +4227,76 @@
                   <div class="empty-state" x-show="!ganttTasks.length" style="padding:40px"><p>Nenhuma tarefa com datas para exibir no Gantt.</p></div>
                 </div>
               </div>
+
+              <!-- FORM VIEW (Dragon 6) -->
+              <div x-show="ui.taskView === 'form'" style="max-width:600px;margin:0 auto;padding:20px 0">
+                <div style="background:#fff;border:1px solid #e8e5de;border-radius:12px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,.04)">
+                  <h3 style="margin:0 0 4px;font-size:16px;font-weight:700">Nova Tarefa</h3>
+                  <p style="margin:0 0 20px;font-size:12px;color:#94a3b8">Preencha o formulario para criar uma tarefa.</p>
+                  <div x-data="{ formData: { titulo: '', descricao: '', prioridade: 'normal', responsavel: '', data_fim: '', mentorado_nome: '' } }">
+                    <template x-for="field in formViewFields" :key="field.key">
+                      <div style="margin-bottom:14px">
+                        <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:4px">
+                          <span x-text="field.label"></span>
+                          <span x-show="field.required" style="color:#dc2626">*</span>
+                        </label>
+                        <template x-if="field.type === 'text'">
+                          <input type="text" x-model="formData[field.key]" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box" @focus="$el.style.borderColor='#8a7d52'" @blur="$el.style.borderColor='#e2e8f0'">
+                        </template>
+                        <template x-if="field.type === 'textarea'">
+                          <textarea x-model="formData[field.key]" rows="3" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box;resize:vertical;font-family:inherit" @focus="$el.style.borderColor='#8a7d52'" @blur="$el.style.borderColor='#e2e8f0'"></textarea>
+                        </template>
+                        <template x-if="field.type === 'date'">
+                          <input type="date" x-model="formData[field.key]" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box">
+                        </template>
+                        <template x-if="field.type === 'select'">
+                          <select x-model="formData[field.key]" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box">
+                            <option value="">Selecionar...</option>
+                            <template x-for="opt in field.options" :key="opt"><option :value="opt" x-text="opt"></option></template>
+                          </select>
+                        </template>
+                      </div>
+                    </template>
+                    <button @click="submitFormView(formData).then(ok => { if(ok) formData = { titulo:'', descricao:'', prioridade:'normal', responsavel:'', data_fim:'', mentorado_nome:'' } })"
+                            class="btn btn--brand" style="width:100%;padding:10px;font-size:14px" :disabled="!formData.titulo?.trim()">Criar Tarefa</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- WORKLOAD VIEW (Dragon 7) -->
+              <div x-show="ui.taskView === 'workload'" style="padding:12px 0">
+                <h3 style="margin:0 0 16px;font-size:15px;font-weight:700">Carga de Trabalho por Membro</h3>
+                <div style="display:flex;flex-direction:column;gap:12px">
+                  <template x-for="w in workloadData" :key="w.name">
+                    <div style="background:#fff;border:1px solid #e8e5de;border-radius:10px;padding:14px 16px">
+                      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+                        <span class="avatar avatar--sm" :style="'background:' + w.color" x-text="w.name.substring(0,2).toUpperCase()" style="width:32px;height:32px;font-size:11px;flex-shrink:0"></span>
+                        <div style="flex:1">
+                          <div style="font-size:14px;font-weight:600" x-text="w.name"></div>
+                          <div style="font-size:11px;color:#94a3b8" x-text="w.count + ' tarefas pendentes' + (w.overdue ? ' (' + w.overdue + ' atrasadas)' : '')"></div>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center">
+                          <span x-show="w.points" style="font-size:11px;font-weight:600;color:#6366f1;background:#eff6ff;padding:2px 8px;border-radius:10px" x-text="w.points + ' pts'"></span>
+                          <span x-show="w.estimate" style="font-size:11px;color:#64748b" x-text="Math.round(w.estimate/60) + 'h'"></span>
+                        </div>
+                      </div>
+                      <!-- Capacity bar -->
+                      <div style="height:8px;background:#f1f5f9;border-radius:4px;overflow:hidden;margin-bottom:6px">
+                        <div style="height:100%;border-radius:4px;transition:width .3s"
+                             :style="'width:' + Math.min(100, w.count * 5) + '%;background:' + (w.count > 15 ? '#dc2626' : w.count > 10 ? '#f59e0b' : '#22c55e')"></div>
+                      </div>
+                      <!-- Priority breakdown -->
+                      <div style="display:flex;gap:6px">
+                        <span x-show="w.byPrio.urgente" style="font-size:10px;padding:1px 6px;border-radius:3px;background:#fee2e2;color:#dc2626;font-weight:600" x-text="w.byPrio.urgente + ' urgente'"></span>
+                        <span x-show="w.byPrio.alta" style="font-size:10px;padding:1px 6px;border-radius:3px;background:#ffedd5;color:#ea580c;font-weight:600" x-text="w.byPrio.alta + ' alta'"></span>
+                        <span x-show="w.byPrio.normal" style="font-size:10px;padding:1px 6px;border-radius:3px;background:#f1f5f9;color:#64748b" x-text="w.byPrio.normal + ' normal'"></span>
+                      </div>
+                    </div>
+                  </template>
+                  <div x-show="!workloadData.length" style="text-align:center;padding:40px;color:#94a3b8">Nenhum membro da equipe encontrado.</div>
+                </div>
+              </div>
+
             </div>
           </div>
 
