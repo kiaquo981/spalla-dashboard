@@ -1963,6 +1963,8 @@ function operon() {
         this.loadGodLists();     // non-blocking: popula data.lists + data.sprints
         this.loadFieldDefs();    // non-blocking: popula data.fieldDefs for custom columns
         this.loadAutomations();  // non-blocking: popula data.automations
+        this._subscribeRealtime(); // Supabase Realtime for live task updates
+        this._initKeyboardShortcuts(); // N=new, /=search, Esc=close, Alt+1-4=views
 
         if (this.auth.authenticated) {
           // Auto-refresh token before it expires (every 45 min)
@@ -7656,6 +7658,79 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     async updateTaskPoints(taskId, points) {
       const val = parseInt(points) || null;
       await this.updateTaskField(taskId, 'points', val);
+    },
+
+    // ── Realtime Subscriptions ──
+    _subscribeRealtime() {
+      if (!sb) return;
+      try {
+        sb.channel('god_tasks_changes')
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'god_tasks' }, (payload) => {
+            const existing = this.data.tasks.find(t => t.id === payload.new.id);
+            if (!existing) {
+              this.data.tasks.unshift(payload.new);
+              this.toast('Nova tarefa: ' + (payload.new.titulo || '').substring(0, 40), 'info');
+            }
+          })
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'god_tasks' }, (payload) => {
+            const idx = this.data.tasks.findIndex(t => t.id === payload.new.id);
+            if (idx >= 0) {
+              // Preserve nested data (subtasks, comments, etc.) that aren't in the update
+              const existing = this.data.tasks[idx];
+              this.data.tasks[idx] = { ...existing, ...payload.new };
+            }
+          })
+          .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'god_tasks' }, (payload) => {
+            this.data.tasks = this.data.tasks.filter(t => t.id !== payload.old.id);
+          })
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') console.log('[Spalla] Realtime: subscribed to god_tasks');
+          });
+      } catch (e) {
+        console.warn('[Spalla] Realtime subscription failed:', e.message);
+      }
+    },
+
+    // ── Inline Title Edit (list view) ──
+    inlineEditTitle(taskId, newTitle) {
+      const title = newTitle?.trim();
+      if (!title) return;
+      const task = this.data.tasks.find(t => t.id === taskId);
+      if (task && title !== task.titulo) {
+        task.titulo = title;
+        task.updated_at = new Date().toISOString();
+        if (sb) sb.from('god_tasks').update({ titulo: title }).eq('id', taskId);
+      }
+    },
+
+    // ── Keyboard Shortcuts ──
+    _initKeyboardShortcuts() {
+      document.addEventListener('keydown', (e) => {
+        // Don't trigger in input/textarea/contenteditable
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+        if (this.ui.page !== 'tasks') return;
+
+        if (e.key === 'n' && !e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          this.openTaskModal();
+        } else if (e.key === '/' && !e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          document.querySelector('.tasks-main input[type="text"][placeholder*="Buscar"]')?.focus();
+        } else if (e.key === 'Escape') {
+          if (this.ui.taskDetailDrawer) this.closeTaskDetail();
+          else if (this.ui.fieldsModalOpen) this.ui.fieldsModalOpen = false;
+          else if (this.ui.automationsOpen) this.ui.automationsOpen = false;
+          else if (this.ui.dashboardOpen) this.ui.dashboardOpen = false;
+        } else if (e.key === '1' && e.altKey) {
+          this.ui.taskView = 'list';
+        } else if (e.key === '2' && e.altKey) {
+          this.ui.taskView = 'calendar';
+        } else if (e.key === '3' && e.altKey) {
+          this.ui.taskView = 'board';
+        } else if (e.key === '4' && e.altKey) {
+          this.ui.taskView = 'gantt';
+        }
+      });
     },
 
     // ── Automations Engine ──
