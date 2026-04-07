@@ -4177,7 +4177,7 @@
                     </div>
                     <!-- Column headers -->
                     <table x-show="t._isGroupHeader && !ui.collapsedGroups?.[t._groupKey]" style="width:100%;border-collapse:collapse;table-layout:fixed">
-                      <colgroup class="cu-list__colgroup"><col><col><col><col><col><col><col></colgroup>
+                      <colgroup class="cu-list__colgroup"><col><col><col><col><col><col><col><col></colgroup>
                       <tr style="border-bottom:1px solid var(--border)">
                         <th></th>
                         <th class="cu-list__th">Nome</th>
@@ -4185,6 +4185,7 @@
                         <th class="cu-list__th">Data inicio</th>
                         <th class="cu-list__th">Data de vencimento</th>
                         <th class="cu-list__th">Prioridade</th>
+                        <th class="cu-list__th">Comentarios</th>
                         <template x-for="cf in visibleCustomFields()" :key="cf.field_id || cf.id">
                           <th class="cu-list__th" x-text="cf.name"></th>
                         </template>
@@ -4199,7 +4200,7 @@
                     <!-- Task Row -->
                     <table x-show="!t._isGroupHeader && !ui.collapsedGroups?.[t._currentGroup]" style="width:100%;border-collapse:collapse;table-layout:fixed"
                            :data-task-id="t.id" @contextmenu="showContextMenu($event, t._parentId || t.id)" @click="openTaskDetail(t._parentId || t.id)">
-                      <colgroup class="cu-list__colgroup"><col><col><col><col><col><col><col></colgroup>
+                      <colgroup class="cu-list__colgroup"><col><col><col><col><col><col><col><col></colgroup>
                       <tr class="cu-list__row" :class="{ 'cu-list__row--done': t.status === 'concluida' }">
                         <td class="cu-list__td" @click.stop>
                           <input type="checkbox" :checked="t.status === 'concluida'" @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"
@@ -4266,6 +4267,14 @@
                             <option value="normal">Normal</option>
                             <option value="baixa">Baixa</option>
                           </select>
+                        </td>
+                        <!-- Comentarios (count + click to open detail with comments tab) -->
+                        <td class="cu-list__td" @click.stop="openTaskDetail(t._parentId || t.id)" style="font-size:12px;color:#64748b;cursor:pointer">
+                          <div style="display:flex;align-items:center;gap:4px" x-show="(t.comments?.length || 0) > 0">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                            <span x-text="t.comments.length"></span>
+                          </div>
+                          <span x-show="!(t.comments?.length)" style="color:#cbd5e1">-</span>
                         </td>
                         <!-- Custom field columns -->
                         <template x-for="cf in visibleCustomFields()" :key="cf.field_id || cf.id">
@@ -4884,10 +4893,12 @@
                   {key:'nome',label:'Nome da tarefa',icon:'Aa',on:true},
                   {key:'sprints',label:'Sprints',icon:'⟳',on:true},
                   {key:'responsavel',label:'Responsavel',icon:'👤',on:true},
+                  {key:'data_inicio',label:'Data inicial',icon:'📅',on:true},
                   {key:'data_fim',label:'Data de vencimento',icon:'📅',on:true},
                   {key:'prioridade',label:'Prioridade',icon:'🚩',on:true},
                   {key:'points',label:'Pontos do Sprint',icon:'⊕',on:true},
-                  {key:'status',label:'Status',icon:'◉',on:true}
+                  {key:'status',label:'Status',icon:'◉',on:true},
+                  {key:'comentarios',label:'Comentarios',icon:'💬',on:true}
                 ].filter(f => ui.nativeFieldsVisible?.[f.key] !== false)" :key="nf.key">
                   <label x-show="!fieldSearch || nf.label.toLowerCase().includes(fieldSearch.toLowerCase())"
                          style="display:flex;align-items:center;justify-content:space-between;padding:7px 4px;cursor:pointer;border-radius:6px"
@@ -4924,12 +4935,10 @@
                 </div>
                 <!-- Native fields hidden -->
                 <template x-for="nf in [
-                  {key:'comentarios',label:'Comentarios',icon:'💬'},
                   {key:'comentarios_atribuidos',label:'Comentarios atribuidos',icon:'📌'},
                   {key:'data_criada',label:'Data criada',icon:'📅'},
                   {key:'data_atualizacao',label:'Data de atualizacao',icon:'📅'},
                   {key:'data_conclusao',label:'Data de conclusao',icon:'📅'},
-                  {key:'data_inicio',label:'Data inicial',icon:'📅'},
                   {key:'dependencias',label:'Dependencias',icon:'🔗'},
                   {key:'docs_vinculados',label:'Documentos vinculados',icon:'📎'},
                   {key:'time_estimate',label:'Estimativa de tempo',icon:'⏱'},
