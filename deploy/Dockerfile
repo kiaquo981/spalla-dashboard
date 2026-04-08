@@ -6,8 +6,9 @@ WORKDIR /app
 COPY app/backend/requirements-railway.txt .
 RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements-railway.txt
 
-# Copy server
+# Copy server + domain modules
 COPY app/backend/14-APP-server.py .
+COPY app/backend/domain/ domain/
 
 # Copy AI patterns and evaluation scripts
 COPY ai/patterns/ ai/patterns/
