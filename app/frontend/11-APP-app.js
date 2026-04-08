@@ -10907,11 +10907,13 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     _waUltimoContato(m) {
-      const h = m.horas_sem_resposta_equipe;
-      if (h == null) return '—';
-      if (h < 1) return 'Agora';
-      if (h < 24) return `${Math.floor(h)}h atrás`;
-      const d = Math.floor(h / 24);
+      // Usa ultimo_contato_mentorado (última msg do mentorado) ou ultima_interacao (qualquer)
+      const ts = m.ultimo_contato_mentorado || m.ultima_interacao;
+      if (!ts) return '—';
+      const diffH = (Date.now() - new Date(ts).getTime()) / 3600000;
+      if (diffH < 1) return 'Agora';
+      if (diffH < 24) return `${Math.floor(diffH)}h atrás`;
+      const d = Math.floor(diffH / 24);
       if (d === 1) return 'Ontem';
       return `${d}d atrás`;
     },
