@@ -4294,7 +4294,7 @@
                          @click.stop="ui.collapsedSpaces = {...(ui.collapsedSpaces||{}), [space.id]: !ui.collapsedSpaces?.[space.id]}"><polyline points="9 18 15 12 9 6"/></svg>
                     <span class="tasks-sidebar__space-dot" :style="'background:' + space.color"></span>
                     <span x-text="space.name" style="flex:1"></span>
-                    <span class="tasks-sidebar__count" x-text="data.tasks.filter(t => t.space_id === space.id).length"></span>
+                    <span class="tasks-sidebar__count" x-text="data.tasks.filter(t => t.space_id === space.id || (space.lists || []).some(l => l.id === t.list_id)).length"></span>
                     <button @click.stop="sidebarAddList(space.id)" style="background:none;border:none;cursor:pointer;color:#d1d5db;padding:0 2px;font-size:14px;line-height:1;display:none" :style="ui.taskSpaceFilter === space.id ? 'display:inline' : ''" title="Adicionar lista">+</button>
                   </div>
                   <template x-for="list in space.lists" :key="list.id">
@@ -12781,7 +12781,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=231"></script>
+  <script src="11-APP-app.js?v=232"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">

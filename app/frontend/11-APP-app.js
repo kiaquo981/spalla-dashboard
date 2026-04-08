@@ -8546,7 +8546,12 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const tasks = this.data.tasks.filter(t => t.status !== 'concluida');
       return members.map(m => {
         const name = m.nome_curto || m.name;
-        const myTasks = tasks.filter(t => t.responsavel === name);
+        const nameLower = (name || '').toLowerCase();
+        const idLower = (m.id || '').toLowerCase();
+        const myTasks = tasks.filter(t => {
+          const r = (t.responsavel || '').toLowerCase();
+          return r === nameLower || r === idLower || r.includes(nameLower);
+        });
         const points = myTasks.reduce((s, t) => s + (t.points || 0), 0);
         const estimate = myTasks.reduce((s, t) => s + (t.time_estimate || 0), 0);
         const overdue = myTasks.filter(t => (t.data_fim || t.prazo) && new Date(t.data_fim || t.prazo) < new Date()).length;
