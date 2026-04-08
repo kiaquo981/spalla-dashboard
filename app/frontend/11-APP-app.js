@@ -7088,10 +7088,61 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const t = this.data.tasks.find(x => x.id === taskId);
       if (!t) return;
       const oldStatus = t.status;
+
+      // Map (currentStatus, targetStatus) → FSM event
+      const eventMap = {
+        'pendente→em_andamento': 'start',
+        'pendente→bloqueada': 'block',
+        'pendente→cancelada': 'cancel',
+        'pendente→concluida': 'complete',
+        'em_andamento→concluida': 'complete',
+        'em_andamento→em_revisao': 'request_review',
+        'em_andamento→bloqueada': 'block',
+        'em_andamento→pausada': 'pause',
+        'em_andamento→cancelada': 'cancel',
+        'em_revisao→concluida': 'approve',
+        'em_revisao→em_andamento': 'changes_requested',
+        'em_revisao→cancelada': 'cancel',
+        'bloqueada→em_andamento': 'unblock',
+        'bloqueada→cancelada': 'cancel',
+        'pausada→em_andamento': 'resume',
+        'pausada→cancelada': 'cancel',
+        'concluida→arquivada': 'archive',
+        'concluida→em_andamento': 'reopen',
+        'concluida→pendente': 'reopen',
+        'cancelada→arquivada': 'archive',
+        'cancelada→pendente': 'reopen',
+      };
+      const event = eventMap[`${oldStatus}→${newStatus}`];
+
+      // Optimistic update
       t.status = newStatus;
       t.updated_at = new Date().toISOString();
       this._cacheTasksLocal();
-      if (sb) {
+
+      if (event && CONFIG.API_BASE) {
+        // Use FSM transition endpoint (validates guards)
+        try {
+          const res = await fetch(`${CONFIG.API_BASE}/api/tasks/${taskId}/transition`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+            body: JSON.stringify({ event }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            t.status = oldStatus; this._cacheTasksLocal();
+            this.toast(err.error || 'Transição não permitida', 'error');
+            return;
+          }
+        } catch (e) {
+          // Fallback to direct update if transition API unreachable
+          if (sb) {
+            const { error } = await sb.from('god_tasks').update({ status: newStatus, updated_at: t.updated_at }).eq('id', taskId);
+            if (error) { t.status = oldStatus; this._cacheTasksLocal(); this.toast('Erro ao atualizar status', 'error'); return; }
+          }
+        }
+      } else if (sb) {
+        // No matching event (same status, or unmapped) — direct update
         const { error } = await sb.from('god_tasks').update({ status: newStatus, updated_at: t.updated_at }).eq('id', taskId);
         if (error) { t.status = oldStatus; this._cacheTasksLocal(); this.toast('Erro ao atualizar status', 'error'); return; }
       }
