@@ -9053,6 +9053,108 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       };
     },
 
+    // ── Dashboard Charts Data ──
+    _dashCharts: {},
+
+    dashStatusData() {
+      const t = this.data.tasks;
+      return {
+        labels: ['Pendentes', 'Em progresso', 'Concluídas', 'Atrasadas'],
+        data: [
+          t.filter(x => x.status === 'pendente').length,
+          t.filter(x => x.status === 'em_andamento').length,
+          t.filter(x => x.status === 'concluida').length,
+          t.filter(x => x.status !== 'concluida' && (x.data_fim || x.prazo) && new Date(x.data_fim || x.prazo) < new Date()).length,
+        ],
+        colors: ['#94a3b8', '#3b82f6', '#22c55e', '#ef4444'],
+      };
+    },
+
+    dashVelocityData() {
+      const sprints = (this.data.sprints || []).slice().sort((a, b) => (a.inicio || '').localeCompare(b.inicio || ''));
+      if (!sprints.length) return null;
+      const tasks = this.data.tasks;
+      return {
+        labels: sprints.map(s => s.nome || 'Sprint'),
+        committed: sprints.map(s => tasks.filter(t => t.sprint_id === s.id).length),
+        completed: sprints.map(s => tasks.filter(t => t.sprint_id === s.id && t.status === 'concluida').length),
+      };
+    },
+
+    dashBurndownData() {
+      const sprint = this.ccSelectedSprint?.() || this.ccSelectedSprint;
+      if (!sprint || !sprint.inicio || !sprint.fim) return null;
+      const tasks = this.data.tasks.filter(t => t.sprint_id === sprint.id);
+      const total = tasks.length;
+      if (!total) return null;
+      const start = new Date(sprint.inicio);
+      const end = new Date(sprint.fim);
+      const days = Math.ceil((end - start) / 86400000) + 1;
+      const labels = [];
+      const ideal = [];
+      const actual = [];
+      for (let i = 0; i < days; i++) {
+        const d = new Date(start);
+        d.setDate(d.getDate() + i);
+        labels.push(d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' }));
+        ideal.push(Math.round(total * (1 - i / (days - 1))));
+        const doneByDay = tasks.filter(t => t.status === 'concluida' && t.updated_at && new Date(t.updated_at) <= d).length;
+        actual.push(d <= new Date() ? total - doneByDay : null);
+      }
+      return { labels, ideal, actual, total };
+    },
+
+    renderDashCharts() {
+      if (typeof Chart === 'undefined') return;
+      this.$nextTick(() => {
+        // Status doughnut
+        const statusEl = document.getElementById('dashChartStatus');
+        if (statusEl) {
+          if (this._dashCharts.status) this._dashCharts.status.destroy();
+          const sd = this.dashStatusData();
+          this._dashCharts.status = new Chart(statusEl.getContext('2d'), {
+            type: 'doughnut',
+            data: { labels: sd.labels, datasets: [{ data: sd.data, backgroundColor: sd.colors, borderWidth: 0 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10 } } }, cutout: '65%' },
+          });
+        }
+        // Velocity bar
+        const vd = this.dashVelocityData();
+        const velEl = document.getElementById('dashChartVelocity');
+        if (velEl && vd) {
+          if (this._dashCharts.velocity) this._dashCharts.velocity.destroy();
+          this._dashCharts.velocity = new Chart(velEl.getContext('2d'), {
+            type: 'bar',
+            data: {
+              labels: vd.labels,
+              datasets: [
+                { label: 'Comprometidas', data: vd.committed, backgroundColor: '#c7d2fe', borderRadius: 4 },
+                { label: 'Concluídas', data: vd.completed, backgroundColor: '#6366f1', borderRadius: 4 },
+              ],
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } }, scales: { y: { beginAtZero: true, ticks: { font: { size: 10 } } }, x: { ticks: { font: { size: 10 } } } } },
+          });
+        }
+        // Burndown line
+        const bd = this.dashBurndownData();
+        const burnEl = document.getElementById('dashChartBurndown');
+        if (burnEl && bd) {
+          if (this._dashCharts.burndown) this._dashCharts.burndown.destroy();
+          this._dashCharts.burndown = new Chart(burnEl.getContext('2d'), {
+            type: 'line',
+            data: {
+              labels: bd.labels,
+              datasets: [
+                { label: 'Ideal', data: bd.ideal, borderColor: '#d1d5db', borderDash: [5, 3], borderWidth: 2, pointRadius: 0, fill: false },
+                { label: 'Real', data: bd.actual, borderColor: '#6366f1', borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#6366f1', fill: false, spanGaps: true },
+              ],
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Tasks restantes', font: { size: 10 } }, ticks: { font: { size: 10 } } }, x: { ticks: { font: { size: 10 } } } } },
+          });
+        }
+      });
+    },
+
     // ── Calendar View helpers ──
     calMonthLabel() {
       const d = new Date(this.ui.calYear, this.ui.calMonth, 1);
