@@ -3894,7 +3894,7 @@
             </template>
           </div>
 
-          <!-- Toolbar: group by + hide done -->
+          <!-- Toolbar: group by + hide done + bulk toggle -->
           <div x-show="meuTrabalho.length" class="mt-toolbar">
             <span>Agrupar:</span>
             <select x-model="meuTrabalhoGroupBy">
@@ -3907,6 +3907,33 @@
               <input type="checkbox" x-model="meuTrabalhoHideDone" style="accent-color:var(--brand-500)">
               Esconder concluidas
             </label>
+            <button @click="ui.bulkMode = !ui.bulkMode; if(!ui.bulkMode) bulkClearAll()" style="margin-left:auto;font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer" :style="ui.bulkMode ? 'background:#3b82f6;color:#fff;border:1px solid #3b82f6' : 'background:transparent;border:1px solid var(--border);color:var(--text-secondary)'" x-text="ui.bulkMode ? 'Sair bulk (' + bulkCount + ')' : 'Selecionar'"></button>
+          </div>
+
+          <!-- Dragon 53: Bulk action bar -->
+          <div x-show="ui.bulkMode && bulkCount > 0" x-transition style="display:flex;align-items:center;gap:8px;padding:10px 14px;margin-bottom:8px;background:var(--neutral-50,#faf9f7);border:1px solid var(--border);border-radius:8px">
+            <span style="font-size:12px;font-weight:600;color:var(--primary)" x-text="bulkCount + ' selecionada' + (bulkCount > 1 ? 's' : '')"></span>
+            <button @click="bulkSelectAll()" style="font-size:10px;color:var(--primary);background:none;border:none;cursor:pointer;text-decoration:underline">Selecionar todas</button>
+            <button @click="bulkClearAll()" style="font-size:10px;color:var(--text-secondary);background:none;border:none;cursor:pointer;text-decoration:underline">Limpar</button>
+            <div style="flex:1"></div>
+            <button @click="bulkUpdateStatus('em_andamento')" style="font-size:11px;padding:4px 10px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer">Iniciar</button>
+            <button @click="bulkUpdateStatus('concluida')" style="font-size:11px;padding:4px 10px;background:#22c55e;color:#fff;border:none;border-radius:6px;cursor:pointer">Concluir</button>
+            <select @change="if($el.value) { bulkUpdateField('responsavel', $el.value); $el.value=''; }" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:6px">
+              <option value="">Atribuir a...</option>
+              <option value="kaique">Kaique</option>
+              <option value="queila">Queila</option>
+              <option value="mariza">Mariza</option>
+              <option value="hugo">Hugo</option>
+              <option value="heitor">Heitor</option>
+              <option value="lara">Lara</option>
+            </select>
+            <select @change="if($el.value) { bulkUpdateField('prioridade', $el.value); $el.value=''; }" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:6px">
+              <option value="">Prioridade...</option>
+              <option value="urgente">Urgente</option>
+              <option value="alta">Alta</option>
+              <option value="normal">Normal</option>
+              <option value="baixa">Baixa</option>
+            </select>
           </div>
 
           <div x-show="meuTrabalhoLoading" style="text-align:center;padding:40px;color:var(--text-secondary)">Carregando...</div>
@@ -3929,11 +3956,13 @@
                 <!-- Table -->
                 <div class="cu-list__wrap">
                   <template x-for="t in group.tasks" :key="t.id">
-                    <table style="width:100%;border-collapse:collapse;table-layout:fixed" @click="openTaskDetail(t.id)">
+                    <table style="width:100%;border-collapse:collapse;table-layout:fixed" @click="ui.bulkMode ? bulkToggle(t.id) : openTaskDetail(t.id)">
                       <colgroup><col style="width:36px"><col><col style="width:100px"><col style="width:100px"><col style="width:110px"><col style="width:80px"></colgroup>
-                      <tr class="cu-list__row" :class="{ 'cu-list__row--done': t.status === 'concluida' }">
+                      <tr class="cu-list__row" :class="{ 'cu-list__row--done': t.status === 'concluida', 'cu-list__row--selected': ui.bulkSelected[t.id] }">
                         <td class="cu-list__td" @click.stop>
-                          <input type="checkbox" :checked="t.status === 'concluida'" @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"
+                          <input x-show="ui.bulkMode" type="checkbox" :checked="ui.bulkSelected[t.id]" @change="bulkToggle(t.id)"
+                                 style="width:15px;height:15px;cursor:pointer;accent-color:#3b82f6">
+                          <input x-show="!ui.bulkMode" type="checkbox" :checked="t.status === 'concluida'" @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"
                                  style="width:15px;height:15px;cursor:pointer;accent-color:#22c55e">
                         </td>
                         <td class="cu-list__td cu-list__td--name">
@@ -5025,7 +5054,7 @@
                   </div>
                   <!-- Task rows -->
                   <template x-for="(t, ti) in ganttTasks" :key="t.id">
-                    <div class="gantt-row" @click="openTaskDetail(t.id)" style="position:relative">
+                    <div class="gantt-row" :data-gantt-task="t.id" @click="openTaskDetail(t.id)" style="position:relative" :style="ui.ganttFocusedTaskId === t.id ? 'outline:2px solid var(--primary);outline-offset:-1px;border-radius:4px' : ''"
                       <div class="gantt-row__label" style="display:flex;align-items:center;gap:6px">
                         <span style="width:6px;height:6px;border-radius:50%;flex-shrink:0"
                               :style="'background:' + (t.status==='concluida' ? '#22c55e' : t.status==='em_andamento' ? '#3b82f6' : '#94a3b8')"></span>
@@ -12592,7 +12621,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=224"></script>
+  <script src="11-APP-app.js?v=226"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">

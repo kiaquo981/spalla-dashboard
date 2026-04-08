@@ -206,6 +206,7 @@ function operon() {
       mentionStart: -1,        // posição do @ no textarea
       taskGanttRange: 'month', // 'week' | 'month' | 'quarter'
       _ganttDrag: null,
+      ganttFocusedTaskId: null,  // Dragon 55: keyboard-navigated task
       descarregoFilter: 'todos',
       descarregoExpanded: {},
       batchDescarregoOpen: false,
@@ -7105,6 +7106,41 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       });
     },
 
+    // Dragon 52: Undo/Redo stack
+    _undoStack: [],
+    _redoStack: [],
+    _pushUndo(taskId, field, oldValue, newValue) {
+      this._undoStack.push({ taskId, field, oldValue, newValue, ts: Date.now() });
+      if (this._undoStack.length > 50) this._undoStack.shift();
+      this._redoStack = [];
+    },
+    async undo() {
+      const entry = this._undoStack.pop();
+      if (!entry) return this.toast('Nada para desfazer', 'info');
+      this._redoStack.push(entry);
+      await this._applyFieldChange(entry.taskId, entry.field, entry.oldValue, true);
+      this.toast('Desfeito: ' + entry.field, 'info');
+    },
+    async redo() {
+      const entry = this._redoStack.pop();
+      if (!entry) return this.toast('Nada para refazer', 'info');
+      this._undoStack.push(entry);
+      await this._applyFieldChange(entry.taskId, entry.field, entry.newValue, true);
+      this.toast('Refeito: ' + entry.field, 'info');
+    },
+    async _applyFieldChange(taskId, field, value, skipUndo) {
+      const t = this.data.tasks.find(x => x.id === taskId);
+      if (!t) return;
+      const dbValue = (value === '' && ['sprint_id', 'list_id'].includes(field)) ? null : value;
+      t[field] = value;
+      t.updated_at = new Date().toISOString();
+      this._cacheTasksLocal();
+      if (sb) {
+        const { error } = await sb.from('god_tasks').update({ [field]: dbValue, updated_at: t.updated_at }).eq('id', taskId);
+        if (error) this.toast('Erro ao atualizar ' + field, 'error');
+      }
+    },
+
     async updateTaskField(taskId, field, value) {
       const t = this.data.tasks.find(x => x.id === taskId);
       if (!t) return;
@@ -7116,6 +7152,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       t[field] = value;
       t.updated_at = new Date().toISOString();
       this._cacheTasksLocal();
+      this._pushUndo(taskId, field, old, value);
       if (sb) {
         const { error } = await sb.from('god_tasks').update({ [field]: dbValue, updated_at: t.updated_at }).eq('id', taskId);
         if (error) { t[field] = old; this._cacheTasksLocal(); this.toast('Erro ao atualizar ' + field, 'error'); }
@@ -8561,6 +8598,45 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
             if (status === 'SUBSCRIBED') console.log('[Spalla] Realtime: subscribed to comments');
           });
 
+        // Dragon 54: Entity events subscription (notifications)
+        sb.channel('entity_events_changes')
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'entity_events' }, (payload) => {
+            const evt = payload.new;
+            if (!evt) return;
+            const me = (this.auth.currentUser?.full_name || '').toLowerCase().split(' ')[0];
+            const assignee = (evt.payload?.responsavel || evt.payload?.assignee || '').toLowerCase();
+            const titulo = evt.payload?.titulo || evt.aggregate_type || '';
+            const eventType = evt.event_type || '';
+
+            // Push to notifications array for the bell dropdown
+            const shouldNotify =
+              (assignee && assignee.includes(me)) ||
+              eventType.includes('Transition') ||
+              eventType.includes('transition');
+
+            if (shouldNotify) {
+              const notif = {
+                id: evt.id || ('evt_' + Date.now()),
+                type: eventType.includes('assigned') || eventType.includes('created') ? 'task_assigned' : 'transition',
+                text: titulo.substring(0, 80) || eventType,
+                detail: eventType,
+                read: false,
+                createdAt: evt.created_at || new Date().toISOString(),
+              };
+              this.notifications.unshift(notif);
+              if (this.notifications.length > 20) this.notifications.pop();
+              this.notificationsUnread = this.notifications.filter(n => !n.read).length;
+
+              // Toast only for tasks assigned to me
+              if (assignee && assignee.includes(me)) {
+                this.toast('Nova tarefa: ' + titulo.substring(0, 50), 'info');
+              }
+            }
+          })
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') console.log('[Spalla] Realtime: subscribed to entity_events');
+          });
+
       } catch (e) {
         console.warn('[Spalla] Realtime subscription failed:', e.message);
       }
@@ -8589,6 +8665,14 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           this.cmdSelectedIdx = 0;
           if (this.cmdPalette) this.$nextTick(() => document.getElementById('cmd-palette-input')?.focus());
         }
+        // Dragon 52: Cmd+Z undo, Cmd+Shift+Z redo (global, tasks page)
+        if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.target.isContentEditable && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+          if (this.ui.page === 'tasks' || this.ui.page === 'meu_trabalho') {
+            e.preventDefault();
+            if (e.shiftKey) this.redo();
+            else this.undo();
+          }
+        }
       });
       document.addEventListener('keydown', (e) => {
         // Don't trigger in input/textarea/contenteditable (except cmd palette)
@@ -8615,6 +8699,51 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           this.ui.taskView = 'board';
         } else if (e.key === '4' && e.altKey) {
           this.ui.taskView = 'gantt';
+        }
+
+        // Dragon 55: Gantt keyboard shortcuts
+        if (this.ui.taskView === 'gantt') {
+          const tasks = this.ganttTasks;
+          if (!tasks.length) return;
+          const curIdx = tasks.findIndex(t => t.id === this.ui.ganttFocusedTaskId);
+
+          if (e.key === 'ArrowDown' || e.key === 'j') {
+            e.preventDefault();
+            const nextIdx = curIdx < tasks.length - 1 ? curIdx + 1 : 0;
+            this.ui.ganttFocusedTaskId = tasks[nextIdx].id;
+            document.querySelector(`[data-gantt-task="${tasks[nextIdx].id}"]`)?.scrollIntoView({ block: 'nearest' });
+          } else if (e.key === 'ArrowUp' || e.key === 'k') {
+            e.preventDefault();
+            const prevIdx = curIdx > 0 ? curIdx - 1 : tasks.length - 1;
+            this.ui.ganttFocusedTaskId = tasks[prevIdx].id;
+            document.querySelector(`[data-gantt-task="${tasks[prevIdx].id}"]`)?.scrollIntoView({ block: 'nearest' });
+          } else if (e.key === 'Enter' && this.ui.ganttFocusedTaskId) {
+            e.preventDefault();
+            this.openTaskDetail(this.ui.ganttFocusedTaskId);
+          } else if (e.key === 'ArrowRight' && this.ui.ganttFocusedTaskId) {
+            e.preventDefault();
+            const t = tasks.find(x => x.id === this.ui.ganttFocusedTaskId);
+            if (t?.data_fim) {
+              const d = new Date(t.data_fim + 'T12:00:00');
+              d.setDate(d.getDate() + 1);
+              this.updateTaskField(t.id, 'data_fim', d.toISOString().slice(0, 10));
+            }
+          } else if (e.key === 'ArrowLeft' && this.ui.ganttFocusedTaskId) {
+            e.preventDefault();
+            const t = tasks.find(x => x.id === this.ui.ganttFocusedTaskId);
+            if (t?.data_fim) {
+              const d = new Date(t.data_fim + 'T12:00:00');
+              d.setDate(d.getDate() - 1);
+              this.updateTaskField(t.id, 'data_fim', d.toISOString().slice(0, 10));
+            }
+          } else if (e.key === ' ' && this.ui.ganttFocusedTaskId) {
+            e.preventDefault();
+            const t = tasks.find(x => x.id === this.ui.ganttFocusedTaskId);
+            if (t) {
+              const next = t.status === 'pendente' ? 'em_andamento' : t.status === 'em_andamento' ? 'concluida' : 'pendente';
+              this.updateTaskStatus(t.id, next);
+            }
+          }
         }
       });
     },
@@ -10926,6 +11055,44 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       } finally {
         this.meuTrabalhoLoading = false;
       }
+    },
+
+    // Dragon 53: Bulk edit helpers for Meu Trabalho
+    bulkToggle(taskId) {
+      if (this.ui.bulkSelected[taskId]) delete this.ui.bulkSelected[taskId];
+      else this.ui.bulkSelected[taskId] = true;
+    },
+    bulkSelectAll() {
+      const tasks = this.meuTrabalhoFiltered || [];
+      tasks.forEach(t => { this.ui.bulkSelected[t.id] = true; });
+    },
+    bulkClearAll() {
+      this.ui.bulkSelected = {};
+    },
+    get bulkCount() {
+      return Object.keys(this.ui.bulkSelected).length;
+    },
+    async bulkUpdateField(field, value) {
+      const ids = Object.keys(this.ui.bulkSelected);
+      if (!ids.length) return this.toast('Nenhuma tarefa selecionada', 'info');
+      for (const id of ids) {
+        await this.updateTaskField(id, field, value);
+      }
+      this.toast(`${ids.length} tarefa(s) atualizada(s)`, 'success');
+      this.ui.bulkSelected = {};
+      this.ui.bulkMode = false;
+      this.loadMeuTrabalho();
+    },
+    async bulkUpdateStatus(newStatus) {
+      const ids = Object.keys(this.ui.bulkSelected);
+      if (!ids.length) return this.toast('Nenhuma tarefa selecionada', 'info');
+      for (const id of ids) {
+        await this.updateTaskStatus(id, newStatus);
+      }
+      this.toast(`${ids.length} tarefa(s) → ${newStatus}`, 'success');
+      this.ui.bulkSelected = {};
+      this.ui.bulkMode = false;
+      this.loadMeuTrabalho();
     },
 
     get meuTrabalhoQuickFilters() {

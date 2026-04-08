@@ -2998,6 +2998,7 @@ img { max-width: 100%; display: block; }
 .cu-list__row { border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background .1s; }
 .cu-list__row:hover { background: #fafaf8; }
 .cu-list__row--done { opacity: .55; }
+.cu-list__row--selected { background: #eff6ff !important; }
 .cu-list__td { padding: 7px 4px; vertical-align: middle; }
 .cu-list__td--name { padding: 7px 8px; overflow: hidden; }
 .cu-list__td--name-inner { display: flex; align-items: center; gap: 6px; min-width: 0; }
