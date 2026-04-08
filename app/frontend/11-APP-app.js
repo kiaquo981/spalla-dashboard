@@ -3642,8 +3642,8 @@ function operon() {
     // Uses vw_god_overview which already has: consultor_responsavel, dias_desde_call, ultima_call_data, tarefas_pendentes, tarefas_atrasadas
     ccConsultantBoard() {
       const mentees = this.data.mentees || [];
-      const fullName = (this.auth.currentUser?.full_name || '').toLowerCase();
-      const me = fullName.split(' ')[0]; // "Heitor", "Lara", "Kaique"
+      const fullName = (this.auth.currentUser?.full_name || this.auth.currentUser?.user_metadata?.full_name || '').toLowerCase().trim();
+      const me = fullName.split(' ')[0] || (this.auth.currentUser?.email || '').toLowerCase().split('@')[0] || 'kaique';
       const dsProds = this.data.dsProducoes || [];
       const dsDocs = this.data.dsAllDocs || [];
       const now = new Date();

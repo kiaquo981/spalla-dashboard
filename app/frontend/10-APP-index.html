@@ -1627,7 +1627,7 @@
 
               <div class="alerts-bar__preview">
                 <template x-for="a in alertsCriticos.slice(0,4)" :key="(a.mentorado_id||'')+(a.alerta_tipo||'')">
-                  <span class="alerts-bar__name" x-text="a.mentorado_nome.split(' ')[0]"></span>
+                  <span class="alerts-bar__name" x-text="(a.mentorado_nome || '?').split(' ')[0]"></span>
                 </template>
                 <span x-show="alertsCriticos.length > 4" class="alerts-bar__overflow" x-text="'+' + (alertsCriticos.length - 4) + ' mais'"></span>
               </div>
@@ -3754,7 +3754,7 @@
                         <!-- Metadata footer -->
                         <div x-show="ctx.origem || ctx.wa_group_jid" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;gap:10px;font-size:10px;color:var(--text-secondary)">
                           <span x-show="ctx.origem" x-text="'Origem: ' + ctx.origem"></span>
-                          <span x-show="ctx.wa_group_jid" x-text="'Grupo WA: ' + ctx.wa_group_jid.split('@')[0]"></span>
+                          <span x-show="ctx.wa_group_jid" x-text="'Grupo WA: ' + (ctx.wa_group_jid || '').split('@')[0]"></span>
                         </div>
                       </div>
 
@@ -5200,7 +5200,7 @@
                           <div class="gantt-bar__handle gantt-bar__handle--left"
                                @mousedown.stop.prevent="ganttDragStart($event, t, 'left')"
                                @touchstart.stop.prevent="ganttDragStart($event.touches[0], t, 'left')"></div>
-                          <span class="gantt-bar__text" x-text="t.titulo.length > 15 ? t.titulo.substring(0,15) + '…' : t.titulo"></span>
+                          <span class="gantt-bar__text" x-text="(t.titulo || '').length > 15 ? (t.titulo || '').substring(0,15) + '…' : (t.titulo || '')"></span>
                           <div class="gantt-bar__handle gantt-bar__handle--right"
                                @mousedown.stop.prevent="ganttDragStart($event, t, 'right')"
                                @touchstart.stop.prevent="ganttDragStart($event.touches[0], t, 'right')"></div>
@@ -5295,7 +5295,7 @@
                   <template x-for="w in workloadData" :key="w.name">
                     <div style="background:#fff;border:1px solid #e8e5de;border-radius:10px;padding:14px 16px">
                       <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
-                        <span class="avatar avatar--sm" :style="'background:' + w.color" x-text="w.name.substring(0,2).toUpperCase()" style="width:32px;height:32px;font-size:11px;flex-shrink:0"></span>
+                        <span class="avatar avatar--sm" :style="'background:' + w.color" x-text="(w.name || '').substring(0,2).toUpperCase()" style="width:32px;height:32px;font-size:11px;flex-shrink:0"></span>
                         <div style="flex:1">
                           <div style="font-size:14px;font-weight:600" x-text="w.name"></div>
                           <div style="font-size:11px;color:#94a3b8" x-text="w.count + ' tarefas pendentes' + (w.overdue ? ' (' + w.overdue + ' atrasadas)' : '')"></div>
@@ -5869,7 +5869,7 @@
                                   @change="let name = $event.target.value || null; activeTaskDetail.responsavel = name; activeTaskDetail.updated_at = new Date().toISOString(); _cacheTasksLocal(); if(typeof sb !== 'undefined' && sb) sb.from('god_tasks').update({responsavel: name}).eq('id', activeTaskDetail.id)">
                             <option value="" :selected="!activeTaskDetail.responsavel">Sem responsável</option>
                             <template x-for="m in (data.members || [])" :key="m.id">
-                              <option :value="m.nome_curto || m.nome_completo || m.name" :selected="activeTaskDetail.responsavel === (m.nome_curto || m.nome_completo || m.name)" x-text="m.nome_curto || m.nome_completo || m.name"></option>
+                              <option :value="m.nome_curto || m.nome_completo || m.name" :selected="(activeTaskDetail.responsavel || '').toLowerCase() === ((m.nome_curto || m.nome_completo || m.name) || '').toLowerCase()" x-text="m.nome_curto || m.nome_completo || m.name"></option>
                             </template>
                           </select>
                         </div>
@@ -12785,7 +12785,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=240"></script>
+  <script src="11-APP-app.js?v=241"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">
