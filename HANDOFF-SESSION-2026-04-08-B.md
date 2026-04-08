@@ -91,12 +91,12 @@ Nao precisou de implementacao adicional.
 
 ## Descoberta: wa_messages vs whatsapp_messages
 
-- `wa_messages` (migration 35) **NAO EXISTE** no banco remoto — migration nunca foi aplicada
+- `wa_messages` (migration 35) **NÃO EXISTE** no banco remoto — migration nunca foi aplicada
 - `whatsapp_messages` (legacy) **EXISTE** com dados (tabela original do Evolution API)
 - `interacoes_mentoria` **EXISTE** com 50k+ rows (classificacao IA do n8n)
 - `wa_topics`/`wa_topic_types`/`wa_topic_events` **EXISTEM** mas estao **VAZIAS**
 
-A view `vw_wa_mentee_activity` usa `interacoes_mentoria` (fonte primaria, tem dados ricos) + `wa_topic_events`. NAO usa `wa_messages` nem `whatsapp_messages` diretamente.
+A view `vw_wa_mentee_activity` usa `interacoes_mentoria` (fonte primaria, tem dados ricos) + `wa_topic_events`. NÃO usa `wa_messages` nem `whatsapp_messages` diretamente.
 
 ---
 

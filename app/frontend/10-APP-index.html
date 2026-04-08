@@ -1138,7 +1138,7 @@
                       <div style="display:flex;gap:8px;font-size:10px;color:var(--text-secondary);margin-top:2px">
                         <span x-text="a.mentorado_nome"></span>
                         <span x-text="a.tipo"></span>
-                        <span x-text="Math.round(a.horas_aberto) + 'h'"></span>
+                        <span x-text="(a.horas_aberto != null ? Math.round(a.horas_aberto) + 'h' : '-')"></span>
                       </div>
                       <div x-show="a.descricao" style="font-size:10px;color:var(--neutral-500);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="a.descricao"></div>
                     </div>
@@ -1159,7 +1159,7 @@
                 <template x-for="m in ccWorkloadEquipe()" :key="m.id">
                   <div style="padding:8px 10px;border-radius:8px;border:1px solid var(--border)">
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-                      <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0" :style="'background:' + m.cor" x-text="m.nome.charAt(0)"></div>
+                      <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0" :style="'background:' + (m.cor || '#6366f1')" x-text="m.nome.charAt(0)"></div>
                       <div style="flex:1">
                         <div style="font-size:12px;font-weight:600" x-text="m.nome"></div>
                         <div style="font-size:9px;color:var(--text-secondary)" x-text="m.cargo"></div>
@@ -5770,7 +5770,7 @@
                         <span style="width:6px;height:6px;border-radius:50%;display:inline-block" :style="'background:' + taskSyncColor(activeTaskDetail)"></span>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                       </button>
-                      <a x-show="activeTaskDetail.clickup_url" :href="activeTaskDetail.clickup_url" target="_blank" title="Abrir no ClickUp" style="padding:6px;border-radius:6px;display:flex;align-items:center;color:#7b68ee;transition:background .1s" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'">
+                      <a x-show="activeTaskDetail.clickup_url" :href="activeTaskDetail.clickup_url" target="_blank" rel="noopener noreferrer" title="Abrir no ClickUp" style="padding:6px;border-radius:6px;display:flex;align-items:center;color:#7b68ee;transition:background .1s" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                       </a>
                       <!-- Duplicate (Dragon 28) -->
