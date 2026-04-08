@@ -8099,10 +8099,13 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     // ── My Work View (Dragon 36) ──
     get myWorkData() {
-      const me = this.auth?.currentUser?.user_metadata?.full_name || '';
-      const meFirst = me.toLowerCase().split(' ')[0];
-      if (!meFirst) return { overdue: [], today: [], upcoming: [], done: [] };
-      const myTasks = this.data.tasks.filter(t => t.responsavel && t.responsavel.toLowerCase().includes(meFirst));
+      let meFirst = (this.auth?.currentUser?.full_name || this.auth?.currentUser?.user_metadata?.full_name || '').toLowerCase().split(' ')[0];
+      if (!meFirst) meFirst = (this.auth?.currentUser?.email || '').toLowerCase().split(/[@.]/)[0];
+      if (!meFirst) meFirst = 'kaique';
+      const myTasks = this.data.tasks.filter(t => {
+        const r = (t.responsavel || '').toLowerCase();
+        return r === meFirst || r.includes(meFirst);
+      });
       const now = new Date();
       const todayStr = now.toISOString().slice(0, 10);
       const weekEnd = new Date(now); weekEnd.setDate(now.getDate() + 7);
@@ -8192,12 +8195,16 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     get priorityMatrix() {
       const tasks = this.data.tasks.filter(t => t.status !== 'concluida' && t.status !== 'cancelada');
       const now = new Date();
-      const urgent = t => t.data_fim && new Date(t.data_fim) <= new Date(now.getTime() + 3 * 86400000);
+      const soonCutoff = new Date(now.getTime() + 3 * 86400000);
+      // Urgente = prazo em 3 dias OU prioridade 'urgente'
+      const isUrgent = t => t.prioridade === 'urgente' || (t.data_fim && new Date(t.data_fim) <= soonCutoff);
+      // Importante = prioridade alta/urgente OU tem mentorado vinculado
+      const isImportant = t => t.prioridade === 'urgente' || t.prioridade === 'alta' || !!t.mentorado_id;
       return {
-        urgentImportant: tasks.filter(t => urgent(t) && (t.prioridade === 'urgente' || t.prioridade === 'alta')),
-        notUrgentImportant: tasks.filter(t => !urgent(t) && (t.prioridade === 'urgente' || t.prioridade === 'alta')),
-        urgentNotImportant: tasks.filter(t => urgent(t) && t.prioridade !== 'urgente' && t.prioridade !== 'alta'),
-        notUrgentNotImportant: tasks.filter(t => !urgent(t) && t.prioridade !== 'urgente' && t.prioridade !== 'alta'),
+        urgentImportant: tasks.filter(t => isUrgent(t) && isImportant(t)),
+        notUrgentImportant: tasks.filter(t => !isUrgent(t) && isImportant(t)),
+        urgentNotImportant: tasks.filter(t => isUrgent(t) && !isImportant(t)),
+        notUrgentNotImportant: tasks.filter(t => !isUrgent(t) && !isImportant(t)),
       };
     },
 
