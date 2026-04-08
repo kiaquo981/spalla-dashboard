@@ -3225,7 +3225,8 @@
                       <span x-text="(data.menteeDescarregos || []).length" style="background:var(--brand-300,#c4b896);color:#fff;border-radius:10px;padding:1px 8px;font-size:10px"></span>
                     </div>
                     <div style="display:flex;gap:6px">
-                      <button @click="openDescarregoCreate()" style="font-size:11px;background:var(--brand-500,#b09b6e);color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer">+ Novo descarrego</button>
+                      <button @click="openDescarregoCreate()" style="font-size:11px;background:var(--brand-500,#b09b6e);color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer">+ Novo</button>
+                      <button @click="ui.batchDescarregoOpen = !ui.batchDescarregoOpen" style="font-size:11px;color:var(--brand-500,#b09b6e);background:none;border:1px solid var(--brand-300,#c4b896);border-radius:4px;padding:4px 10px;cursor:pointer">Batch import</button>
                       <button @click="loadMenteeDescarregos(data.detail?.profile?.id)" style="font-size:11px;color:var(--text-secondary);background:none;border:1px solid var(--border);border-radius:4px;padding:3px 8px;cursor:pointer" title="Recarregar">↻</button>
                     </div>
                   </div>
@@ -3238,7 +3239,25 @@
                               x-text="f"></button>
                     </template>
                   </div>
-                  <div x-show="!filteredDescarregos.length" style="text-align:center;padding:16px;color:var(--text-secondary);font-size:12px">
+
+                  <!-- Batch import panel -->
+                  <div x-show="ui.batchDescarregoOpen" x-cloak style="margin-bottom:10px;padding:10px;background:#fff;border:1px solid var(--brand-300,#c4b896);border-radius:8px">
+                    <div style="font-size:11px;font-weight:600;color:var(--text-primary);margin-bottom:6px">Importar múltiplos descarregos</div>
+                    <div style="font-size:10px;color:var(--text-secondary);margin-bottom:6px">Cole textos separados por linha em branco ou "---". Máximo 20 por vez. Cada bloco vira um descarrego que será processado automaticamente pela IA.</div>
+                    <textarea x-model="ui.batchDescarregoText" rows="6" placeholder="Texto do descarrego 1...&#10;&#10;Texto do descarrego 2...&#10;&#10;---&#10;&#10;Texto do descarrego 3..." style="width:100%;font-size:12px;padding:8px;border:1px solid var(--border);border-radius:6px;resize:vertical;font-family:inherit;box-sizing:border-box"></textarea>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
+                      <span style="font-size:10px;color:var(--text-secondary)" x-text="(() => { const t = (ui.batchDescarregoText || '').trim(); if (!t) return '0 itens'; const c = t.split(/\n{2,}|^---$/m).filter(x => x.trim().length > 5).length; return c + ' ite' + (c === 1 ? 'm' : 'ns'); })()"></span>
+                      <div style="display:flex;gap:6px">
+                        <button @click="ui.batchDescarregoOpen = false; ui.batchDescarregoText = ''" style="font-size:11px;color:var(--text-secondary);background:none;border:1px solid var(--border);border-radius:4px;padding:4px 10px;cursor:pointer">Cancelar</button>
+                        <button @click="submitBatchDescarrego()" :disabled="ui.batchDescarregoSubmitting" style="font-size:11px;background:var(--brand-500,#b09b6e);color:#fff;border:none;border-radius:4px;padding:4px 14px;cursor:pointer">
+                          <span x-show="!ui.batchDescarregoSubmitting">Importar e processar</span>
+                          <span x-show="ui.batchDescarregoSubmitting">Importando...</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div x-show="!filteredDescarregos.length && !ui.batchDescarregoOpen" style="text-align:center;padding:16px;color:var(--text-secondary);font-size:12px">
                     Nenhum descarrego encontrado.
                   </div>
 
@@ -12402,7 +12421,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=222"></script>
+  <script src="11-APP-app.js?v=223"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">

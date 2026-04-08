@@ -208,6 +208,9 @@ function operon() {
       _ganttDrag: null,
       descarregoFilter: 'todos',
       descarregoExpanded: {},
+      batchDescarregoOpen: false,
+      batchDescarregoText: '',
+      batchDescarregoSubmitting: false,
       calYear: new Date().getFullYear(),
       calMonth: new Date().getMonth(),
       bulkSelected: {}, // { taskId: true }
@@ -11187,6 +11190,45 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       } catch (e) {
         console.warn('[trigger_rule]', e);
         this.toast?.('Task criada mas regra de trigger falhou: ' + e.message, 'warning');
+      }
+    },
+
+    // Batch descarrego import
+    async submitBatchDescarrego() {
+      const menteeId = this.data.detail?.profile?.id;
+      if (!menteeId) return this.toast?.('Sem mentorado selecionado', 'error');
+      const rawText = (this.ui.batchDescarregoText || '').trim();
+      if (!rawText) return this.toast?.('Cole os textos para importar', 'error');
+
+      // Split by double newline or "---" separator
+      const items = rawText.split(/\n{2,}|^---$/m)
+        .map(t => t.trim())
+        .filter(t => t.length > 5);
+
+      if (!items.length) return this.toast?.('Nenhum item válido encontrado', 'error');
+      if (items.length > 20) return this.toast?.('Máximo 20 itens por batch', 'error');
+
+      this.ui.batchDescarregoSubmitting = true;
+      try {
+        const r = await fetch(`${CONFIG.API_BASE}/api/descarrego/batch-capture`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.token || ''}` },
+          body: JSON.stringify({
+            mentorado_id: menteeId,
+            auto_process: true,
+            items: items.map(text => ({ tipo_bruto: 'texto', conteudo_bruto: text, fonte: 'batch_import' })),
+          }),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const result = await r.json();
+        this.toast?.(`${result.created} descarregos importados e processando`, 'success');
+        this.ui.batchDescarregoText = '';
+        this.ui.batchDescarregoOpen = false;
+        this.loadMenteeDescarregos(menteeId);
+      } catch (e) {
+        this.toast?.('Falha no batch import: ' + e.message, 'error');
+      } finally {
+        this.ui.batchDescarregoSubmitting = false;
       }
     },
 

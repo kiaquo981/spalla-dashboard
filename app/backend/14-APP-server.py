@@ -2802,6 +2802,76 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             log_error('descarrego_capture', str(e), e)
             self._send_json({'error': str(e)}, 500)
 
+    def _handle_descarrego_batch_capture(self):
+        """POST /api/descarrego/batch-capture
+        Body: { mentorado_id, items: [ { tipo_bruto, conteudo_bruto?, arquivo_url?, fonte? }, ... ] }
+        Creates multiple descarregos at once. Max 20 per batch.
+        Optionally auto-processes them if auto_process=true.
+        """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        try:
+            body = self._read_json_body()
+            mentorado_id = body.get('mentorado_id')
+            items = body.get('items') or []
+            auto_process = body.get('auto_process', False)
+
+            if not mentorado_id:
+                return self._send_json({'error': 'mentorado_id obrigatório'}, 400)
+            if not items:
+                return self._send_json({'error': 'items vazio'}, 400)
+            if len(items) > 20:
+                return self._send_json({'error': 'máximo 20 itens por batch'}, 400)
+
+            actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
+            batch_id = str(uuid.uuid4())
+            created = []
+
+            for i, item in enumerate(items):
+                tipo = item.get('tipo_bruto', 'texto')
+                if tipo not in ('texto', 'audio', 'video', 'imagem', 'arquivo', 'link', 'gravacao'):
+                    tipo = 'texto'
+                payload = {
+                    'mentorado_id': mentorado_id,
+                    'consultor_id': actor,
+                    'tipo_bruto': tipo,
+                    'conteudo_bruto': item.get('conteudo_bruto'),
+                    'arquivo_url': item.get('arquivo_url'),
+                    'arquivo_size_bytes': item.get('arquivo_size_bytes'),
+                    'arquivo_mime_type': item.get('arquivo_mime_type'),
+                    'duracao_ms': item.get('duracao_ms'),
+                    'fonte': item.get('fonte', 'batch_import'),
+                    'correlation_id': f'{batch_id}:{i}',
+                    'status': 'capturado',
+                }
+                r = supabase_request('POST', '/rest/v1/descarregos', body=payload)
+                if r.status_code in (200, 201):
+                    data = r.json()
+                    row = data[0] if isinstance(data, list) and data else data
+                    created.append(row.get('id'))
+
+            # Auto-process all created descarregos
+            if auto_process and created:
+                for did in created:
+                    t = threading.Thread(
+                        target=_descarrego_processor_run,
+                        args=(did,),
+                        daemon=True,
+                    )
+                    t.start()
+
+            self._send_json({
+                'batch_id': batch_id,
+                'total': len(items),
+                'created': len(created),
+                'descarrego_ids': created,
+                'auto_processing': auto_process,
+            }, 201)
+        except Exception as e:
+            log_error('descarrego_batch', str(e), e)
+            self._send_json({'error': str(e)}, 500)
+
     def _handle_descarrego_process(self, descarrego_id):
         """POST /api/descarrego/{id}/process — async pipeline."""
         auth = check_auth_any(self.headers)
@@ -3098,6 +3168,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         # ===== LF-FASE3: Descarrego =====
         elif self.path == '/api/descarrego/capture':
             self._handle_descarrego_capture()
+        elif self.path == '/api/descarrego/batch-capture':
+            self._handle_descarrego_batch_capture()
         elif re.match(r'^/api/descarrego/([0-9a-f-]+)/process$', self.path):
             _dm = re.match(r'^/api/descarrego/([0-9a-f-]+)/process$', self.path)
             self._handle_descarrego_process(_dm.group(1))
