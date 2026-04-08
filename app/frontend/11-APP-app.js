@@ -11301,37 +11301,23 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     async loadMeuTrabalho() {
       this.meuTrabalhoLoading = true;
       try {
-        if (!sb) sb = await initSupabase();
-        if (!sb) { console.error('[MeuTrabalho] Supabase not available'); this.meuTrabalho = []; return; }
-        // Resolve nome com múltiplos fallbacks (fix intermitência)
-        let me = '';
-        // 1. Auth user name
-        const fullName = this.auth.currentUser?.full_name
-          || this.auth.currentUser?.user_metadata?.full_name || '';
-        if (fullName) me = fullName.toLowerCase().split(' ')[0];
-        // 2. Email prefix
-        if (!me) {
-          const email = (this.auth.currentUser?.email || '').toLowerCase();
-          if (email) me = email.split(/[@.]/)[0];
-        }
-        // 3. TEAM_MEMBERS match
-        const member = me ? TEAM_MEMBERS.find(m => m.id === me || m.name.toLowerCase() === me) : null;
+        // Resolve nome com múltiplos fallbacks
+        let me = (this.auth.currentUser?.full_name || this.auth.currentUser?.user_metadata?.full_name || '').toLowerCase().split(' ')[0];
+        if (!me) me = (this.auth.currentUser?.email || '').toLowerCase().split(/[@.]/)[0];
+        if (!me) me = 'kaique';
+        const member = TEAM_MEMBERS.find(m => m.id === me || m.name.toLowerCase() === me);
         const searchName = member ? member.id : me;
-        // 4. Fallback: se auth ainda não carregou, usa 'kaique' (owner default)
-        if (!searchName) {
-          console.warn('[MeuTrabalho] auth não carregou ainda, usando fallback "kaique"');
-        }
-        const finalName = searchName || 'kaique';
-        console.log('[MeuTrabalho] querying for:', finalName);
-        const { data, error } = await sb
-          .from('vw_meu_trabalho')
-          .select('*')
-          .or(`responsavel.ilike.%${finalName}%,acompanhante.ilike.%${finalName}%`)
-          .order('prioridade', { ascending: true })
-          .limit(200);
-        if (error) throw error;
-        this.meuTrabalho = data || [];
-        console.log('[MeuTrabalho] loaded', this.meuTrabalho.length, 'tasks');
+
+        // Usa data.tasks (já carregado) em vez de query separada ao vw_meu_trabalho
+        // Isso elimina a intermitência (race condition, query falhando, etc.)
+        const allTasks = this.data.tasks || [];
+        this.meuTrabalho = allTasks.filter(t => {
+          if (t.status === 'arquivada' || t.status === 'cancelada') return false;
+          const r = (t.responsavel || '').toLowerCase();
+          const a = (t.acompanhante || '').toLowerCase();
+          return r.includes(searchName) || a.includes(searchName);
+        });
+        console.log('[MeuTrabalho] filtered', this.meuTrabalho.length, 'tasks from', allTasks.length, 'for:', searchName);
       } catch (e) {
         console.warn('[Spalla] loadMeuTrabalho:', e);
         this.meuTrabalho = [];
