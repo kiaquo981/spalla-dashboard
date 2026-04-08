@@ -3216,7 +3216,7 @@
                   </div>
                 </div>
 
-                <!-- ── Pipeline Descarregos (LF-FASE3) ── -->
+                <!-- ── Pipeline Descarregos (LF-FASE3 v2) ── -->
                 <div style="margin-bottom:16px;border:1px solid var(--border);border-radius:10px;background:var(--bg-subtle,#fafaf7);padding:12px">
                   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
                     <div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--text-primary)">
@@ -3229,32 +3229,73 @@
                       <button @click="loadMenteeDescarregos(data.detail?.profile?.id)" style="font-size:11px;color:var(--text-secondary);background:none;border:1px solid var(--border);border-radius:4px;padding:3px 8px;cursor:pointer" title="Recarregar">↻</button>
                     </div>
                   </div>
-                  <div x-show="!(data.menteeDescarregos || []).length" style="text-align:center;padding:16px;color:var(--text-secondary);font-size:12px">
-                    Nenhum descarrego ainda. Clique em <strong>+ Novo descarrego</strong> pra capturar um áudio ou texto.
+                  <!-- Filtros -->
+                  <div style="display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap">
+                    <template x-for="f in ['todos','pendentes','processados','task','contexto','lembrete','escalacao','dossie','feedback']" :key="f">
+                      <button @click="ui.descarregoFilter = f"
+                              :style="ui.descarregoFilter === f ? 'background:var(--brand-500,#b09b6e);color:#fff' : 'background:#fff;color:var(--text-secondary);border:1px solid var(--border)'"
+                              style="font-size:10px;padding:3px 8px;border-radius:12px;cursor:pointer;border:none;text-transform:capitalize"
+                              x-text="f"></button>
+                    </template>
+                  </div>
+                  <div x-show="!filteredDescarregos.length" style="text-align:center;padding:16px;color:var(--text-secondary);font-size:12px">
+                    Nenhum descarrego encontrado.
                   </div>
 
                   <div style="display:flex;flex-direction:column;gap:8px">
-                    <template x-for="d in (data.menteeDescarregos || [])" :key="d.id">
-                      <div style="border:1px solid var(--border);border-radius:8px;padding:10px;background:#fff">
-                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                    <template x-for="d in filteredDescarregos" :key="d.id">
+                      <div style="border:1px solid var(--border);border-radius:8px;padding:10px;background:#fff;transition:box-shadow .15s"
+                           :style="ui.descarregoExpanded[d.id] ? 'box-shadow:0 2px 8px rgba(0,0,0,.06)' : ''">
+                        <!-- Header -->
+                        <div @click="ui.descarregoExpanded[d.id] = !ui.descarregoExpanded[d.id]" style="display:flex;align-items:center;gap:8px;cursor:pointer">
                           <span :style="{'capturado':'background:#e0f2fe;color:#0369a1','transcricao_pendente':'background:#fef3c7;color:#d97706','transcrito':'background:#e0f2fe;color:#0369a1','classificacao_pendente':'background:#fef3c7;color:#d97706','classificado':'background:#dcfce7;color:#15803d','aguardando_humano':'background:#fde68a;color:#b45309','executando_acao_automatica':'background:#fef3c7;color:#d97706','executando_acao_manual':'background:#fef3c7;color:#d97706','finalizado':'background:#dcfce7;color:#15803d','rejeitado':'background:#fee2e2;color:#dc2626','erro':'background:#fee2e2;color:#dc2626'}[d.status] || 'background:#f3f4f6'"
                                 style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;text-transform:uppercase" x-text="d.status"></span>
                           <span style="font-size:11px;color:var(--text-secondary)" x-text="d.tipo_bruto"></span>
-                          <span x-show="d.classificacao_principal" style="font-size:11px;font-weight:600" x-text="'→ ' + d.classificacao_principal"></span>
-                          <span x-show="d.classificacao_confidence" style="font-size:10px;color:var(--text-secondary)" x-text="'(' + Math.round((d.classificacao_confidence||0)*100) + '%)'"></span>
+                          <span x-show="d.classificacao_principal" style="font-size:11px;font-weight:600;padding:2px 6px;border-radius:4px;background:#f0fdf4;color:#15803d" x-text="d.classificacao_principal"></span>
+                          <span x-show="d.classificacao_confidence" style="font-size:10px;color:var(--text-secondary)" x-text="Math.round((d.classificacao_confidence||0)*100) + '%'"></span>
                           <span style="flex:1"></span>
+                          <span x-show="d.acao_tomada" style="font-size:10px;padding:2px 6px;border-radius:4px;background:#ede9fe;color:#7c3aed" x-text="d.acao_tomada"></span>
                           <span style="font-size:10px;color:var(--text-secondary)" x-text="new Date(d.created_at).toLocaleString('pt-BR')"></span>
+                          <span style="font-size:12px;color:var(--text-secondary);transition:transform .15s" :style="ui.descarregoExpanded[d.id] ? 'transform:rotate(180deg)' : ''">▾</span>
                         </div>
-                        <div style="font-size:12px;color:var(--text-primary);white-space:pre-wrap;line-height:1.4;max-height:80px;overflow:hidden" x-text="d.transcricao || d.conteudo_bruto || '(sem conteúdo)'"></div>
-                        <div x-show="d.classificacao_payload?.summary" style="font-size:11px;color:var(--text-secondary);font-style:italic;margin-top:4px" x-text="'Resumo IA: ' + d.classificacao_payload?.summary"></div>
 
-                        <!-- Ações -->
-                        <div style="display:flex;gap:6px;margin-top:8px">
-                          <button x-show="d.status === 'capturado' || d.status === 'erro'" @click="processDescarrego(d.id)" style="font-size:11px;background:var(--brand-500,#b09b6e);color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer">▶ Processar</button>
-                          <button x-show="d.status === 'aguardando_humano'" @click="approveDescarrego(d.id)" style="font-size:11px;background:#16a34a;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer">✓ Aprovar</button>
-                          <button x-show="d.status === 'aguardando_humano'" @click="rejectDescarrego(d.id)" style="font-size:11px;background:#dc2626;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer">✕ Rejeitar</button>
-                          <a x-show="d.task_id" :href="'#task-' + d.task_id" style="font-size:11px;color:var(--brand-500,#b09b6e);text-decoration:none;padding:4px 8px;border:1px solid var(--border);border-radius:4px">→ Task criada</a>
-                          <span x-show="d.last_error" style="font-size:10px;color:#dc2626" :title="d.last_error">⚠ erro</span>
+                        <!-- Preview (colapsado) -->
+                        <div x-show="!ui.descarregoExpanded[d.id]" style="font-size:12px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:4px;max-width:100%" x-text="(d.classificacao_payload?.summary || d.transcricao || d.conteudo_bruto || '(sem conteúdo)').substring(0, 120)"></div>
+
+                        <!-- Expanded content -->
+                        <div x-show="ui.descarregoExpanded[d.id]" x-cloak style="margin-top:8px">
+                          <!-- Resumo IA -->
+                          <div x-show="d.classificacao_payload?.summary" style="font-size:12px;color:var(--text-secondary);font-style:italic;margin-bottom:6px;padding:6px 8px;background:#fafaf7;border-radius:6px">
+                            <strong style="font-style:normal">Resumo IA:</strong> <span x-text="d.classificacao_payload?.summary"></span>
+                          </div>
+                          <!-- Conteúdo completo -->
+                          <div style="font-size:12px;color:var(--text-primary);white-space:pre-wrap;line-height:1.5;max-height:300px;overflow-y:auto;padding:6px 8px;background:#fff;border:1px solid var(--border);border-radius:6px" x-text="d.transcricao || d.conteudo_bruto || '(sem conteúdo)'"></div>
+                          <!-- Task details (se task) -->
+                          <div x-show="d.classificacao_payload?.task" style="margin-top:6px;padding:6px 8px;background:#eff6ff;border-radius:6px;font-size:11px">
+                            <strong>Ação sugerida:</strong>
+                            <span x-text="d.classificacao_payload?.task?.titulo"></span>
+                            <span style="color:var(--text-secondary)"> — </span>
+                            <span x-text="d.classificacao_payload?.task?.responsavel"></span>
+                            <span x-show="d.classificacao_payload?.task?.prazo_dias" x-text="' (' + d.classificacao_payload?.task?.prazo_dias + ' dias)'"></span>
+                          </div>
+                          <!-- Reclassificação manual -->
+                          <div style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap">
+                            <span style="font-size:10px;color:var(--text-secondary)">Reclassificar:</span>
+                            <template x-for="rt in ['task','lembrete','contexto','feedback','escalacao','plano_acao','dossie','duvida','celebracao']" :key="rt">
+                              <button @click.stop="reclassifyDescarrego(d.id, rt)"
+                                      :style="d.classificacao_principal === rt ? 'background:var(--brand-500);color:#fff' : ''"
+                                      style="font-size:9px;padding:2px 6px;border-radius:8px;cursor:pointer;background:#f3f4f6;border:1px solid #e2e8f0;color:var(--text-secondary)"
+                                      x-text="rt"></button>
+                            </template>
+                          </div>
+                          <!-- Ações -->
+                          <div style="display:flex;gap:6px;margin-top:8px">
+                            <button x-show="d.status === 'capturado' || d.status === 'erro'" @click.stop="processDescarrego(d.id)" style="font-size:11px;background:var(--brand-500,#b09b6e);color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer">▶ Processar</button>
+                            <button x-show="d.status === 'aguardando_humano'" @click.stop="approveDescarrego(d.id)" style="font-size:11px;background:#16a34a;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer">✓ Aprovar</button>
+                            <button x-show="d.status === 'aguardando_humano'" @click.stop="rejectDescarrego(d.id)" style="font-size:11px;background:#dc2626;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer">✕ Rejeitar</button>
+                            <a x-show="d.task_id" @click.stop :href="'#'" @click.prevent="openTaskDetail(d.task_id)" style="font-size:11px;color:var(--brand-500,#b09b6e);text-decoration:none;padding:4px 8px;border:1px solid var(--border);border-radius:4px;cursor:pointer">→ Abrir task</a>
+                            <span x-show="d.last_error" style="font-size:10px;color:#dc2626" :title="d.last_error">⚠ erro</span>
+                          </div>
                         </div>
                       </div>
                     </template>
@@ -12361,7 +12402,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=221"></script>
+  <script src="11-APP-app.js?v=222"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">

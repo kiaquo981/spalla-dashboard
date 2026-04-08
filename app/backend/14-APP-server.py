@@ -1714,7 +1714,47 @@ def _descarrego_do_classification(descarrego_id):
         except Exception:
             pass
 
-    result = classify_descarrego(text, mentorado_ctx)
+    # Enrich: últimas 5 interações do mentorado
+    recent_interactions = None
+    if row.get('mentorado_id'):
+        try:
+            ri = supabase_request(
+                'GET',
+                f'/rest/v1/mentorado_context?mentorado_id=eq.{row["mentorado_id"]}'
+                f'&select=tipo,titulo,conteudo&order=created_at.desc&limit=5',
+            )
+            if ri.status_code == 200 and ri.json():
+                recent_interactions = [
+                    {'tipo': x.get('tipo', ''), 'resumo': (x.get('titulo') or x.get('conteudo', ''))[:200]}
+                    for x in ri.json()
+                ]
+        except Exception:
+            pass
+
+    # Enrich: últimas 5 classificações anteriores (feedback loop)
+    previous_classifications = None
+    if row.get('mentorado_id'):
+        try:
+            rp = supabase_request(
+                'GET',
+                f'/rest/v1/descarregos?mentorado_id=eq.{row["mentorado_id"]}'
+                f'&classificacao_principal=not.is.null&id=neq.{descarrego_id}'
+                f'&select=classificacao_principal,classificacao_confidence,classificacao_payload'
+                f'&order=created_at.desc&limit=5',
+            )
+            if rp.status_code == 200 and rp.json():
+                previous_classifications = [
+                    {
+                        'primary_type': x.get('classificacao_principal'),
+                        'confidence': x.get('classificacao_confidence', 0),
+                        'summary': (x.get('classificacao_payload') or {}).get('summary', ''),
+                    }
+                    for x in rp.json()
+                ]
+        except Exception:
+            pass
+
+    result = classify_descarrego(text, mentorado_ctx, recent_interactions, previous_classifications)
     _descarrego_update(descarrego_id, {
         'classificacao_principal': result.get('primary_type'),
         'classificacao_sub': result.get('subtype'),
@@ -1765,12 +1805,77 @@ def _descarrego_execute_action(descarrego_id, mode='auto'):
             else:
                 raise RuntimeError(f'task create failed: {r.text}')
 
-        elif principal == 'contexto':
+        elif principal == 'lembrete':
+            lembrete = payload.get('lembrete') or {}
+            prazo_dias = lembrete.get('prazo_dias', 3)
+            data_fim = (datetime.now(timezone.utc) + timedelta(days=int(prazo_dias))).isoformat()
+            new_task = {
+                'titulo': lembrete.get('titulo') or f'Lembrete: {payload.get("summary", "")[:80]}',
+                'descricao': f'[Auto-gerado de descarrego]\n{row.get("transcricao") or row.get("conteudo_bruto", "")}',
+                'status': 'pendente',
+                'prioridade': 'alta',
+                'responsavel': lembrete.get('responsavel') or 'kaique',
+                'mentorado_id': row.get('mentorado_id'),
+                'data_fim': data_fim,
+                'fonte': 'descarrego',
+                'especie': 'one_time',
+                'tipo': 'lembrete',
+            }
+            r = supabase_request('POST', '/rest/v1/god_tasks', body=new_task)
+            task_id = None
+            if r.status_code in (200, 201):
+                created = r.json()
+                task_id = created[0]['id'] if isinstance(created, list) and created else created.get('id')
             _descarrego_update(descarrego_id, {
-                'acao_tomada': 'salvo_como_contexto',
+                'acao_tomada': 'lembrete_criado',
+                'task_id': task_id,
                 'acao_tomada_em': datetime.now(timezone.utc).isoformat(),
                 'acao_tomada_por': 'saga' if mode == 'auto' else 'humano',
             })
+
+        elif principal == 'escalacao':
+            # Cria task urgente para Kaique
+            new_task = {
+                'titulo': f'ESCALAR: {payload.get("summary", "")[:80]}',
+                'descricao': f'[Escalação automática]\n{row.get("transcricao") or row.get("conteudo_bruto", "")}',
+                'status': 'pendente',
+                'prioridade': 'urgente',
+                'responsavel': 'kaique',
+                'mentorado_id': row.get('mentorado_id'),
+                'fonte': 'descarrego',
+                'especie': 'one_time',
+            }
+            r = supabase_request('POST', '/rest/v1/god_tasks', body=new_task)
+            task_id = None
+            if r.status_code in (200, 201):
+                created = r.json()
+                task_id = created[0]['id'] if isinstance(created, list) and created else created.get('id')
+            _descarrego_update(descarrego_id, {
+                'acao_tomada': 'escalado_kaique',
+                'task_id': task_id,
+                'acao_tomada_em': datetime.now(timezone.utc).isoformat(),
+                'acao_tomada_por': 'saga' if mode == 'auto' else 'humano',
+            })
+
+        elif principal in ('contexto', 'dossie', 'feedback', 'plano_acao'):
+            # Salva como contexto do mentorado
+            if row.get('mentorado_id'):
+                ctx_entry = {
+                    'mentorado_id': row['mentorado_id'],
+                    'tipo': 'texto',
+                    'titulo': f'[{principal}] {payload.get("summary", "")[:100]}',
+                    'conteudo': row.get('transcricao') or row.get('conteudo_bruto', ''),
+                    'fase': principal,
+                    'origem': 'descarrego',
+                    'criado_por': 'sistema',
+                }
+                supabase_request('POST', '/rest/v1/mentorado_context', body=ctx_entry)
+            _descarrego_update(descarrego_id, {
+                'acao_tomada': f'salvo_como_{principal}',
+                'acao_tomada_em': datetime.now(timezone.utc).isoformat(),
+                'acao_tomada_por': 'saga' if mode == 'auto' else 'humano',
+            })
+
         else:
             _descarrego_update(descarrego_id, {
                 'acao_tomada': 'sem_acao',
@@ -2752,6 +2857,52 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             self._send_json({'error': str(e)}, 500)
 
+    def _handle_descarrego_reclassify(self, descarrego_id):
+        """POST /api/descarrego/{id}/reclassify — manual reclassification.
+        Body: { new_type: 'task'|'contexto'|... }
+        """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        try:
+            body = self._read_json_body() or {}
+            new_type = body.get('new_type')
+            valid_types = ('task', 'lembrete', 'contexto', 'feedback', 'reembolso',
+                           'bloqueio', 'escalacao', 'plano_acao', 'dossie', 'duvida',
+                           'celebracao', 'outro')
+            if not new_type or new_type not in valid_types:
+                return self._send_json({'error': f'new_type inválido. Válidos: {", ".join(valid_types)}'}, 400)
+
+            actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
+            old_row = _descarrego_load(descarrego_id)
+            old_type = old_row.get('classificacao_principal')
+
+            _descarrego_update(descarrego_id, {
+                'classificacao_principal': new_type,
+                'classificacao_payload': {
+                    **(old_row.get('classificacao_payload') or {}),
+                    'primary_type': new_type,
+                    '_reclassified_from': old_type,
+                    '_reclassified_by': actor,
+                    '_reclassified_at': datetime.now(timezone.utc).isoformat(),
+                },
+            })
+
+            try:
+                supabase_request('POST', '/rest/v1/entity_events', body={
+                    'aggregate_type': 'Descarrego',
+                    'aggregate_id': descarrego_id,
+                    'event_type': 'DescarregoReclassified',
+                    'payload': {'from': old_type, 'to': new_type},
+                    'metadata': {'source': 'manual', 'actor': actor},
+                })
+            except Exception:
+                pass
+
+            self._send_json({'descarrego_id': descarrego_id, 'new_type': new_type, 'old_type': old_type})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
     def _handle_descarregos_list(self, mentorado_id):
         """GET /api/mentees/{id}/descarregos"""
         auth = check_auth_any(self.headers)
@@ -2956,6 +3107,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         elif re.match(r'^/api/descarrego/([0-9a-f-]+)/reject$', self.path):
             _dm = re.match(r'^/api/descarrego/([0-9a-f-]+)/reject$', self.path)
             self._handle_descarrego_reject(_dm.group(1))
+        elif re.match(r'^/api/descarrego/([0-9a-f-]+)/reclassify$', self.path):
+            _dm = re.match(r'^/api/descarrego/([0-9a-f-]+)/reclassify$', self.path)
+            self._handle_descarrego_reclassify(_dm.group(1))
         elif self.path == '/api/clickup/sync-subtasks':
             self._handle_clickup_sync_subtasks()
         elif self.path == '/api/clickup/import-all':

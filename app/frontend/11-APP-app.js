@@ -205,7 +205,9 @@ function operon() {
       mentionQuery: '',        // texto digitado após @
       mentionStart: -1,        // posição do @ no textarea
       taskGanttRange: 'month', // 'week' | 'month' | 'quarter'
-      _ganttDrag: null, // { taskId, side, startX, origStart, origEnd, timelineEl }
+      _ganttDrag: null,
+      descarregoFilter: 'todos',
+      descarregoExpanded: {},
       calYear: new Date().getFullYear(),
       calMonth: new Date().getMonth(),
       bulkSelected: {}, // { taskId: true }
@@ -11259,6 +11261,32 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           this._pollDescarrego(descarregoId, tries + 1);
         }
       }, 3000);
+    },
+
+    // Descarrego filter + reclassification
+    get filteredDescarregos() {
+      const list = this.data.menteeDescarregos || [];
+      const f = this.ui.descarregoFilter || 'todos';
+      if (f === 'todos') return list;
+      if (f === 'pendentes') return list.filter(d => ['capturado', 'aguardando_humano', 'erro'].includes(d.status));
+      if (f === 'processados') return list.filter(d => ['finalizado', 'rejeitado'].includes(d.status));
+      return list.filter(d => d.classificacao_principal === f);
+    },
+
+    async reclassifyDescarrego(descarregoId, newType) {
+      try {
+        const r = await fetch(`${CONFIG.API_BASE}/api/descarrego/${descarregoId}/reclassify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.token || ''}` },
+          body: JSON.stringify({ new_type: newType }),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        this.toast?.('Reclassificado para ' + newType);
+        const menteeId = this.data.detail?.profile?.id;
+        if (menteeId) this.loadMenteeDescarregos(menteeId);
+      } catch (e) {
+        this.toast?.('Falha ao reclassificar: ' + e.message, 'error');
+      }
     },
 
     // ===== CONTEXT HUB: áudio, texto, anexos para dossiê =====
