@@ -1051,6 +1051,71 @@
               </div>
             </div>
 
+            <!-- WA INTELLIGENCE: PENDENCIAS -->
+            <div class="bento-card bento-card--hero">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Pendencias WhatsApp</span>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <span x-show="ccWaResumoSemana().totalDuvidasAbertas" class="badge badge--sm badge--danger" x-text="ccWaResumoSemana().totalDuvidasAbertas + ' duvida' + (ccWaResumoSemana().totalDuvidasAbertas > 1 ? 's' : '')"></span>
+                  <span class="badge badge--sm badge--neutral" x-text="ccWaResumoSemana().totalPendencias + ' pendente' + (ccWaResumoSemana().totalPendencias > 1 ? 's' : '')"></span>
+                </div>
+              </div>
+              <div class="bento-card__body" style="overflow-y:auto;display:flex;flex-direction:column;gap:8px">
+                <!-- Summary strip -->
+                <div style="display:flex;gap:16px;padding:8px 12px;background:var(--neutral-50,#faf9f7);border-radius:8px;font-size:11px">
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+                    <span style="font-size:18px;font-weight:700;color:var(--primary)" x-text="ccWaResumoSemana().totalInteracoes"></span>
+                    <span style="color:var(--text-secondary)">Interacoes</span>
+                  </div>
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+                    <span style="font-size:18px;font-weight:700;color:#10b981" x-text="ccWaResumoSemana().mentoradosAtivos"></span>
+                    <span style="color:var(--text-secondary)">Ativos</span>
+                  </div>
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+                    <span style="font-size:18px;font-weight:700" :style="ccWaResumoSemana().mentoradosInativos > 0 ? 'color:#ef4444' : 'color:var(--neutral-400)'" x-text="ccWaResumoSemana().mentoradosInativos"></span>
+                    <span style="color:var(--text-secondary)">Inativos</span>
+                  </div>
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+                    <span style="font-size:18px;font-weight:700;color:#f59e0b" x-text="ccWaResumoSemana().celebracoes"></span>
+                    <span style="color:var(--text-secondary)">Vitorias</span>
+                  </div>
+                  <div x-show="ccWaResumoSemana().negativos > 0" style="display:flex;flex-direction:column;align-items:center;gap:2px">
+                    <span style="font-size:18px;font-weight:700;color:#ef4444" x-text="ccWaResumoSemana().negativos"></span>
+                    <span style="color:var(--text-secondary)">Negativos</span>
+                  </div>
+                </div>
+
+                <!-- Pendencias list -->
+                <div x-show="ccWaPendencias().length" style="display:flex;flex-direction:column;gap:4px;max-height:320px;overflow-y:auto">
+                  <template x-for="m in ccWaPendencias()" :key="m.mentorado_id">
+                    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);cursor:pointer;transition:background .15s"
+                         @mouseover="$el.style.background='var(--neutral-50,#faf9f7)'" @mouseout="$el.style.background='transparent'"
+                         @click="openDetail(m.mentorado_id)">
+                      <!-- Avatar -->
+                      <div style="width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff"
+                           :style="'background:' + avatarGradient(m.mentorado_nome)" x-text="avatarInitials(m.mentorado_nome)"></div>
+                      <!-- Info -->
+                      <div style="flex:1;min-width:0">
+                        <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="m.mentorado_nome"></div>
+                        <div style="display:flex;gap:8px;font-size:10px;color:var(--text-secondary);margin-top:2px">
+                          <span x-text="m.interacoes_semana + ' msg/sem'"></span>
+                          <span x-show="m.avg_engajamento_semana" x-text="'Score: ' + m.avg_engajamento_semana"></span>
+                          <span x-show="m.topicos_ativos" x-text="m.topicos_ativos + ' topico' + (m.topicos_ativos > 1 ? 's' : '')"></span>
+                        </div>
+                      </div>
+                      <!-- Urgency indicators -->
+                      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">
+                        <span x-show="m.duvidas_sem_resposta" class="badge badge--xs badge--danger" x-text="m.duvidas_sem_resposta + ' duvida' + (m.duvidas_sem_resposta > 1 ? 's' : '')"></span>
+                        <span x-show="m.pendencias_abertas && !m.duvidas_sem_resposta" class="badge badge--xs badge--warning" x-text="m.pendencias_abertas + ' pendencia' + (m.pendencias_abertas > 1 ? 's' : '')"></span>
+                        <span style="font-size:9px" :style="m.avg_horas_sem_resposta > 24 ? 'color:#ef4444;font-weight:700' : m.avg_horas_sem_resposta > 12 ? 'color:#f59e0b' : 'color:var(--neutral-400)'" x-text="m.avg_horas_sem_resposta ? Math.round(m.avg_horas_sem_resposta) + 'h sem resposta' : ''"></span>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+                <div x-show="!ccWaPendencias().length" style="text-align:center;padding:20px;color:var(--neutral-400);font-size:12px">Nenhuma pendencia aberta</div>
+              </div>
+            </div>
+
             <!-- CC V2: PLANEJAMENTO DA SEMANA -->
             <div class="bento-card bento-card--full" style="height:auto;min-height:14rem">
               <div class="bento-card__header">
@@ -1913,6 +1978,11 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
                 WhatsApp
               </button>
+              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'wa_intel' }" @click="ui.activeDetailTab = 'wa_intel'; loadMenteeWaIntel(data.detail?.profile?.id)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                WA Intel
+                <span class="op-tab__count" x-show="menteeWaStats()?.pendencias_abertas" x-text="menteeWaStats()?.pendencias_abertas"></span>
+              </button>
               <button class="op-tab" :class="{ active: ui.activeDetailTab === 'plano_acao' }" @click="ui.activeDetailTab = 'plano_acao'; loadMenteePa()">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                 Plano de Acao
@@ -2768,6 +2838,107 @@
               </div>
             </div>
 
+
+            <!-- ===== TAB: WA INTEL (Stories 1+4) ===== -->
+            <div class="op-tab-content" x-show="ui.activeDetailTab === 'wa_intel'">
+              <!-- Weekly Stats Card -->
+              <div class="card" x-show="menteeWaStats()">
+                <div class="card__header"><h3>Resumo da Semana</h3></div>
+                <div class="card__body" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:12px;padding:12px">
+                  <div style="text-align:center">
+                    <div style="font-size:22px;font-weight:700;color:var(--primary)" x-text="menteeWaStats()?.interacoes_semana || 0"></div>
+                    <div style="font-size:10px;color:var(--text-secondary)">Interacoes</div>
+                  </div>
+                  <div style="text-align:center">
+                    <div style="font-size:22px;font-weight:700" :style="(menteeWaStats()?.pendencias_abertas || 0) > 0 ? 'color:#ef4444' : 'color:#10b981'" x-text="menteeWaStats()?.pendencias_abertas || 0"></div>
+                    <div style="font-size:10px;color:var(--text-secondary)">Pendencias</div>
+                  </div>
+                  <div style="text-align:center">
+                    <div style="font-size:22px;font-weight:700" :style="(menteeWaStats()?.duvidas_sem_resposta || 0) > 0 ? 'color:#ef4444' : 'color:var(--neutral-400)'" x-text="menteeWaStats()?.duvidas_sem_resposta || 0"></div>
+                    <div style="font-size:10px;color:var(--text-secondary)">Duvidas abertas</div>
+                  </div>
+                  <div style="text-align:center">
+                    <div style="font-size:22px;font-weight:700;color:#f59e0b" x-text="menteeWaStats()?.celebracoes_semana || 0"></div>
+                    <div style="font-size:10px;color:var(--text-secondary)">Celebracoes</div>
+                  </div>
+                  <div style="text-align:center">
+                    <div style="font-size:22px;font-weight:700;color:var(--primary)" x-text="menteeWaStats()?.avg_engajamento_semana || '-'"></div>
+                    <div style="font-size:10px;color:var(--text-secondary)">Engajamento</div>
+                  </div>
+                  <div style="text-align:center">
+                    <div style="font-size:22px;font-weight:700;color:#8b5cf6" x-text="menteeWaStats()?.topicos_ativos || 0"></div>
+                    <div style="font-size:10px;color:var(--text-secondary)">Topicos ativos</div>
+                  </div>
+                </div>
+                <!-- Response time indicator -->
+                <div x-show="menteeWaStats()?.avg_horas_sem_resposta" style="padding:8px 12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px">
+                  <span style="font-size:11px;color:var(--text-secondary)">Tempo medio sem resposta:</span>
+                  <span style="font-size:13px;font-weight:700" :style="menteeWaStats()?.avg_horas_sem_resposta > 24 ? 'color:#ef4444' : menteeWaStats()?.avg_horas_sem_resposta > 12 ? 'color:#f59e0b' : 'color:#10b981'" x-text="Math.round(menteeWaStats()?.avg_horas_sem_resposta || 0) + 'h'"></span>
+                </div>
+                <!-- Last activity -->
+                <div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;gap:16px;font-size:11px;color:var(--text-secondary)">
+                  <span x-text="'Ultima msg mentorado: ' + (menteeWaStats()?.ultima_msg_mentorado ? new Date(menteeWaStats().ultima_msg_mentorado).toLocaleDateString('pt-BR', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : 'N/A')"></span>
+                  <span x-text="'Ultima msg equipe: ' + (menteeWaStats()?.ultima_msg_equipe ? new Date(menteeWaStats().ultima_msg_equipe).toLocaleDateString('pt-BR', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : 'N/A')"></span>
+                </div>
+              </div>
+
+              <!-- Pendencias / Duvidas (Story 4) -->
+              <div class="card" style="margin-top:12px">
+                <div class="card__header">
+                  <h3>Pendencias e Duvidas</h3>
+                  <span class="badge badge--sm" :class="(data._menteeWaActivity || []).filter(a => a.needs_response && !a.was_responded).length ? 'badge--danger' : 'badge--success'" x-text="(data._menteeWaActivity || []).filter(a => a.needs_response && !a.was_responded).length + ' abertas'"></span>
+                </div>
+                <div class="card__body" style="max-height:400px;overflow-y:auto">
+                  <template x-for="item in (data._menteeWaActivity || []).filter(a => a.needs_response && !a.was_responded).slice(0, 20)" :key="item.id">
+                    <div style="padding:10px 12px;border-bottom:1px solid var(--neutral-100);display:flex;gap:10px">
+                      <!-- Type indicator -->
+                      <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0"
+                           :style="item.activity_type === 'duvida' ? 'background:#dbeafe;color:#2563eb' : item.activity_type === 'solicitacao' ? 'background:#fef3c7;color:#d97706' : item.activity_type === 'bloqueio' ? 'background:#fee2e2;color:#dc2626' : 'background:var(--neutral-100);color:var(--neutral-500)'"
+                           x-text="item.activity_type === 'duvida' ? '?' : item.activity_type === 'solicitacao' ? '!' : item.activity_type === 'bloqueio' ? '#' : '*'"></div>
+                      <!-- Content -->
+                      <div style="flex:1;min-width:0">
+                        <div style="font-size:12px;color:var(--neutral-800);line-height:1.5" x-text="item.content?.substring(0, 200) + (item.content?.length > 200 ? '...' : '')"></div>
+                        <div style="display:flex;gap:10px;margin-top:4px;font-size:10px;color:var(--text-secondary)">
+                          <span x-text="item.activity_type"></span>
+                          <span x-text="item.sender_name"></span>
+                          <span x-text="item.activity_at ? new Date(item.activity_at).toLocaleDateString('pt-BR', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : ''"></span>
+                          <span x-show="item.response_urgency && item.response_urgency !== 'nao_urgente'" class="badge badge--xs badge--warning" x-text="item.response_urgency"></span>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                  <div x-show="!(data._menteeWaActivity || []).filter(a => a.needs_response && !a.was_responded).length" style="text-align:center;padding:24px;color:var(--neutral-400);font-size:12px">Nenhuma pendencia aberta</div>
+                </div>
+              </div>
+
+              <!-- Recent Activity Timeline (Story 3 partial) -->
+              <div class="card" style="margin-top:12px">
+                <div class="card__header"><h3>Atividade Recente</h3></div>
+                <div class="card__body" style="max-height:400px;overflow-y:auto">
+                  <template x-for="item in (data._menteeWaActivity || []).slice(0, 30)" :key="item.id">
+                    <div style="padding:8px 12px;border-bottom:1px solid var(--neutral-50);display:flex;gap:10px;align-items:flex-start">
+                      <!-- Activity type icon -->
+                      <div style="width:8px;height:8px;border-radius:50%;margin-top:6px;flex-shrink:0"
+                           :style="item.sentiment === 'positivo' ? 'background:#10b981' : item.sentiment === 'negativo' ? 'background:#ef4444' : item.is_team ? 'background:#3b82f6' : 'background:var(--neutral-300)'"></div>
+                      <div style="flex:1;min-width:0">
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+                          <span style="font-size:11px;font-weight:600" x-text="item.sender_name || 'Sistema'"></span>
+                          <span class="badge badge--xs" :class="item.activity_type === 'duvida' ? 'badge--info' : item.activity_type === 'celebracao' ? 'badge--success' : item.activity_type === 'bloqueio' ? 'badge--danger' : item.activity_type === 'solicitacao' ? 'badge--warning' : 'badge--neutral'" x-text="item.activity_type"></span>
+                          <span x-show="item.is_team" class="badge badge--xs badge--info">equipe</span>
+                        </div>
+                        <div style="font-size:11px;color:var(--neutral-700);line-height:1.4" x-text="item.content?.substring(0, 150) + (item.content?.length > 150 ? '...' : '')"></div>
+                        <div style="font-size:9px;color:var(--neutral-400);margin-top:3px" x-text="item.activity_at ? new Date(item.activity_at).toLocaleDateString('pt-BR', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : ''"></div>
+                      </div>
+                    </div>
+                  </template>
+                  <div x-show="!(data._menteeWaActivity || []).length" style="text-align:center;padding:24px;color:var(--neutral-400);font-size:12px">Nenhuma atividade registrada</div>
+                </div>
+              </div>
+
+              <div x-show="!menteeWaStats()" style="text-align:center;padding:40px;color:var(--neutral-400);font-size:13px">
+                Carregando dados WA Intel...
+              </div>
+            </div>
 
             <!-- ===== TAB: PLANO DE AÇÃO ===== -->
             <div class="op-tab-content" x-show="ui.activeDetailTab === 'plano_acao'">
@@ -12421,7 +12592,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=223"></script>
+  <script src="11-APP-app.js?v=224"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">

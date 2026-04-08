@@ -525,6 +525,8 @@ function operon() {
       menteeFiles: { docs: [], media: [], loading: false },
       groups: [],               // mentee_groups with member_ids
       waGroups: [],             // wa_groups from Supabase (Story 8)
+      waWeeklyStats: [],        // vw_wa_mentee_weekly_stats (WA Intelligence)
+      _menteeWaActivity: [],    // vw_wa_mentee_activity for selected mentorado
       // WA DM v2 (S9-B)
       waCannedAll: [],          // cache de canned responses
       // S9-C
@@ -2770,11 +2772,12 @@ function operon() {
       sb = await initSupabase();
       if (sb) {
         try {
-          const [mentees, cohort, pendencias, paPipeline] = await Promise.all([
+          const [mentees, cohort, pendencias, paPipeline, waWeekly] = await Promise.all([
             sb.from('vw_god_overview').select('*'),
             sb.from('vw_god_cohort').select('*'),
             sb.from('vw_god_pendencias').select('*').order('created_at', { ascending: true }),
             sb.from('vw_pa_pipeline').select('*'),
+            sb.from('vw_wa_mentee_weekly_stats').select('*'),
           ]);
           // Load calls in background (non-blocking)
           const calls = await sb.from('calls_mentoria')
@@ -2788,6 +2791,8 @@ function operon() {
           if (pendencias.error) console.error('[Spalla] Pendencias query error:', pendencias.error.message);
           if (paPipeline.error) console.error('[Spalla] PA Pipeline query error:', paPipeline.error?.message);
           if (paPipeline.data) this.data.paPlanos = paPipeline.data;
+          if (waWeekly.error) console.error('[Spalla] WA Weekly Stats query error:', waWeekly.error?.message);
+          if (waWeekly.data) this.data.waWeeklyStats = waWeekly.data;
           // Load lightweight fases + acoes for sentinel calculations
           const [paFasesRes, paAcoesRes] = await Promise.all([
             sb.from('pa_fases').select('id, plano_id, titulo, tipo, status, ordem, origem'),
@@ -4323,6 +4328,34 @@ function operon() {
     },
 
     // ===================== COMMAND CENTER COMPUTED =====================
+
+    // WA Intelligence: mentorados com pendências ordenados por urgência
+    ccWaPendencias() {
+      return (this.data.waWeeklyStats || [])
+        .filter(s => s.pendencias_abertas > 0)
+        .sort((a, b) => (b.avg_horas_sem_resposta || 0) - (a.avg_horas_sem_resposta || 0));
+    },
+
+    // WA Intelligence: resumo geral da semana
+    ccWaResumoSemana() {
+      const stats = this.data.waWeeklyStats || [];
+      return {
+        totalInteracoes: stats.reduce((s, m) => s + (m.interacoes_semana || 0), 0),
+        totalPendencias: stats.reduce((s, m) => s + (m.pendencias_abertas || 0), 0),
+        totalDuvidasAbertas: stats.reduce((s, m) => s + (m.duvidas_sem_resposta || 0), 0),
+        mentoradosAtivos: stats.filter(m => m.interacoes_semana > 0).length,
+        mentoradosInativos: stats.filter(m => m.interacoes_semana === 0).length,
+        celebracoes: stats.reduce((s, m) => s + (m.celebracoes_semana || 0), 0),
+        negativos: stats.reduce((s, m) => s + (m.msgs_negativas_semana || 0), 0),
+      };
+    },
+
+    // WA Intel: stats do mentorado selecionado na ficha
+    menteeWaStats() {
+      const mid = this.data.detail?.profile?.id;
+      if (!mid) return null;
+      return (this.data.waWeeklyStats || []).find(s => s.mentorado_id === mid) || null;
+    },
 
     ccSelectedSprint() {
       const sprints = (this.data.sprints || []).slice().sort((a, b) => (a.inicio || '').localeCompare(b.inicio || ''));
@@ -11332,6 +11365,20 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     // ===== CONTEXT HUB: áudio, texto, anexos para dossiê =====
+    async loadMenteeWaIntel(menteeId) {
+      if (!menteeId) return;
+      this.data._menteeWaActivity = [];
+      try {
+        const { data, error } = await sb.from('vw_wa_mentee_activity')
+          .select('*')
+          .eq('mentorado_id', menteeId)
+          .order('activity_at', { ascending: false })
+          .limit(100);
+        if (error) console.warn('[Spalla] loadMenteeWaIntel:', error.message);
+        if (data) this.data._menteeWaActivity = data;
+      } catch (e) { console.warn('[Spalla] loadMenteeWaIntel:', e); }
+    },
+
     async loadMenteeContext(menteeId) {
       if (!menteeId) return;
       this.data.menteeContext = [];
