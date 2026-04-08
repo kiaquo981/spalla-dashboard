@@ -2056,10 +2056,9 @@ function operon() {
           // Load WhatsApp per-user session + start health check
           this.loadWaSession();
           this.waStartHealthCheck();
-          // Lazy-load Arquivos data if page is already on arquivos (deep-link or localStorage restore)
-          if (this.ui.page === 'arquivos') {
-            this.loadArquivos();
-          }
+          // Lazy-load data if page is already restored from localStorage
+          if (this.ui.page === 'arquivos') this.loadArquivos();
+          if (this.ui.page === 'meu_trabalho') this.loadMeuTrabalho();
         }
       } catch (e) {
         console.error('[Spalla] INIT ERROR:', e);
@@ -6177,6 +6176,7 @@ function operon() {
       if (page === 'command_center' && !this.data.dsProducoes.length) this.loadDsData();
       if (page === 'carteira') this.initWaKeyboardShortcuts();
       if (page === 'descarrego') { this.ui.ctxFilter.tipo = 'all'; this.ui.ctxFilter.fase = 'all'; }
+      if (page === 'meu_trabalho') this.loadMeuTrabalho();
       localStorage.setItem('spalla_page', page);
       // Update URL without reload
       const route = this._pageToRoute(page);
@@ -11268,22 +11268,30 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       try {
         if (!sb) sb = await initSupabase();
         if (!sb) { console.error('[MeuTrabalho] Supabase not available'); this.meuTrabalho = []; return; }
-        // Resolve primeiro nome: full_name > user_metadata.full_name > email prefix
-        let me = (this.auth.currentUser?.full_name
-          || this.auth.currentUser?.user_metadata?.full_name
-          || '').toLowerCase().split(' ')[0];
+        // Resolve nome com múltiplos fallbacks (fix intermitência)
+        let me = '';
+        // 1. Auth user name
+        const fullName = this.auth.currentUser?.full_name
+          || this.auth.currentUser?.user_metadata?.full_name || '';
+        if (fullName) me = fullName.toLowerCase().split(' ')[0];
+        // 2. Email prefix
         if (!me) {
           const email = (this.auth.currentUser?.email || '').toLowerCase();
-          me = email.split(/[@.]/)[0];
+          if (email) me = email.split(/[@.]/)[0];
         }
-        if (!me) { console.warn('[MeuTrabalho] no user name resolved'); this.meuTrabalho = []; return; }
-        const member = TEAM_MEMBERS.find(m => m.id === me || m.name.toLowerCase() === me);
+        // 3. TEAM_MEMBERS match
+        const member = me ? TEAM_MEMBERS.find(m => m.id === me || m.name.toLowerCase() === me) : null;
         const searchName = member ? member.id : me;
-        console.log('[MeuTrabalho] querying for:', searchName);
+        // 4. Fallback: se auth ainda não carregou, usa 'kaique' (owner default)
+        if (!searchName) {
+          console.warn('[MeuTrabalho] auth não carregou ainda, usando fallback "kaique"');
+        }
+        const finalName = searchName || 'kaique';
+        console.log('[MeuTrabalho] querying for:', finalName);
         const { data, error } = await sb
           .from('vw_meu_trabalho')
           .select('*')
-          .or(`responsavel.ilike.%${searchName}%,acompanhante.ilike.%${searchName}%`)
+          .or(`responsavel.ilike.%${finalName}%,acompanhante.ilike.%${finalName}%`)
           .order('prioridade', { ascending: true })
           .limit(200);
         if (error) throw error;
