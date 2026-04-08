@@ -1116,6 +1116,72 @@
               </div>
             </div>
 
+            <!-- WA INTELLIGENCE: ALERTAS (Story 6) -->
+            <div class="bento-card bento-card--half" x-show="ccWaAlertas().length" style="height:auto;min-height:10rem">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Alertas Operacionais</span>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <span x-show="ccWaAlertasCriticos().length" class="badge badge--sm badge--danger" x-text="ccWaAlertasCriticos().length + ' critico' + (ccWaAlertasCriticos().length > 1 ? 's' : '')"></span>
+                  <span class="badge badge--sm badge--warning" x-text="ccWaAlertas().length + ' aberto' + (ccWaAlertas().length > 1 ? 's' : '')"></span>
+                </div>
+              </div>
+              <div class="bento-card__body" style="overflow-y:auto;display:flex;flex-direction:column;gap:4px;max-height:360px">
+                <template x-for="a in ccWaAlertas()" :key="a.id">
+                  <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);transition:background .15s"
+                       @mouseover="$el.style.background='var(--neutral-50,#faf9f7)'" @mouseout="$el.style.background='transparent'">
+                    <!-- Severidade indicator -->
+                    <div style="width:8px;height:8px;border-radius:50%;flex-shrink:0"
+                         :style="a.severidade === 'critico' ? 'background:#dc2626' : a.severidade === 'alto' ? 'background:#f59e0b' : a.severidade === 'medio' ? 'background:#3b82f6' : 'background:var(--neutral-300)'"></div>
+                    <!-- Info -->
+                    <div style="flex:1;min-width:0;cursor:pointer" @click="openDetail(a.mentorado_id)">
+                      <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="a.titulo"></div>
+                      <div style="display:flex;gap:8px;font-size:10px;color:var(--text-secondary);margin-top:2px">
+                        <span x-text="a.mentorado_nome"></span>
+                        <span x-text="a.tipo"></span>
+                        <span x-text="Math.round(a.horas_aberto) + 'h'"></span>
+                      </div>
+                      <div x-show="a.descricao" style="font-size:10px;color:var(--neutral-500);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="a.descricao"></div>
+                    </div>
+                    <!-- Resolve -->
+                    <button class="btn btn--sm" style="flex-shrink:0;font-size:10px;padding:4px 8px" @click="resolveAlerta(a.id)" title="Resolver">Resolver</button>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- WORKLOAD EQUIPE (Story 3.1) -->
+            <div class="bento-card bento-card--half" x-show="ccWorkloadEquipe().length" style="height:auto;min-height:10rem">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Carga da Equipe</span>
+                <span class="badge badge--sm badge--neutral" x-text="ccWorkloadEquipe().length + ' membros'"></span>
+              </div>
+              <div class="bento-card__body" style="overflow-y:auto;display:flex;flex-direction:column;gap:6px;max-height:360px">
+                <template x-for="m in ccWorkloadEquipe()" :key="m.id">
+                  <div style="padding:8px 10px;border-radius:8px;border:1px solid var(--border)">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                      <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0" :style="'background:' + m.cor" x-text="m.nome.charAt(0)"></div>
+                      <div style="flex:1">
+                        <div style="font-size:12px;font-weight:600" x-text="m.nome"></div>
+                        <div style="font-size:9px;color:var(--text-secondary)" x-text="m.cargo"></div>
+                      </div>
+                      <span x-show="m.atrasadas" class="badge badge--xs badge--danger" x-text="m.atrasadas + ' atrasada' + (m.atrasadas > 1 ? 's' : '')"></span>
+                    </div>
+                    <!-- Progress bar -->
+                    <div style="height:6px;background:var(--neutral-100);border-radius:3px;overflow:hidden;display:flex">
+                      <div style="height:100%;border-radius:3px 0 0 3px;transition:width .3s" :style="'width:' + (m.total ? Math.round(m.concluida/m.total*100) : 0) + '%;background:#10b981'"></div>
+                      <div style="height:100%;transition:width .3s" :style="'width:' + (m.total ? Math.round(m.em_andamento/m.total*100) : 0) + '%;background:#3b82f6'"></div>
+                      <div style="height:100%;transition:width .3s" :style="'width:' + (m.total ? Math.round(m.pendente/m.total*100) : 0) + '%;background:var(--neutral-200)'"></div>
+                    </div>
+                    <div style="display:flex;gap:10px;margin-top:4px;font-size:10px;color:var(--text-secondary)">
+                      <span x-text="m.em_andamento + ' em progresso'"></span>
+                      <span x-text="m.pendente + ' pendentes'"></span>
+                      <span x-text="m.concluida + ' concluídas'"></span>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
             <!-- CC V2: PLANEJAMENTO DA SEMANA -->
             <div class="bento-card bento-card--full" style="height:auto;min-height:14rem">
               <div class="bento-card__header">
@@ -1978,7 +2044,7 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
                 WhatsApp
               </button>
-              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'wa_intel' }" @click="ui.activeDetailTab = 'wa_intel'; loadMenteeWaIntel(data.detail?.profile?.id)">
+              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'wa_intel' }" @click="ui.activeDetailTab = 'wa_intel'; loadMenteeWaIntel(data.detail?.profile?.id); loadWaIntelligence(data.detail?.profile?.id)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                 WA Intel
                 <span class="op-tab__count" x-show="menteeWaStats()?.pendencias_abertas" x-text="menteeWaStats()?.pendencias_abertas"></span>
@@ -2908,6 +2974,44 @@
                     </div>
                   </template>
                   <div x-show="!(data._menteeWaActivity || []).filter(a => a.needs_response && !a.was_responded).length" style="text-align:center;padding:24px;color:var(--neutral-400);font-size:12px">Nenhuma pendencia aberta</div>
+                </div>
+              </div>
+
+              <!-- Percepcoes CRUD (Story 5) -->
+              <div class="card" style="margin-top:12px">
+                <div class="card__header">
+                  <h3>Percepções e Notas</h3>
+                  <span class="badge badge--sm badge--neutral" x-text="(waIntel.percepcoes || []).length + ' registradas'"></span>
+                </div>
+                <div class="card__body">
+                  <!-- Create form -->
+                  <div style="display:flex;gap:8px;margin-bottom:12px">
+                    <select style="width:120px;font-size:11px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg)" x-model="_percepcaoForm.tipo">
+                      <option value="observacao">Observação</option>
+                      <option value="insight">Insight</option>
+                      <option value="alerta">Alerta</option>
+                      <option value="decisao">Decisão</option>
+                      <option value="bloqueio">Bloqueio</option>
+                    </select>
+                    <input type="text" class="form-input" style="flex:1;font-size:12px" placeholder="Registrar percepção..." x-model="_percepcaoForm.conteudo" @keydown.enter="addPercepcao(data.detail?.profile?.id)">
+                    <button class="btn btn--primary btn--sm" @click="addPercepcao(data.detail?.profile?.id)" :disabled="!_percepcaoForm.conteudo.trim()">Salvar</button>
+                  </div>
+                  <!-- List -->
+                  <div style="max-height:300px;overflow-y:auto">
+                    <template x-for="p in (waIntel.percepcoes || [])" :key="p.id">
+                      <div style="padding:8px 10px;border-bottom:1px solid var(--neutral-100);display:flex;gap:8px;align-items:flex-start">
+                        <span style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;flex-shrink:0;text-transform:uppercase"
+                              :style="p.tipo === 'bloqueio' ? 'background:#fee2e2;color:#dc2626' : p.tipo === 'alerta' ? 'background:#fef3c7;color:#d97706' : p.tipo === 'insight' ? 'background:#dbeafe;color:#2563eb' : p.tipo === 'decisao' ? 'background:#d1fae5;color:#059669' : 'background:var(--neutral-100);color:var(--neutral-600)'"
+                              x-text="p.tipo"></span>
+                        <div style="flex:1;min-width:0">
+                          <div style="font-size:12px;color:var(--neutral-800);line-height:1.5;white-space:pre-wrap" x-text="p.conteudo?.substring(0, 300) + (p.conteudo?.length > 300 ? '...' : '')"></div>
+                          <div style="font-size:9px;color:var(--neutral-400);margin-top:3px" x-text="(p.autor || 'Sistema') + ' • ' + (p.created_at ? new Date(p.created_at).toLocaleDateString('pt-BR', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '')"></div>
+                        </div>
+                        <button style="flex-shrink:0;font-size:10px;color:var(--neutral-400);cursor:pointer;background:none;border:none;padding:4px" title="Remover" @click="deletePercepcao(p.id, data.detail?.profile?.id)">✕</button>
+                      </div>
+                    </template>
+                    <div x-show="!(waIntel.percepcoes || []).length" style="text-align:center;padding:20px;color:var(--neutral-400);font-size:12px">Nenhuma percepção registrada</div>
+                  </div>
                 </div>
               </div>
 
@@ -4457,6 +4561,9 @@
                 </button>
                 <button class="cu-quickfilter" :class="{ 'cu-quickfilter--active': quickFilter === 'favorites' }" @click="setQuickFilter('favorites')">
                   Favoritas <span class="cu-quickfilter__count" x-text="quickFilterCounts.favorites"></span>
+                </button>
+                <button class="cu-quickfilter" :class="{ 'cu-quickfilter--active': quickFilter === 'recurring' }" @click="setQuickFilter('recurring')">
+                  Recorrentes <span class="cu-quickfilter__count" x-text="quickFilterCounts.recurring"></span>
                 </button>
               </div>
 
@@ -7280,9 +7387,9 @@
                       <span x-text="r.mentorado_nome"></span>
                     </span>
                     <span x-show="r.tipo && r.tipo !== 'geral'" class="badge badge--sm badge--neutral" x-text="r.tipo"></span>
-                    <span x-show="r.recorrencia && r.recorrencia !== 'nenhuma'" style="display:flex;align-items:center;gap:3px;color:var(--info)">
+                    <span x-show="r.recorrencia && r.recorrencia !== 'nenhuma'" style="display:flex;align-items:center;gap:3px;cursor:pointer" :style="(r.recorrencia_ativa ?? true) ? 'color:var(--info)' : 'color:var(--neutral-400);text-decoration:line-through'" @click.stop="toggleRecorrencia(r.id)" :title="(r.recorrencia_ativa ?? true) ? 'Clique para pausar' : 'Clique para reativar'">
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                      <span x-text="r.recorrencia"></span>
+                      <span x-text="recorrenciaLabel(r.recorrencia)"></span>
                     </span>
                     <span style="color:var(--neutral-400)">Criado <span x-text="formatDate(r.created_at)"></span></span>
                   </div>
@@ -12621,7 +12728,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=226"></script>
+  <script src="11-APP-app.js?v=227"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">

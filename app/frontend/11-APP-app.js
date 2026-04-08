@@ -527,6 +527,7 @@ function operon() {
       groups: [],               // mentee_groups with member_ids
       waGroups: [],             // wa_groups from Supabase (Story 8)
       waWeeklyStats: [],        // vw_wa_mentee_weekly_stats (WA Intelligence)
+      waAlertas: [],            // vw_alertas_command_center (Story 6)
       _menteeWaActivity: [],    // vw_wa_mentee_activity for selected mentorado
       // WA DM v2 (S9-B)
       waCannedAll: [],          // cache de canned responses
@@ -1408,7 +1409,16 @@ function operon() {
     },
 
     recorrenciaLabel(r) {
-      return { diario: 'Diaria', semanal: 'Semanal', quinzenal: 'Quinzenal', mensal: 'Mensal' }[r] || '';
+      return { diario: 'Diária', semanal: 'Semanal', quinzenal: 'Quinzenal', mensal: 'Mensal' }[r] || '';
+    },
+
+    async toggleRecorrencia(taskId) {
+      const task = this.data.tasks.find(t => t.id === taskId);
+      if (!task) return;
+      const newVal = !(task.recorrencia_ativa ?? true);
+      task.recorrencia_ativa = newVal;
+      await this.updateTaskField(taskId, 'recorrencia_ativa', newVal);
+      this.toast(newVal ? 'Recorrência reativada' : 'Recorrência pausada', 'info');
     },
 
     // Kanban: group mentees by phase
@@ -1534,6 +1544,7 @@ function operon() {
         else if (this.quickFilter === 'unassigned') list = list.filter(t => !t.responsavel);
         else if (this.quickFilter === 'thisWeek') list = list.filter(t => t.data_fim && new Date(t.data_fim) >= now && new Date(t.data_fim) <= weekEnd);
         else if (this.quickFilter === 'favorites') list = list.filter(t => this.favorites.includes(t.id));
+        else if (this.quickFilter === 'recurring') list = list.filter(t => t.recorrencia && t.recorrencia !== 'nenhuma');
       }
       if (this.ui.search && this.ui.page === 'tasks') {
         const q = this.ui.search.toLowerCase();
@@ -2773,12 +2784,13 @@ function operon() {
       sb = await initSupabase();
       if (sb) {
         try {
-          const [mentees, cohort, pendencias, paPipeline, waWeekly] = await Promise.all([
+          const [mentees, cohort, pendencias, paPipeline, waWeekly, waAlertas] = await Promise.all([
             sb.from('vw_god_overview').select('*'),
             sb.from('vw_god_cohort').select('*'),
             sb.from('vw_god_pendencias').select('*').order('created_at', { ascending: true }),
             sb.from('vw_pa_pipeline').select('*'),
             sb.from('vw_wa_mentee_weekly_stats').select('*'),
+            sb.from('vw_alertas_command_center').select('*'),
           ]);
           // Load calls in background (non-blocking)
           const calls = await sb.from('calls_mentoria')
@@ -2794,6 +2806,8 @@ function operon() {
           if (paPipeline.data) this.data.paPlanos = paPipeline.data;
           if (waWeekly.error) console.error('[Spalla] WA Weekly Stats query error:', waWeekly.error?.message);
           if (waWeekly.data) this.data.waWeeklyStats = waWeekly.data;
+          if (waAlertas.error) console.error('[Spalla] WA Alertas query error:', waAlertas.error?.message);
+          if (waAlertas.data) this.data.waAlertas = waAlertas.data;
           // Load lightweight fases + acoes for sentinel calculations
           const [paFasesRes, paAcoesRes] = await Promise.all([
             sb.from('pa_fases').select('id, plano_id, titulo, tipo, status, ordem, origem'),
@@ -4351,11 +4365,112 @@ function operon() {
       };
     },
 
+    // WA Intelligence: alertas abertos agrupados por severidade (Story 6)
+    ccWaAlertas() {
+      return this.data.waAlertas || [];
+    },
+    ccWaAlertasCriticos() {
+      return (this.data.waAlertas || []).filter(a => a.severidade === 'critico' || a.severidade === 'alto');
+    },
+
+    // --- Percepcoes CRUD (Story 5) ---
+    _percepcaoForm: { conteudo: '', tipo: 'observacao' },
+
+    async addPercepcao(mentoradoId) {
+      if (!sb || !mentoradoId || !this._percepcaoForm.conteudo.trim()) return;
+      const { error } = await sb.from('percepcoes_mentorado').insert({
+        mentorado_id: mentoradoId,
+        conteudo: this._percepcaoForm.conteudo.trim(),
+        tipo: this._percepcaoForm.tipo || 'observacao',
+        autor: this.currentUserName || 'Equipe',
+        fonte: 'dashboard',
+      });
+      if (error) return this.toast('Erro ao salvar percepção: ' + error.message, 'error');
+      this._percepcaoForm = { conteudo: '', tipo: 'observacao' };
+      await this.loadWaIntelligence(mentoradoId);
+      this.toast('Percepção registrada', 'success');
+    },
+
+    async deletePercepcao(percId, mentoradoId) {
+      if (!sb || !percId) return;
+      const { error } = await sb.from('percepcoes_mentorado').delete().eq('id', percId);
+      if (error) return this.toast('Erro ao remover: ' + error.message, 'error');
+      await this.loadWaIntelligence(mentoradoId);
+      this.toast('Percepção removida', 'info');
+    },
+
+    // --- Alertas CRUD (Story 6) ---
+    _alertaForm: { titulo: '', tipo: 'custom', severidade: 'medio', descricao: '' },
+
+    async addAlerta(mentoradoId) {
+      if (!sb || !mentoradoId || !this._alertaForm.titulo.trim()) return;
+      const { error } = await sb.from('alertas_mentorado').insert({
+        mentorado_id: mentoradoId,
+        titulo: this._alertaForm.titulo.trim(),
+        tipo: this._alertaForm.tipo || 'custom',
+        severidade: this._alertaForm.severidade || 'medio',
+        descricao: this._alertaForm.descricao.trim() || null,
+        fonte: 'equipe',
+      });
+      if (error) return this.toast('Erro ao criar alerta: ' + error.message, 'error');
+      this._alertaForm = { titulo: '', tipo: 'custom', severidade: 'medio', descricao: '' };
+      await this._reloadAlertas();
+      this.toast('Alerta criado', 'success');
+    },
+
+    async resolveAlerta(alertaId) {
+      if (!sb || !alertaId) return;
+      const { error } = await sb.from('alertas_mentorado').update({
+        resolvido: true,
+        resolvido_por: this.currentUserName || 'Equipe',
+        resolvido_at: new Date().toISOString(),
+      }).eq('id', alertaId);
+      if (error) return this.toast('Erro ao resolver: ' + error.message, 'error');
+      await this._reloadAlertas();
+      this.toast('Alerta resolvido', 'success');
+    },
+
+    async _reloadAlertas() {
+      if (!sb) return;
+      const { data } = await sb.from('vw_alertas_command_center').select('*');
+      if (data) this.data.waAlertas = data;
+    },
+
     // WA Intel: stats do mentorado selecionado na ficha
     menteeWaStats() {
       const mid = this.data.detail?.profile?.id;
       if (!mid) return null;
       return (this.data.waWeeklyStats || []).find(s => s.mentorado_id === mid) || null;
+    },
+
+    // Story 3.1: Workload por membro da equipe
+    ccWorkloadEquipe() {
+      const tasks = this.data.tasks || [];
+      const members = this.data.members || [];
+      const byMember = {};
+      for (const t of tasks) {
+        const resp = (t.responsavel || '').toLowerCase().trim();
+        if (!resp || resp === 'sistema') continue;
+        if (!byMember[resp]) byMember[resp] = { pendente: 0, em_andamento: 0, concluida: 0, total: 0, atrasadas: 0 };
+        const s = t.status || 'pendente';
+        if (s === 'concluida' || s === 'cancelada') byMember[resp].concluida++;
+        else if (s === 'em_andamento') byMember[resp].em_andamento++;
+        else byMember[resp].pendente++;
+        byMember[resp].total++;
+        if (s !== 'concluida' && s !== 'cancelada' && t.data_fim) {
+          const due = new Date(t.data_fim);
+          if (due < new Date()) byMember[resp].atrasadas++;
+        }
+      }
+      return members
+        .filter(m => m.ativo !== false)
+        .map(m => {
+          const key = (m.nome_curto || m.id || '').toLowerCase();
+          const stats = byMember[key] || { pendente: 0, em_andamento: 0, concluida: 0, total: 0, atrasadas: 0 };
+          return { ...stats, id: m.id, nome: m.nome_curto || m.nome_completo, cor: m.cor || '#6366f1', cargo: m.cargo || '' };
+        })
+        .filter(m => m.total > 0)
+        .sort((a, b) => (b.em_andamento + b.pendente) - (a.em_andamento + a.pendente));
     },
 
     ccSelectedSprint() {
@@ -7862,6 +7977,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         unassigned: tasks.filter(t => !t.responsavel).length,
         thisWeek: tasks.filter(t => t.data_fim && new Date(t.data_fim) >= now && new Date(t.data_fim) <= weekEnd).length,
         favorites: this.favorites.length,
+        recurring: tasks.filter(t => t.recorrencia && t.recorrencia !== 'nenhuma').length,
       };
     },
 
