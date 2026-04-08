@@ -8810,6 +8810,65 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       return headers;
     },
 
+    // Gantt dependency SVG lines — calculates arrow paths between tasks with depends_on
+    get ganttDependencyLines() {
+      const tasks = this.ganttTasks;
+      if (!tasks.length) return [];
+      const taskIndex = {};
+      tasks.forEach((t, i) => { taskIndex[t.id] = i; });
+
+      const range = this.ui.taskGanttRange;
+      const now = new Date();
+      let rangeStart, totalDays;
+      if (range === 'week') {
+        rangeStart = new Date(now);
+        rangeStart.setDate(now.getDate() - now.getDay());
+        totalDays = 7;
+      } else if (range === 'quarter') {
+        rangeStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+        totalDays = 90;
+      } else {
+        rangeStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        totalDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      }
+
+      const ROW_HEIGHT = 40; // matches .gantt-row__timeline height
+      const BAR_MID_Y = 20; // vertical center of bar in row
+
+      const lines = [];
+      for (const task of tasks) {
+        if (!task.depends_on || !task.depends_on.length) continue;
+        const toIdx = taskIndex[task.id];
+        if (toIdx === undefined) continue;
+
+        for (const depId of task.depends_on) {
+          const fromIdx = taskIndex[depId];
+          if (fromIdx === undefined) continue;
+          const dep = tasks[fromIdx];
+
+          // Calculate X positions as percentages (matching ganttBarStyle logic)
+          const depStart = dep.data_inicio ? parseDateStr(dep.data_inicio) : (dep.created_at ? parseDateStr(dep.created_at) : now);
+          const depEnd = dep.data_fim || dep.prazo ? parseDateStr(dep.data_fim || dep.prazo) : new Date(depStart.getTime() + 7 * 86400000);
+          const depStartOff = Math.max(0, (depStart - rangeStart) / 86400000);
+          const depDur = Math.max(1, (depEnd - depStart) / 86400000);
+          const fromXPct = Math.min((depStartOff + depDur) / totalDays * 100, 100);
+
+          const taskStart = task.data_inicio ? parseDateStr(task.data_inicio) : (task.created_at ? parseDateStr(task.created_at) : now);
+          const taskStartOff = Math.max(0, (taskStart - rangeStart) / 86400000);
+          const toXPct = Math.max(0, taskStartOff / totalDays * 100);
+
+          const fromY = fromIdx * ROW_HEIGHT + BAR_MID_Y;
+          const toY = toIdx * ROW_HEIGHT + BAR_MID_Y;
+
+          // Determine if blocking (dep not completed)
+          const isBlocking = dep.status !== 'concluida' && dep.status !== 'cancelada';
+
+          lines.push({ fromXPct, toXPct, fromY, toY, isBlocking });
+        }
+      }
+      return lines;
+    },
+
     // Grouped tasks for list view
     get tasksGrouped() {
       const groupBy = this.ui.taskGroupBy;
