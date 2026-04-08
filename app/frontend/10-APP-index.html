@@ -4540,6 +4540,10 @@
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                       Importar Tudo
                     </button>
+                    <div style="height:1px;background:#e2e8f0;margin:2px 0"></div>
+                    <div style="padding:6px 10px;font-size:10px;color:var(--text-secondary)">
+                      Sync: <span style="color:#10b981">●</span> sincronizado <span style="color:#f59e0b">●</span> pendente <span style="color:var(--neutral-300)">●</span> sem vínculo
+                    </div>
                   </div>
                 </div>
                 <span class="op-toolbar__count" x-text="(ui.taskView === 'list' ? tasksTree.filter(t=>t._depth===0).length : data.tasks.length) + ' tarefas'"></span>
@@ -4887,6 +4891,10 @@
                             <span x-show="subtaskProgress(t).total > 0" class="cu-list__indicator cu-list__indicator--subtask">
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                               <span x-text="subtaskProgress(t).done + '/' + subtaskProgress(t).total"></span>
+                            </span>
+                            <!-- ClickUp sync indicator -->
+                            <span x-show="t.operon_id" class="cu-list__indicator" style="cursor:pointer" :title="taskSyncLabel(t)" @click.stop="clickupPushTask(t.id)">
+                              <span style="display:inline-block;width:6px;height:6px;border-radius:50%" :style="'background:' + taskSyncColor(t)"></span>
                             </span>
                             <span x-show="t.comments?.length" class="cu-list__indicator">
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -5735,6 +5743,14 @@
                       <button @click="toggleFavorite(activeTaskDetail.id)" :title="isFavorite(activeTaskDetail.id) ? 'Remover favorito' : 'Favoritar'" style="padding:6px;border-radius:6px;border:none;background:none;cursor:pointer;transition:background .1s" :style="isFavorite(activeTaskDetail.id) ? 'color:#eab308' : 'color:#64748b'" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'">
                         <svg width="14" height="14" viewBox="0 0 24 24" :fill="isFavorite(activeTaskDetail.id) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
                       </button>
+                      <!-- ClickUp Sync (Fase 4) -->
+                      <button x-show="activeTaskDetail.operon_id" @click="clickupPushTask(activeTaskDetail.id)" :title="'ClickUp: ' + taskSyncLabel(activeTaskDetail)" style="padding:6px;border-radius:6px;border:none;background:none;cursor:pointer;transition:background .1s;display:flex;align-items:center;gap:3px" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'">
+                        <span style="width:6px;height:6px;border-radius:50%;display:inline-block" :style="'background:' + taskSyncColor(activeTaskDetail)"></span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                      </button>
+                      <a x-show="activeTaskDetail.clickup_url" :href="activeTaskDetail.clickup_url" target="_blank" title="Abrir no ClickUp" style="padding:6px;border-radius:6px;display:flex;align-items:center;color:#7b68ee;transition:background .1s" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                      </a>
                       <!-- Duplicate (Dragon 28) -->
                       <button @click="duplicateTask(activeTaskDetail.id)" title="Duplicar" style="padding:6px;border-radius:6px;border:none;background:none;cursor:pointer;color:#64748b;transition:background .1s" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
@@ -12728,7 +12744,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=227"></script>
+  <script src="11-APP-app.js?v=228"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">

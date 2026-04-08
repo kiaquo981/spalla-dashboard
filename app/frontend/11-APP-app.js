@@ -7382,6 +7382,26 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       finally { this.ui.syncingSubtasks = false; }
     },
 
+    // Sync status per task: 'synced' | 'pending' | 'unlinked'
+    taskSyncStatus(task) {
+      if (!task) return 'unlinked';
+      if (!task.operon_id) return 'unlinked';
+      if (!task.clickup_synced_at) return 'pending';
+      const synced = new Date(task.clickup_synced_at);
+      const updated = new Date(task.updated_at || task.created_at);
+      return updated > synced ? 'pending' : 'synced';
+    },
+
+    taskSyncLabel(task) {
+      const s = this.taskSyncStatus(task);
+      return s === 'synced' ? 'Sincronizado' : s === 'pending' ? 'Pendente' : 'Não vinculado';
+    },
+
+    taskSyncColor(task) {
+      const s = this.taskSyncStatus(task);
+      return s === 'synced' ? '#10b981' : s === 'pending' ? '#f59e0b' : 'var(--neutral-300)';
+    },
+
     async clickupPushTask(taskId) {
       try {
         const res = await fetch(`${CONFIG.API_BASE}/api/clickup/push/${taskId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
