@@ -2505,28 +2505,28 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             if not event:
                 return self._send_json({'error': 'event obrigatório'}, 400)
 
-            r = supabase_request('GET', f'/rest/v1/god_tasks?id=eq.{task_id}&limit=1')
-            if r.status_code != 200 or not r.json():
+            r = supabase_request('GET', f'god_tasks?id=eq.{task_id}&limit=1')
+            if not r or isinstance(r, dict) and r.get('error') or not isinstance(r, list) or not len(r):
                 return self._send_json({'error': 'task não encontrada'}, 404)
-            task_row = r.json()[0]
+            task_row = r[0]
 
             # Hidrata flags de guard
             deps = task_row.get('depends_on') or []
             if deps:
                 in_clause = ','.join(deps)
                 rdep = supabase_request('GET',
-                    f'/rest/v1/god_tasks?id=in.({in_clause})&select=id,status&limit=1000')
+                    f'god_tasks?id=in.({in_clause})&select=id,status&limit=1000')
                 terminal = ('concluida','cancelada','arquivada')
-                rows = rdep.json() if rdep.status_code == 200 else []
+                rows = rdep if isinstance(rdep, list) else []
                 task_row['_dependencies_resolved'] = all(x.get('status') in terminal for x in rows)
             else:
                 task_row['_dependencies_resolved'] = True
 
             if task_row.get('especie') == 'quest':
                 rch = supabase_request('GET',
-                    f'/rest/v1/god_tasks?parent_task_id=eq.{task_id}&select=id,status')
+                    f'god_tasks?parent_task_id=eq.{task_id}&select=id,status')
                 terminal = ('concluida','cancelada','arquivada')
-                children = rch.json() if rch.status_code == 200 else []
+                children = rch if isinstance(rch, list) else []
                 task_row['_children_complete'] = (
                     len(children) == 0 or all(c.get('status') in terminal for c in children)
                 )
@@ -2544,14 +2544,14 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
             actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
             ru = supabase_request('PATCH',
-                f'/rest/v1/god_tasks?id=eq.{task_id}',
+                f'god_tasks?id=eq.{task_id}',
                 body={'status': result['to'],
                       'updated_at': datetime.now(timezone.utc).isoformat()})
-            if ru.status_code not in (200, 204):
-                return self._send_json({'error': f'persist failed: {ru.text}'}, 500)
+            if isinstance(ru, dict) and ru.get('error'):
+                return self._send_json({'error': f'persist failed: {ru["error"]}'}, 500)
 
             try:
-                supabase_request('POST', '/rest/v1/entity_events', body={
+                supabase_request('POST', 'entity_events', body={
                     'aggregate_type': 'Task',
                     'aggregate_id': task_id,
                     'event_type': f'Task{event[0].upper()}{event[1:]}',
