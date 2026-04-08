@@ -3712,13 +3712,19 @@ function operon() {
 
     ccBoardGrouped() {
       const board = this.ccBoardFiltered();
-      const PHASE_ORDER = ['onboarding', 'concepcao', 'validacao', 'escala'];
-      const PHASE_LABELS = { onboarding: 'Onboarding', concepcao: 'Concepção', validacao: 'Validação', escala: 'Escala' };
+      const PHASE_ORDER = ['onboarding', 'concepcao', 'validacao', 'otimizacao', 'escala'];
+      const PHASE_LABELS = { onboarding: 'Onboarding', concepcao: 'Concepção', validacao: 'Validação', otimizacao: 'Otimização', escala: 'Escala' };
       const groups = {};
+      // Dedupe by id — previne duplicação se data.mentees tiver entries duplicadas
+      const seen = new Set();
       for (const m of board) {
-        const phase = m.fase && PHASE_ORDER.includes(m.fase) ? m.fase : 'onboarding';
-        if (!groups[phase]) groups[phase] = [];
-        groups[phase].push(m);
+        if (seen.has(m.id)) continue;
+        seen.add(m.id);
+        // Só agrupa se a fase é válida. Fases inválidas (ativo, execucao, etc.) são ignoradas
+        // pra não poluir os grupos onboarding/concepcao.
+        if (!m.fase || !PHASE_ORDER.includes(m.fase)) continue;
+        if (!groups[m.fase]) groups[m.fase] = [];
+        groups[m.fase].push(m);
       }
       return PHASE_ORDER.filter(p => groups[p]).map(p => ({ phase: p, label: PHASE_LABELS[p], items: groups[p] }));
     },
@@ -6175,7 +6181,15 @@ function operon() {
       this.ui.page = page;
       this.ui.mobileMenuOpen = false;
       if (page === 'financeiro') this.loadFinanceiro();
-      if (page === 'command_center' && !this.data.dsProducoes.length) this.loadDsData();
+      if (page === 'command_center') {
+        if (!this.data.dsProducoes.length) this.loadDsData();
+        // Force reload mentees to sync fase_jornada after updates
+        if (sb) {
+          sb.from('vw_god_overview').select('*').then(({ data }) => {
+            if (data?.length) this.data.mentees = data;
+          });
+        }
+      }
       if (page === 'carteira') this.initWaKeyboardShortcuts();
       if (page === 'descarrego') { this.ui.ctxFilter.tipo = 'all'; this.ui.ctxFilter.fase = 'all'; }
       if (page === 'meu_trabalho') this.loadMeuTrabalho();
