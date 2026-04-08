@@ -205,6 +205,7 @@ function operon() {
       mentionQuery: '',        // texto digitado após @
       mentionStart: -1,        // posição do @ no textarea
       taskGanttRange: 'month', // 'week' | 'month' | 'quarter'
+      _ganttDrag: null, // { taskId, side, startX, origStart, origEnd, timelineEl }
       calYear: new Date().getFullYear(),
       calMonth: new Date().getMonth(),
       bulkSelected: {}, // { taskId: true }
@@ -8810,63 +8811,77 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       return headers;
     },
 
-    // Gantt dependency SVG lines — calculates arrow paths between tasks with depends_on
-    get ganttDependencyLines() {
-      const tasks = this.ganttTasks;
-      if (!tasks.length) return [];
-      const taskIndex = {};
-      tasks.forEach((t, i) => { taskIndex[t.id] = i; });
+    // Gantt drag-to-resize: start
+    ganttDragStart(event, task, side) {
+      const timelineEl = event.target.closest('.gantt-row__timeline');
+      if (!timelineEl) return;
+      const origStart = task.data_inicio || '';
+      const origEnd = task.data_fim || task.prazo || '';
+      this.ui._ganttDrag = { taskId: task.id, side, startX: event.clientX, origStart, origEnd };
+
+      const barEl = event.target.closest('.gantt-bar');
+      if (barEl) barEl.classList.add('gantt-bar--dragging');
 
       const range = this.ui.taskGanttRange;
       const now = new Date();
       let rangeStart, totalDays;
       if (range === 'week') {
-        rangeStart = new Date(now);
-        rangeStart.setDate(now.getDate() - now.getDay());
-        totalDays = 7;
+        rangeStart = new Date(now); rangeStart.setDate(now.getDate() - now.getDay()); totalDays = 7;
       } else if (range === 'quarter') {
-        rangeStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
-        totalDays = 90;
+        rangeStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1); totalDays = 90;
       } else {
         rangeStart = new Date(now.getFullYear(), now.getMonth(), 1);
         totalDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
       }
+      const pxPerDay = timelineEl.offsetWidth / totalDays;
 
-      const ROW_HEIGHT = 40; // matches .gantt-row__timeline height
-      const BAR_MID_Y = 20; // vertical center of bar in row
+      const onMove = (e) => {
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const drag = this.ui._ganttDrag;
+        if (!drag) return;
+        const deltaPx = clientX - drag.startX;
+        const deltaDays = Math.round(deltaPx / pxPerDay);
+        if (deltaDays === 0) return;
+        const t = this.data.tasks.find(x => x.id === drag.taskId);
+        if (!t) return;
 
-      const lines = [];
-      for (const task of tasks) {
-        if (!task.depends_on || !task.depends_on.length) continue;
-        const toIdx = taskIndex[task.id];
-        if (toIdx === undefined) continue;
-
-        for (const depId of task.depends_on) {
-          const fromIdx = taskIndex[depId];
-          if (fromIdx === undefined) continue;
-          const dep = tasks[fromIdx];
-
-          // Calculate X positions as percentages (matching ganttBarStyle logic)
-          const depStart = dep.data_inicio ? parseDateStr(dep.data_inicio) : (dep.created_at ? parseDateStr(dep.created_at) : now);
-          const depEnd = dep.data_fim || dep.prazo ? parseDateStr(dep.data_fim || dep.prazo) : new Date(depStart.getTime() + 7 * 86400000);
-          const depStartOff = Math.max(0, (depStart - rangeStart) / 86400000);
-          const depDur = Math.max(1, (depEnd - depStart) / 86400000);
-          const fromXPct = Math.min((depStartOff + depDur) / totalDays * 100, 100);
-
-          const taskStart = task.data_inicio ? parseDateStr(task.data_inicio) : (task.created_at ? parseDateStr(task.created_at) : now);
-          const taskStartOff = Math.max(0, (taskStart - rangeStart) / 86400000);
-          const toXPct = Math.max(0, taskStartOff / totalDays * 100);
-
-          const fromY = fromIdx * ROW_HEIGHT + BAR_MID_Y;
-          const toY = toIdx * ROW_HEIGHT + BAR_MID_Y;
-
-          // Determine if blocking (dep not completed)
-          const isBlocking = dep.status !== 'concluida' && dep.status !== 'cancelada';
-
-          lines.push({ fromXPct, toXPct, fromY, toY, isBlocking });
+        if (drag.side === 'left' && drag.origStart) {
+          const d = parseDateStr(drag.origStart);
+          if (d) { d.setDate(d.getDate() + deltaDays); t.data_inicio = d.toISOString().slice(0, 10); }
+        } else if (drag.side === 'right') {
+          const dateStr = drag.origEnd || drag.origStart;
+          if (dateStr) {
+            const d = parseDateStr(dateStr);
+            if (d) { d.setDate(d.getDate() + deltaDays); t.data_fim = d.toISOString().slice(0, 10); }
+          }
         }
-      }
-      return lines;
+      };
+
+      const onEnd = async (e) => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onEnd);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', onEnd);
+        if (barEl) barEl.classList.remove('gantt-bar--dragging');
+
+        const drag = this.ui._ganttDrag;
+        this.ui._ganttDrag = null;
+        if (!drag) return;
+        const t = this.data.tasks.find(x => x.id === drag.taskId);
+        if (!t) return;
+
+        // Persist changes
+        if (drag.side === 'left' && t.data_inicio !== drag.origStart) {
+          await this.updateTaskField(drag.taskId, 'data_inicio', t.data_inicio);
+        } else if (drag.side === 'right' && t.data_fim !== drag.origEnd) {
+          await this.updateTaskField(drag.taskId, 'data_fim', t.data_fim);
+        }
+      };
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onEnd);
+      document.addEventListener('touchmove', onMove, { passive: false });
+      document.addEventListener('touchend', onEnd);
     },
 
     // Grouped tasks for list view
