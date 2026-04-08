@@ -900,7 +900,19 @@ function operon() {
     // Pendencias: sorted by priority
     get pendenciasList() {
       const prioOrder = { critico: 0, alto: 1, medio: 2, baixo: 3 };
-      return [...this.data.pendencias].sort((a, b) => {
+      let list = [...this.data.pendencias];
+      // Filtrar por consultor se filtro ativo
+      const consultor = this.ui.filters?.carteira;
+      if (consultor) {
+        // Cruzar mentorado_id da pendência com consultor_responsavel do mentorado
+        const menteeIds = new Set(
+          (this.data.mentees || [])
+            .filter(m => m.consultor_responsavel === consultor)
+            .map(m => m.id)
+        );
+        list = list.filter(p => menteeIds.has(p.mentorado_id));
+      }
+      return list.sort((a, b) => {
         return (prioOrder[a.prioridade_calculada] ?? 3) - (prioOrder[b.prioridade_calculada] ?? 3);
       });
     },
