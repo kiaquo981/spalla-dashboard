@@ -810,11 +810,36 @@ def _sheets_sync_loop():
 
 
 # ===== SUPABASE HELPERS =====
+class SupabaseResponse:
+    """Wrapper that supports both dict-style access AND .status_code/.json()/.text"""
+    def __init__(self, data, status_code=200):
+        self._data = data
+        self.status_code = status_code
+        self.text = json.dumps(data) if data else ''
+    def json(self):
+        return self._data
+    def __iter__(self):
+        if isinstance(self._data, list): return iter(self._data)
+        return iter([])
+    def __len__(self):
+        if isinstance(self._data, list): return len(self._data)
+        return 0
+    def __bool__(self):
+        return bool(self._data)
+    def __getitem__(self, key):
+        if isinstance(self._data, (dict, list)): return self._data[key]
+        raise KeyError(key)
+    def get(self, key, default=None):
+        if isinstance(self._data, dict): return self._data.get(key, default)
+        return default
+
+
 def supabase_request(method, path, body=None, _retries=3, _backoff=1.0):
-    """Make a request to Supabase REST API with retry logic and connection pooling"""
+    """Make a request to Supabase REST API with retry logic and connection pooling.
+    Returns SupabaseResponse (supports .status_code, .json(), .text AND dict/list access)."""
     key = SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY
     if not key:
-        return {'error': 'Supabase key not configured'}
+        return SupabaseResponse({'error': 'Supabase key not configured'}, 500)
 
     headers = {
         'apikey': key,
@@ -836,10 +861,14 @@ def supabase_request(method, path, body=None, _retries=3, _backoff=1.0):
                 status = resp.status
 
             if status in (200, 201):
-                return json.loads(resp_body) if resp_body else {}
+                parsed = json.loads(resp_body) if resp_body else {}
+                return SupabaseResponse(parsed, status)
+
+            elif status in (204,):
+                return SupabaseResponse({}, 204)
 
             elif status in (503, 429, 500, 502, 504):
-                last_error = {'error': f'Supabase {status}: {resp_body.decode()}'}
+                last_error = SupabaseResponse({'error': f'Supabase {status}: {resp_body.decode()}'}, status)
                 if attempt < _retries - 1:
                     wait = _backoff * (2 ** attempt)
                     log_info('Supabase', f'Erro {status}, tentativa {attempt+1}/{_retries}, aguardando {wait}s...')
@@ -848,11 +877,11 @@ def supabase_request(method, path, body=None, _retries=3, _backoff=1.0):
                         _reset_supa_conn()
                     continue
             else:
-                return {'error': f'Supabase {status}: {resp_body.decode()}'}
+                return SupabaseResponse({'error': f'Supabase {status}: {resp_body.decode()}'}, status)
 
         except (http.client.RemoteDisconnected, ConnectionResetError,
                 BrokenPipeError, OSError, http.client.CannotSendRequest) as e:
-            last_error = {'error': str(e)}
+            last_error = SupabaseResponse({'error': str(e)}, 503)
             log_info('Supabase', f'Erro de conexão na tentativa {attempt+1}/{_retries}: {e}')
             with _supa_lock:
                 _reset_supa_conn()
@@ -862,10 +891,10 @@ def supabase_request(method, path, body=None, _retries=3, _backoff=1.0):
                 continue
         except Exception as e:
             log_error('Supabase', 'Erro inesperado', e)
-            return {'error': str(e)}
+            return SupabaseResponse({'error': str(e)}, 500)
 
     log_error('Supabase', f'Todas as {_retries} tentativas falharam', None)
-    return last_error or {'error': 'Max retries exceeded'}
+    return last_error or SupabaseResponse({'error': 'Max retries exceeded'}, 500)
 
 
 def get_mentees_with_email():
@@ -2506,9 +2535,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 return self._send_json({'error': 'event obrigatório'}, 400)
 
             r = supabase_request('GET', f'god_tasks?id=eq.{task_id}&limit=1')
-            if not r or isinstance(r, dict) and r.get('error') or not isinstance(r, list) or not len(r):
+            if r.status_code != 200 or not r.json():
                 return self._send_json({'error': 'task não encontrada'}, 404)
-            task_row = r[0]
+            task_row = r.json()[0]
 
             # Hidrata flags de guard
             deps = task_row.get('depends_on') or []
@@ -2517,7 +2546,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 rdep = supabase_request('GET',
                     f'god_tasks?id=in.({in_clause})&select=id,status&limit=1000')
                 terminal = ('concluida','cancelada','arquivada')
-                rows = rdep if isinstance(rdep, list) else []
+                rows = rdep.json() if rdep.status_code == 200 else []
                 task_row['_dependencies_resolved'] = all(x.get('status') in terminal for x in rows)
             else:
                 task_row['_dependencies_resolved'] = True
@@ -2526,7 +2555,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 rch = supabase_request('GET',
                     f'god_tasks?parent_task_id=eq.{task_id}&select=id,status')
                 terminal = ('concluida','cancelada','arquivada')
-                children = rch if isinstance(rch, list) else []
+                children = rch.json() if rch.status_code == 200 else []
                 task_row['_children_complete'] = (
                     len(children) == 0 or all(c.get('status') in terminal for c in children)
                 )
@@ -2547,8 +2576,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 f'god_tasks?id=eq.{task_id}',
                 body={'status': result['to'],
                       'updated_at': datetime.now(timezone.utc).isoformat()})
-            if isinstance(ru, dict) and ru.get('error'):
-                return self._send_json({'error': f'persist failed: {ru["error"]}'}, 500)
+            if ru.status_code not in (200, 204):
+                return self._send_json({'error': f'persist failed: {ru.text}'}, 500)
 
             try:
                 supabase_request('POST', 'entity_events', body={
