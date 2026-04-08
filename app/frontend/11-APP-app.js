@@ -9543,10 +9543,15 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       mariza: { instance_name: 'producao002', phone_number: '5511941936764' },
       kaique: { instance_name: 'producao002', phone_number: '5511941936764' },
       'kaique rodrigues': { instance_name: 'producao002', phone_number: '5511941936764' },
+      'kaique.azevedoo': { instance_name: 'producao002', phone_number: '5511941936764' },
     },
 
     _isPrelinkedUser() {
-      const name = (this.auth.currentUser?.full_name || '').toLowerCase().trim();
+      // Try full_name first, then email prefix — same fallback chain as other auth lookups
+      let name = (this.auth.currentUser?.full_name || this.auth.currentUser?.user_metadata?.full_name || '').toLowerCase().trim();
+      if (!name) {
+        name = (this.auth.currentUser?.email || '').toLowerCase().split('@')[0];
+      }
       return this._waPrelinkedInstances[name] || null;
     },
 
