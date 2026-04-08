@@ -4090,6 +4090,8 @@ function operon() {
         descricao: `[Convertido de feedback]\n${fb.descricao || ''}\n\nCategoria: ${fb.categoria}\nPrioridade sentida: ${fb.prioridade}\nReportado por: ${fb.created_by}`,
         tipo: 'bug_report',
         prioridade: fb.prioridade,
+        responsavel: 'kaique',
+        space_id: 'space_sistema',
         status: 'pendente',
         fonte: 'feedback',
         tags: [fb.categoria],
