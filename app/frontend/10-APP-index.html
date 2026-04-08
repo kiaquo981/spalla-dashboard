@@ -2398,6 +2398,21 @@
                     </template>
                   </div>
                   <div x-show="!obContext.loading && !obContext.trilha" style="text-align:center;padding:12px;color:var(--neutral-400);font-size:12px">Sem trilha de onboarding</div>
+                  <!-- Contrato toggle (sempre visível no onboarding) -->
+                  <div style="margin-top:8px;padding:10px 12px;background:var(--neutral-50);border-radius:8px;display:flex;align-items:center;justify-content:space-between;border:1px solid" :style="data.detail?.profile?.contrato_assinado ? 'border-color:#10b981' : 'border-color:#ef4444'">
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <span style="font-size:16px" x-text="data.detail?.profile?.contrato_assinado ? '✅' : '⚠️'"></span>
+                      <div>
+                        <div style="font-size:12px;font-weight:600" x-text="data.detail?.profile?.contrato_assinado ? 'Contrato assinado' : 'Contrato NÃO assinado'"></div>
+                        <div x-show="data.detail?.profile?.data_contrato_assinado" style="font-size:10px;color:var(--text-secondary)" x-text="'Assinado em ' + (data.detail?.profile?.data_contrato_assinado ? new Date(data.detail.profile.data_contrato_assinado).toLocaleDateString('pt-BR') : '')"></div>
+                      </div>
+                    </div>
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text-secondary)">
+                      <input type="checkbox" :checked="data.detail?.profile?.contrato_assinado"
+                        @change="updateMenteeFinField('contrato_assinado', $event.target.checked); if($event.target.checked) updateMenteeFinField('data_contrato_assinado', new Date().toISOString().split('T')[0]); toast($event.target.checked ? 'Contrato marcado como assinado' : 'Contrato desmarcado', 'success')">
+                      <span x-text="data.detail?.profile?.contrato_assinado ? 'Assinado' : 'Marcar como assinado'"></span>
+                    </label>
+                  </div>
                 </div>
               </div>
 
@@ -12766,7 +12781,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=229"></script>
+  <script src="11-APP-app.js?v=230"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">

@@ -593,9 +593,11 @@ function operon() {
       // Sprints carregados de god_lists (tipo='sprint') via loadGodLists()
       // Fallback hardcoded aqui caso Supabase falhe
       sprints: [
-        { id: '901113377455', nome: 'Sprint 1', inicio: '2026-03-16', fim: '2026-03-22', status: 'encerrado', total: 7, concluidas: 2, highlights: ['Visão de grupos WhatsApp no ar', 'Agenda de sessões integrada', 'Dashboard de mentorados atualizado'] },
-        { id: '901113377456', nome: 'Sprint 2', inicio: '2026-03-23', fim: '2026-03-29', status: 'ativo', total: 225, concluidas: 2, highlights: ['Pipeline de Dossiê (Download → Final)', 'Jornada Completa da Mentoria', 'Novo Workflow de Trabalho com IA'] },
-        { id: '901113377457', nome: 'Sprint 3', inicio: '2026-03-30', fim: '2026-04-05', status: 'planejado', total: 230, concluidas: 0, highlights: [] },
+        { id: '901113377455', nome: 'Sprint 1', inicio: '2026-03-16', fim: '2026-03-22', status: 'encerrado', total: 7, concluidas: 2, highlights: [] },
+        { id: '901113377456', nome: 'Sprint 2', inicio: '2026-03-23', fim: '2026-03-29', status: 'encerrado', total: 225, concluidas: 2, highlights: [] },
+        { id: '901113377457', nome: 'Sprint 3', inicio: '2026-03-30', fim: '2026-04-05', status: 'encerrado', total: 230, concluidas: 0, highlights: [] },
+        { id: 'sprint_4', nome: 'Sprint 4', inicio: '2026-04-06', fim: '2026-04-12', status: 'ativo', total: 0, concluidas: 0, highlights: [] },
+        { id: 'sprint_5', nome: 'Sprint 5', inicio: '2026-04-13', fim: '2026-04-19', status: 'planejado', total: 0, concluidas: 0, highlights: [] },
       ],
       // Membros carregados de spalla_members via loadSpallaMembers()
       members: [],
