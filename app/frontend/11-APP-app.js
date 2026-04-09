@@ -13405,6 +13405,26 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     // ===================== SCHEDULE API HELPERS =====================
 
+    async deleteCall(callId) {
+      if (!callId || !sb) return;
+      if (!confirm('Tem certeza que deseja excluir esta call? Essa ação não pode ser desfeita.')) return;
+      try {
+        const { error } = await sb.from('calls_mentoria').delete().eq('id', callId);
+        if (error) throw error;
+        // Remove from local arrays
+        this._supabaseCalls = (this._supabaseCalls || []).filter(c => c.call_id !== callId);
+        this.data.upcomingCalls = (this.data.upcomingCalls || []).filter(c => c.id !== callId);
+        // Remove from detail calls if open
+        if (this.data.detail?.last_calls) {
+          this.data.detail.last_calls = this.data.detail.last_calls.filter(c => c.call_id !== callId);
+        }
+        this.ui.expandedCall = null;
+        this.toast('Call excluída', 'success');
+      } catch (e) {
+        this.toast('Erro ao excluir: ' + e.message, 'error');
+      }
+    },
+
     async fetchUpcomingCalls() {
       try {
         if (!sb) {
