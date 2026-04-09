@@ -5843,6 +5843,15 @@
                           @focus="$el.style.borderColor='var(--brand-300)'; $el.style.background='var(--cream-50)'"
                           @focusout="$el.style.borderColor='transparent'; $el.style.background='transparent'"></h2>
 
+                      <!-- ORCH-05: Agent execution indicator -->
+                      <div x-show="isAgentMember(activeTaskDetail.responsavel) && activeTaskDetail.status === 'em_andamento'"
+                           style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:linear-gradient(135deg,#ede9fe,#ddd6fe);border:1px solid #c4b5fd;border-radius:8px;margin-bottom:12px;font-size:12px;color:#5b21b6">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+                        <span style="font-weight:600">Agente executando...</span>
+                        <button @click="updateTaskStatus(activeTaskDetail.id, 'cancelada')"
+                                style="margin-left:auto;padding:2px 8px;background:#ef4444;color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer">Cancelar</button>
+                      </div>
+
                       <!-- ===== METADATA GRID ===== -->
                       <div class="task-meta-grid">
                         <!-- Row 1: Status | Responsável -->
@@ -5876,7 +5885,7 @@
                         <div style="padding:var(--sp-2) var(--sp-4);border-bottom:1px solid var(--neutral-200);display:flex;align-items:center;gap:var(--sp-2)">
                           <span class="avatar avatar--sm" :style="'background:' + avatarGradient(activeTaskDetail.responsavel)" x-text="avatarInitials(activeTaskDetail.responsavel || '?')" style="width:24px;height:24px;font-size:9px"></span>
                           <select class="task-meta-select"
-                                  @change="let name = $event.target.value || null; activeTaskDetail.responsavel = name; activeTaskDetail.updated_at = new Date().toISOString(); _cacheTasksLocal(); if(typeof sb !== 'undefined' && sb) sb.from('god_tasks').update({responsavel: name}).eq('id', activeTaskDetail.id)">
+                                  @change="let oldResp = activeTaskDetail.responsavel; let name = $event.target.value || null; activeTaskDetail.responsavel = name; activeTaskDetail.updated_at = new Date().toISOString(); _cacheTasksLocal(); if(typeof sb !== 'undefined' && sb) sb.from('god_tasks').update({responsavel: name}).eq('id', activeTaskDetail.id); if(oldResp !== name && CONFIG.API_BASE) fetch(`${CONFIG.API_BASE}/api/tasks/${activeTaskDetail.id}/handoff`, {method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${auth.accessToken}`}, body:JSON.stringify({from_person:oldResp||'',to_person:name||''})}).catch(()=>{})">
                             <option value="" :selected="!activeTaskDetail.responsavel">Sem responsável</option>
                             <template x-for="m in (data.members || [])" :key="m.id">
                               <option :value="m.nome_curto || m.nome_completo || m.name" :selected="(activeTaskDetail.responsavel || '').toLowerCase() === ((m.nome_curto || m.nome_completo || m.name) || '').toLowerCase()" x-text="m.nome_curto || m.nome_completo || m.name"></option>
@@ -6230,7 +6239,7 @@
                           <div class="task-drawer__handoff">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/></svg>
                             <div>
-                              <strong x-text="h.from + ' &rarr; ' + h.to"></strong>
+                              <strong><span x-text="isAgentMember(h.from) ? '🤖 ' + h.from : '👤 ' + h.from"></span> → <span x-text="isAgentMember(h.to) ? '🤖 ' + h.to : '👤 ' + h.to"></span></strong>
                               <div x-show="h.note" style="font-size:12px;color:#64748b" x-text="h.note"></div>
                               <div style="font-size:11px;color:#94a3b8" x-text="formatDateFull(h.date)"></div>
                             </div>
@@ -12805,7 +12814,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=247"></script>
+  <script src="11-APP-app.js?v=248"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">

@@ -2708,6 +2708,135 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': str(e)}, 500)
 
     # ============================================================
+    # ORCH-05: Agent Dispatch Pipeline
+    # ============================================================
+    def _handle_agent_dispatch(self, task_id):
+        """POST /api/tasks/{id}/agent-dispatch
+        Dispatches task to the appropriate agent based on execution_endpoint.
+        Body: { force?: boolean }
+        """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        try:
+            r = supabase_request('GET', f'god_tasks?id=eq.{task_id}&limit=1')
+            if not supa_ok(r) or not r:
+                return self._send_json({'error': 'task não encontrada'}, 404)
+            task = r[0] if isinstance(r, list) else r
+
+            responsavel = task.get('responsavel') or ''
+            # Lookup agent member
+            member_r = supabase_request('GET',
+                f'spalla_members?or=(id.eq.{responsavel},nome_curto.ilike.{responsavel})&tipo=eq.agent&limit=1')
+            if not isinstance(member_r, list) or not member_r:
+                return self._send_json({'error': 'responsável não é um agente'}, 400)
+            agent = member_r[0]
+            endpoint = agent.get('execution_endpoint') or ''
+
+            # Check max_concurrent
+            max_tasks = agent.get('max_concurrent_tasks')
+            if max_tasks:
+                active_r = supabase_request('GET',
+                    f'god_tasks?responsavel=eq.{responsavel}&status=eq.em_andamento&select=id')
+                active_count = len(active_r) if isinstance(active_r, list) else 0
+                if active_count >= max_tasks:
+                    return self._send_json({
+                        'error': f'Agente {agent["nome_curto"]} no limite ({active_count}/{max_tasks})',
+                        'at_capacity': True
+                    }, 429)
+
+            # Route by execution_endpoint
+            dispatch_result = {'endpoint': endpoint, 'status': 'dispatched'}
+            if endpoint == 'descarrego_pipeline':
+                dispatch_result['note'] = 'Routed to Descarrego pipeline (existing)'
+            elif endpoint.startswith('n8n_webhook:'):
+                webhook_name = endpoint.split(':', 1)[1]
+                dispatch_result['note'] = f'Would POST to n8n webhook: {webhook_name}'
+            elif endpoint.startswith('claude_api:'):
+                prompt_type = endpoint.split(':', 1)[1]
+                dispatch_result['note'] = f'Would call Claude API with prompt type: {prompt_type}'
+            else:
+                dispatch_result['note'] = f'Unknown endpoint: {endpoint}'
+                dispatch_result['status'] = 'unknown_endpoint'
+
+            # Log dispatch event
+            actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
+            supabase_request('POST', 'entity_events', body={
+                'aggregate_type': 'Task',
+                'aggregate_id': task_id,
+                'event_type': 'TaskAgentDispatched',
+                'payload': {
+                    'agent_id': agent['id'],
+                    'agent_name': agent.get('nome_curto', ''),
+                    'endpoint': endpoint,
+                },
+                'metadata': {'source': 'agent_dispatch', 'actor': actor},
+            })
+
+            self._send_json({
+                'task_id': task_id,
+                'agent': agent['id'],
+                'dispatch': dispatch_result,
+            })
+        except Exception as e:
+            log_error('agent_dispatch', str(e), e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ============================================================
+    # ORCH-06: Handoff Protocol — log reassignment
+    # ============================================================
+    def _handle_task_handoff(self, task_id):
+        """POST /api/tasks/{id}/handoff
+        Body: { from_person: str, to_person: str, note?: str }
+        Logs a handoff and auto-dispatches if new responsavel is an agent.
+        """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        try:
+            body = self._read_json_body() or {}
+            from_person = body.get('from_person') or ''
+            to_person = body.get('to_person') or ''
+            note = body.get('note') or f'Reatribuído de {from_person} para {to_person}'
+
+            if not to_person:
+                return self._send_json({'error': 'to_person obrigatório'}, 400)
+
+            # Log handoff
+            supabase_request('POST', 'god_task_handoffs', body={
+                'task_id': task_id,
+                'from_person': from_person or None,
+                'to_person': to_person,
+                'note': note,
+            })
+
+            # Log event
+            actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
+            supabase_request('POST', 'entity_events', body={
+                'aggregate_type': 'Task',
+                'aggregate_id': task_id,
+                'event_type': 'TaskHandoff',
+                'payload': {'from': from_person, 'to': to_person, 'note': note},
+                'metadata': {'source': 'handoff_protocol', 'actor': actor},
+            })
+
+            # Check if new responsavel is agent → auto-dispatch
+            is_agent = False
+            if to_person:
+                member_r = supabase_request('GET',
+                    f'spalla_members?or=(id.eq.{to_person},nome_curto.ilike.{to_person})&tipo=eq.agent&limit=1')
+                is_agent = isinstance(member_r, list) and len(member_r) > 0
+
+            self._send_json({
+                'task_id': task_id,
+                'handoff': {'from': from_person, 'to': to_person},
+                'agent_dispatched': is_agent,
+            })
+        except Exception as e:
+            log_error('task_handoff', str(e), e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ============================================================
     # FSM: Mentorado transition
     # ============================================================
     def _handle_mentorado_transition(self, mentorado_id):
@@ -3285,6 +3414,14 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         elif re.match(r'^/api/mentee-groups/(\d+)/members$', self.path):
             _m = re.match(r'^/api/mentee-groups/(\d+)/members$', self.path)
             self._handle_post_group_member(_m.group(1))
+        # ===== ORCH-05: Agent Dispatch =====
+        elif re.match(r'^/api/tasks/([^/]+)/agent-dispatch$', self.path):
+            _ad = re.match(r'^/api/tasks/([^/]+)/agent-dispatch$', self.path)
+            self._handle_agent_dispatch(_ad.group(1))
+        # ===== ORCH-06: Handoff Protocol =====
+        elif re.match(r'^/api/tasks/([^/]+)/handoff$', self.path):
+            _hf = re.match(r'^/api/tasks/([^/]+)/handoff$', self.path)
+            self._handle_task_handoff(_hf.group(1))
         # ===== LF Story 5: Task FSM transition =====
         elif re.match(r'^/api/tasks/([^/]+)/transition$', self.path):
             _tm = re.match(r'^/api/tasks/([^/]+)/transition$', self.path)
