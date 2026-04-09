@@ -528,6 +528,7 @@ function operon() {
       waGroups: [],             // wa_groups from Supabase (Story 8)
       waWeeklyStats: [],        // vw_wa_mentee_weekly_stats (WA Intelligence)
       waAlertas: [],            // vw_alertas_command_center (Story 6)
+      agentMetrics: [],         // vw_agent_metrics (ORCH-07)
       _menteeWaActivity: [],    // vw_wa_mentee_activity for selected mentorado
       // WA DM v2 (S9-B)
       waCannedAll: [],          // cache de canned responses
@@ -4931,6 +4932,18 @@ function operon() {
       };
     },
 
+    async loadAgentMetrics() {
+      if (!CONFIG.API_BASE) return;
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/agent-metrics`, {
+          headers: { 'Authorization': `Bearer ${this.auth.accessToken}` },
+        });
+        if (!res.ok) return;
+        const d = await res.json();
+        this.data.agentMetrics = d.agents || [];
+      } catch (e) { /* silent */ }
+    },
+
     async loadCommandCenterData() {
       try {
         const res = await fetch(`${CONFIG.API_BASE}/api/clickup/command-center`);
@@ -6202,6 +6215,8 @@ function operon() {
             if (data?.length) this.data.mentees = data;
           });
         }
+        // ORCH-07: Load agent metrics
+        this.loadAgentMetrics();
       }
       if (page === 'carteira') this.initWaKeyboardShortcuts();
       if (page === 'descarrego') { this.ui.ctxFilter.tipo = 'all'; this.ui.ctxFilter.fase = 'all'; }

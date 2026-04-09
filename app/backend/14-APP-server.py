@@ -2837,6 +2837,24 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': str(e)}, 500)
 
     # ============================================================
+    # ORCH-07: Agent Metrics
+    # ============================================================
+    def _handle_agent_metrics(self):
+        """GET /api/agent-metrics — returns agent performance data from vw_agent_metrics."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        try:
+            r = supabase_request('GET', 'vw_agent_metrics?select=*&order=agent_name.asc')
+            if not supa_ok(r):
+                return self._send_json({'error': 'failed to fetch metrics'}, 500)
+            agents = r if isinstance(r, list) else []
+            self._send_json({'agents': agents})
+        except Exception as e:
+            log_error('agent_metrics', str(e), e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ============================================================
     # FSM: Mentorado transition
     # ============================================================
     def _handle_mentorado_transition(self, mentorado_id):
@@ -3304,6 +3322,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'evolution_base': EVOLUTION_BASE,
                 'evolution_key_prefix': EVOLUTION_API_KEY[:8] + '...' if EVOLUTION_API_KEY else 'EMPTY',
             })
+        # ===== ORCH-07: Agent Metrics =====
+        elif self.path == '/api/agent-metrics':
+            self._handle_agent_metrics()
         # ===== WA DM v2 (S9-A) =====
         elif self.path == '/api/mentees/triage':
             self._handle_mentees_triage()
