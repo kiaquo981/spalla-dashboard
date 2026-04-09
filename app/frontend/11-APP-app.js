@@ -2807,7 +2807,7 @@ function operon() {
           ]);
           // Load calls in background (non-blocking)
           const calls = await sb.from('calls_mentoria')
-            .select('id,mentorado_id,data_call,duracao_minutos,tipo,tipo_call,link_gravacao,link_transcricao,zoom_topic,status_call,"senha_Call",link_plano_acao,principais_topicos,decisoes_tomadas,created_at,mentorados(id,nome)')
+            .select('id,mentorado_id,data_call,duracao_minutos,tipo,tipo_call,link_gravacao,link_transcricao,link_youtube,zoom_topic,status_call,"senha_Call",link_plano_acao,principais_topicos,decisoes_tomadas,created_at,mentorados(id,nome)')
             .order('data_call', { ascending: false })
             .limit(500);
           // Check individual query errors
@@ -2883,6 +2883,7 @@ function operon() {
               status_call: c.status_call || (c.link_gravacao ? 'realizada' : null),
               horario_call: c.data_call && c.data_call.includes('T') ? c.data_call.substring(11, 16) : null,
               link_plano_acao: c.link_plano_acao || null,
+              link_youtube: c.link_youtube || null,
               transcript_completo: c.transcript_completo || null,
               observacoes_equipe: c.observacoes_equipe || null,
               created_at: c.created_at,
