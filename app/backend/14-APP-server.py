@@ -1628,7 +1628,7 @@ def search_semantic(query_text, mode='hybrid', filters=None, limit=10):
 # LF-FASE3: Descarrego saga / processor (module-level helpers)
 # ============================================================
 def _descarrego_load(descarrego_id):
-    r = supabase_request('GET', f'/rest/v1/descarregos?id=eq.{descarrego_id}&limit=1')
+    r = supabase_request('GET', f'descarregos?id=eq.{descarrego_id}&limit=1')
     if r.status_code != 200:
         raise RuntimeError(f'load failed: {r.text}')
     rows = r.json()
@@ -1639,7 +1639,7 @@ def _descarrego_load(descarrego_id):
 
 def _descarrego_update(descarrego_id, fields):
     r = supabase_request(
-        'PATCH', f'/rest/v1/descarregos?id=eq.{descarrego_id}', body=fields
+        'PATCH', f'descarregos?id=eq.{descarrego_id}', body=fields
     )
     if r.status_code not in (200, 204):
         raise RuntimeError(f'update failed: {r.text}')
@@ -1735,7 +1735,7 @@ def _descarrego_do_classification(descarrego_id):
         try:
             r = supabase_request(
                 'GET',
-                f'/rest/v1/mentorados?id=eq.{row["mentorado_id"]}'
+                f'mentorados?id=eq.{row["mentorado_id"]}'
                 f'&select=nome,fase_jornada,trilha&limit=1',
             )
             if r.status_code == 200 and r.json():
@@ -1749,7 +1749,7 @@ def _descarrego_do_classification(descarrego_id):
         try:
             ri = supabase_request(
                 'GET',
-                f'/rest/v1/mentorado_context?mentorado_id=eq.{row["mentorado_id"]}'
+                f'mentorado_context?mentorado_id=eq.{row["mentorado_id"]}'
                 f'&select=tipo,titulo,conteudo&order=created_at.desc&limit=5',
             )
             if ri.status_code == 200 and ri.json():
@@ -1766,7 +1766,7 @@ def _descarrego_do_classification(descarrego_id):
         try:
             rp = supabase_request(
                 'GET',
-                f'/rest/v1/descarregos?mentorado_id=eq.{row["mentorado_id"]}'
+                f'descarregos?mentorado_id=eq.{row["mentorado_id"]}'
                 f'&classificacao_principal=not.is.null&id=neq.{descarrego_id}'
                 f'&select=classificacao_principal,classificacao_confidence,classificacao_payload'
                 f'&order=created_at.desc&limit=5',
@@ -1821,7 +1821,7 @@ def _descarrego_execute_action(descarrego_id, mode='auto'):
                 'confianca_ia': row.get('classificacao_confidence'),
                 'especie': 'one_time',
             }
-            r = supabase_request('POST', '/rest/v1/god_tasks', body=new_task)
+            r = supabase_request('POST', 'god_tasks', body=new_task)
             if r.status_code in (200, 201):
                 created = r.json()
                 task_id = created[0]['id'] if isinstance(created, list) and created else created.get('id')
@@ -1850,7 +1850,7 @@ def _descarrego_execute_action(descarrego_id, mode='auto'):
                 'especie': 'one_time',
                 'tipo': 'lembrete',
             }
-            r = supabase_request('POST', '/rest/v1/god_tasks', body=new_task)
+            r = supabase_request('POST', 'god_tasks', body=new_task)
             task_id = None
             if r.status_code in (200, 201):
                 created = r.json()
@@ -1874,7 +1874,7 @@ def _descarrego_execute_action(descarrego_id, mode='auto'):
                 'fonte': 'descarrego',
                 'especie': 'one_time',
             }
-            r = supabase_request('POST', '/rest/v1/god_tasks', body=new_task)
+            r = supabase_request('POST', 'god_tasks', body=new_task)
             task_id = None
             if r.status_code in (200, 201):
                 created = r.json()
@@ -1898,7 +1898,7 @@ def _descarrego_execute_action(descarrego_id, mode='auto'):
                     'origem': 'descarrego',
                     'criado_por': 'sistema',
                 }
-                supabase_request('POST', '/rest/v1/mentorado_context', body=ctx_entry)
+                supabase_request('POST', 'mentorado_context', body=ctx_entry)
             _descarrego_update(descarrego_id, {
                 'acao_tomada': f'salvo_como_{principal}',
                 'acao_tomada_em': datetime.now(timezone.utc).isoformat(),
@@ -2617,7 +2617,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             if not event:
                 return self._send_json({'error': 'event obrigatório'}, 400)
 
-            r = supabase_request('GET', f'/rest/v1/mentorados?id=eq.{mentorado_id}&limit=1')
+            r = supabase_request('GET', f'mentorados?id=eq.{mentorado_id}&limit=1')
             if r.status_code != 200 or not r.json():
                 return self._send_json({'error': 'mentorado não encontrado'}, 404)
             row = r.json()[0]
@@ -2633,14 +2633,14 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
             actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
             ru = supabase_request('PATCH',
-                f'/rest/v1/mentorados?id=eq.{mentorado_id}',
+                f'mentorados?id=eq.{mentorado_id}',
                 body={'fase_jornada': result['to'],
                       'updated_at': datetime.now(timezone.utc).isoformat()})
             if ru.status_code not in (200, 204):
                 return self._send_json({'error': f'persist failed: {ru.text}'}, 500)
 
             try:
-                supabase_request('POST', '/rest/v1/entity_events', body={
+                supabase_request('POST', 'entity_events', body={
                     'aggregate_type': 'Mentorado',
                     'aggregate_id': mentorado_id,
                     'event_type': f'Mentorado{event[0].upper()}{event[1:]}',
@@ -2677,7 +2677,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             if not event:
                 return self._send_json({'error': 'event obrigatório'}, 400)
 
-            r = supabase_request('GET', f'/rest/v1/ds_producoes?id=eq.{producao_id}&limit=1')
+            r = supabase_request('GET', f'ds_producoes?id=eq.{producao_id}&limit=1')
             if r.status_code != 200 or not r.json():
                 return self._send_json({'error': 'produção não encontrada'}, 404)
             row = r.json()[0]
@@ -2693,14 +2693,14 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
             actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
             ru = supabase_request('PATCH',
-                f'/rest/v1/ds_producoes?id=eq.{producao_id}',
+                f'ds_producoes?id=eq.{producao_id}',
                 body={'status': result['to'],
                       'updated_at': datetime.now(timezone.utc).isoformat()})
             if ru.status_code not in (200, 204):
                 return self._send_json({'error': f'persist failed: {ru.text}'}, 500)
 
             try:
-                supabase_request('POST', '/rest/v1/entity_events', body={
+                supabase_request('POST', 'entity_events', body={
                     'aggregate_type': 'DossieProducao',
                     'aggregate_id': producao_id,
                     'event_type': f'DossieProducao{event[0].upper()}{event[1:]}',
@@ -2738,14 +2738,14 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             if not event:
                 return self._send_json({'error': 'event obrigatório'}, 400)
 
-            r = supabase_request('GET', f'/rest/v1/ds_documentos?id=eq.{documento_id}&limit=1')
+            r = supabase_request('GET', f'ds_documentos?id=eq.{documento_id}&limit=1')
             if r.status_code != 200 or not r.json():
                 return self._send_json({'error': 'documento não encontrado'}, 404)
             row = r.json()[0]
 
             # Detect trilha from producao if not passed
             if not body.get('trilha') and row.get('producao_id'):
-                rp = supabase_request('GET', f'/rest/v1/ds_producoes?id=eq.{row["producao_id"]}&select=trilha&limit=1')
+                rp = supabase_request('GET', f'ds_producoes?id=eq.{row["producao_id"]}&select=trilha&limit=1')
                 if rp.status_code == 200 and rp.json():
                     trilha = rp.json()[0].get('trilha', 'scale')
 
@@ -2760,14 +2760,14 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
             actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
             ru = supabase_request('PATCH',
-                f'/rest/v1/ds_documentos?id=eq.{documento_id}',
+                f'ds_documentos?id=eq.{documento_id}',
                 body={'status': result['to'],
                       'updated_at': datetime.now(timezone.utc).isoformat()})
             if ru.status_code not in (200, 204):
                 return self._send_json({'error': f'persist failed: {ru.text}'}, 500)
 
             try:
-                supabase_request('POST', '/rest/v1/entity_events', body={
+                supabase_request('POST', 'entity_events', body={
                     'aggregate_type': 'DossieDocumento',
                     'aggregate_id': documento_id,
                     'event_type': f'DossieDocumento{event[0].upper()}{event[1:]}',
@@ -2817,7 +2817,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'correlation_id': str(uuid.uuid4()),
                 'status': 'capturado',
             }
-            r = supabase_request('POST', '/rest/v1/descarregos', body=payload)
+            r = supabase_request('POST', 'descarregos', body=payload)
             if r.status_code not in (200, 201):
                 return self._send_json({'error': r.text}, r.status_code)
             data = r.json()
@@ -2874,7 +2874,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     'correlation_id': f'{batch_id}:{i}',
                     'status': 'capturado',
                 }
-                r = supabase_request('POST', '/rest/v1/descarregos', body=payload)
+                r = supabase_request('POST', 'descarregos', body=payload)
                 if r.status_code in (200, 201):
                     data = r.json()
                     row = data[0] if isinstance(data, list) and data else data
@@ -2947,7 +2947,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             _descarrego_transition(descarrego_id, 'human_rejected', actor=actor)
             supabase_request(
                 'PATCH',
-                f'/rest/v1/descarregos?id=eq.{descarrego_id}',
+                f'descarregos?id=eq.{descarrego_id}',
                 body={'acao_tomada': 'rejeitado_humano',
                       'acao_tomada_em': datetime.now(timezone.utc).isoformat(),
                       'acao_tomada_por': actor},
@@ -2988,7 +2988,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             })
 
             try:
-                supabase_request('POST', '/rest/v1/entity_events', body={
+                supabase_request('POST', 'entity_events', body={
                     'aggregate_type': 'Descarrego',
                     'aggregate_id': descarrego_id,
                     'event_type': 'DescarregoReclassified',
@@ -3010,7 +3010,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         try:
             r = supabase_request(
                 'GET',
-                f'/rest/v1/descarregos?mentorado_id=eq.{mentorado_id}'
+                f'descarregos?mentorado_id=eq.{mentorado_id}'
                 f'&order=created_at.desc&limit=100',
             )
             self._send_json({'descarregos': r.json()})
@@ -6995,7 +6995,7 @@ if __name__ == '__main__':
                 first = False
                 r = supabase_request(
                     'POST',
-                    '/rest/v1/rpc/fn_sprint_rollover',
+                    'rpc/fn_sprint_rollover',
                     body={},
                 )
                 if r.status_code in (200, 204):
@@ -7018,7 +7018,7 @@ if __name__ == '__main__':
         import time as _t
         while True:
             try:
-                r = supabase_request('POST', '/rest/v1/rpc/fn_materialize_recurring_due', body={})
+                r = supabase_request('POST', 'rpc/fn_materialize_recurring_due', body={})
                 if r.status_code in (200, 204):
                     try:
                         result = r.json()
@@ -7041,7 +7041,7 @@ if __name__ == '__main__':
         import time as _t
         while True:
             try:
-                r = supabase_request('POST', '/rest/v1/rpc/fn_apply_trigger_rules', body={})
+                r = supabase_request('POST', 'rpc/fn_apply_trigger_rules', body={})
                 if r.status_code in (200, 204):
                     try:
                         result = r.json()
@@ -7071,7 +7071,7 @@ if __name__ == '__main__':
             try:
                 # Find tasks with operon_id that were updated after last sync
                 r = supabase_request('GET',
-                    '/rest/v1/god_tasks?select=id,titulo,descricao,status,prioridade,data_fim,operon_id,clickup_synced_at,updated_at'
+                    'god_tasks?select=id,titulo,descricao,status,prioridade,data_fim,operon_id,clickup_synced_at,updated_at'
                     '&operon_id=not.is.null'
                     '&order=updated_at.desc&limit=50')
                 if r.status_code != 200:
