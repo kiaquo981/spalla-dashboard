@@ -306,6 +306,14 @@ def log_error(source, msg, exc=None):
         print(f'[{ts}] [{source}] ERROR: {msg}')
 
 
+# ===== CLICKUP DEEP LINK =====
+def clickup_deep_link(url):
+    """Converte URL web do ClickUp para deep link do app desktop."""
+    if url and url.startswith('https://app.clickup.com/'):
+        return url.replace('https://app.clickup.com/', 'clickup://')
+    return url
+
+
 # ===== ZOOM TOKEN CACHE =====
 _zoom_token = {'access_token': None, 'expires_at': 0}
 
@@ -837,6 +845,74 @@ def supa_ok(result):
     if isinstance(result, SupabaseResponse):
         return result.status_code in (200, 201, 204)
     return not (isinstance(result, dict) and result.get('error'))
+
+
+def _dependency_reactor(completed_task_id, completed_titulo=''):
+    """ORCH-04: After a task reaches terminal state, check dependents and auto-unblock.
+    For agent responsaveis: auto-start. For humans: just unblock (notification later).
+    Returns list of actions taken."""
+    results = []
+    # Find tasks that depend on this one and are still pendente or bloqueada
+    deps_r = supabase_request('GET',
+        f'god_tasks?depends_on=cs.{{{completed_task_id}}}&status=in.(pendente,bloqueada)&select=id,titulo,depends_on,responsavel,especie,status')
+    if not supa_ok(deps_r) or not isinstance(deps_r, list) or not deps_r:
+        return results
+
+    terminal = ('concluida', 'cancelada', 'arquivada')
+    for dep in deps_r:
+        # Check if ALL blockers are resolved
+        all_deps = dep.get('depends_on') or []
+        if len(all_deps) > 1:
+            other_ids = [d for d in all_deps if d != completed_task_id]
+            if other_ids:
+                in_clause = ','.join(other_ids)
+                others = supabase_request('GET', f'god_tasks?id=in.({in_clause})&select=id,status')
+                if isinstance(others, list) and not all(o.get('status') in terminal for o in others):
+                    continue  # Still has unresolved blockers
+
+        # All blockers resolved — determine action
+        dep_id = dep['id']
+        responsavel = dep.get('responsavel') or ''
+
+        # Check if responsavel is an agent
+        is_agent = False
+        if responsavel:
+            member_r = supabase_request('GET',
+                f'spalla_members?or=(id.eq.{responsavel},nome_curto.ilike.{responsavel})&tipo=eq.agent&limit=1')
+            is_agent = isinstance(member_r, list) and len(member_r) > 0
+
+        if dep.get('status') == 'bloqueada':
+            # Unblock: bloqueada → em_andamento
+            supabase_request('PATCH', f'god_tasks?id=eq.{dep_id}',
+                body={'status': 'em_andamento', 'updated_at': datetime.now(timezone.utc).isoformat()})
+            action = 'auto_unblocked'
+        elif is_agent:
+            # Agent: pendente → em_andamento (auto-start)
+            supabase_request('PATCH', f'god_tasks?id=eq.{dep_id}',
+                body={'status': 'em_andamento', 'updated_at': datetime.now(timezone.utc).isoformat()})
+            action = 'agent_auto_started'
+        else:
+            # Human: just mark as ready (keep pendente but log event)
+            action = 'ready_for_human'
+
+        # Log reactor event
+        try:
+            supabase_request('POST', 'entity_events', body={
+                'aggregate_type': 'Task',
+                'aggregate_id': dep_id,
+                'event_type': 'TaskReactorUnblocked',
+                'payload': {
+                    'action': action,
+                    'unblocked_by': completed_task_id,
+                    'unblocked_by_titulo': completed_titulo,
+                },
+                'metadata': {'source': 'dependency_reactor'},
+            })
+        except Exception:
+            pass
+
+        results.append({'task_id': dep_id, 'titulo': dep.get('titulo', ''), 'action': action})
+    return results
 
 
 def supabase_request(method, path, body=None, _retries=3, _backoff=1.0):
@@ -2074,7 +2150,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             updated_ms = int(t.get('date_updated') or 0)
             tid = t.get('id')
             operon_id = t.get('id', '')
-            clickup_url = t.get('url', '')
+            clickup_url = clickup_deep_link(t.get('url', ''))
 
             # Descrição: pega primeira linha não-vazia, remove markdown/HTML, trunca 80
             raw_desc = t.get('description') or ''
@@ -2238,7 +2314,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                             'data_inicio': ms_to_date(t.get('start_date')),
                             'data_fim': ms_to_date(t.get('due_date')),
                             'operon_id': cu_id,
-                            'clickup_url': t.get('url', ''),
+                            'clickup_url': clickup_deep_link(t.get('url', '')),
                             'clickup_synced_at': datetime.now(timezone.utc).isoformat(),
                             'fonte': 'clickup',
                         }
@@ -2405,7 +2481,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 with urllib.request.urlopen(req, timeout=15) as r:
                     result = json.loads(r.read())
                 new_cu_id = result.get('id', '')
-                new_cu_url = result.get('url', '')
+                new_cu_url = clickup_deep_link(result.get('url', ''))
                 supabase_request('PATCH', f'god_tasks?id=eq.{task_uuid}', {
                     'operon_id': new_cu_id,
                     'clickup_url': new_cu_url,
@@ -2612,11 +2688,20 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             except Exception:
                 pass
 
+            # ORCH-04: Dependency Reactor — auto-unblock dependents
+            reactor_results = []
+            if result['to'] in ('concluida', 'cancelada', 'arquivada'):
+                try:
+                    reactor_results = _dependency_reactor(task_id, task_row.get('titulo', ''))
+                except Exception as rx:
+                    log_error('dependency_reactor', str(rx), rx)
+
             self._send_json({
                 'task_id': task_id,
                 'from': result['from'],
                 'to': result['to'],
                 'event': event,
+                'reactor': reactor_results,
             })
         except Exception as e:
             log_error('task_transition', str(e), e)

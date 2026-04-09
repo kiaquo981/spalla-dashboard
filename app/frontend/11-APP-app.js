@@ -7334,7 +7334,9 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         'cancelada→arquivada': 'archive',
         'cancelada→pendente': 'reopen',
       };
-      const event = eventMap[`${oldStatus}→${newStatus}`];
+      let event = eventMap[`${oldStatus}→${newStatus}`];
+      // Gates use 'approve' instead of 'complete' from pendente
+      if (t.especie === 'gate' && oldStatus === 'pendente' && newStatus === 'concluida') event = 'approve';
 
       // Optimistic update
       t.status = newStatus;
@@ -7354,6 +7356,20 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
             t.status = oldStatus; this._cacheTasksLocal();
             this.toast(err.error || 'Transição não permitida', 'error');
             return;
+          }
+          // ORCH-04: Dependency Reactor feedback
+          const resData = await res.json().catch(() => ({}));
+          if (resData.reactor && resData.reactor.length > 0) {
+            for (const r of resData.reactor) {
+              const localT = this.data.tasks.find(x => x.id === r.task_id);
+              if (localT && r.action !== 'ready_for_human') {
+                localT.status = 'em_andamento';
+                localT.updated_at = new Date().toISOString();
+              }
+              const label = r.action === 'agent_auto_started' ? 'Agente iniciado' : r.action === 'auto_unblocked' ? 'Desbloqueada' : 'Pronta';
+              this.toast(`${label}: ${r.titulo}`, 'success');
+            }
+            this._cacheTasksLocal();
           }
         } catch (e) {
           // Fallback to direct update if transition API unreachable

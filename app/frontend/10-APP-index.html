@@ -4092,6 +4092,7 @@
                           <div style="display:flex;align-items:center;gap:8px">
                             <span style="width:10px;height:10px;border-radius:50%;flex-shrink:0"
                                   :style="{'pendente':'background:#94a3b8','em_andamento':'background:#3b82f6','em_revisao':'background:#f59e0b','bloqueada':'background:#ef4444','pausada':'background:#8b5cf6','concluida':'background:#22c55e'}[t.status] || 'background:#d1d5db'"></span>
+                            <span x-show="t.especie === 'gate'" style="font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;background:#f59e0b;color:#fff;flex-shrink:0">GATE</span>
                             <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="t.titulo"></span>
                             <span x-show="t.mentorado_nome && meuTrabalhoGroupBy !== 'mentorado'" style="font-size:10px;color:var(--text-secondary);flex-shrink:0" x-text="'— ' + t.mentorado_nome"></span>
                           </div>
@@ -5192,16 +5193,17 @@
                       <div class="gantt-row__label" style="display:flex;align-items:center;gap:6px">
                         <span style="width:6px;height:6px;border-radius:50%;flex-shrink:0"
                               :style="'background:' + (t.status==='concluida' ? '#22c55e' : t.status==='em_andamento' ? '#3b82f6' : '#94a3b8')"></span>
+                        <span x-show="t.especie === 'gate'" style="font-size:10px;color:#f59e0b;flex-shrink:0" title="Gate checkpoint">◆</span>
                         <span class="gantt-row__title" x-text="t.titulo" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
                         <span x-show="t.responsavel" class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel)" x-text="avatarInitials(t.responsavel)" style="width:20px;height:20px;font-size:8px;flex-shrink:0"></span>
                         <span x-show="isAgentMember(t.responsavel)" style="font-size:8px;font-weight:700;padding:1px 4px;border-radius:3px;background:#8b5cf6;color:#fff;flex-shrink:0">AI</span>
                       </div>
                       <div class="gantt-row__timeline">
-                        <div class="gantt-bar" :style="ganttBarStyle(t) + (isAgentMember(t.responsavel) ? ';border:2px dashed rgba(255,255,255,.5)' : '')" :title="t.titulo + ' (' + (t.data_inicio || '?') + ' → ' + (t.data_fim || t.prazo || '?') + ')'">
+                        <div class="gantt-bar" :style="ganttBarStyle(t) + (isAgentMember(t.responsavel) ? ';border:2px dashed rgba(255,255,255,.5)' : '') + (t.especie === 'gate' ? ';border:2px solid #f59e0b;background:linear-gradient(135deg,#fef3c7,#fde68a);min-width:24px;max-width:24px;height:24px;transform:rotate(45deg);border-radius:4px;margin-top:4px' : '')" :title="t.titulo + ' (' + (t.data_inicio || '?') + ' → ' + (t.data_fim || t.prazo || '?') + ')'">
                           <div class="gantt-bar__handle gantt-bar__handle--left"
                                @mousedown.stop.prevent="ganttDragStart($event, t, 'left')"
                                @touchstart.stop.prevent="ganttDragStart($event.touches[0], t, 'left')"></div>
-                          <span class="gantt-bar__text" x-text="(t.titulo || '').length > 15 ? (t.titulo || '').substring(0,15) + '…' : (t.titulo || '')"></span>
+                          <span x-show="t.especie !== 'gate'" class="gantt-bar__text" x-text="(t.titulo || '').length > 15 ? (t.titulo || '').substring(0,15) + '…' : (t.titulo || '')"></span>
                           <div class="gantt-bar__handle gantt-bar__handle--right"
                                @mousedown.stop.prevent="ganttDragStart($event, t, 'right')"
                                @touchstart.stop.prevent="ganttDragStart($event.touches[0], t, 'right')"></div>
@@ -5860,6 +5862,13 @@
                             <option value="cancelada" :selected="activeTaskDetail.status === 'cancelada'">Cancelada</option>
                             <option value="arquivada" :selected="activeTaskDetail.status === 'arquivada'">Arquivada</option>
                           </select>
+                          <!-- Gate: Approve button -->
+                          <button x-show="activeTaskDetail.especie === 'gate' && activeTaskDetail.status === 'pendente'"
+                                  @click="updateTaskStatus(activeTaskDetail.id, 'concluida')"
+                                  style="margin-left:8px;padding:4px 12px;background:#22c55e;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                            Aprovar Gate
+                          </button>
                         </div>
                         <div style="padding:var(--sp-3) var(--sp-4);background:var(--cream-50);color:var(--neutral-500);font-weight:var(--fw-medium);border-bottom:1px solid var(--neutral-200);display:flex;align-items:center;gap:var(--sp-2)">
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Responsável
@@ -5950,6 +5959,7 @@
                             <option value="recorrente_instancia" :selected="activeTaskDetail.especie === 'recorrente_instancia'">Recorrente (instancia)</option>
                             <option value="triggered_template" :selected="activeTaskDetail.especie === 'triggered_template'">Triggered (template)</option>
                             <option value="triggered_instancia" :selected="activeTaskDetail.especie === 'triggered_instancia'">Triggered (instancia)</option>
+                            <option value="gate" :selected="activeTaskDetail.especie === 'gate'">Gate (checkpoint)</option>
                           </select>
                         </div>
                         <!-- Row 5: Etiquetas -->
@@ -12096,6 +12106,7 @@
                   <option value="quest">⚔️ Quest (tarefa-pai com filhos sequenciais)</option>
                   <option value="recorrente_template">🔄 Recorrente (template + instâncias)</option>
                   <option value="triggered_template">⚡ Triggered (dispara por evento)</option>
+                  <option value="gate">🔐 Gate (checkpoint de aprovação)</option>
                 </select>
               </div>
             </div>
@@ -12794,7 +12805,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=246"></script>
+  <script src="11-APP-app.js?v=247"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">

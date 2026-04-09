@@ -42,6 +42,10 @@ def _quest_children_complete(sm) -> bool:
     return bool(sm.row.get("_children_complete", True))
 
 
+def _is_gate(sm) -> bool:
+    return sm.row.get("especie") == "gate"
+
+
 def _is_template(sm) -> bool:
     return sm.row.get("especie") in (
         "recorrente_template", "triggered_template"
@@ -71,6 +75,8 @@ class TaskStateMachine(StateMachine):
         ("pendente", "cancel"):   {"to": "cancelada"},
         ("pendente", "complete"): {"to": "concluida",
                                     "guard": _quest_children_complete},
+        ("pendente", "approve"):  {"to": "concluida",
+                                    "guard": _is_gate},
 
         # em_andamento
         ("em_andamento", "complete"):       {"to": "concluida",
