@@ -811,27 +811,32 @@ def _sheets_sync_loop():
 
 # ===== SUPABASE HELPERS =====
 class SupabaseResponse:
-    """Wrapper that supports both dict-style access AND .status_code/.json()/.text"""
-    def __init__(self, data, status_code=200):
+    """Wrapper for error responses — supports .status_code/.json()/.text AND dict access"""
+    def __init__(self, data, status_code=500):
         self._data = data
         self.status_code = status_code
         self.text = json.dumps(data) if data else ''
     def json(self):
         return self._data
     def __iter__(self):
-        if isinstance(self._data, list): return iter(self._data)
         return iter([])
     def __len__(self):
-        if isinstance(self._data, list): return len(self._data)
         return 0
     def __bool__(self):
-        return bool(self._data)
+        return False
     def __getitem__(self, key):
-        if isinstance(self._data, (dict, list)): return self._data[key]
+        if isinstance(self._data, dict): return self._data[key]
         raise KeyError(key)
     def get(self, key, default=None):
         if isinstance(self._data, dict): return self._data.get(key, default)
         return default
+
+
+def supa_ok(result):
+    """Check if supabase_request succeeded. Works with both raw data and SupabaseResponse."""
+    if isinstance(result, SupabaseResponse):
+        return result.status_code in (200, 201, 204)
+    return not (isinstance(result, dict) and result.get('error'))
 
 
 def supabase_request(method, path, body=None, _retries=3, _backoff=1.0):
@@ -862,10 +867,27 @@ def supabase_request(method, path, body=None, _retries=3, _backoff=1.0):
 
             if status in (200, 201):
                 parsed = json.loads(resp_body) if resp_body else {}
-                return SupabaseResponse(parsed, status)
+                # Inject .status_code and .json() on native types for backward compat
+                if isinstance(parsed, list):
+                    class SList(list):
+                        status_code = status
+                        text = resp_body.decode() if resp_body else ''
+                        def json(self): return list(self)
+                    return SList(parsed)
+                elif isinstance(parsed, dict):
+                    class SDict(dict):
+                        status_code = status
+                        text = resp_body.decode() if resp_body else ''
+                        def json(self): return dict(self)
+                    return SDict(parsed)
+                return parsed
 
             elif status in (204,):
-                return SupabaseResponse({}, 204)
+                class SDict204(dict):
+                    status_code = 204
+                    text = ''
+                    def json(self): return {}
+                return SDict204()
 
             elif status in (503, 429, 500, 502, 504):
                 last_error = SupabaseResponse({'error': f'Supabase {status}: {resp_body.decode()}'}, status)
@@ -2535,9 +2557,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 return self._send_json({'error': 'event obrigatório'}, 400)
 
             r = supabase_request('GET', f'god_tasks?id=eq.{task_id}&limit=1')
-            if r.status_code != 200 or not r.json():
+            if not supa_ok(r) or not r:
                 return self._send_json({'error': 'task não encontrada'}, 404)
-            task_row = r.json()[0]
+            task_row = r[0] if isinstance(r, list) else r
 
             # Hidrata flags de guard
             deps = task_row.get('depends_on') or []
@@ -2546,7 +2568,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 rdep = supabase_request('GET',
                     f'god_tasks?id=in.({in_clause})&select=id,status&limit=1000')
                 terminal = ('concluida','cancelada','arquivada')
-                rows = rdep.json() if rdep.status_code == 200 else []
+                rows = rdep if isinstance(rdep, list) else []
                 task_row['_dependencies_resolved'] = all(x.get('status') in terminal for x in rows)
             else:
                 task_row['_dependencies_resolved'] = True
@@ -2555,7 +2577,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 rch = supabase_request('GET',
                     f'god_tasks?parent_task_id=eq.{task_id}&select=id,status')
                 terminal = ('concluida','cancelada','arquivada')
-                children = rch.json() if rch.status_code == 200 else []
+                children = rch if isinstance(rch, list) else []
                 task_row['_children_complete'] = (
                     len(children) == 0 or all(c.get('status') in terminal for c in children)
                 )
@@ -2576,8 +2598,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 f'god_tasks?id=eq.{task_id}',
                 body={'status': result['to'],
                       'updated_at': datetime.now(timezone.utc).isoformat()})
-            if ru.status_code not in (200, 204):
-                return self._send_json({'error': f'persist failed: {ru.text}'}, 500)
+            if not supa_ok(ru):
+                return self._send_json({'error': 'persist failed'}, 500)
 
             try:
                 supabase_request('POST', 'entity_events', body={
@@ -2636,8 +2658,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 f'mentorados?id=eq.{mentorado_id}',
                 body={'fase_jornada': result['to'],
                       'updated_at': datetime.now(timezone.utc).isoformat()})
-            if ru.status_code not in (200, 204):
-                return self._send_json({'error': f'persist failed: {ru.text}'}, 500)
+            if not supa_ok(ru):
+                return self._send_json({'error': 'persist failed'}, 500)
 
             try:
                 supabase_request('POST', 'entity_events', body={
@@ -2696,8 +2718,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 f'ds_producoes?id=eq.{producao_id}',
                 body={'status': result['to'],
                       'updated_at': datetime.now(timezone.utc).isoformat()})
-            if ru.status_code not in (200, 204):
-                return self._send_json({'error': f'persist failed: {ru.text}'}, 500)
+            if not supa_ok(ru):
+                return self._send_json({'error': 'persist failed'}, 500)
 
             try:
                 supabase_request('POST', 'entity_events', body={
@@ -2763,8 +2785,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 f'ds_documentos?id=eq.{documento_id}',
                 body={'status': result['to'],
                       'updated_at': datetime.now(timezone.utc).isoformat()})
-            if ru.status_code not in (200, 204):
-                return self._send_json({'error': f'persist failed: {ru.text}'}, 500)
+            if not supa_ok(ru):
+                return self._send_json({'error': 'persist failed'}, 500)
 
             try:
                 supabase_request('POST', 'entity_events', body={
