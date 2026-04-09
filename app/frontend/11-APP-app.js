@@ -13105,6 +13105,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           gravacao: c.link_gravacao || null,
           transcricao: c.link_transcricao || null,
           senha_call: c.senha_call || null, plano_acao: c.link_plano_acao || null,
+          link_youtube: c.link_youtube || null,
           decisoes: c.decisoes_tomadas || [], gargalos: c.gargalos || [],
           proximos_passos: c.proximos_passos || [], sentimento: null,
         }));
