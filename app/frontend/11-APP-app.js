@@ -9310,6 +9310,42 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       return headers;
     },
 
+    // ORCH-01: Dependency lines for Gantt SVG overlay
+    get ganttDependencyLines() {
+      const tasks = this.ganttTasks;
+      if (!tasks.length) return [];
+      const range = this.ui.taskGanttRange;
+      const now = new Date();
+      let rangeStart, totalDays;
+      if (range === 'week') {
+        rangeStart = new Date(now); rangeStart.setDate(now.getDate() - now.getDay()); totalDays = 7;
+      } else if (range === 'quarter') {
+        rangeStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1); totalDays = 90;
+      } else {
+        rangeStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        totalDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      }
+      const lines = [];
+      for (let i = 0; i < tasks.length; i++) {
+        const t = tasks[i];
+        const deps = t.depends_on || [];
+        for (const depId of deps) {
+          const j = tasks.findIndex(x => x.id === depId);
+          if (j < 0) continue;
+          const blocker = tasks[j];
+          const blockerEnd = parseDateStr(blocker.data_fim || blocker.prazo || blocker.created_at || new Date().toISOString());
+          const depStart = parseDateStr(t.data_inicio || t.created_at || new Date().toISOString());
+          const fromXPct = Math.min(100, Math.max(0, ((blockerEnd - rangeStart) / (totalDays * 86400000)) * 100));
+          const toXPct = Math.min(100, Math.max(0, ((depStart - rangeStart) / (totalDays * 86400000)) * 100));
+          const fromY = j * 40 + 20;
+          const toY = i * 40 + 20;
+          const resolved = ['concluida', 'cancelada', 'arquivada'].includes(blocker.status);
+          lines.push({ fromXPct, fromY, toXPct, toY, isBlocking: !resolved });
+        }
+      }
+      return lines;
+    },
+
     // Gantt drag-to-resize: start
     ganttDragStart(event, task, side) {
       const timelineEl = event.target.closest('.gantt-row__timeline');
@@ -14980,8 +15016,18 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       return { urgente: 'Urgente', alta: 'Alta', normal: 'Normal', baixa: 'Baixa' }[p] || p || 'Normal';
     },
 
+    // ORCH-02: Agent member detection
+    isAgentMember(name) {
+      if (!name) return false;
+      const member = (this.data.members || []).find(m =>
+        m.id === name || (m.nome_curto || '').toLowerCase() === (name || '').toLowerCase()
+      );
+      return member?.tipo === 'agent' || (name || '').startsWith('agent_');
+    },
+
     avatarInitials(nome) {
       if (!nome) return '?';
+      if (this.isAgentMember(nome)) return '🤖';
       const parts = nome.split(' ').filter(p => p.length > 0);
       if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
       return parts[0]?.substring(0, 2).toUpperCase() || '?';
