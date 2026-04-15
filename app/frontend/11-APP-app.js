@@ -12455,10 +12455,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     async snoozeMentee(menteeId, dias) {
-      const dt = new Date();
-      dt.setDate(dt.getDate() + dias);
-      await this.patchMentee(menteeId, { snoozed_until: dt.toISOString() });
-      this.toast(`Mentorado snoozeado por ${dias} dias`, 'success');
+      // snoozed_until foi removido da tabela — snooze desabilitado temporariamente
+      this.toast('Snooze temporariamente indisponível', 'info');
     },
 
     openOffboardModal(menteeId, menteeNome) {

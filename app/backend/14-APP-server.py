@@ -4351,7 +4351,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             # Fetch mentees assigned to this consultant
             mentees = supabase_request(
                 'GET',
-                f'mentorados?select=id,nome,email,instagram,fase_jornada,cohort,ativo,consultor_responsavel,snoozed_until,whatsapp_7d,whatsapp_30d'
+                f'mentorados?select=id,nome,email,instagram,fase_jornada,cohort,ativo,consultor_responsavel,whatsapp_7d,whatsapp_30d'
                 f'&ativo=eq.true&consultor_responsavel=eq.{urllib.parse.quote(email)}&order=nome'
             )
             if isinstance(mentees, dict) and 'error' in mentees:
@@ -4476,7 +4476,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': 'Invalid JSON'}, 400)
                 return
 
-            ALLOWED_FIELDS = {'fase_jornada', 'snoozed_until', 'wa_status', 'trilha'}
+            ALLOWED_FIELDS = {'fase_jornada', 'wa_status', 'trilha'}
             updates = {k: v for k, v in body.items() if k in ALLOWED_FIELDS}
             if not updates:
                 self._send_json({'error': 'No allowed fields provided'}, 400)
@@ -4501,7 +4501,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
             result = supabase_request(
                 'PATCH',
-                f'mentorados?id=eq.{mentee_id}&select=id,nome,fase_jornada,snoozed_until,wa_status',
+                f'mentorados?id=eq.{mentee_id}&select=id,nome,fase_jornada,wa_status',
                 updates
             )
             self._send_json(result)
@@ -4539,16 +4539,15 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             from datetime import date
             updates = {
                 'ativo': False,
-                'motivo_inativacao': motivo,
-                'data_inativacao': date.today().isoformat(),
+                'observacoes': f'Inativado em {date.today().isoformat()} — motivo: {motivo}',
             }
             obs = (body.get('obs') or '').strip()
             if obs:
-                updates['obs_inativacao'] = obs
+                updates['observacoes'] = f'Inativado em {date.today().isoformat()} — motivo: {motivo}. {obs}'
 
             result = supabase_request(
                 'PATCH',
-                f'mentorados?id=eq.{mentee_id}&select=id,nome,ativo,motivo_inativacao,data_inativacao',
+                f'mentorados?id=eq.{mentee_id}&select=id,nome,ativo',
                 updates
             )
             self._send_json(result)
@@ -4598,7 +4597,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             ids_csv = ','.join(str(i) for i in ids)
             result = supabase_request(
                 'PATCH',
-                f'mentorados?id=in.({ids_csv})&select=id,nome,fase_jornada,snoozed_until',
+                f'mentorados?id=in.({ids_csv})&select=id,nome,fase_jornada',
                 updates
             )
             updated = result if isinstance(result, list) else []
