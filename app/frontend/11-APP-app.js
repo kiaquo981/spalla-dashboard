@@ -1133,12 +1133,16 @@ function operon() {
     async updateMenteeFinField(field, value) {
       const menteeId = this.ui.selectedMenteeId;
       if (!sb || !menteeId) return;
-      const { error } = await sb.from('mentorados').update({ [field]: value }).eq('id', menteeId);
-      if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
-      // Update local
+      // Campos financeiros vivem em case_archives.mentorados_financeiro — usa RPC
+      const { data: res, error } = await sb.rpc('fn_update_mentorado_financeiro', {
+        p_mentorado_id: menteeId,
+        p_field: field,
+        p_value: String(value),
+      });
+      if (error || res?.error) { this.toast('Erro: ' + (error?.message || res?.error), 'error'); return; }
+      // Update local state
+      if (this.data.detail?.financial) this.data.detail.financial[field] = value;
       if (this.data.detail?.profile) this.data.detail.profile[field] = value;
-      const m = this.data.mentees?.find(x => x.id === menteeId);
-      if (m) m[field] = value;
     },
 
     async changeFinStatus(menteeId, newStatus, observacao) {
@@ -12455,10 +12459,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     async snoozeMentee(menteeId, dias) {
-      const dt = new Date();
-      dt.setDate(dt.getDate() + dias);
-      await this.patchMentee(menteeId, { snoozed_until: dt.toISOString() });
-      this.toast(`Mentorado snoozeado por ${dias} dias`, 'success');
+      // snoozed_until foi removido da tabela — snooze desabilitado temporariamente
+      this.toast('Snooze temporariamente indisponível', 'info');
     },
 
     openOffboardModal(menteeId, menteeNome) {
