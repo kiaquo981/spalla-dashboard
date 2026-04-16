@@ -1,5 +1,5 @@
 {
-  "buildCommand": "echo Static SPA",
+  "buildCommand": "cd buddy-post-call && npm ci && npm run build",
   "outputDirectory": "app/frontend",
   "headers": [
     {
@@ -17,6 +17,8 @@
   ],
   "rewrites": [
     { "source": "/api-docs", "destination": "/api-docs.html" },
+    { "source": "/buddy", "destination": "/buddy/index.html" },
+    { "source": "/buddy/(.*)", "destination": "/buddy/index.html" },
     { "source": "/(.*)", "destination": "/10-APP-index.html" }
   ]
 }
