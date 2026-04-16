@@ -19,6 +19,9 @@ logs/
 
 # Editor widget build output (built by Vercel)
 
+# Buddy sub-app build output (built by Vercel from buddy-post-call/)
+app/frontend/buddy/
+
 # IDE & OS (AIOS)
 .DS_Store
 Thumbs.db
