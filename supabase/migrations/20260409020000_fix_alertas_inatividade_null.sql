@@ -1,0 +1,3 @@
+-- Already applied remotely via PR #516
+-- Fix: fn_gerar_alertas_inatividade NULL + CHECK constraints
+-- See PR #516 for details

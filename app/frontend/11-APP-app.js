@@ -205,6 +205,13 @@ function operon() {
       mentionQuery: '',        // texto digitado após @
       mentionStart: -1,        // posição do @ no textarea
       taskGanttRange: 'month', // 'week' | 'month' | 'quarter'
+      _ganttDrag: null,
+      ganttFocusedTaskId: null,  // Dragon 55: keyboard-navigated task
+      descarregoFilter: 'todos',
+      descarregoExpanded: {},
+      batchDescarregoOpen: false,
+      batchDescarregoText: '',
+      batchDescarregoSubmitting: false,
       calYear: new Date().getFullYear(),
       calMonth: new Date().getMonth(),
       bulkSelected: {}, // { taskId: true }
@@ -519,6 +526,10 @@ function operon() {
       menteeFiles: { docs: [], media: [], loading: false },
       groups: [],               // mentee_groups with member_ids
       waGroups: [],             // wa_groups from Supabase (Story 8)
+      waWeeklyStats: [],        // vw_wa_mentee_weekly_stats (WA Intelligence)
+      waAlertas: [],            // vw_alertas_command_center (Story 6)
+      agentMetrics: [],         // vw_agent_metrics (ORCH-07)
+      _menteeWaActivity: [],    // vw_wa_mentee_activity for selected mentorado
       // WA DM v2 (S9-B)
       waCannedAll: [],          // cache de canned responses
       // S9-C
@@ -583,9 +594,11 @@ function operon() {
       // Sprints carregados de god_lists (tipo='sprint') via loadGodLists()
       // Fallback hardcoded aqui caso Supabase falhe
       sprints: [
-        { id: '901113377455', nome: 'Sprint 1', inicio: '2026-03-16', fim: '2026-03-22', status: 'encerrado', total: 7, concluidas: 2, highlights: ['Visão de grupos WhatsApp no ar', 'Agenda de sessões integrada', 'Dashboard de mentorados atualizado'] },
-        { id: '901113377456', nome: 'Sprint 2', inicio: '2026-03-23', fim: '2026-03-29', status: 'ativo', total: 225, concluidas: 2, highlights: ['Pipeline de Dossiê (Download → Final)', 'Jornada Completa da Mentoria', 'Novo Workflow de Trabalho com IA'] },
-        { id: '901113377457', nome: 'Sprint 3', inicio: '2026-03-30', fim: '2026-04-05', status: 'planejado', total: 230, concluidas: 0, highlights: [] },
+        { id: '901113377455', nome: 'Sprint 1', inicio: '2026-03-16', fim: '2026-03-22', status: 'encerrado', total: 7, concluidas: 2, highlights: [] },
+        { id: '901113377456', nome: 'Sprint 2', inicio: '2026-03-23', fim: '2026-03-29', status: 'encerrado', total: 225, concluidas: 2, highlights: [] },
+        { id: '901113377457', nome: 'Sprint 3', inicio: '2026-03-30', fim: '2026-04-05', status: 'encerrado', total: 230, concluidas: 0, highlights: [] },
+        { id: 'sprint_4', nome: 'Sprint 4', inicio: '2026-04-06', fim: '2026-04-12', status: 'ativo', total: 0, concluidas: 0, highlights: [] },
+        { id: 'sprint_5', nome: 'Sprint 5', inicio: '2026-04-13', fim: '2026-04-19', status: 'planejado', total: 0, concluidas: 0, highlights: [] },
       ],
       // Membros carregados de spalla_members via loadSpallaMembers()
       members: [],
@@ -888,7 +901,19 @@ function operon() {
     // Pendencias: sorted by priority
     get pendenciasList() {
       const prioOrder = { critico: 0, alto: 1, medio: 2, baixo: 3 };
-      return [...this.data.pendencias].sort((a, b) => {
+      let list = [...this.data.pendencias];
+      // Filtrar por consultor se filtro ativo
+      const consultor = this.ui.filters?.carteira;
+      if (consultor) {
+        // Cruzar mentorado_id da pendência com consultor_responsavel do mentorado
+        const menteeIds = new Set(
+          (this.data.mentees || [])
+            .filter(m => m.consultor_responsavel === consultor)
+            .map(m => m.id)
+        );
+        list = list.filter(p => menteeIds.has(p.mentorado_id));
+      }
+      return list.sort((a, b) => {
         return (prioOrder[a.prioridade_calculada] ?? 3) - (prioOrder[b.prioridade_calculada] ?? 3);
       });
     },
@@ -1108,12 +1133,16 @@ function operon() {
     async updateMenteeFinField(field, value) {
       const menteeId = this.ui.selectedMenteeId;
       if (!sb || !menteeId) return;
-      const { error } = await sb.from('mentorados').update({ [field]: value }).eq('id', menteeId);
-      if (error) { this.toast('Erro: ' + error.message, 'error'); return; }
-      // Update local
+      // Campos financeiros vivem em case_archives.mentorados_financeiro — usa RPC
+      const { data: res, error } = await sb.rpc('fn_update_mentorado_financeiro', {
+        p_mentorado_id: menteeId,
+        p_field: field,
+        p_value: String(value),
+      });
+      if (error || res?.error) { this.toast('Erro: ' + (error?.message || res?.error), 'error'); return; }
+      // Update local state
+      if (this.data.detail?.financial) this.data.detail.financial[field] = value;
       if (this.data.detail?.profile) this.data.detail.profile[field] = value;
-      const m = this.data.mentees?.find(x => x.id === menteeId);
-      if (m) m[field] = value;
     },
 
     async changeFinStatus(menteeId, newStatus, observacao) {
@@ -1399,7 +1428,16 @@ function operon() {
     },
 
     recorrenciaLabel(r) {
-      return { diario: 'Diaria', semanal: 'Semanal', quinzenal: 'Quinzenal', mensal: 'Mensal' }[r] || '';
+      return { diario: 'Diária', semanal: 'Semanal', quinzenal: 'Quinzenal', mensal: 'Mensal' }[r] || '';
+    },
+
+    async toggleRecorrencia(taskId) {
+      const task = this.data.tasks.find(t => t.id === taskId);
+      if (!task) return;
+      const newVal = !(task.recorrencia_ativa ?? true);
+      task.recorrencia_ativa = newVal;
+      await this.updateTaskField(taskId, 'recorrencia_ativa', newVal);
+      this.toast(newVal ? 'Recorrência reativada' : 'Recorrência pausada', 'info');
     },
 
     // Kanban: group mentees by phase
@@ -1525,6 +1563,7 @@ function operon() {
         else if (this.quickFilter === 'unassigned') list = list.filter(t => !t.responsavel);
         else if (this.quickFilter === 'thisWeek') list = list.filter(t => t.data_fim && new Date(t.data_fim) >= now && new Date(t.data_fim) <= weekEnd);
         else if (this.quickFilter === 'favorites') list = list.filter(t => this.favorites.includes(t.id));
+        else if (this.quickFilter === 'recurring') list = list.filter(t => t.recorrencia && t.recorrencia !== 'nenhuma');
       }
       if (this.ui.search && this.ui.page === 'tasks') {
         const q = this.ui.search.toLowerCase();
@@ -2034,10 +2073,9 @@ function operon() {
           // Load WhatsApp per-user session + start health check
           this.loadWaSession();
           this.waStartHealthCheck();
-          // Lazy-load Arquivos data if page is already on arquivos (deep-link or localStorage restore)
-          if (this.ui.page === 'arquivos') {
-            this.loadArquivos();
-          }
+          // Lazy-load data if page is already restored from localStorage
+          if (this.ui.page === 'arquivos') this.loadArquivos();
+          if (this.ui.page === 'meu_trabalho') this.loadMeuTrabalho();
         }
       } catch (e) {
         console.error('[Spalla] INIT ERROR:', e);
@@ -2764,15 +2802,17 @@ function operon() {
       sb = await initSupabase();
       if (sb) {
         try {
-          const [mentees, cohort, pendencias, paPipeline] = await Promise.all([
+          const [mentees, cohort, pendencias, paPipeline, waWeekly, waAlertas] = await Promise.all([
             sb.from('vw_god_overview').select('*'),
             sb.from('vw_god_cohort').select('*'),
             sb.from('vw_god_pendencias').select('*').order('created_at', { ascending: true }),
             sb.from('vw_pa_pipeline').select('*'),
+            sb.from('vw_wa_mentee_weekly_stats').select('*'),
+            sb.from('vw_alertas_command_center').select('*'),
           ]);
           // Load calls in background (non-blocking)
           const calls = await sb.from('calls_mentoria')
-            .select('id,mentorado_id,data_call,duracao_minutos,tipo,tipo_call,link_gravacao,link_transcricao,zoom_topic,status_call,"senha_Call",link_plano_acao,principais_topicos,decisoes_tomadas,created_at,mentorados(id,nome)')
+            .select('id,mentorado_id,data_call,duracao_minutos,tipo,tipo_call,link_gravacao,link_transcricao,link_youtube,zoom_topic,status_call,"senha_Call",link_plano_acao,principais_topicos,decisoes_tomadas,created_at,mentorados(id,nome)')
             .order('data_call', { ascending: false })
             .limit(500);
           // Check individual query errors
@@ -2782,6 +2822,10 @@ function operon() {
           if (pendencias.error) console.error('[Spalla] Pendencias query error:', pendencias.error.message);
           if (paPipeline.error) console.error('[Spalla] PA Pipeline query error:', paPipeline.error?.message);
           if (paPipeline.data) this.data.paPlanos = paPipeline.data;
+          if (waWeekly.error) console.error('[Spalla] WA Weekly Stats query error:', waWeekly.error?.message);
+          if (waWeekly.data) this.data.waWeeklyStats = waWeekly.data;
+          if (waAlertas.error) console.error('[Spalla] WA Alertas query error:', waAlertas.error?.message);
+          if (waAlertas.data) this.data.waAlertas = waAlertas.data;
           // Load lightweight fases + acoes for sentinel calculations
           const [paFasesRes, paAcoesRes] = await Promise.all([
             sb.from('pa_fases').select('id, plano_id, titulo, tipo, status, ordem, origem'),
@@ -2844,6 +2888,7 @@ function operon() {
               status_call: c.status_call || (c.link_gravacao ? 'realizada' : null),
               horario_call: c.data_call && c.data_call.includes('T') ? c.data_call.substring(11, 16) : null,
               link_plano_acao: c.link_plano_acao || null,
+              link_youtube: c.link_youtube || null,
               transcript_completo: c.transcript_completo || null,
               observacoes_equipe: c.observacoes_equipe || null,
               created_at: c.created_at,
@@ -3615,8 +3660,8 @@ function operon() {
     // Uses vw_god_overview which already has: consultor_responsavel, dias_desde_call, ultima_call_data, tarefas_pendentes, tarefas_atrasadas
     ccConsultantBoard() {
       const mentees = this.data.mentees || [];
-      const fullName = (this.auth.currentUser?.full_name || '').toLowerCase();
-      const me = fullName.split(' ')[0]; // "Heitor", "Lara", "Kaique"
+      const fullName = (this.auth.currentUser?.full_name || this.auth.currentUser?.user_metadata?.full_name || '').toLowerCase().trim();
+      const me = fullName.split(' ')[0] || (this.auth.currentUser?.email || '').toLowerCase().split('@')[0] || 'kaique';
       const dsProds = this.data.dsProducoes || [];
       const dsDocs = this.data.dsAllDocs || [];
       const now = new Date();
@@ -3685,13 +3730,19 @@ function operon() {
 
     ccBoardGrouped() {
       const board = this.ccBoardFiltered();
-      const PHASE_ORDER = ['onboarding', 'concepcao', 'validacao', 'escala'];
-      const PHASE_LABELS = { onboarding: 'Onboarding', concepcao: 'Concepção', validacao: 'Validação', escala: 'Escala' };
+      const PHASE_ORDER = ['onboarding', 'concepcao', 'validacao', 'otimizacao', 'escala'];
+      const PHASE_LABELS = { onboarding: 'Onboarding', concepcao: 'Concepção', validacao: 'Validação', otimizacao: 'Otimização', escala: 'Escala' };
       const groups = {};
+      // Dedupe by id — previne duplicação se data.mentees tiver entries duplicadas
+      const seen = new Set();
       for (const m of board) {
-        const phase = m.fase && PHASE_ORDER.includes(m.fase) ? m.fase : 'onboarding';
-        if (!groups[phase]) groups[phase] = [];
-        groups[phase].push(m);
+        if (seen.has(m.id)) continue;
+        seen.add(m.id);
+        // Só agrupa se a fase é válida. Fases inválidas (ativo, execucao, etc.) são ignoradas
+        // pra não poluir os grupos onboarding/concepcao.
+        if (!m.fase || !PHASE_ORDER.includes(m.fase)) continue;
+        if (!groups[m.fase]) groups[m.fase] = [];
+        groups[m.fase].push(m);
       }
       return PHASE_ORDER.filter(p => groups[p]).map(p => ({ phase: p, label: PHASE_LABELS[p], items: groups[p] }));
     },
@@ -4063,6 +4114,8 @@ function operon() {
         descricao: `[Convertido de feedback]\n${fb.descricao || ''}\n\nCategoria: ${fb.categoria}\nPrioridade sentida: ${fb.prioridade}\nReportado por: ${fb.created_by}`,
         tipo: 'bug_report',
         prioridade: fb.prioridade,
+        responsavel: 'kaique',
+        space_id: 'space_sistema',
         status: 'pendente',
         fonte: 'feedback',
         tags: [fb.categoria],
@@ -4317,6 +4370,135 @@ function operon() {
     },
 
     // ===================== COMMAND CENTER COMPUTED =====================
+
+    // WA Intelligence: mentorados com pendências ordenados por urgência
+    ccWaPendencias() {
+      return (this.data.waWeeklyStats || [])
+        .filter(s => s.pendencias_abertas > 0)
+        .sort((a, b) => (b.avg_horas_sem_resposta || 0) - (a.avg_horas_sem_resposta || 0));
+    },
+
+    // WA Intelligence: resumo geral da semana
+    ccWaResumoSemana() {
+      const stats = this.data.waWeeklyStats || [];
+      return {
+        totalInteracoes: stats.reduce((s, m) => s + (m.interacoes_semana || 0), 0),
+        totalPendencias: stats.reduce((s, m) => s + (m.pendencias_abertas || 0), 0),
+        totalDuvidasAbertas: stats.reduce((s, m) => s + (m.duvidas_sem_resposta || 0), 0),
+        mentoradosAtivos: stats.filter(m => m.interacoes_semana > 0).length,
+        mentoradosInativos: stats.filter(m => m.interacoes_semana === 0).length,
+        celebracoes: stats.reduce((s, m) => s + (m.celebracoes_semana || 0), 0),
+        negativos: stats.reduce((s, m) => s + (m.msgs_negativas_semana || 0), 0),
+      };
+    },
+
+    // WA Intelligence: alertas abertos agrupados por severidade (Story 6)
+    ccWaAlertas() {
+      return this.data.waAlertas || [];
+    },
+    ccWaAlertasCriticos() {
+      return (this.data.waAlertas || []).filter(a => a.severidade === 'critico' || a.severidade === 'alto');
+    },
+
+    // --- Percepcoes CRUD (Story 5) ---
+    _percepcaoForm: { conteudo: '', tipo: 'observacao' },
+
+    async addPercepcao(mentoradoId) {
+      if (!sb || !mentoradoId || !this._percepcaoForm.conteudo.trim()) return;
+      const { error } = await sb.from('percepcoes_mentorado').insert({
+        mentorado_id: mentoradoId,
+        conteudo: this._percepcaoForm.conteudo.trim(),
+        tipo: this._percepcaoForm.tipo || 'observacao',
+        autor: this.currentUserName || 'Equipe',
+        fonte: 'dashboard',
+      });
+      if (error) return this.toast('Erro ao salvar percepção: ' + error.message, 'error');
+      this._percepcaoForm = { conteudo: '', tipo: 'observacao' };
+      await this.loadWaIntelligence(mentoradoId);
+      this.toast('Percepção registrada', 'success');
+    },
+
+    async deletePercepcao(percId, mentoradoId) {
+      if (!sb || !percId) return;
+      const { error } = await sb.from('percepcoes_mentorado').delete().eq('id', percId);
+      if (error) return this.toast('Erro ao remover: ' + error.message, 'error');
+      await this.loadWaIntelligence(mentoradoId);
+      this.toast('Percepção removida', 'info');
+    },
+
+    // --- Alertas CRUD (Story 6) ---
+    _alertaForm: { titulo: '', tipo: 'custom', severidade: 'medio', descricao: '' },
+
+    async addAlerta(mentoradoId) {
+      if (!sb || !mentoradoId || !this._alertaForm.titulo.trim()) return;
+      const { error } = await sb.from('alertas_mentorado').insert({
+        mentorado_id: mentoradoId,
+        titulo: this._alertaForm.titulo.trim(),
+        tipo: this._alertaForm.tipo || 'custom',
+        severidade: this._alertaForm.severidade || 'medio',
+        descricao: this._alertaForm.descricao.trim() || null,
+        fonte: 'equipe',
+      });
+      if (error) return this.toast('Erro ao criar alerta: ' + error.message, 'error');
+      this._alertaForm = { titulo: '', tipo: 'custom', severidade: 'medio', descricao: '' };
+      await this._reloadAlertas();
+      this.toast('Alerta criado', 'success');
+    },
+
+    async resolveAlerta(alertaId) {
+      if (!sb || !alertaId) return;
+      const { error } = await sb.from('alertas_mentorado').update({
+        resolvido: true,
+        resolvido_por: this.currentUserName || 'Equipe',
+        resolvido_at: new Date().toISOString(),
+      }).eq('id', alertaId);
+      if (error) return this.toast('Erro ao resolver: ' + error.message, 'error');
+      await this._reloadAlertas();
+      this.toast('Alerta resolvido', 'success');
+    },
+
+    async _reloadAlertas() {
+      if (!sb) return;
+      const { data } = await sb.from('vw_alertas_command_center').select('*');
+      if (data) this.data.waAlertas = data;
+    },
+
+    // WA Intel: stats do mentorado selecionado na ficha
+    menteeWaStats() {
+      const mid = this.data.detail?.profile?.id;
+      if (!mid) return null;
+      return (this.data.waWeeklyStats || []).find(s => s.mentorado_id === mid) || null;
+    },
+
+    // Story 3.1: Workload por membro da equipe
+    ccWorkloadEquipe() {
+      const tasks = this.data.tasks || [];
+      const members = this.data.members || [];
+      const byMember = {};
+      for (const t of tasks) {
+        const resp = (t.responsavel || '').toLowerCase().trim();
+        if (!resp || resp === 'sistema') continue;
+        if (!byMember[resp]) byMember[resp] = { pendente: 0, em_andamento: 0, concluida: 0, total: 0, atrasadas: 0 };
+        const s = t.status || 'pendente';
+        if (s === 'concluida' || s === 'cancelada') byMember[resp].concluida++;
+        else if (s === 'em_andamento') byMember[resp].em_andamento++;
+        else byMember[resp].pendente++;
+        byMember[resp].total++;
+        if (s !== 'concluida' && s !== 'cancelada' && t.data_fim) {
+          const due = new Date(t.data_fim);
+          if (due < new Date()) byMember[resp].atrasadas++;
+        }
+      }
+      return members
+        .filter(m => m.ativo !== false)
+        .map(m => {
+          const key = (m.nome_curto || m.id || '').toLowerCase();
+          const stats = byMember[key] || { pendente: 0, em_andamento: 0, concluida: 0, total: 0, atrasadas: 0 };
+          return { ...stats, id: m.id, nome: m.nome_curto || m.nome_completo, cor: m.cor || '#6366f1', cargo: m.cargo || '' };
+        })
+        .filter(m => m.total > 0)
+        .sort((a, b) => (b.em_andamento + b.pendente) - (a.em_andamento + a.pendente));
+    },
 
     ccSelectedSprint() {
       const sprints = (this.data.sprints || []).slice().sort((a, b) => (a.inicio || '').localeCompare(b.inicio || ''));
@@ -4752,6 +4934,18 @@ function operon() {
         semCall: semCall.slice(0, 5),
         totalAcoes: atrasadas.length + comPrazo.length + followups.length,
       };
+    },
+
+    async loadAgentMetrics() {
+      if (!CONFIG.API_BASE) return;
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/agent-metrics`, {
+          headers: { 'Authorization': `Bearer ${this.auth.accessToken}` },
+        });
+        if (!res.ok) return;
+        const d = await res.json();
+        this.data.agentMetrics = d.agents || [];
+      } catch (e) { /* silent */ }
     },
 
     async loadCommandCenterData() {
@@ -6017,9 +6211,20 @@ function operon() {
       this.ui.page = page;
       this.ui.mobileMenuOpen = false;
       if (page === 'financeiro') this.loadFinanceiro();
-      if (page === 'command_center' && !this.data.dsProducoes.length) this.loadDsData();
+      if (page === 'command_center') {
+        if (!this.data.dsProducoes.length) this.loadDsData();
+        // Force reload mentees to sync fase_jornada after updates
+        if (sb) {
+          sb.from('vw_god_overview').select('*').then(({ data }) => {
+            if (data?.length) this.data.mentees = data;
+          });
+        }
+        // ORCH-07: Load agent metrics
+        this.loadAgentMetrics();
+      }
       if (page === 'carteira') this.initWaKeyboardShortcuts();
       if (page === 'descarrego') { this.ui.ctxFilter.tipo = 'all'; this.ui.ctxFilter.fase = 'all'; }
+      if (page === 'meu_trabalho') this.loadMeuTrabalho();
       localStorage.setItem('spalla_page', page);
       // Update URL without reload
       const route = this._pageToRoute(page);
@@ -7066,6 +7271,41 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       });
     },
 
+    // Dragon 52: Undo/Redo stack
+    _undoStack: [],
+    _redoStack: [],
+    _pushUndo(taskId, field, oldValue, newValue) {
+      this._undoStack.push({ taskId, field, oldValue, newValue, ts: Date.now() });
+      if (this._undoStack.length > 50) this._undoStack.shift();
+      this._redoStack = [];
+    },
+    async undo() {
+      const entry = this._undoStack.pop();
+      if (!entry) return this.toast('Nada para desfazer', 'info');
+      this._redoStack.push(entry);
+      await this._applyFieldChange(entry.taskId, entry.field, entry.oldValue, true);
+      this.toast('Desfeito: ' + entry.field, 'info');
+    },
+    async redo() {
+      const entry = this._redoStack.pop();
+      if (!entry) return this.toast('Nada para refazer', 'info');
+      this._undoStack.push(entry);
+      await this._applyFieldChange(entry.taskId, entry.field, entry.newValue, true);
+      this.toast('Refeito: ' + entry.field, 'info');
+    },
+    async _applyFieldChange(taskId, field, value, skipUndo) {
+      const t = this.data.tasks.find(x => x.id === taskId);
+      if (!t) return;
+      const dbValue = (value === '' && ['sprint_id', 'list_id'].includes(field)) ? null : value;
+      t[field] = value;
+      t.updated_at = new Date().toISOString();
+      this._cacheTasksLocal();
+      if (sb) {
+        const { error } = await sb.from('god_tasks').update({ [field]: dbValue, updated_at: t.updated_at }).eq('id', taskId);
+        if (error) this.toast('Erro ao atualizar ' + field, 'error');
+      }
+    },
+
     async updateTaskField(taskId, field, value) {
       const t = this.data.tasks.find(x => x.id === taskId);
       if (!t) return;
@@ -7077,6 +7317,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       t[field] = value;
       t.updated_at = new Date().toISOString();
       this._cacheTasksLocal();
+      this._pushUndo(taskId, field, old, value);
       if (sb) {
         const { error } = await sb.from('god_tasks').update({ [field]: dbValue, updated_at: t.updated_at }).eq('id', taskId);
         if (error) { t[field] = old; this._cacheTasksLocal(); this.toast('Erro ao atualizar ' + field, 'error'); }
@@ -7087,10 +7328,77 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const t = this.data.tasks.find(x => x.id === taskId);
       if (!t) return;
       const oldStatus = t.status;
+
+      // Map (currentStatus, targetStatus) → FSM event
+      const eventMap = {
+        'pendente→em_andamento': 'start',
+        'pendente→bloqueada': 'block',
+        'pendente→cancelada': 'cancel',
+        'pendente→concluida': 'complete',
+        'em_andamento→concluida': 'complete',
+        'em_andamento→em_revisao': 'request_review',
+        'em_andamento→bloqueada': 'block',
+        'em_andamento→pausada': 'pause',
+        'em_andamento→cancelada': 'cancel',
+        'em_revisao→concluida': 'approve',
+        'em_revisao→em_andamento': 'changes_requested',
+        'em_revisao→cancelada': 'cancel',
+        'bloqueada→em_andamento': 'unblock',
+        'bloqueada→cancelada': 'cancel',
+        'pausada→em_andamento': 'resume',
+        'pausada→cancelada': 'cancel',
+        'concluida→arquivada': 'archive',
+        'concluida→em_andamento': 'reopen',
+        'concluida→pendente': 'reopen',
+        'cancelada→arquivada': 'archive',
+        'cancelada→pendente': 'reopen',
+      };
+      let event = eventMap[`${oldStatus}→${newStatus}`];
+      // Gates use 'approve' instead of 'complete' from pendente
+      if (t.especie === 'gate' && oldStatus === 'pendente' && newStatus === 'concluida') event = 'approve';
+
+      // Optimistic update
       t.status = newStatus;
       t.updated_at = new Date().toISOString();
       this._cacheTasksLocal();
-      if (sb) {
+
+      if (event && CONFIG.API_BASE) {
+        // Use FSM transition endpoint (validates guards)
+        try {
+          const res = await fetch(`${CONFIG.API_BASE}/api/tasks/${taskId}/transition`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+            body: JSON.stringify({ event }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            t.status = oldStatus; this._cacheTasksLocal();
+            this.toast(err.error || 'Transição não permitida', 'error');
+            return;
+          }
+          // ORCH-04: Dependency Reactor feedback
+          const resData = await res.json().catch(() => ({}));
+          if (resData.reactor && resData.reactor.length > 0) {
+            for (const r of resData.reactor) {
+              const localT = this.data.tasks.find(x => x.id === r.task_id);
+              if (localT && r.action !== 'ready_for_human') {
+                localT.status = 'em_andamento';
+                localT.updated_at = new Date().toISOString();
+              }
+              const label = r.action === 'agent_auto_started' ? 'Agente iniciado' : r.action === 'auto_unblocked' ? 'Desbloqueada' : 'Pronta';
+              this.toast(`${label}: ${r.titulo}`, 'success');
+            }
+            this._cacheTasksLocal();
+          }
+        } catch (e) {
+          // Fallback to direct update if transition API unreachable
+          if (sb) {
+            const { error } = await sb.from('god_tasks').update({ status: newStatus, updated_at: t.updated_at }).eq('id', taskId);
+            if (error) { t.status = oldStatus; this._cacheTasksLocal(); this.toast('Erro ao atualizar status', 'error'); return; }
+          }
+        }
+      } else if (sb) {
+        // No matching event (same status, or unmapped) — direct update
         const { error } = await sb.from('god_tasks').update({ status: newStatus, updated_at: t.updated_at }).eq('id', taskId);
         if (error) { t.status = oldStatus; this._cacheTasksLocal(); this.toast('Erro ao atualizar status', 'error'); return; }
       }
@@ -7138,6 +7446,26 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         await this.loadTasks();
       } catch (e) { this.toast('Erro de conexao', 'error'); }
       finally { this.ui.syncingSubtasks = false; }
+    },
+
+    // Sync status per task: 'synced' | 'pending' | 'unlinked'
+    taskSyncStatus(task) {
+      if (!task) return 'unlinked';
+      if (!task.operon_id) return 'unlinked';
+      if (!task.clickup_synced_at) return 'pending';
+      const synced = new Date(task.clickup_synced_at);
+      const updated = new Date(task.updated_at || task.created_at);
+      return updated > synced ? 'pending' : 'synced';
+    },
+
+    taskSyncLabel(task) {
+      const s = this.taskSyncStatus(task);
+      return s === 'synced' ? 'Sincronizado' : s === 'pending' ? 'Pendente' : 'Não vinculado';
+    },
+
+    taskSyncColor(task) {
+      const s = this.taskSyncStatus(task);
+      return s === 'synced' ? '#10b981' : s === 'pending' ? '#f59e0b' : 'var(--neutral-300)';
     },
 
     async clickupPushTask(taskId) {
@@ -7735,6 +8063,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         unassigned: tasks.filter(t => !t.responsavel).length,
         thisWeek: tasks.filter(t => t.data_fim && new Date(t.data_fim) >= now && new Date(t.data_fim) <= weekEnd).length,
         favorites: this.favorites.length,
+        recurring: tasks.filter(t => t.recorrencia && t.recorrencia !== 'nenhuma').length,
       };
     },
 
@@ -7834,10 +8163,13 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     // ── My Work View (Dragon 36) ──
     get myWorkData() {
-      const me = this.auth?.currentUser?.user_metadata?.full_name || '';
-      const meFirst = me.toLowerCase().split(' ')[0];
-      if (!meFirst) return { overdue: [], today: [], upcoming: [], done: [] };
-      const myTasks = this.data.tasks.filter(t => t.responsavel && t.responsavel.toLowerCase().includes(meFirst));
+      let meFirst = (this.auth?.currentUser?.full_name || this.auth?.currentUser?.user_metadata?.full_name || '').toLowerCase().split(' ')[0];
+      if (!meFirst) meFirst = (this.auth?.currentUser?.email || '').toLowerCase().split(/[@.]/)[0];
+      if (!meFirst) meFirst = 'kaique';
+      const myTasks = this.data.tasks.filter(t => {
+        const r = (t.responsavel || '').toLowerCase();
+        return r === meFirst || r.includes(meFirst);
+      });
       const now = new Date();
       const todayStr = now.toISOString().slice(0, 10);
       const weekEnd = new Date(now); weekEnd.setDate(now.getDate() + 7);
@@ -7927,12 +8259,16 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     get priorityMatrix() {
       const tasks = this.data.tasks.filter(t => t.status !== 'concluida' && t.status !== 'cancelada');
       const now = new Date();
-      const urgent = t => t.data_fim && new Date(t.data_fim) <= new Date(now.getTime() + 3 * 86400000);
+      const soonCutoff = new Date(now.getTime() + 3 * 86400000);
+      // Urgente = prazo em 3 dias OU prioridade 'urgente'
+      const isUrgent = t => t.prioridade === 'urgente' || (t.data_fim && new Date(t.data_fim) <= soonCutoff);
+      // Importante = prioridade alta/urgente OU tem mentorado vinculado
+      const isImportant = t => t.prioridade === 'urgente' || t.prioridade === 'alta' || !!t.mentorado_id;
       return {
-        urgentImportant: tasks.filter(t => urgent(t) && (t.prioridade === 'urgente' || t.prioridade === 'alta')),
-        notUrgentImportant: tasks.filter(t => !urgent(t) && (t.prioridade === 'urgente' || t.prioridade === 'alta')),
-        urgentNotImportant: tasks.filter(t => urgent(t) && t.prioridade !== 'urgente' && t.prioridade !== 'alta'),
-        notUrgentNotImportant: tasks.filter(t => !urgent(t) && t.prioridade !== 'urgente' && t.prioridade !== 'alta'),
+        urgentImportant: tasks.filter(t => isUrgent(t) && isImportant(t)),
+        notUrgentImportant: tasks.filter(t => !isUrgent(t) && isImportant(t)),
+        urgentNotImportant: tasks.filter(t => isUrgent(t) && !isImportant(t)),
+        notUrgentNotImportant: tasks.filter(t => !isUrgent(t) && !isImportant(t)),
       };
     },
 
@@ -8281,7 +8617,12 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const tasks = this.data.tasks.filter(t => t.status !== 'concluida');
       return members.map(m => {
         const name = m.nome_curto || m.name;
-        const myTasks = tasks.filter(t => t.responsavel === name);
+        const nameLower = (name || '').toLowerCase();
+        const idLower = (m.id || '').toLowerCase();
+        const myTasks = tasks.filter(t => {
+          const r = (t.responsavel || '').toLowerCase();
+          return r === nameLower || r === idLower || r.includes(nameLower);
+        });
         const points = myTasks.reduce((s, t) => s + (t.points || 0), 0);
         const estimate = myTasks.reduce((s, t) => s + (t.time_estimate || 0), 0);
         const overdue = myTasks.filter(t => (t.data_fim || t.prazo) && new Date(t.data_fim || t.prazo) < new Date()).length;
@@ -8471,6 +8812,45 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
             if (status === 'SUBSCRIBED') console.log('[Spalla] Realtime: subscribed to comments');
           });
 
+        // Dragon 54: Entity events subscription (notifications)
+        sb.channel('entity_events_changes')
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'entity_events' }, (payload) => {
+            const evt = payload.new;
+            if (!evt) return;
+            const me = (this.auth.currentUser?.full_name || '').toLowerCase().split(' ')[0];
+            const assignee = (evt.payload?.responsavel || evt.payload?.assignee || '').toLowerCase();
+            const titulo = evt.payload?.titulo || evt.aggregate_type || '';
+            const eventType = evt.event_type || '';
+
+            // Push to notifications array for the bell dropdown
+            const shouldNotify =
+              (assignee && assignee.includes(me)) ||
+              eventType.includes('Transition') ||
+              eventType.includes('transition');
+
+            if (shouldNotify) {
+              const notif = {
+                id: evt.id || ('evt_' + Date.now()),
+                type: eventType.includes('assigned') || eventType.includes('created') ? 'task_assigned' : 'transition',
+                text: titulo.substring(0, 80) || eventType,
+                detail: eventType,
+                read: false,
+                createdAt: evt.created_at || new Date().toISOString(),
+              };
+              this.notifications.unshift(notif);
+              if (this.notifications.length > 20) this.notifications.pop();
+              this.notificationsUnread = this.notifications.filter(n => !n.read).length;
+
+              // Toast only for tasks assigned to me
+              if (assignee && assignee.includes(me)) {
+                this.toast('Nova tarefa: ' + titulo.substring(0, 50), 'info');
+              }
+            }
+          })
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') console.log('[Spalla] Realtime: subscribed to entity_events');
+          });
+
       } catch (e) {
         console.warn('[Spalla] Realtime subscription failed:', e.message);
       }
@@ -8499,6 +8879,14 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           this.cmdSelectedIdx = 0;
           if (this.cmdPalette) this.$nextTick(() => document.getElementById('cmd-palette-input')?.focus());
         }
+        // Dragon 52: Cmd+Z undo, Cmd+Shift+Z redo (global, tasks page)
+        if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.target.isContentEditable && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+          if (this.ui.page === 'tasks' || this.ui.page === 'meu_trabalho') {
+            e.preventDefault();
+            if (e.shiftKey) this.redo();
+            else this.undo();
+          }
+        }
       });
       document.addEventListener('keydown', (e) => {
         // Don't trigger in input/textarea/contenteditable (except cmd palette)
@@ -8525,6 +8913,51 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           this.ui.taskView = 'board';
         } else if (e.key === '4' && e.altKey) {
           this.ui.taskView = 'gantt';
+        }
+
+        // Dragon 55: Gantt keyboard shortcuts
+        if (this.ui.taskView === 'gantt') {
+          const tasks = this.ganttTasks;
+          if (!tasks.length) return;
+          const curIdx = tasks.findIndex(t => t.id === this.ui.ganttFocusedTaskId);
+
+          if (e.key === 'ArrowDown' || e.key === 'j') {
+            e.preventDefault();
+            const nextIdx = curIdx < tasks.length - 1 ? curIdx + 1 : 0;
+            this.ui.ganttFocusedTaskId = tasks[nextIdx].id;
+            document.querySelector(`[data-gantt-task="${tasks[nextIdx].id}"]`)?.scrollIntoView({ block: 'nearest' });
+          } else if (e.key === 'ArrowUp' || e.key === 'k') {
+            e.preventDefault();
+            const prevIdx = curIdx > 0 ? curIdx - 1 : tasks.length - 1;
+            this.ui.ganttFocusedTaskId = tasks[prevIdx].id;
+            document.querySelector(`[data-gantt-task="${tasks[prevIdx].id}"]`)?.scrollIntoView({ block: 'nearest' });
+          } else if (e.key === 'Enter' && this.ui.ganttFocusedTaskId) {
+            e.preventDefault();
+            this.openTaskDetail(this.ui.ganttFocusedTaskId);
+          } else if (e.key === 'ArrowRight' && this.ui.ganttFocusedTaskId) {
+            e.preventDefault();
+            const t = tasks.find(x => x.id === this.ui.ganttFocusedTaskId);
+            if (t?.data_fim) {
+              const d = new Date(t.data_fim + 'T12:00:00');
+              d.setDate(d.getDate() + 1);
+              this.updateTaskField(t.id, 'data_fim', d.toISOString().slice(0, 10));
+            }
+          } else if (e.key === 'ArrowLeft' && this.ui.ganttFocusedTaskId) {
+            e.preventDefault();
+            const t = tasks.find(x => x.id === this.ui.ganttFocusedTaskId);
+            if (t?.data_fim) {
+              const d = new Date(t.data_fim + 'T12:00:00');
+              d.setDate(d.getDate() - 1);
+              this.updateTaskField(t.id, 'data_fim', d.toISOString().slice(0, 10));
+            }
+          } else if (e.key === ' ' && this.ui.ganttFocusedTaskId) {
+            e.preventDefault();
+            const t = tasks.find(x => x.id === this.ui.ganttFocusedTaskId);
+            if (t) {
+              const next = t.status === 'pendente' ? 'em_andamento' : t.status === 'em_andamento' ? 'concluida' : 'pendente';
+              this.updateTaskStatus(t.id, next);
+            }
+          }
         }
       });
     },
@@ -8698,6 +9131,108 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       };
     },
 
+    // ── Dashboard Charts Data ──
+    _dashCharts: {},
+
+    dashStatusData() {
+      const t = this.data.tasks;
+      return {
+        labels: ['Pendentes', 'Em progresso', 'Concluídas', 'Atrasadas'],
+        data: [
+          t.filter(x => x.status === 'pendente').length,
+          t.filter(x => x.status === 'em_andamento').length,
+          t.filter(x => x.status === 'concluida').length,
+          t.filter(x => x.status !== 'concluida' && (x.data_fim || x.prazo) && new Date(x.data_fim || x.prazo) < new Date()).length,
+        ],
+        colors: ['#94a3b8', '#3b82f6', '#22c55e', '#ef4444'],
+      };
+    },
+
+    dashVelocityData() {
+      const sprints = (this.data.sprints || []).slice().sort((a, b) => (a.inicio || '').localeCompare(b.inicio || ''));
+      if (!sprints.length) return null;
+      const tasks = this.data.tasks;
+      return {
+        labels: sprints.map(s => s.nome || 'Sprint'),
+        committed: sprints.map(s => tasks.filter(t => t.sprint_id === s.id).length),
+        completed: sprints.map(s => tasks.filter(t => t.sprint_id === s.id && t.status === 'concluida').length),
+      };
+    },
+
+    dashBurndownData() {
+      const sprint = this.ccSelectedSprint?.() || this.ccSelectedSprint;
+      if (!sprint || !sprint.inicio || !sprint.fim) return null;
+      const tasks = this.data.tasks.filter(t => t.sprint_id === sprint.id);
+      const total = tasks.length;
+      if (!total) return null;
+      const start = new Date(sprint.inicio);
+      const end = new Date(sprint.fim);
+      const days = Math.ceil((end - start) / 86400000) + 1;
+      const labels = [];
+      const ideal = [];
+      const actual = [];
+      for (let i = 0; i < days; i++) {
+        const d = new Date(start);
+        d.setDate(d.getDate() + i);
+        labels.push(d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' }));
+        ideal.push(Math.round(total * (1 - i / (days - 1))));
+        const doneByDay = tasks.filter(t => t.status === 'concluida' && t.updated_at && new Date(t.updated_at) <= d).length;
+        actual.push(d <= new Date() ? total - doneByDay : null);
+      }
+      return { labels, ideal, actual, total };
+    },
+
+    renderDashCharts() {
+      if (typeof Chart === 'undefined') return;
+      this.$nextTick(() => {
+        // Status doughnut
+        const statusEl = document.getElementById('dashChartStatus');
+        if (statusEl) {
+          if (this._dashCharts.status) this._dashCharts.status.destroy();
+          const sd = this.dashStatusData();
+          this._dashCharts.status = new Chart(statusEl.getContext('2d'), {
+            type: 'doughnut',
+            data: { labels: sd.labels, datasets: [{ data: sd.data, backgroundColor: sd.colors, borderWidth: 0 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10 } } }, cutout: '65%' },
+          });
+        }
+        // Velocity bar
+        const vd = this.dashVelocityData();
+        const velEl = document.getElementById('dashChartVelocity');
+        if (velEl && vd) {
+          if (this._dashCharts.velocity) this._dashCharts.velocity.destroy();
+          this._dashCharts.velocity = new Chart(velEl.getContext('2d'), {
+            type: 'bar',
+            data: {
+              labels: vd.labels,
+              datasets: [
+                { label: 'Comprometidas', data: vd.committed, backgroundColor: '#c7d2fe', borderRadius: 4 },
+                { label: 'Concluídas', data: vd.completed, backgroundColor: '#6366f1', borderRadius: 4 },
+              ],
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } }, scales: { y: { beginAtZero: true, ticks: { font: { size: 10 } } }, x: { ticks: { font: { size: 10 } } } } },
+          });
+        }
+        // Burndown line
+        const bd = this.dashBurndownData();
+        const burnEl = document.getElementById('dashChartBurndown');
+        if (burnEl && bd) {
+          if (this._dashCharts.burndown) this._dashCharts.burndown.destroy();
+          this._dashCharts.burndown = new Chart(burnEl.getContext('2d'), {
+            type: 'line',
+            data: {
+              labels: bd.labels,
+              datasets: [
+                { label: 'Ideal', data: bd.ideal, borderColor: '#d1d5db', borderDash: [5, 3], borderWidth: 2, pointRadius: 0, fill: false },
+                { label: 'Real', data: bd.actual, borderColor: '#6366f1', borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#6366f1', fill: false, spanGaps: true },
+              ],
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Tasks restantes', font: { size: 10 } }, ticks: { font: { size: 10 } } }, x: { ticks: { font: { size: 10 } } } } },
+          });
+        }
+      });
+    },
+
     // ── Calendar View helpers ──
     calMonthLabel() {
       const d = new Date(this.ui.calYear, this.ui.calMonth, 1);
@@ -8808,6 +9343,115 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         headers.push({ date: d, label: d.getDate(), isToday: d.toDateString() === now.toDateString(), isWeekend: d.getDay() === 0 || d.getDay() === 6 });
       }
       return headers;
+    },
+
+    // ORCH-01: Dependency lines for Gantt SVG overlay
+    get ganttDependencyLines() {
+      const tasks = this.ganttTasks;
+      if (!tasks.length) return [];
+      const range = this.ui.taskGanttRange;
+      const now = new Date();
+      let rangeStart, totalDays;
+      if (range === 'week') {
+        rangeStart = new Date(now); rangeStart.setDate(now.getDate() - now.getDay()); totalDays = 7;
+      } else if (range === 'quarter') {
+        rangeStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1); totalDays = 90;
+      } else {
+        rangeStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        totalDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      }
+      const lines = [];
+      for (let i = 0; i < tasks.length; i++) {
+        const t = tasks[i];
+        const deps = t.depends_on || [];
+        for (const depId of deps) {
+          const j = tasks.findIndex(x => x.id === depId);
+          if (j < 0) continue;
+          const blocker = tasks[j];
+          const blockerEnd = parseDateStr(blocker.data_fim || blocker.prazo || blocker.created_at || new Date().toISOString());
+          const depStart = parseDateStr(t.data_inicio || t.created_at || new Date().toISOString());
+          const fromXPct = Math.min(100, Math.max(0, ((blockerEnd - rangeStart) / (totalDays * 86400000)) * 100));
+          const toXPct = Math.min(100, Math.max(0, ((depStart - rangeStart) / (totalDays * 86400000)) * 100));
+          const fromY = j * 40 + 20;
+          const toY = i * 40 + 20;
+          const resolved = ['concluida', 'cancelada', 'arquivada'].includes(blocker.status);
+          lines.push({ fromXPct, fromY, toXPct, toY, isBlocking: !resolved });
+        }
+      }
+      return lines;
+    },
+
+    // Gantt drag-to-resize: start
+    ganttDragStart(event, task, side) {
+      const timelineEl = event.target.closest('.gantt-row__timeline');
+      if (!timelineEl) return;
+      const origStart = task.data_inicio || '';
+      const origEnd = task.data_fim || task.prazo || '';
+      this.ui._ganttDrag = { taskId: task.id, side, startX: event.clientX, origStart, origEnd };
+
+      const barEl = event.target.closest('.gantt-bar');
+      if (barEl) barEl.classList.add('gantt-bar--dragging');
+
+      const range = this.ui.taskGanttRange;
+      const now = new Date();
+      let rangeStart, totalDays;
+      if (range === 'week') {
+        rangeStart = new Date(now); rangeStart.setDate(now.getDate() - now.getDay()); totalDays = 7;
+      } else if (range === 'quarter') {
+        rangeStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1); totalDays = 90;
+      } else {
+        rangeStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        totalDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      }
+      const pxPerDay = timelineEl.offsetWidth / totalDays;
+
+      const onMove = (e) => {
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const drag = this.ui._ganttDrag;
+        if (!drag) return;
+        const deltaPx = clientX - drag.startX;
+        const deltaDays = Math.round(deltaPx / pxPerDay);
+        if (deltaDays === 0) return;
+        const t = this.data.tasks.find(x => x.id === drag.taskId);
+        if (!t) return;
+
+        if (drag.side === 'left' && drag.origStart) {
+          const d = parseDateStr(drag.origStart);
+          if (d) { d.setDate(d.getDate() + deltaDays); t.data_inicio = d.toISOString().slice(0, 10); }
+        } else if (drag.side === 'right') {
+          const dateStr = drag.origEnd || drag.origStart;
+          if (dateStr) {
+            const d = parseDateStr(dateStr);
+            if (d) { d.setDate(d.getDate() + deltaDays); t.data_fim = d.toISOString().slice(0, 10); }
+          }
+        }
+      };
+
+      const onEnd = async (e) => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onEnd);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', onEnd);
+        if (barEl) barEl.classList.remove('gantt-bar--dragging');
+
+        const drag = this.ui._ganttDrag;
+        this.ui._ganttDrag = null;
+        if (!drag) return;
+        const t = this.data.tasks.find(x => x.id === drag.taskId);
+        if (!t) return;
+
+        // Persist changes
+        if (drag.side === 'left' && t.data_inicio !== drag.origStart) {
+          await this.updateTaskField(drag.taskId, 'data_inicio', t.data_inicio);
+        } else if (drag.side === 'right' && t.data_fim !== drag.origEnd) {
+          await this.updateTaskField(drag.taskId, 'data_fim', t.data_fim);
+        }
+      };
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onEnd);
+      document.addEventListener('touchmove', onMove, { passive: false });
+      document.addEventListener('touchend', onEnd);
     },
 
     // Grouped tasks for list view
@@ -8983,10 +9627,15 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       mariza: { instance_name: 'producao002', phone_number: '5511941936764' },
       kaique: { instance_name: 'producao002', phone_number: '5511941936764' },
       'kaique rodrigues': { instance_name: 'producao002', phone_number: '5511941936764' },
+      'kaique.azevedoo': { instance_name: 'producao002', phone_number: '5511941936764' },
     },
 
     _isPrelinkedUser() {
-      const name = (this.auth.currentUser?.full_name || '').toLowerCase().trim();
+      // Try full_name first, then email prefix — same fallback chain as other auth lookups
+      let name = (this.auth.currentUser?.full_name || this.auth.currentUser?.user_metadata?.full_name || '').toLowerCase().trim();
+      if (!name) {
+        name = (this.auth.currentUser?.email || '').toLowerCase().split('@')[0];
+      }
       return this._waPrelinkedInstances[name] || null;
     },
 
@@ -10342,11 +10991,13 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     _waUltimoContato(m) {
-      const h = m.horas_sem_resposta_equipe;
-      if (h == null) return '—';
-      if (h < 1) return 'Agora';
-      if (h < 24) return `${Math.floor(h)}h atrás`;
-      const d = Math.floor(h / 24);
+      // Usa ultimo_contato_mentorado (última msg do mentorado) ou ultima_interacao (qualquer)
+      const ts = m.ultimo_contato_mentorado || m.ultima_interacao;
+      if (!ts) return '—';
+      const diffH = (Date.now() - new Date(ts).getTime()) / 3600000;
+      if (diffH < 1) return 'Agora';
+      if (diffH < 24) return `${Math.floor(diffH)}h atrás`;
+      const d = Math.floor(diffH / 24);
       if (d === 1) return 'Ontem';
       return `${d}d atrás`;
     },
@@ -10734,35 +11385,67 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     async loadMeuTrabalho() {
       this.meuTrabalhoLoading = true;
       try {
-        if (!sb) sb = await initSupabase();
-        if (!sb) { console.error('[MeuTrabalho] Supabase not available'); this.meuTrabalho = []; return; }
-        // Resolve primeiro nome: full_name > user_metadata.full_name > email prefix
-        let me = (this.auth.currentUser?.full_name
-          || this.auth.currentUser?.user_metadata?.full_name
-          || '').toLowerCase().split(' ')[0];
-        if (!me) {
-          const email = (this.auth.currentUser?.email || '').toLowerCase();
-          me = email.split(/[@.]/)[0];
-        }
-        if (!me) { console.warn('[MeuTrabalho] no user name resolved'); this.meuTrabalho = []; return; }
+        // Resolve nome com múltiplos fallbacks
+        let me = (this.auth.currentUser?.full_name || this.auth.currentUser?.user_metadata?.full_name || '').toLowerCase().split(' ')[0];
+        if (!me) me = (this.auth.currentUser?.email || '').toLowerCase().split(/[@.]/)[0];
+        if (!me) me = 'kaique';
         const member = TEAM_MEMBERS.find(m => m.id === me || m.name.toLowerCase() === me);
         const searchName = member ? member.id : me;
-        console.log('[MeuTrabalho] querying for:', searchName);
-        const { data, error } = await sb
-          .from('vw_meu_trabalho')
-          .select('*')
-          .or(`responsavel.ilike.%${searchName}%,acompanhante.ilike.%${searchName}%`)
-          .order('prioridade', { ascending: true })
-          .limit(200);
-        if (error) throw error;
-        this.meuTrabalho = data || [];
-        console.log('[MeuTrabalho] loaded', this.meuTrabalho.length, 'tasks');
+
+        // Usa data.tasks (já carregado) em vez de query separada ao vw_meu_trabalho
+        // Isso elimina a intermitência (race condition, query falhando, etc.)
+        const allTasks = this.data.tasks || [];
+        this.meuTrabalho = allTasks.filter(t => {
+          if (t.status === 'arquivada' || t.status === 'cancelada') return false;
+          const r = (t.responsavel || '').toLowerCase();
+          const a = (t.acompanhante || '').toLowerCase();
+          return r.includes(searchName) || a.includes(searchName);
+        });
+        console.log('[MeuTrabalho] filtered', this.meuTrabalho.length, 'tasks from', allTasks.length, 'for:', searchName);
       } catch (e) {
         console.warn('[Spalla] loadMeuTrabalho:', e);
         this.meuTrabalho = [];
       } finally {
         this.meuTrabalhoLoading = false;
       }
+    },
+
+    // Dragon 53: Bulk edit helpers for Meu Trabalho
+    bulkToggle(taskId) {
+      if (this.ui.bulkSelected[taskId]) delete this.ui.bulkSelected[taskId];
+      else this.ui.bulkSelected[taskId] = true;
+    },
+    bulkSelectAll() {
+      const tasks = this.meuTrabalhoFiltered || [];
+      tasks.forEach(t => { this.ui.bulkSelected[t.id] = true; });
+    },
+    bulkClearAll() {
+      this.ui.bulkSelected = {};
+    },
+    get bulkCount() {
+      return Object.keys(this.ui.bulkSelected).length;
+    },
+    async bulkUpdateField(field, value) {
+      const ids = Object.keys(this.ui.bulkSelected);
+      if (!ids.length) return this.toast('Nenhuma tarefa selecionada', 'info');
+      for (const id of ids) {
+        await this.updateTaskField(id, field, value);
+      }
+      this.toast(`${ids.length} tarefa(s) atualizada(s)`, 'success');
+      this.ui.bulkSelected = {};
+      this.ui.bulkMode = false;
+      this.loadMeuTrabalho();
+    },
+    async bulkUpdateStatus(newStatus) {
+      const ids = Object.keys(this.ui.bulkSelected);
+      if (!ids.length) return this.toast('Nenhuma tarefa selecionada', 'info');
+      for (const id of ids) {
+        await this.updateTaskStatus(id, newStatus);
+      }
+      this.toast(`${ids.length} tarefa(s) → ${newStatus}`, 'success');
+      this.ui.bulkSelected = {};
+      this.ui.bulkMode = false;
+      this.loadMeuTrabalho();
     },
 
     get meuTrabalhoQuickFilters() {
@@ -11063,6 +11746,45 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       }
     },
 
+    // Batch descarrego import
+    async submitBatchDescarrego() {
+      const menteeId = this.data.detail?.profile?.id;
+      if (!menteeId) return this.toast?.('Sem mentorado selecionado', 'error');
+      const rawText = (this.ui.batchDescarregoText || '').trim();
+      if (!rawText) return this.toast?.('Cole os textos para importar', 'error');
+
+      // Split by double newline or "---" separator
+      const items = rawText.split(/\n{2,}|^---$/m)
+        .map(t => t.trim())
+        .filter(t => t.length > 5);
+
+      if (!items.length) return this.toast?.('Nenhum item válido encontrado', 'error');
+      if (items.length > 20) return this.toast?.('Máximo 20 itens por batch', 'error');
+
+      this.ui.batchDescarregoSubmitting = true;
+      try {
+        const r = await fetch(`${CONFIG.API_BASE}/api/descarrego/batch-capture`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.token || ''}` },
+          body: JSON.stringify({
+            mentorado_id: menteeId,
+            auto_process: true,
+            items: items.map(text => ({ tipo_bruto: 'texto', conteudo_bruto: text, fonte: 'batch_import' })),
+          }),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const result = await r.json();
+        this.toast?.(`${result.created} descarregos importados e processando`, 'success');
+        this.ui.batchDescarregoText = '';
+        this.ui.batchDescarregoOpen = false;
+        this.loadMenteeDescarregos(menteeId);
+      } catch (e) {
+        this.toast?.('Falha no batch import: ' + e.message, 'error');
+      } finally {
+        this.ui.batchDescarregoSubmitting = false;
+      }
+    },
+
     // ===== LF-FASE3: Descarregos pipeline =====
     async loadMenteeDescarregos(menteeId) {
       if (!menteeId) return;
@@ -11136,7 +11858,47 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       }, 3000);
     },
 
+    // Descarrego filter + reclassification
+    get filteredDescarregos() {
+      const list = this.data.menteeDescarregos || [];
+      const f = this.ui.descarregoFilter || 'todos';
+      if (f === 'todos') return list;
+      if (f === 'pendentes') return list.filter(d => ['capturado', 'aguardando_humano', 'erro'].includes(d.status));
+      if (f === 'processados') return list.filter(d => ['finalizado', 'rejeitado'].includes(d.status));
+      return list.filter(d => d.classificacao_principal === f);
+    },
+
+    async reclassifyDescarrego(descarregoId, newType) {
+      try {
+        const r = await fetch(`${CONFIG.API_BASE}/api/descarrego/${descarregoId}/reclassify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.token || ''}` },
+          body: JSON.stringify({ new_type: newType }),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        this.toast?.('Reclassificado para ' + newType);
+        const menteeId = this.data.detail?.profile?.id;
+        if (menteeId) this.loadMenteeDescarregos(menteeId);
+      } catch (e) {
+        this.toast?.('Falha ao reclassificar: ' + e.message, 'error');
+      }
+    },
+
     // ===== CONTEXT HUB: áudio, texto, anexos para dossiê =====
+    async loadMenteeWaIntel(menteeId) {
+      if (!menteeId) return;
+      this.data._menteeWaActivity = [];
+      try {
+        const { data, error } = await sb.from('vw_wa_mentee_activity')
+          .select('*')
+          .eq('mentorado_id', menteeId)
+          .order('activity_at', { ascending: false })
+          .limit(100);
+        if (error) console.warn('[Spalla] loadMenteeWaIntel:', error.message);
+        if (data) this.data._menteeWaActivity = data;
+      } catch (e) { console.warn('[Spalla] loadMenteeWaIntel:', e); }
+    },
+
     async loadMenteeContext(menteeId) {
       if (!menteeId) return;
       this.data.menteeContext = [];
@@ -11697,10 +12459,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     async snoozeMentee(menteeId, dias) {
-      const dt = new Date();
-      dt.setDate(dt.getDate() + dias);
-      await this.patchMentee(menteeId, { snoozed_until: dt.toISOString() });
-      this.toast(`Mentorado snoozeado por ${dias} dias`, 'success');
+      // snoozed_until foi removido da tabela — snooze desabilitado temporariamente
+      this.toast('Snooze temporariamente indisponível', 'info');
     },
 
     openOffboardModal(menteeId, menteeNome) {
@@ -12215,6 +12975,24 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       'sidney kerr': 'odontokerr.jpg',
       'dravaniadepaula': 'dravaniadepaula.jpg',
       'vania de paula': 'dravaniadepaula.jpg',
+      'flavia.nantes': 'flavia.nantes.jpg',
+      'flavia nantes': 'flavia.nantes.jpg',
+      'flaviannyartiaga': 'flaviannyartiaga.jpg',
+      'flavianny artiaga': 'flaviannyartiaga.jpg',
+      'karinebarroscanabrava': 'karinebarroscanabrava.jpg',
+      'karine canabrava': 'karinebarroscanabrava.jpg',
+      'leticiaoliveira.cpm': 'leticiaoliveira.cpm.jpg',
+      'leticia oliveira': 'leticiaoliveira.cpm.jpg',
+      'dramarinamendess': 'dramarinamendess.jpg',
+      'marina mendes': 'dramarinamendess.jpg',
+      'profpablosantos': 'profpablosantos.jpg',
+      'pablo santos': 'profpablosantos.jpg',
+      'queilatrizotti': 'queilatrizotti.jpg',
+      'queila trizotti': 'queilatrizotti.jpg',
+      'dr.leandrovelasco': 'dr.leandrovelasco.jpg',
+      'leandro velasco': 'dr.leandrovelasco.jpg',
+      'juliana.takasu': 'juliana.takasu.jpg',
+      'juliana takasu': 'juliana.takasu.jpg',
     },
 
     igPhoto(handleOrName) {
@@ -12396,6 +13174,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           gravacao: c.link_gravacao || null,
           transcricao: c.link_transcricao || null,
           senha_call: c.senha_call || null, plano_acao: c.link_plano_acao || null,
+          link_youtube: c.link_youtube || null,
           decisoes: c.decisoes_tomadas || [], gargalos: c.gargalos || [],
           proximos_passos: c.proximos_passos || [], sentimento: null,
         }));
@@ -12694,6 +13473,26 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     },
 
     // ===================== SCHEDULE API HELPERS =====================
+
+    async deleteCall(callId) {
+      if (!callId || !sb) return;
+      if (!confirm('Tem certeza que deseja excluir esta call? Essa ação não pode ser desfeita.')) return;
+      try {
+        const { error } = await sb.from('calls_mentoria').delete().eq('id', callId);
+        if (error) throw error;
+        // Remove from local arrays
+        this._supabaseCalls = (this._supabaseCalls || []).filter(c => c.call_id !== callId);
+        this.data.upcomingCalls = (this.data.upcomingCalls || []).filter(c => c.id !== callId);
+        // Remove from detail calls if open
+        if (this.data.detail?.last_calls) {
+          this.data.detail.last_calls = this.data.detail.last_calls.filter(c => c.call_id !== callId);
+        }
+        this.ui.expandedCall = null;
+        this.toast('Call excluída', 'success');
+      } catch (e) {
+        this.toast('Erro ao excluir: ' + e.message, 'error');
+      }
+    },
 
     async fetchUpcomingCalls() {
       try {
@@ -14250,8 +15049,18 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       return { urgente: 'Urgente', alta: 'Alta', normal: 'Normal', baixa: 'Baixa' }[p] || p || 'Normal';
     },
 
+    // ORCH-02: Agent member detection
+    isAgentMember(name) {
+      if (!name) return false;
+      const member = (this.data.members || []).find(m =>
+        m.id === name || (m.nome_curto || '').toLowerCase() === (name || '').toLowerCase()
+      );
+      return member?.tipo === 'agent' || (name || '').startsWith('agent_');
+    },
+
     avatarInitials(nome) {
       if (!nome) return '?';
+      if (this.isAgentMember(nome)) return '🤖';
       const parts = nome.split(' ').filter(p => p.length > 0);
       if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
       return parts[0]?.substring(0, 2).toUpperCase() || '?';

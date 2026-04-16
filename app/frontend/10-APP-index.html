@@ -1051,6 +1051,168 @@
               </div>
             </div>
 
+            <!-- WA INTELLIGENCE: PENDENCIAS -->
+            <div class="bento-card bento-card--hero">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Pendencias WhatsApp</span>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <span x-show="ccWaResumoSemana().totalDuvidasAbertas" class="badge badge--sm badge--danger" x-text="ccWaResumoSemana().totalDuvidasAbertas + ' duvida' + (ccWaResumoSemana().totalDuvidasAbertas > 1 ? 's' : '')"></span>
+                  <span class="badge badge--sm badge--neutral" x-text="ccWaResumoSemana().totalPendencias + ' pendente' + (ccWaResumoSemana().totalPendencias > 1 ? 's' : '')"></span>
+                </div>
+              </div>
+              <div class="bento-card__body" style="overflow-y:auto;display:flex;flex-direction:column;gap:8px">
+                <!-- Summary strip -->
+                <div style="display:flex;gap:16px;padding:8px 12px;background:var(--neutral-50,#faf9f7);border-radius:8px;font-size:11px">
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+                    <span style="font-size:18px;font-weight:700;color:var(--primary)" x-text="ccWaResumoSemana().totalInteracoes"></span>
+                    <span style="color:var(--text-secondary)">Interacoes</span>
+                  </div>
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+                    <span style="font-size:18px;font-weight:700;color:#10b981" x-text="ccWaResumoSemana().mentoradosAtivos"></span>
+                    <span style="color:var(--text-secondary)">Ativos</span>
+                  </div>
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+                    <span style="font-size:18px;font-weight:700" :style="ccWaResumoSemana().mentoradosInativos > 0 ? 'color:#ef4444' : 'color:var(--neutral-400)'" x-text="ccWaResumoSemana().mentoradosInativos"></span>
+                    <span style="color:var(--text-secondary)">Inativos</span>
+                  </div>
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+                    <span style="font-size:18px;font-weight:700;color:#f59e0b" x-text="ccWaResumoSemana().celebracoes"></span>
+                    <span style="color:var(--text-secondary)">Vitorias</span>
+                  </div>
+                  <div x-show="ccWaResumoSemana().negativos > 0" style="display:flex;flex-direction:column;align-items:center;gap:2px">
+                    <span style="font-size:18px;font-weight:700;color:#ef4444" x-text="ccWaResumoSemana().negativos"></span>
+                    <span style="color:var(--text-secondary)">Negativos</span>
+                  </div>
+                </div>
+
+                <!-- Pendencias list -->
+                <div x-show="ccWaPendencias().length" style="display:flex;flex-direction:column;gap:4px;max-height:320px;overflow-y:auto">
+                  <template x-for="m in ccWaPendencias()" :key="m.mentorado_id">
+                    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);cursor:pointer;transition:background .15s"
+                         @mouseover="$el.style.background='var(--neutral-50,#faf9f7)'" @mouseout="$el.style.background='transparent'"
+                         @click="openDetail(m.mentorado_id)">
+                      <!-- Avatar -->
+                      <div style="width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff"
+                           :style="'background:' + avatarGradient(m.mentorado_nome)" x-text="avatarInitials(m.mentorado_nome)"></div>
+                      <!-- Info -->
+                      <div style="flex:1;min-width:0">
+                        <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="m.mentorado_nome"></div>
+                        <div style="display:flex;gap:8px;font-size:10px;color:var(--text-secondary);margin-top:2px">
+                          <span x-text="m.interacoes_semana + ' msg/sem'"></span>
+                          <span x-show="m.avg_engajamento_semana" x-text="'Score: ' + m.avg_engajamento_semana"></span>
+                          <span x-show="m.topicos_ativos" x-text="m.topicos_ativos + ' topico' + (m.topicos_ativos > 1 ? 's' : '')"></span>
+                        </div>
+                      </div>
+                      <!-- Urgency indicators -->
+                      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">
+                        <span x-show="m.duvidas_sem_resposta" class="badge badge--xs badge--danger" x-text="m.duvidas_sem_resposta + ' duvida' + (m.duvidas_sem_resposta > 1 ? 's' : '')"></span>
+                        <span x-show="m.pendencias_abertas && !m.duvidas_sem_resposta" class="badge badge--xs badge--warning" x-text="m.pendencias_abertas + ' pendencia' + (m.pendencias_abertas > 1 ? 's' : '')"></span>
+                        <span style="font-size:9px" :style="m.avg_horas_sem_resposta > 24 ? 'color:#ef4444;font-weight:700' : m.avg_horas_sem_resposta > 12 ? 'color:#f59e0b' : 'color:var(--neutral-400)'" x-text="m.avg_horas_sem_resposta ? Math.round(m.avg_horas_sem_resposta) + 'h sem resposta' : ''"></span>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+                <div x-show="!ccWaPendencias().length" style="text-align:center;padding:20px;color:var(--neutral-400);font-size:12px">Nenhuma pendencia aberta</div>
+              </div>
+            </div>
+
+            <!-- WA INTELLIGENCE: ALERTAS (Story 6) -->
+            <div class="bento-card bento-card--half" x-show="ccWaAlertas().length" style="height:auto;min-height:10rem">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Alertas Operacionais</span>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <span x-show="ccWaAlertasCriticos().length" class="badge badge--sm badge--danger" x-text="ccWaAlertasCriticos().length + ' critico' + (ccWaAlertasCriticos().length > 1 ? 's' : '')"></span>
+                  <span class="badge badge--sm badge--warning" x-text="ccWaAlertas().length + ' aberto' + (ccWaAlertas().length > 1 ? 's' : '')"></span>
+                </div>
+              </div>
+              <div class="bento-card__body" style="overflow-y:auto;display:flex;flex-direction:column;gap:4px;max-height:360px">
+                <template x-for="a in ccWaAlertas()" :key="a.id">
+                  <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);transition:background .15s"
+                       @mouseover="$el.style.background='var(--neutral-50,#faf9f7)'" @mouseout="$el.style.background='transparent'">
+                    <!-- Severidade indicator -->
+                    <div style="width:8px;height:8px;border-radius:50%;flex-shrink:0"
+                         :style="a.severidade === 'critico' ? 'background:#dc2626' : a.severidade === 'alto' ? 'background:#f59e0b' : a.severidade === 'medio' ? 'background:#3b82f6' : 'background:var(--neutral-300)'"></div>
+                    <!-- Info -->
+                    <div style="flex:1;min-width:0;cursor:pointer" @click="openDetail(a.mentorado_id)">
+                      <div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="a.titulo"></div>
+                      <div style="display:flex;gap:8px;font-size:10px;color:var(--text-secondary);margin-top:2px">
+                        <span x-text="a.mentorado_nome"></span>
+                        <span x-text="a.tipo"></span>
+                        <span x-text="(a.horas_aberto != null ? Math.round(a.horas_aberto) + 'h' : '-')"></span>
+                      </div>
+                      <div x-show="a.descricao" style="font-size:10px;color:var(--neutral-500);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="a.descricao"></div>
+                    </div>
+                    <!-- Resolve -->
+                    <button class="btn btn--sm" style="flex-shrink:0;font-size:10px;padding:4px 8px" @click="resolveAlerta(a.id)" title="Resolver">Resolver</button>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- WORKLOAD EQUIPE (Story 3.1) -->
+            <div class="bento-card bento-card--half" x-show="ccWorkloadEquipe().length" style="height:auto;min-height:10rem">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Carga da Equipe</span>
+                <span class="badge badge--sm badge--neutral" x-text="ccWorkloadEquipe().length + ' membros'"></span>
+              </div>
+              <div class="bento-card__body" style="overflow-y:auto;display:flex;flex-direction:column;gap:6px;max-height:360px">
+                <template x-for="m in ccWorkloadEquipe()" :key="m.id">
+                  <div style="padding:8px 10px;border-radius:8px;border:1px solid var(--border)">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                      <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0" :style="'background:' + (m.cor || '#6366f1')" x-text="m.nome.charAt(0)"></div>
+                      <div style="flex:1">
+                        <div style="font-size:12px;font-weight:600" x-text="m.nome"></div>
+                        <div style="font-size:9px;color:var(--text-secondary)" x-text="m.cargo"></div>
+                      </div>
+                      <span x-show="m.atrasadas" class="badge badge--xs badge--danger" x-text="m.atrasadas + ' atrasada' + (m.atrasadas > 1 ? 's' : '')"></span>
+                    </div>
+                    <!-- Progress bar -->
+                    <div style="height:6px;background:var(--neutral-100);border-radius:3px;overflow:hidden;display:flex">
+                      <div style="height:100%;border-radius:3px 0 0 3px;transition:width .3s" :style="'width:' + (m.total ? Math.round(m.concluida/m.total*100) : 0) + '%;background:#10b981'"></div>
+                      <div style="height:100%;transition:width .3s" :style="'width:' + (m.total ? Math.round(m.em_andamento/m.total*100) : 0) + '%;background:#3b82f6'"></div>
+                      <div style="height:100%;transition:width .3s" :style="'width:' + (m.total ? Math.round(m.pendente/m.total*100) : 0) + '%;background:var(--neutral-200)'"></div>
+                    </div>
+                    <div style="display:flex;gap:10px;margin-top:4px;font-size:10px;color:var(--text-secondary)">
+                      <span x-text="m.em_andamento + ' em progresso'"></span>
+                      <span x-text="m.pendente + ' pendentes'"></span>
+                      <span x-text="m.concluida + ' concluídas'"></span>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- ORCH-07: AGENT DASHBOARD -->
+            <div class="bento-card bento-card--half" x-show="(data.agentMetrics || []).length" style="height:auto;min-height:10rem">
+              <div class="bento-card__header">
+                <span class="bento-card__title">Agentes IA</span>
+                <span class="badge badge--sm badge--info" x-text="(data.agentMetrics || []).length + ' agentes'"></span>
+              </div>
+              <div class="bento-card__body" style="overflow-y:auto;display:flex;flex-direction:column;gap:8px;max-height:360px">
+                <template x-for="a in (data.agentMetrics || [])" :key="a.agent_id">
+                  <div style="padding:8px 10px;border-radius:8px;border:1px solid var(--border)">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                      <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0" :style="'background:' + (a.cor || '#8b5cf6') + ';color:#fff'">🤖</div>
+                      <div style="flex:1">
+                        <div style="font-size:12px;font-weight:600" x-text="a.agent_name"></div>
+                        <div style="font-size:9px;color:var(--text-secondary)" x-text="a.execution_endpoint || 'sem endpoint'"></div>
+                      </div>
+                      <span style="font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px" :style="a.tasks_em_andamento >= (a.max_concurrent_tasks || 99) ? 'background:#fef2f2;color:#ef4444' : 'background:#f0fdf4;color:#22c55e'" x-text="a.tasks_em_andamento + '/' + (a.max_concurrent_tasks || '∞')"></span>
+                    </div>
+                    <!-- Capacity bar -->
+                    <div style="height:6px;background:var(--neutral-100);border-radius:3px;overflow:hidden;margin-bottom:4px">
+                      <div style="height:100%;border-radius:3px;transition:width .3s" :style="'width:' + Math.min(100, a.max_concurrent_tasks ? (a.tasks_em_andamento/a.max_concurrent_tasks*100) : 0) + '%;background:' + (a.tasks_em_andamento >= (a.max_concurrent_tasks||99) ? '#ef4444' : '#8b5cf6')"></div>
+                    </div>
+                    <div style="display:flex;gap:10px;font-size:10px;color:var(--text-secondary)">
+                      <span x-text="(a.concluidas_7d || 0) + ' concl. 7d'"></span>
+                      <span x-text="(a.avg_horas_conclusao || '—') + 'h média'"></span>
+                      <span x-show="a.falhas_total" style="color:#ef4444" x-text="a.falhas_total + ' falhas'"></span>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
             <!-- CC V2: PLANEJAMENTO DA SEMANA -->
             <div class="bento-card bento-card--full" style="height:auto;min-height:14rem">
               <div class="bento-card__header">
@@ -1496,7 +1658,7 @@
 
               <div class="alerts-bar__preview">
                 <template x-for="a in alertsCriticos.slice(0,4)" :key="(a.mentorado_id||'')+(a.alerta_tipo||'')">
-                  <span class="alerts-bar__name" x-text="a.mentorado_nome.split(' ')[0]"></span>
+                  <span class="alerts-bar__name" x-text="(a.mentorado_nome || '?').split(' ')[0]"></span>
                 </template>
                 <span x-show="alertsCriticos.length > 4" class="alerts-bar__overflow" x-text="'+' + (alertsCriticos.length - 4) + ' mais'"></span>
               </div>
@@ -1692,19 +1854,23 @@
             </div>
             <div class="wa-pendencias__list" x-show="!pendenciasMinimized">
               <template x-for="p in pendenciasVisible" :key="p.interacao_id">
-                <div class="wa-pendencia-item">
+                <div class="wa-pendencia-item" style="cursor:pointer" @click="openDetail(p.mentorado_id)">
                   <div class="wa-pendencia-item__avatar">
                     <div class="mc-card__avatar-inner" style="width:32px;height:32px;font-size:0.7rem" :style="'background:' + avatarGradient(p.mentorado_nome)" x-text="avatarInitials(p.mentorado_nome)"></div>
                   </div>
                   <div class="wa-pendencia-item__body">
                     <div class="wa-pendencia-item__top">
                       <span class="wa-pendencia-item__nome" x-text="p.mentorado_nome"></span>
+                      <span x-show="p.consultor_responsavel" style="font-size:10px;color:var(--neutral-400);margin-left:4px" x-text="'(' + p.consultor_responsavel + ')'"></span>
                       <span class="wa-pendencia-item__tempo" x-text="formatHorasPendente(p.horas_pendente)"></span>
                     </div>
                     <div class="wa-pendencia-item__content" x-text="p.conteudo_truncado || '(sem conteúdo)'"></div>
                   </div>
                   <div class="wa-pendencia-item__actions">
                     <span class="wa-urgencia-badge" :class="urgenciaClass(p.prioridade_calculada)" x-text="urgenciaLabel(p.prioridade_calculada)"></span>
+                    <button class="wa-pendencia-item__btn" @click.stop="openMenteeChat({grupo_whatsapp_id: p.grupo_whatsapp_id, nome: p.mentorado_nome})" title="Abrir chat do grupo">
+                      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    </button>
                     <button class="wa-pendencia-item__btn" @click.stop="markAsResponded(p.interacao_id)" title="Marcar como respondido">
                       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
                     </button>
@@ -1912,6 +2078,11 @@
               <button class="op-tab" :class="{ active: ui.activeDetailTab === 'whatsapp_detail' }" @click="ui.activeDetailTab = 'whatsapp_detail'; if(!data.detail?._waLoaded) _loadDetailWaMessages()">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
                 WhatsApp
+              </button>
+              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'wa_intel' }" @click="ui.activeDetailTab = 'wa_intel'; loadMenteeWaIntel(data.detail?.profile?.id); loadWaIntelligence(data.detail?.profile?.id)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                WA Intel
+                <span class="op-tab__count" x-show="menteeWaStats()?.pendencias_abertas" x-text="menteeWaStats()?.pendencias_abertas"></span>
               </button>
               <button class="op-tab" :class="{ active: ui.activeDetailTab === 'plano_acao' }" @click="ui.activeDetailTab = 'plano_acao'; loadMenteePa()">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
@@ -2262,6 +2433,21 @@
                     </template>
                   </div>
                   <div x-show="!obContext.loading && !obContext.trilha" style="text-align:center;padding:12px;color:var(--neutral-400);font-size:12px">Sem trilha de onboarding</div>
+                  <!-- Contrato toggle (sempre visível no onboarding) -->
+                  <div style="margin-top:8px;padding:10px 12px;background:var(--neutral-50);border-radius:8px;display:flex;align-items:center;justify-content:space-between;border:1px solid" :style="data.detail?.profile?.contrato_assinado ? 'border-color:#10b981' : 'border-color:#ef4444'">
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <span style="font-size:16px" x-text="data.detail?.profile?.contrato_assinado ? '✅' : '⚠️'"></span>
+                      <div>
+                        <div style="font-size:12px;font-weight:600" x-text="data.detail?.profile?.contrato_assinado ? 'Contrato assinado' : 'Contrato NÃO assinado'"></div>
+                        <div x-show="data.detail?.profile?.data_contrato_assinado" style="font-size:10px;color:var(--text-secondary)" x-text="'Assinado em ' + (data.detail?.profile?.data_contrato_assinado ? new Date(data.detail.profile.data_contrato_assinado).toLocaleDateString('pt-BR') : '')"></div>
+                      </div>
+                    </div>
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text-secondary)">
+                      <input type="checkbox" :checked="data.detail?.profile?.contrato_assinado"
+                        @change="updateMenteeFinField('contrato_assinado', $event.target.checked); if($event.target.checked) updateMenteeFinField('data_contrato_assinado', new Date().toISOString().split('T')[0]); toast($event.target.checked ? 'Contrato marcado como assinado' : 'Contrato desmarcado', 'success')">
+                      <span x-text="data.detail?.profile?.contrato_assinado ? 'Assinado' : 'Marcar como assinado'"></span>
+                    </label>
+                  </div>
                 </div>
               </div>
 
@@ -2769,6 +2955,145 @@
             </div>
 
 
+            <!-- ===== TAB: WA INTEL (Stories 1+4) ===== -->
+            <div class="op-tab-content" x-show="ui.activeDetailTab === 'wa_intel'">
+              <!-- Weekly Stats Card -->
+              <div class="card" x-show="menteeWaStats()">
+                <div class="card__header"><h3>Resumo da Semana</h3></div>
+                <div class="card__body" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:12px;padding:12px">
+                  <div style="text-align:center">
+                    <div style="font-size:22px;font-weight:700;color:var(--primary)" x-text="menteeWaStats()?.interacoes_semana || 0"></div>
+                    <div style="font-size:10px;color:var(--text-secondary)">Interacoes</div>
+                  </div>
+                  <div style="text-align:center">
+                    <div style="font-size:22px;font-weight:700" :style="(menteeWaStats()?.pendencias_abertas || 0) > 0 ? 'color:#ef4444' : 'color:#10b981'" x-text="menteeWaStats()?.pendencias_abertas || 0"></div>
+                    <div style="font-size:10px;color:var(--text-secondary)">Pendencias</div>
+                  </div>
+                  <div style="text-align:center">
+                    <div style="font-size:22px;font-weight:700" :style="(menteeWaStats()?.duvidas_sem_resposta || 0) > 0 ? 'color:#ef4444' : 'color:var(--neutral-400)'" x-text="menteeWaStats()?.duvidas_sem_resposta || 0"></div>
+                    <div style="font-size:10px;color:var(--text-secondary)">Duvidas abertas</div>
+                  </div>
+                  <div style="text-align:center">
+                    <div style="font-size:22px;font-weight:700;color:#f59e0b" x-text="menteeWaStats()?.celebracoes_semana || 0"></div>
+                    <div style="font-size:10px;color:var(--text-secondary)">Celebracoes</div>
+                  </div>
+                  <div style="text-align:center">
+                    <div style="font-size:22px;font-weight:700;color:var(--primary)" x-text="menteeWaStats()?.avg_engajamento_semana || '-'"></div>
+                    <div style="font-size:10px;color:var(--text-secondary)">Engajamento</div>
+                  </div>
+                  <div style="text-align:center">
+                    <div style="font-size:22px;font-weight:700;color:#8b5cf6" x-text="menteeWaStats()?.topicos_ativos || 0"></div>
+                    <div style="font-size:10px;color:var(--text-secondary)">Topicos ativos</div>
+                  </div>
+                </div>
+                <!-- Response time indicator -->
+                <div x-show="menteeWaStats()?.avg_horas_sem_resposta" style="padding:8px 12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px">
+                  <span style="font-size:11px;color:var(--text-secondary)">Tempo medio sem resposta:</span>
+                  <span style="font-size:13px;font-weight:700" :style="menteeWaStats()?.avg_horas_sem_resposta > 24 ? 'color:#ef4444' : menteeWaStats()?.avg_horas_sem_resposta > 12 ? 'color:#f59e0b' : 'color:#10b981'" x-text="Math.round(menteeWaStats()?.avg_horas_sem_resposta || 0) + 'h'"></span>
+                </div>
+                <!-- Last activity -->
+                <div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;gap:16px;font-size:11px;color:var(--text-secondary)">
+                  <span x-text="'Ultima msg mentorado: ' + (menteeWaStats()?.ultima_msg_mentorado ? new Date(menteeWaStats().ultima_msg_mentorado).toLocaleDateString('pt-BR', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : 'N/A')"></span>
+                  <span x-text="'Ultima msg equipe: ' + (menteeWaStats()?.ultima_msg_equipe ? new Date(menteeWaStats().ultima_msg_equipe).toLocaleDateString('pt-BR', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : 'N/A')"></span>
+                </div>
+              </div>
+
+              <!-- Pendencias / Duvidas (Story 4) -->
+              <div class="card" style="margin-top:12px">
+                <div class="card__header">
+                  <h3>Pendencias e Duvidas</h3>
+                  <span class="badge badge--sm" :class="(data._menteeWaActivity || []).filter(a => a.needs_response && !a.was_responded).length ? 'badge--danger' : 'badge--success'" x-text="(data._menteeWaActivity || []).filter(a => a.needs_response && !a.was_responded).length + ' abertas'"></span>
+                </div>
+                <div class="card__body" style="max-height:400px;overflow-y:auto">
+                  <template x-for="item in (data._menteeWaActivity || []).filter(a => a.needs_response && !a.was_responded).slice(0, 20)" :key="item.id">
+                    <div style="padding:10px 12px;border-bottom:1px solid var(--neutral-100);display:flex;gap:10px">
+                      <!-- Type indicator -->
+                      <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0"
+                           :style="item.activity_type === 'duvida' ? 'background:#dbeafe;color:#2563eb' : item.activity_type === 'solicitacao' ? 'background:#fef3c7;color:#d97706' : item.activity_type === 'bloqueio' ? 'background:#fee2e2;color:#dc2626' : 'background:var(--neutral-100);color:var(--neutral-500)'"
+                           x-text="item.activity_type === 'duvida' ? '?' : item.activity_type === 'solicitacao' ? '!' : item.activity_type === 'bloqueio' ? '#' : '*'"></div>
+                      <!-- Content -->
+                      <div style="flex:1;min-width:0">
+                        <div style="font-size:12px;color:var(--neutral-800);line-height:1.5" x-text="item.content?.substring(0, 200) + (item.content?.length > 200 ? '...' : '')"></div>
+                        <div style="display:flex;gap:10px;margin-top:4px;font-size:10px;color:var(--text-secondary)">
+                          <span x-text="item.activity_type"></span>
+                          <span x-text="item.sender_name"></span>
+                          <span x-text="item.activity_at ? new Date(item.activity_at).toLocaleDateString('pt-BR', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : ''"></span>
+                          <span x-show="item.response_urgency && item.response_urgency !== 'nao_urgente'" class="badge badge--xs badge--warning" x-text="item.response_urgency"></span>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                  <div x-show="!(data._menteeWaActivity || []).filter(a => a.needs_response && !a.was_responded).length" style="text-align:center;padding:24px;color:var(--neutral-400);font-size:12px">Nenhuma pendencia aberta</div>
+                </div>
+              </div>
+
+              <!-- Percepcoes CRUD (Story 5) -->
+              <div class="card" style="margin-top:12px">
+                <div class="card__header">
+                  <h3>Percepções e Notas</h3>
+                  <span class="badge badge--sm badge--neutral" x-text="(waIntel.percepcoes || []).length + ' registradas'"></span>
+                </div>
+                <div class="card__body">
+                  <!-- Create form -->
+                  <div style="display:flex;gap:8px;margin-bottom:12px">
+                    <select style="width:120px;font-size:11px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg)" x-model="_percepcaoForm.tipo">
+                      <option value="observacao">Observação</option>
+                      <option value="insight">Insight</option>
+                      <option value="alerta">Alerta</option>
+                      <option value="decisao">Decisão</option>
+                      <option value="bloqueio">Bloqueio</option>
+                    </select>
+                    <input type="text" class="form-input" style="flex:1;font-size:12px" placeholder="Registrar percepção..." x-model="_percepcaoForm.conteudo" @keydown.enter="addPercepcao(data.detail?.profile?.id)">
+                    <button class="btn btn--primary btn--sm" @click="addPercepcao(data.detail?.profile?.id)" :disabled="!_percepcaoForm.conteudo.trim()">Salvar</button>
+                  </div>
+                  <!-- List -->
+                  <div style="max-height:300px;overflow-y:auto">
+                    <template x-for="p in (waIntel.percepcoes || [])" :key="p.id">
+                      <div style="padding:8px 10px;border-bottom:1px solid var(--neutral-100);display:flex;gap:8px;align-items:flex-start">
+                        <span style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;flex-shrink:0;text-transform:uppercase"
+                              :style="p.tipo === 'bloqueio' ? 'background:#fee2e2;color:#dc2626' : p.tipo === 'alerta' ? 'background:#fef3c7;color:#d97706' : p.tipo === 'insight' ? 'background:#dbeafe;color:#2563eb' : p.tipo === 'decisao' ? 'background:#d1fae5;color:#059669' : 'background:var(--neutral-100);color:var(--neutral-600)'"
+                              x-text="p.tipo"></span>
+                        <div style="flex:1;min-width:0">
+                          <div style="font-size:12px;color:var(--neutral-800);line-height:1.5;white-space:pre-wrap" x-text="p.conteudo?.substring(0, 300) + (p.conteudo?.length > 300 ? '...' : '')"></div>
+                          <div style="font-size:9px;color:var(--neutral-400);margin-top:3px" x-text="(p.autor || 'Sistema') + ' • ' + (p.created_at ? new Date(p.created_at).toLocaleDateString('pt-BR', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '')"></div>
+                        </div>
+                        <button style="flex-shrink:0;font-size:10px;color:var(--neutral-400);cursor:pointer;background:none;border:none;padding:4px" title="Remover" @click="deletePercepcao(p.id, data.detail?.profile?.id)">✕</button>
+                      </div>
+                    </template>
+                    <div x-show="!(waIntel.percepcoes || []).length" style="text-align:center;padding:20px;color:var(--neutral-400);font-size:12px">Nenhuma percepção registrada</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Recent Activity Timeline (Story 3 partial) -->
+              <div class="card" style="margin-top:12px">
+                <div class="card__header"><h3>Atividade Recente</h3></div>
+                <div class="card__body" style="max-height:400px;overflow-y:auto">
+                  <template x-for="item in (data._menteeWaActivity || []).slice(0, 30)" :key="item.id">
+                    <div style="padding:8px 12px;border-bottom:1px solid var(--neutral-50);display:flex;gap:10px;align-items:flex-start">
+                      <!-- Activity type icon -->
+                      <div style="width:8px;height:8px;border-radius:50%;margin-top:6px;flex-shrink:0"
+                           :style="item.sentiment === 'positivo' ? 'background:#10b981' : item.sentiment === 'negativo' ? 'background:#ef4444' : item.is_team ? 'background:#3b82f6' : 'background:var(--neutral-300)'"></div>
+                      <div style="flex:1;min-width:0">
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+                          <span style="font-size:11px;font-weight:600" x-text="item.sender_name || 'Sistema'"></span>
+                          <span class="badge badge--xs" :class="item.activity_type === 'duvida' ? 'badge--info' : item.activity_type === 'celebracao' ? 'badge--success' : item.activity_type === 'bloqueio' ? 'badge--danger' : item.activity_type === 'solicitacao' ? 'badge--warning' : 'badge--neutral'" x-text="item.activity_type"></span>
+                          <span x-show="item.is_team" class="badge badge--xs badge--info">equipe</span>
+                        </div>
+                        <div style="font-size:11px;color:var(--neutral-700);line-height:1.4" x-text="item.content?.substring(0, 150) + (item.content?.length > 150 ? '...' : '')"></div>
+                        <div style="font-size:9px;color:var(--neutral-400);margin-top:3px" x-text="item.activity_at ? new Date(item.activity_at).toLocaleDateString('pt-BR', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : ''"></div>
+                      </div>
+                    </div>
+                  </template>
+                  <div x-show="!(data._menteeWaActivity || []).length" style="text-align:center;padding:24px;color:var(--neutral-400);font-size:12px">Nenhuma atividade registrada</div>
+                </div>
+              </div>
+
+              <div x-show="!menteeWaStats()" style="text-align:center;padding:40px;color:var(--neutral-400);font-size:13px">
+                Carregando dados WA Intel...
+              </div>
+            </div>
+
             <!-- ===== TAB: PLANO DE AÇÃO ===== -->
             <div class="op-tab-content" x-show="ui.activeDetailTab === 'plano_acao'">
               <!-- No plan yet -->
@@ -3216,7 +3541,7 @@
                   </div>
                 </div>
 
-                <!-- ── Pipeline Descarregos (LF-FASE3) ── -->
+                <!-- ── Pipeline Descarregos (LF-FASE3 v2) ── -->
                 <div style="margin-bottom:16px;border:1px solid var(--border);border-radius:10px;background:var(--bg-subtle,#fafaf7);padding:12px">
                   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
                     <div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--text-primary)">
@@ -3225,36 +3550,96 @@
                       <span x-text="(data.menteeDescarregos || []).length" style="background:var(--brand-300,#c4b896);color:#fff;border-radius:10px;padding:1px 8px;font-size:10px"></span>
                     </div>
                     <div style="display:flex;gap:6px">
-                      <button @click="openDescarregoCreate()" style="font-size:11px;background:var(--brand-500,#b09b6e);color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer">+ Novo descarrego</button>
+                      <button @click="openDescarregoCreate()" style="font-size:11px;background:var(--brand-500,#b09b6e);color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer">+ Novo</button>
+                      <button @click="ui.batchDescarregoOpen = !ui.batchDescarregoOpen" style="font-size:11px;color:var(--brand-500,#b09b6e);background:none;border:1px solid var(--brand-300,#c4b896);border-radius:4px;padding:4px 10px;cursor:pointer">Batch import</button>
                       <button @click="loadMenteeDescarregos(data.detail?.profile?.id)" style="font-size:11px;color:var(--text-secondary);background:none;border:1px solid var(--border);border-radius:4px;padding:3px 8px;cursor:pointer" title="Recarregar">↻</button>
                     </div>
                   </div>
-                  <div x-show="!(data.menteeDescarregos || []).length" style="text-align:center;padding:16px;color:var(--text-secondary);font-size:12px">
-                    Nenhum descarrego ainda. Clique em <strong>+ Novo descarrego</strong> pra capturar um áudio ou texto.
+                  <!-- Filtros -->
+                  <div style="display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap">
+                    <template x-for="f in ['todos','pendentes','processados','task','contexto','lembrete','escalacao','dossie','feedback']" :key="f">
+                      <button @click="ui.descarregoFilter = f"
+                              :style="ui.descarregoFilter === f ? 'background:var(--brand-500,#b09b6e);color:#fff' : 'background:#fff;color:var(--text-secondary);border:1px solid var(--border)'"
+                              style="font-size:10px;padding:3px 8px;border-radius:12px;cursor:pointer;border:none;text-transform:capitalize"
+                              x-text="f"></button>
+                    </template>
+                  </div>
+
+                  <!-- Batch import panel -->
+                  <div x-show="ui.batchDescarregoOpen" x-cloak style="margin-bottom:10px;padding:10px;background:#fff;border:1px solid var(--brand-300,#c4b896);border-radius:8px">
+                    <div style="font-size:11px;font-weight:600;color:var(--text-primary);margin-bottom:6px">Importar múltiplos descarregos</div>
+                    <div style="font-size:10px;color:var(--text-secondary);margin-bottom:6px">Cole textos separados por linha em branco ou "---". Máximo 20 por vez. Cada bloco vira um descarrego que será processado automaticamente pela IA.</div>
+                    <textarea x-model="ui.batchDescarregoText" rows="6" placeholder="Texto do descarrego 1...&#10;&#10;Texto do descarrego 2...&#10;&#10;---&#10;&#10;Texto do descarrego 3..." style="width:100%;font-size:12px;padding:8px;border:1px solid var(--border);border-radius:6px;resize:vertical;font-family:inherit;box-sizing:border-box"></textarea>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
+                      <span style="font-size:10px;color:var(--text-secondary)" x-text="(() => { const t = (ui.batchDescarregoText || '').trim(); if (!t) return '0 itens'; const c = t.split(/\n{2,}|^---$/m).filter(x => x.trim().length > 5).length; return c + ' ite' + (c === 1 ? 'm' : 'ns'); })()"></span>
+                      <div style="display:flex;gap:6px">
+                        <button @click="ui.batchDescarregoOpen = false; ui.batchDescarregoText = ''" style="font-size:11px;color:var(--text-secondary);background:none;border:1px solid var(--border);border-radius:4px;padding:4px 10px;cursor:pointer">Cancelar</button>
+                        <button @click="submitBatchDescarrego()" :disabled="ui.batchDescarregoSubmitting" style="font-size:11px;background:var(--brand-500,#b09b6e);color:#fff;border:none;border-radius:4px;padding:4px 14px;cursor:pointer">
+                          <span x-show="!ui.batchDescarregoSubmitting">Importar e processar</span>
+                          <span x-show="ui.batchDescarregoSubmitting">Importando...</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div x-show="!filteredDescarregos.length && !ui.batchDescarregoOpen" style="text-align:center;padding:16px;color:var(--text-secondary);font-size:12px">
+                    Nenhum descarrego encontrado.
                   </div>
 
                   <div style="display:flex;flex-direction:column;gap:8px">
-                    <template x-for="d in (data.menteeDescarregos || [])" :key="d.id">
-                      <div style="border:1px solid var(--border);border-radius:8px;padding:10px;background:#fff">
-                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                    <template x-for="d in filteredDescarregos" :key="d.id">
+                      <div style="border:1px solid var(--border);border-radius:8px;padding:10px;background:#fff;transition:box-shadow .15s"
+                           :style="ui.descarregoExpanded[d.id] ? 'box-shadow:0 2px 8px rgba(0,0,0,.06)' : ''">
+                        <!-- Header -->
+                        <div @click="ui.descarregoExpanded[d.id] = !ui.descarregoExpanded[d.id]" style="display:flex;align-items:center;gap:8px;cursor:pointer">
                           <span :style="{'capturado':'background:#e0f2fe;color:#0369a1','transcricao_pendente':'background:#fef3c7;color:#d97706','transcrito':'background:#e0f2fe;color:#0369a1','classificacao_pendente':'background:#fef3c7;color:#d97706','classificado':'background:#dcfce7;color:#15803d','aguardando_humano':'background:#fde68a;color:#b45309','executando_acao_automatica':'background:#fef3c7;color:#d97706','executando_acao_manual':'background:#fef3c7;color:#d97706','finalizado':'background:#dcfce7;color:#15803d','rejeitado':'background:#fee2e2;color:#dc2626','erro':'background:#fee2e2;color:#dc2626'}[d.status] || 'background:#f3f4f6'"
                                 style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;text-transform:uppercase" x-text="d.status"></span>
                           <span style="font-size:11px;color:var(--text-secondary)" x-text="d.tipo_bruto"></span>
-                          <span x-show="d.classificacao_principal" style="font-size:11px;font-weight:600" x-text="'→ ' + d.classificacao_principal"></span>
-                          <span x-show="d.classificacao_confidence" style="font-size:10px;color:var(--text-secondary)" x-text="'(' + Math.round((d.classificacao_confidence||0)*100) + '%)'"></span>
+                          <span x-show="d.classificacao_principal" style="font-size:11px;font-weight:600;padding:2px 6px;border-radius:4px;background:#f0fdf4;color:#15803d" x-text="d.classificacao_principal"></span>
+                          <span x-show="d.classificacao_confidence" style="font-size:10px;color:var(--text-secondary)" x-text="Math.round((d.classificacao_confidence||0)*100) + '%'"></span>
                           <span style="flex:1"></span>
+                          <span x-show="d.acao_tomada" style="font-size:10px;padding:2px 6px;border-radius:4px;background:#ede9fe;color:#7c3aed" x-text="d.acao_tomada"></span>
                           <span style="font-size:10px;color:var(--text-secondary)" x-text="new Date(d.created_at).toLocaleString('pt-BR')"></span>
+                          <span style="font-size:12px;color:var(--text-secondary);transition:transform .15s" :style="ui.descarregoExpanded[d.id] ? 'transform:rotate(180deg)' : ''">▾</span>
                         </div>
-                        <div style="font-size:12px;color:var(--text-primary);white-space:pre-wrap;line-height:1.4;max-height:80px;overflow:hidden" x-text="d.transcricao || d.conteudo_bruto || '(sem conteúdo)'"></div>
-                        <div x-show="d.classificacao_payload?.summary" style="font-size:11px;color:var(--text-secondary);font-style:italic;margin-top:4px" x-text="'Resumo IA: ' + d.classificacao_payload?.summary"></div>
 
-                        <!-- Ações -->
-                        <div style="display:flex;gap:6px;margin-top:8px">
-                          <button x-show="d.status === 'capturado' || d.status === 'erro'" @click="processDescarrego(d.id)" style="font-size:11px;background:var(--brand-500,#b09b6e);color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer">▶ Processar</button>
-                          <button x-show="d.status === 'aguardando_humano'" @click="approveDescarrego(d.id)" style="font-size:11px;background:#16a34a;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer">✓ Aprovar</button>
-                          <button x-show="d.status === 'aguardando_humano'" @click="rejectDescarrego(d.id)" style="font-size:11px;background:#dc2626;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer">✕ Rejeitar</button>
-                          <a x-show="d.task_id" :href="'#task-' + d.task_id" style="font-size:11px;color:var(--brand-500,#b09b6e);text-decoration:none;padding:4px 8px;border:1px solid var(--border);border-radius:4px">→ Task criada</a>
-                          <span x-show="d.last_error" style="font-size:10px;color:#dc2626" :title="d.last_error">⚠ erro</span>
+                        <!-- Preview (colapsado) -->
+                        <div x-show="!ui.descarregoExpanded[d.id]" style="font-size:12px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:4px;max-width:100%" x-text="(d.classificacao_payload?.summary || d.transcricao || d.conteudo_bruto || '(sem conteúdo)').substring(0, 120)"></div>
+
+                        <!-- Expanded content -->
+                        <div x-show="ui.descarregoExpanded[d.id]" x-cloak style="margin-top:8px">
+                          <!-- Resumo IA -->
+                          <div x-show="d.classificacao_payload?.summary" style="font-size:12px;color:var(--text-secondary);font-style:italic;margin-bottom:6px;padding:6px 8px;background:#fafaf7;border-radius:6px">
+                            <strong style="font-style:normal">Resumo IA:</strong> <span x-text="d.classificacao_payload?.summary"></span>
+                          </div>
+                          <!-- Conteúdo completo -->
+                          <div style="font-size:12px;color:var(--text-primary);white-space:pre-wrap;line-height:1.5;max-height:300px;overflow-y:auto;padding:6px 8px;background:#fff;border:1px solid var(--border);border-radius:6px" x-text="d.transcricao || d.conteudo_bruto || '(sem conteúdo)'"></div>
+                          <!-- Task details (se task) -->
+                          <div x-show="d.classificacao_payload?.task" style="margin-top:6px;padding:6px 8px;background:#eff6ff;border-radius:6px;font-size:11px">
+                            <strong>Ação sugerida:</strong>
+                            <span x-text="d.classificacao_payload?.task?.titulo"></span>
+                            <span style="color:var(--text-secondary)"> — </span>
+                            <span x-text="d.classificacao_payload?.task?.responsavel"></span>
+                            <span x-show="d.classificacao_payload?.task?.prazo_dias" x-text="' (' + d.classificacao_payload?.task?.prazo_dias + ' dias)'"></span>
+                          </div>
+                          <!-- Reclassificação manual -->
+                          <div style="display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap">
+                            <span style="font-size:10px;color:var(--text-secondary)">Reclassificar:</span>
+                            <template x-for="rt in ['task','lembrete','contexto','feedback','escalacao','plano_acao','dossie','duvida','celebracao']" :key="rt">
+                              <button @click.stop="reclassifyDescarrego(d.id, rt)"
+                                      :style="d.classificacao_principal === rt ? 'background:var(--brand-500);color:#fff' : ''"
+                                      style="font-size:9px;padding:2px 6px;border-radius:8px;cursor:pointer;background:#f3f4f6;border:1px solid #e2e8f0;color:var(--text-secondary)"
+                                      x-text="rt"></button>
+                            </template>
+                          </div>
+                          <!-- Ações -->
+                          <div style="display:flex;gap:6px;margin-top:8px">
+                            <button x-show="d.status === 'capturado' || d.status === 'erro'" @click.stop="processDescarrego(d.id)" style="font-size:11px;background:var(--brand-500,#b09b6e);color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer">▶ Processar</button>
+                            <button x-show="d.status === 'aguardando_humano'" @click.stop="approveDescarrego(d.id)" style="font-size:11px;background:#16a34a;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer">✓ Aprovar</button>
+                            <button x-show="d.status === 'aguardando_humano'" @click.stop="rejectDescarrego(d.id)" style="font-size:11px;background:#dc2626;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer">✕ Rejeitar</button>
+                            <a x-show="d.task_id" @click.stop :href="'#'" @click.prevent="openTaskDetail(d.task_id)" style="font-size:11px;color:var(--brand-500,#b09b6e);text-decoration:none;padding:4px 8px;border:1px solid var(--border);border-radius:4px;cursor:pointer">→ Abrir task</a>
+                            <span x-show="d.last_error" style="font-size:10px;color:#dc2626" :title="d.last_error">⚠ erro</span>
+                          </div>
                         </div>
                       </div>
                     </template>
@@ -3400,7 +3785,7 @@
                         <!-- Metadata footer -->
                         <div x-show="ctx.origem || ctx.wa_group_jid" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;gap:10px;font-size:10px;color:var(--text-secondary)">
                           <span x-show="ctx.origem" x-text="'Origem: ' + ctx.origem"></span>
-                          <span x-show="ctx.wa_group_jid" x-text="'Grupo WA: ' + ctx.wa_group_jid.split('@')[0]"></span>
+                          <span x-show="ctx.wa_group_jid" x-text="'Grupo WA: ' + (ctx.wa_group_jid || '').split('@')[0]"></span>
                         </div>
                       </div>
 
@@ -3663,7 +4048,7 @@
             </template>
           </div>
 
-          <!-- Toolbar: group by + hide done -->
+          <!-- Toolbar: group by + hide done + bulk toggle -->
           <div x-show="meuTrabalho.length" class="mt-toolbar">
             <span>Agrupar:</span>
             <select x-model="meuTrabalhoGroupBy">
@@ -3676,6 +4061,33 @@
               <input type="checkbox" x-model="meuTrabalhoHideDone" style="accent-color:var(--brand-500)">
               Esconder concluidas
             </label>
+            <button @click="ui.bulkMode = !ui.bulkMode; if(!ui.bulkMode) bulkClearAll()" style="margin-left:auto;font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer" :style="ui.bulkMode ? 'background:#3b82f6;color:#fff;border:1px solid #3b82f6' : 'background:transparent;border:1px solid var(--border);color:var(--text-secondary)'" x-text="ui.bulkMode ? 'Sair bulk (' + bulkCount + ')' : 'Selecionar'"></button>
+          </div>
+
+          <!-- Dragon 53: Bulk action bar -->
+          <div x-show="ui.bulkMode && bulkCount > 0" x-transition style="display:flex;align-items:center;gap:8px;padding:10px 14px;margin-bottom:8px;background:var(--neutral-50,#faf9f7);border:1px solid var(--border);border-radius:8px">
+            <span style="font-size:12px;font-weight:600;color:var(--primary)" x-text="bulkCount + ' selecionada' + (bulkCount > 1 ? 's' : '')"></span>
+            <button @click="bulkSelectAll()" style="font-size:10px;color:var(--primary);background:none;border:none;cursor:pointer;text-decoration:underline">Selecionar todas</button>
+            <button @click="bulkClearAll()" style="font-size:10px;color:var(--text-secondary);background:none;border:none;cursor:pointer;text-decoration:underline">Limpar</button>
+            <div style="flex:1"></div>
+            <button @click="bulkUpdateStatus('em_andamento')" style="font-size:11px;padding:4px 10px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer">Iniciar</button>
+            <button @click="bulkUpdateStatus('concluida')" style="font-size:11px;padding:4px 10px;background:#22c55e;color:#fff;border:none;border-radius:6px;cursor:pointer">Concluir</button>
+            <select @change="if($el.value) { bulkUpdateField('responsavel', $el.value); $el.value=''; }" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:6px">
+              <option value="">Atribuir a...</option>
+              <option value="kaique">Kaique</option>
+              <option value="queila">Queila</option>
+              <option value="mariza">Mariza</option>
+              <option value="hugo">Hugo</option>
+              <option value="heitor">Heitor</option>
+              <option value="lara">Lara</option>
+            </select>
+            <select @change="if($el.value) { bulkUpdateField('prioridade', $el.value); $el.value=''; }" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:6px">
+              <option value="">Prioridade...</option>
+              <option value="urgente">Urgente</option>
+              <option value="alta">Alta</option>
+              <option value="normal">Normal</option>
+              <option value="baixa">Baixa</option>
+            </select>
           </div>
 
           <div x-show="meuTrabalhoLoading" style="text-align:center;padding:40px;color:var(--text-secondary)">Carregando...</div>
@@ -3698,17 +4110,20 @@
                 <!-- Table -->
                 <div class="cu-list__wrap">
                   <template x-for="t in group.tasks" :key="t.id">
-                    <table style="width:100%;border-collapse:collapse;table-layout:fixed" @click="openTaskDetail(t.id)">
+                    <table style="width:100%;border-collapse:collapse;table-layout:fixed" @click="ui.bulkMode ? bulkToggle(t.id) : openTaskDetail(t.id)">
                       <colgroup><col style="width:36px"><col><col style="width:100px"><col style="width:100px"><col style="width:110px"><col style="width:80px"></colgroup>
-                      <tr class="cu-list__row" :class="{ 'cu-list__row--done': t.status === 'concluida' }">
+                      <tr class="cu-list__row" :class="{ 'cu-list__row--done': t.status === 'concluida', 'cu-list__row--selected': ui.bulkSelected[t.id] }">
                         <td class="cu-list__td" @click.stop>
-                          <input type="checkbox" :checked="t.status === 'concluida'" @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"
+                          <input x-show="ui.bulkMode" type="checkbox" :checked="ui.bulkSelected[t.id]" @change="bulkToggle(t.id)"
+                                 style="width:15px;height:15px;cursor:pointer;accent-color:#3b82f6">
+                          <input x-show="!ui.bulkMode" type="checkbox" :checked="t.status === 'concluida'" @change="updateTaskStatus(t.id, $event.target.checked ? 'concluida' : 'pendente')"
                                  style="width:15px;height:15px;cursor:pointer;accent-color:#22c55e">
                         </td>
                         <td class="cu-list__td cu-list__td--name">
                           <div style="display:flex;align-items:center;gap:8px">
                             <span style="width:10px;height:10px;border-radius:50%;flex-shrink:0"
                                   :style="{'pendente':'background:#94a3b8','em_andamento':'background:#3b82f6','em_revisao':'background:#f59e0b','bloqueada':'background:#ef4444','pausada':'background:#8b5cf6','concluida':'background:#22c55e'}[t.status] || 'background:#d1d5db'"></span>
+                            <span x-show="t.especie === 'gate'" style="font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;background:#f59e0b;color:#fff;flex-shrink:0">GATE</span>
                             <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="t.titulo"></span>
                             <span x-show="t.mentorado_nome && meuTrabalhoGroupBy !== 'mentorado'" style="font-size:10px;color:var(--text-secondary);flex-shrink:0" x-text="'— ' + t.mentorado_nome"></span>
                           </div>
@@ -3915,7 +4330,7 @@
                          @click.stop="ui.collapsedSpaces = {...(ui.collapsedSpaces||{}), [space.id]: !ui.collapsedSpaces?.[space.id]}"><polyline points="9 18 15 12 9 6"/></svg>
                     <span class="tasks-sidebar__space-dot" :style="'background:' + space.color"></span>
                     <span x-text="space.name" style="flex:1"></span>
-                    <span class="tasks-sidebar__count" x-text="data.tasks.filter(t => t.space_id === space.id).length"></span>
+                    <span class="tasks-sidebar__count" x-text="data.tasks.filter(t => t.space_id === space.id || (space.lists || []).some(l => l.id === t.list_id)).length"></span>
                     <button @click.stop="sidebarAddList(space.id)" style="background:none;border:none;cursor:pointer;color:#d1d5db;padding:0 2px;font-size:14px;line-height:1;display:none" :style="ui.taskSpaceFilter === space.id ? 'display:inline' : ''" title="Adicionar lista">+</button>
                   </div>
                   <template x-for="list in space.lists" :key="list.id">
@@ -4176,6 +4591,10 @@
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                       Importar Tudo
                     </button>
+                    <div style="height:1px;background:#e2e8f0;margin:2px 0"></div>
+                    <div style="padding:6px 10px;font-size:10px;color:var(--text-secondary)">
+                      Sync: <span style="color:#10b981">●</span> sincronizado <span style="color:#f59e0b">●</span> pendente <span style="color:var(--neutral-300)">●</span> sem vínculo
+                    </div>
                   </div>
                 </div>
                 <span class="op-toolbar__count" x-text="(ui.taskView === 'list' ? tasksTree.filter(t=>t._depth===0).length : data.tasks.length) + ' tarefas'"></span>
@@ -4197,6 +4616,9 @@
                 </button>
                 <button class="cu-quickfilter" :class="{ 'cu-quickfilter--active': quickFilter === 'favorites' }" @click="setQuickFilter('favorites')">
                   Favoritas <span class="cu-quickfilter__count" x-text="quickFilterCounts.favorites"></span>
+                </button>
+                <button class="cu-quickfilter" :class="{ 'cu-quickfilter--active': quickFilter === 'recurring' }" @click="setQuickFilter('recurring')">
+                  Recorrentes <span class="cu-quickfilter__count" x-text="quickFilterCounts.recurring"></span>
                 </button>
               </div>
 
@@ -4521,6 +4943,10 @@
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                               <span x-text="subtaskProgress(t).done + '/' + subtaskProgress(t).total"></span>
                             </span>
+                            <!-- ClickUp sync indicator -->
+                            <span x-show="t.operon_id" class="cu-list__indicator" style="cursor:pointer" :title="taskSyncLabel(t)" @click.stop="clickupPushTask(t.id)">
+                              <span style="display:inline-block;width:6px;height:6px;border-radius:50%" :style="'background:' + taskSyncColor(t)"></span>
+                            </span>
                             <span x-show="t.comments?.length" class="cu-list__indicator">
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                               <span x-text="t.comments.length"></span>
@@ -4794,16 +5220,24 @@
                   </div>
                   <!-- Task rows -->
                   <template x-for="(t, ti) in ganttTasks" :key="t.id">
-                    <div class="gantt-row" @click="openTaskDetail(t.id)" style="position:relative">
+                    <div class="gantt-row" :data-gantt-task="t.id" @click="openTaskDetail(t.id)" style="position:relative" :style="ui.ganttFocusedTaskId === t.id ? 'outline:2px solid var(--primary);outline-offset:-1px;border-radius:4px' : ''"
                       <div class="gantt-row__label" style="display:flex;align-items:center;gap:6px">
                         <span style="width:6px;height:6px;border-radius:50%;flex-shrink:0"
                               :style="'background:' + (t.status==='concluida' ? '#22c55e' : t.status==='em_andamento' ? '#3b82f6' : '#94a3b8')"></span>
+                        <span x-show="t.especie === 'gate'" style="font-size:10px;color:#f59e0b;flex-shrink:0" title="Gate checkpoint">◆</span>
                         <span class="gantt-row__title" x-text="t.titulo" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
                         <span x-show="t.responsavel" class="avatar avatar--sm" :style="'background:' + avatarGradient(t.responsavel)" x-text="avatarInitials(t.responsavel)" style="width:20px;height:20px;font-size:8px;flex-shrink:0"></span>
+                        <span x-show="isAgentMember(t.responsavel)" style="font-size:8px;font-weight:700;padding:1px 4px;border-radius:3px;background:#8b5cf6;color:#fff;flex-shrink:0">AI</span>
                       </div>
                       <div class="gantt-row__timeline">
-                        <div class="gantt-bar" :style="ganttBarStyle(t)" :title="t.titulo + ' (' + (t.data_inicio || '?') + ' → ' + (t.data_fim || t.prazo || '?') + ')'">
-                          <span class="gantt-bar__text" x-text="t.titulo.length > 15 ? t.titulo.substring(0,15) + '…' : t.titulo"></span>
+                        <div class="gantt-bar" :style="ganttBarStyle(t) + (isAgentMember(t.responsavel) ? ';border:2px dashed rgba(255,255,255,.5)' : '') + (t.especie === 'gate' ? ';border:2px solid #f59e0b;background:linear-gradient(135deg,#fef3c7,#fde68a);min-width:24px;max-width:24px;height:24px;transform:rotate(45deg);border-radius:4px;margin-top:4px' : '')" :title="t.titulo + ' (' + (t.data_inicio || '?') + ' → ' + (t.data_fim || t.prazo || '?') + ')'">
+                          <div class="gantt-bar__handle gantt-bar__handle--left"
+                               @mousedown.stop.prevent="ganttDragStart($event, t, 'left')"
+                               @touchstart.stop.prevent="ganttDragStart($event.touches[0], t, 'left')"></div>
+                          <span x-show="t.especie !== 'gate'" class="gantt-bar__text" x-text="(t.titulo || '').length > 15 ? (t.titulo || '').substring(0,15) + '…' : (t.titulo || '')"></span>
+                          <div class="gantt-bar__handle gantt-bar__handle--right"
+                               @mousedown.stop.prevent="ganttDragStart($event, t, 'right')"
+                               @touchstart.stop.prevent="ganttDragStart($event.touches[0], t, 'right')"></div>
                         </div>
                         <!-- Dependency indicators -->
                         <template x-if="(t.depends_on || []).length > 0">
@@ -4824,9 +5258,30 @@
                       </div>
                     </div>
                   </template>
-                  <!-- SVG arrowhead definition -->
-                  <svg style="position:absolute;width:0;height:0">
-                    <defs><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#6366f1"/></marker></defs>
+                  <!-- SVG dependency arrows overlay (viewBox 0-1000 x, pixel y) -->
+                  <svg x-show="ganttDependencyLines.length > 0"
+                       :viewBox="'0 0 1000 ' + (ganttTasks.length * 40)"
+                       preserveAspectRatio="none"
+                       :style="'height:' + (ganttTasks.length * 40) + 'px'"
+                       style="position:absolute;top:0;left:200px;right:0;width:calc(100% - 200px);pointer-events:none;z-index:1">
+                    <defs>
+                      <marker id="arrow-normal" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
+                        <polygon points="0 0, 6 2, 0 4" fill="#8b5cf6"/>
+                      </marker>
+                      <marker id="arrow-blocking" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
+                        <polygon points="0 0, 6 2, 0 4" fill="#ef4444"/>
+                      </marker>
+                    </defs>
+                    <template x-for="(line, li) in ganttDependencyLines" :key="li">
+                      <path :d="'M ' + (line.fromXPct * 10) + ' ' + line.fromY + ' C ' + (line.fromXPct * 10 + (line.toXPct - line.fromXPct) * 5) + ' ' + line.fromY + ', ' + (line.fromXPct * 10 + (line.toXPct - line.fromXPct) * 5) + ' ' + line.toY + ', ' + (line.toXPct * 10) + ' ' + line.toY"
+                        fill="none"
+                        :stroke="line.isBlocking ? '#ef4444' : '#8b5cf6'"
+                        :stroke-width="line.isBlocking ? 2 : 1.5"
+                        :stroke-dasharray="line.isBlocking ? '' : '6 3'"
+                        :marker-end="line.isBlocking ? 'url(#arrow-blocking)' : 'url(#arrow-normal)'"
+                        opacity="0.7"
+                        vector-effect="non-scaling-stroke"/>
+                    </template>
                   </svg>
                   <div class="empty-state" x-show="!ganttTasks.length" style="padding:40px"><p>Nenhuma tarefa com datas para exibir no Gantt.</p></div>
                 </div>
@@ -4874,7 +5329,7 @@
                   <template x-for="w in workloadData" :key="w.name">
                     <div style="background:#fff;border:1px solid #e8e5de;border-radius:10px;padding:14px 16px">
                       <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
-                        <span class="avatar avatar--sm" :style="'background:' + w.color" x-text="w.name.substring(0,2).toUpperCase()" style="width:32px;height:32px;font-size:11px;flex-shrink:0"></span>
+                        <span class="avatar avatar--sm" :style="'background:' + w.color" x-text="(w.name || '').substring(0,2).toUpperCase()" style="width:32px;height:32px;font-size:11px;flex-shrink:0"></span>
                         <div style="flex:1">
                           <div style="font-size:14px;font-weight:600" x-text="w.name"></div>
                           <div style="font-size:11px;color:#94a3b8" x-text="w.count + ' tarefas pendentes' + (w.overdue ? ' (' + w.overdue + ' atrasadas)' : '')"></div>
@@ -5110,6 +5565,28 @@
                   </template>
                 </div>
               </div>
+              <!-- Charts Row (Fase 5) -->
+              <div style="padding:0 20px 20px" x-intersect.once="renderDashCharts()">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+                  <!-- Status Doughnut -->
+                  <div style="background:#f8f7f4;border-radius:10px;padding:16px">
+                    <h4 style="font-size:12px;font-weight:700;color:#475569;margin:0 0 10px">Distribuição por Status</h4>
+                    <div style="height:180px"><canvas id="dashChartStatus"></canvas></div>
+                  </div>
+                  <!-- Velocity Bar -->
+                  <div style="background:#f8f7f4;border-radius:10px;padding:16px">
+                    <h4 style="font-size:12px;font-weight:700;color:#475569;margin:0 0 10px">Velocity (por Sprint)</h4>
+                    <div style="height:180px"><canvas id="dashChartVelocity"></canvas></div>
+                    <div x-show="!dashVelocityData()" style="text-align:center;padding:40px 0;font-size:11px;color:#94a3b8">Sem sprints cadastrados</div>
+                  </div>
+                  <!-- Burndown Line -->
+                  <div style="background:#f8f7f4;border-radius:10px;padding:16px">
+                    <h4 style="font-size:12px;font-weight:700;color:#475569;margin:0 0 10px">Burndown (Sprint Atual)</h4>
+                    <div style="height:180px"><canvas id="dashChartBurndown"></canvas></div>
+                    <div x-show="!dashBurndownData()" style="text-align:center;padding:40px 0;font-size:11px;color:#94a3b8">Sem sprint ativo</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -5341,6 +5818,14 @@
                       <button @click="toggleFavorite(activeTaskDetail.id)" :title="isFavorite(activeTaskDetail.id) ? 'Remover favorito' : 'Favoritar'" style="padding:6px;border-radius:6px;border:none;background:none;cursor:pointer;transition:background .1s" :style="isFavorite(activeTaskDetail.id) ? 'color:#eab308' : 'color:#64748b'" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'">
                         <svg width="14" height="14" viewBox="0 0 24 24" :fill="isFavorite(activeTaskDetail.id) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
                       </button>
+                      <!-- ClickUp Sync (Fase 4) -->
+                      <button x-show="activeTaskDetail.operon_id" @click="clickupPushTask(activeTaskDetail.id)" :title="'ClickUp: ' + taskSyncLabel(activeTaskDetail)" style="padding:6px;border-radius:6px;border:none;background:none;cursor:pointer;transition:background .1s;display:flex;align-items:center;gap:3px" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'">
+                        <span style="width:6px;height:6px;border-radius:50%;display:inline-block" :style="'background:' + taskSyncColor(activeTaskDetail)"></span>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                      </button>
+                      <a x-show="activeTaskDetail.clickup_url" :href="activeTaskDetail.clickup_url" target="_blank" rel="noopener noreferrer" title="Abrir no ClickUp" style="padding:6px;border-radius:6px;display:flex;align-items:center;color:#7b68ee;transition:background .1s" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                      </a>
                       <!-- Duplicate (Dragon 28) -->
                       <button @click="duplicateTask(activeTaskDetail.id)" title="Duplicar" style="padding:6px;border-radius:6px;border:none;background:none;cursor:pointer;color:#64748b;transition:background .1s" @mouseover="$el.style.background='#f1f5f9'" @mouseout="$el.style.background='none'">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
@@ -5389,6 +5874,15 @@
                           @focus="$el.style.borderColor='var(--brand-300)'; $el.style.background='var(--cream-50)'"
                           @focusout="$el.style.borderColor='transparent'; $el.style.background='transparent'"></h2>
 
+                      <!-- ORCH-05: Agent execution indicator -->
+                      <div x-show="isAgentMember(activeTaskDetail.responsavel) && activeTaskDetail.status === 'em_andamento'"
+                           style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:linear-gradient(135deg,#ede9fe,#ddd6fe);border:1px solid #c4b5fd;border-radius:8px;margin-bottom:12px;font-size:12px;color:#5b21b6">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+                        <span style="font-weight:600">Agente executando...</span>
+                        <button @click="updateTaskStatus(activeTaskDetail.id, 'cancelada')"
+                                style="margin-left:auto;padding:2px 8px;background:#ef4444;color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer">Cancelar</button>
+                      </div>
+
                       <!-- ===== METADATA GRID ===== -->
                       <div class="task-meta-grid">
                         <!-- Row 1: Status | Responsável -->
@@ -5408,6 +5902,13 @@
                             <option value="cancelada" :selected="activeTaskDetail.status === 'cancelada'">Cancelada</option>
                             <option value="arquivada" :selected="activeTaskDetail.status === 'arquivada'">Arquivada</option>
                           </select>
+                          <!-- Gate: Approve button -->
+                          <button x-show="activeTaskDetail.especie === 'gate' && activeTaskDetail.status === 'pendente'"
+                                  @click="updateTaskStatus(activeTaskDetail.id, 'concluida')"
+                                  style="margin-left:8px;padding:4px 12px;background:#22c55e;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                            Aprovar Gate
+                          </button>
                         </div>
                         <div style="padding:var(--sp-3) var(--sp-4);background:var(--cream-50);color:var(--neutral-500);font-weight:var(--fw-medium);border-bottom:1px solid var(--neutral-200);display:flex;align-items:center;gap:var(--sp-2)">
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Responsável
@@ -5415,10 +5916,10 @@
                         <div style="padding:var(--sp-2) var(--sp-4);border-bottom:1px solid var(--neutral-200);display:flex;align-items:center;gap:var(--sp-2)">
                           <span class="avatar avatar--sm" :style="'background:' + avatarGradient(activeTaskDetail.responsavel)" x-text="avatarInitials(activeTaskDetail.responsavel || '?')" style="width:24px;height:24px;font-size:9px"></span>
                           <select class="task-meta-select"
-                                  @change="let name = $event.target.value || null; activeTaskDetail.responsavel = name; activeTaskDetail.updated_at = new Date().toISOString(); _cacheTasksLocal(); if(typeof sb !== 'undefined' && sb) sb.from('god_tasks').update({responsavel: name}).eq('id', activeTaskDetail.id)">
+                                  @change="let oldResp = activeTaskDetail.responsavel; let name = $event.target.value || null; activeTaskDetail.responsavel = name; activeTaskDetail.updated_at = new Date().toISOString(); _cacheTasksLocal(); if(typeof sb !== 'undefined' && sb) sb.from('god_tasks').update({responsavel: name}).eq('id', activeTaskDetail.id); if(oldResp !== name && CONFIG.API_BASE) fetch(`${CONFIG.API_BASE}/api/tasks/${activeTaskDetail.id}/handoff`, {method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${auth.accessToken}`}, body:JSON.stringify({from_person:oldResp||'',to_person:name||''})}).catch(()=>{})">
                             <option value="" :selected="!activeTaskDetail.responsavel">Sem responsável</option>
                             <template x-for="m in (data.members || [])" :key="m.id">
-                              <option :value="m.nome_curto || m.nome_completo || m.name" :selected="activeTaskDetail.responsavel === (m.nome_curto || m.nome_completo || m.name)" x-text="m.nome_curto || m.nome_completo || m.name"></option>
+                              <option :value="m.nome_curto || m.nome_completo || m.name" :selected="(activeTaskDetail.responsavel || '').toLowerCase() === ((m.nome_curto || m.nome_completo || m.name) || '').toLowerCase()" x-text="m.nome_curto || m.nome_completo || m.name"></option>
                             </template>
                           </select>
                         </div>
@@ -5498,6 +5999,7 @@
                             <option value="recorrente_instancia" :selected="activeTaskDetail.especie === 'recorrente_instancia'">Recorrente (instancia)</option>
                             <option value="triggered_template" :selected="activeTaskDetail.especie === 'triggered_template'">Triggered (template)</option>
                             <option value="triggered_instancia" :selected="activeTaskDetail.especie === 'triggered_instancia'">Triggered (instancia)</option>
+                            <option value="gate" :selected="activeTaskDetail.especie === 'gate'">Gate (checkpoint)</option>
                           </select>
                         </div>
                         <!-- Row 5: Etiquetas -->
@@ -5768,7 +6270,7 @@
                           <div class="task-drawer__handoff">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/></svg>
                             <div>
-                              <strong x-text="h.from + ' &rarr; ' + h.to"></strong>
+                              <strong><span x-text="isAgentMember(h.from) ? '🤖 ' + h.from : '👤 ' + h.from"></span> → <span x-text="isAgentMember(h.to) ? '🤖 ' + h.to : '👤 ' + h.to"></span></strong>
                               <div x-show="h.note" style="font-size:12px;color:#64748b" x-text="h.note"></div>
                               <div style="font-size:11px;color:#94a3b8" x-text="formatDateFull(h.date)"></div>
                             </div>
@@ -6158,6 +6660,14 @@
                       <div x-show="(c.proximos_passos || []).length" class="ag-call-card__section">
                         <strong>Proximos Passos:</strong>
                         <ul><template x-for="(p, pi) in c.proximos_passos || []" :key="pi"><li x-text="p"></li></template></ul>
+                      </div>
+                      <!-- Delete call -->
+                      <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--neutral-100);display:flex;justify-content:flex-end">
+                        <button class="btn btn--sm" style="color:#dc2626;border-color:#dc2626;font-size:11px;padding:4px 12px;display:flex;align-items:center;gap:4px"
+                                @click.stop="deleteCall(c.call_id)" title="Excluir esta call">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                          Excluir call
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -6993,9 +7503,9 @@
                       <span x-text="r.mentorado_nome"></span>
                     </span>
                     <span x-show="r.tipo && r.tipo !== 'geral'" class="badge badge--sm badge--neutral" x-text="r.tipo"></span>
-                    <span x-show="r.recorrencia && r.recorrencia !== 'nenhuma'" style="display:flex;align-items:center;gap:3px;color:var(--info)">
+                    <span x-show="r.recorrencia && r.recorrencia !== 'nenhuma'" style="display:flex;align-items:center;gap:3px;cursor:pointer" :style="(r.recorrencia_ativa ?? true) ? 'color:var(--info)' : 'color:var(--neutral-400);text-decoration:line-through'" @click.stop="toggleRecorrencia(r.id)" :title="(r.recorrencia_ativa ?? true) ? 'Clique para pausar' : 'Clique para reativar'">
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                      <span x-text="r.recorrencia"></span>
+                      <span x-text="recorrenciaLabel(r.recorrencia)"></span>
                     </span>
                     <span style="color:var(--neutral-400)">Criado <span x-text="formatDate(r.created_at)"></span></span>
                   </div>
@@ -10353,7 +10863,7 @@
           <!-- Carteira Grid -->
           <div :style="ui.waPortfolioView === 'carteira' && data.mentees.length ? 'display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px' : 'display:none'">
             <template x-for="(m, $index) in waPortfolioMentees()" :key="m.id">
-              <div class="card" :class="{ 'card--focused': ui.waFocusedIdx === $index }" style="padding:0;overflow:visible;position:relative">
+              <div class="card" :class="{ 'card--focused': ui.waFocusedIdx === $index }" style="padding:0;overflow:visible;position:relative;cursor:pointer" @click="openDetail(m.id)">
                 <!-- Health indicator bar -->
                 <div style="height:3px;border-radius:var(--r-lg) var(--r-lg) 0 0"
                      :style="{ background: _waHealthLabel(m) === 'verde' ? '#22c55e' : _waHealthLabel(m) === 'amarelo' ? '#eab308' : '#ef4444' }">
@@ -11636,6 +12146,7 @@
                   <option value="quest">⚔️ Quest (tarefa-pai com filhos sequenciais)</option>
                   <option value="recorrente_template">🔄 Recorrente (template + instâncias)</option>
                   <option value="triggered_template">⚡ Triggered (dispara por evento)</option>
+                  <option value="gate">🔐 Gate (checkpoint de aprovação)</option>
                 </select>
               </div>
             </div>
@@ -12334,7 +12845,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=214"></script>
+  <script src="11-APP-app.js?v=249"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">
