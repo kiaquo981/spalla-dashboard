@@ -1864,8 +1864,8 @@
                 <button class="wa-pendencias__bulk-btn" @click="ui.filters.carteira = ''" style="font-size:11px">Limpar filtro</button>
               </div>
               <template x-for="p in pendenciasVisible" :key="p.interacao_id">
-                <div class="wa-pendencia-item" style="cursor:pointer" @click="openDetail(p.mentorado_id)">
-                  <div class="wa-pendencia-item__avatar">
+                <div class="wa-pendencia-item" style="cursor:pointer" @click="openMenteeChat({grupo_whatsapp_id: p.chat_id || p.grupo_whatsapp_id, nome: p.mentorado_nome})" title="Abrir conversa no WhatsApp">
+                  <div class="wa-pendencia-item__avatar" @click.stop="openDetail(p.mentorado_id)" title="Ver ficha do mentorado">
                     <div class="mc-card__avatar-inner" style="width:32px;height:32px;font-size:0.7rem" :style="'background:' + avatarGradient(p.mentorado_nome)" x-text="avatarInitials(p.mentorado_nome)"></div>
                   </div>
                   <div class="wa-pendencia-item__body">
@@ -1886,8 +1886,8 @@
                   </div>
                   <div class="wa-pendencia-item__actions">
                     <span class="wa-urgencia-badge" :class="urgenciaClass(p.prioridade_calculada)" x-text="urgenciaLabel(p.prioridade_calculada)"></span>
-                    <button class="wa-pendencia-item__btn" @click.stop="openMenteeChat({grupo_whatsapp_id: p.grupo_whatsapp_id, nome: p.mentorado_nome})" title="Abrir chat do grupo">
-                      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    <button class="wa-pendencia-item__btn" @click.stop="openDetail(p.mentorado_id)" title="Ver ficha do mentorado">
+                      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                     </button>
                     <button class="wa-pendencia-item__btn" @click.stop="markAsResponded(p.interacao_id)" title="Marcar como respondido">
                       <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
