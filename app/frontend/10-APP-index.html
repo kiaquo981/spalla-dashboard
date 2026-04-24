@@ -1870,15 +1870,19 @@
                   </div>
                   <div class="wa-pendencia-item__body">
                     <div class="wa-pendencia-item__top">
-                      <!-- Direção: Equipe → Mentorado (precisa reforçar) vs Mentorado → Equipe (precisa responder) -->
-                      <span x-show="p.direcao === 'team_to_mentee'" style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:4px;background:#dbeafe;color:#1e40af;margin-right:4px" title="Equipe escreveu, aguardando mentorado">REFORÇAR</span>
-                      <span x-show="p.direcao !== 'team_to_mentee'" style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:4px;background:#fef3c7;color:#92400e;margin-right:4px" title="Mentorado escreveu, aguardando equipe">RESPONDER</span>
+                      <!-- Badge contextual: classifier semântico (compromisso) tem prioridade sobre direção -->
+                      <span x-show="p.status_pendencia === 'compromisso_equipe'" style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:4px;background:#fee2e2;color:#991b1b;margin-right:4px" title="Equipe prometeu algo, sem evidência de entrega">COMPROMISSO EQUIPE</span>
+                      <span x-show="p.status_pendencia === 'compromisso_mentee'" style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:4px;background:#fed7aa;color:#9a3412;margin-right:4px" title="Mentorado prometeu algo, sem evidência de cumprimento">COMPROMISSO MENTEE</span>
+                      <span x-show="(!p.status_pendencia || p.status_pendencia === 'aberta') && p.direcao === 'team_to_mentee'" style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:4px;background:#dbeafe;color:#1e40af;margin-right:4px" title="Equipe escreveu, aguardando mentorado">REFORÇAR</span>
+                      <span x-show="(!p.status_pendencia || p.status_pendencia === 'aberta') && p.direcao !== 'team_to_mentee'" style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:4px;background:#fef3c7;color:#92400e;margin-right:4px" title="Mentorado escreveu, aguardando equipe">RESPONDER</span>
                       <span class="wa-pendencia-item__nome" x-text="p.mentorado_nome"></span>
                       <span x-show="p.consultor_responsavel" style="font-size:10px;color:var(--neutral-400);margin-left:4px" x-text="'(' + p.consultor_responsavel + ')'"></span>
                       <span x-show="p.direcao === 'team_to_mentee' && p.autor_identificado" style="font-size:10px;color:#1e40af;margin-left:4px" x-text="'· ' + p.autor_identificado + ' enviou'"></span>
                       <span class="wa-pendencia-item__tempo" x-text="formatHorasPendente(p.horas_pendente)"></span>
                     </div>
                     <div class="wa-pendencia-item__content" x-text="p.conteudo_truncado || '(sem conteúdo)'"></div>
+                    <!-- Motivo do classificador semântico (Qwen): explica POR QUE está aberta -->
+                    <div x-show="p.motivo_classificador" style="font-size:11px;color:#6b7280;font-style:italic;margin-top:3px;padding-left:4px;border-left:2px solid #e5e7eb" x-text="'💡 ' + p.motivo_classificador"></div>
                   </div>
                   <div class="wa-pendencia-item__actions">
                     <span class="wa-urgencia-badge" :class="urgenciaClass(p.prioridade_calculada)" x-text="urgenciaLabel(p.prioridade_calculada)"></span>
