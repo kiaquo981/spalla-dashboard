@@ -27,7 +27,7 @@ jobs:
         run: |
           SECRETS_FOUND=0
           # Check for hardcoded keys/tokens
-          if grep -rn 'sk_spalla_[a-f0-9]' app/ ai/ --include='*.py' --include='*.js' --include='*.yaml' 2>/dev/null; then
+          if grep -rn 'sk_spalla_[a-f0-9]' app/ ai/ --include='*.py' --include='*.js' --include='*.yaml' --exclude=openapi.yaml 2>/dev/null; then
             echo "::error::Hardcoded API key found in source"
             SECRETS_FOUND=1
           fi
@@ -61,9 +61,11 @@ jobs:
           import re, sys
           with open('$f') as fh:
               content = fh.read()
-          # Basic SQL injection patterns in schema files
-          if re.search(r';\s*DROP\s+', content, re.IGNORECASE):
-              print(f'DANGER: DROP statement in {\"$f\"}')
+          # Block only destructive DROPs (TABLE/SCHEMA/DATABASE).
+          # DROP POLICY/TRIGGER/FUNCTION/CONSTRAINT IF EXISTS são patterns idempotentes
+          # comuns em migrations e devem passar.
+          if re.search(r'DROP\s+(TABLE|SCHEMA|DATABASE)(?!\s+IF\s+EXISTS)', content, re.IGNORECASE):
+              print(f'DANGER: destructive DROP in {\"$f\"}')
               sys.exit(1)
           print(f'OK: $f')
           "

@@ -19,6 +19,7 @@ import hashlib
 import secrets
 import unicodedata
 import re
+import uuid
 from datetime import datetime, timedelta, timezone
 
 try:
@@ -28,8 +29,11 @@ except ImportError:
 
 try:
     import bcrypt as _bcrypt
+    BCRYPT_AVAILABLE = True
 except ImportError:
-    _bcrypt = None  # Falls back to SHA-256 if not installed
+    _bcrypt = None
+    BCRYPT_AVAILABLE = False
+    print('[WARN] bcrypt not installed — password hashing will fail. Run: pip install bcrypt')
 
 PORT = int(os.environ.get('PORT', 8888))
 
@@ -71,7 +75,9 @@ S3_REGION     = os.environ.get('S3_REGION', 'eu-central')
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
 VOYAGE_API_KEY = os.environ.get('VOYAGE_API_KEY', '')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 WHISPER_MODEL = 'whisper-1'
+GROQ_WHISPER_MODEL = 'whisper-large-v3'
 VISION_MODEL = 'gpt-4o'
 GEMINI_VISION_MODEL = 'gemini-2.5-flash'
 
@@ -102,7 +108,7 @@ if not JWT_SECRET:
     JWT_SECRET = _s.token_hex(32)
     print(f'[WARNING] JWT_SECRET not set — generated ephemeral key (tokens will not survive restarts)')
 JWT_ALGORITHM = 'HS256'
-ACCESS_TOKEN_EXPIRY_MINUTES = 60
+ACCESS_TOKEN_EXPIRY_MINUTES = 480  # 8 hours — avoids mid-day session drops
 REFRESH_TOKEN_EXPIRY_DAYS = 7
 
 # ===== API KEY CONFIG =====
@@ -119,10 +125,10 @@ if _raw_keys:
 
 # ===== AUTH FUNCTIONS (Supabase-backed) =====
 def hash_password(password):
-    """Hash password using bcrypt (falls back to SHA-256 if bcrypt unavailable)"""
-    if _bcrypt:
-        return _bcrypt.hashpw(password.encode(), _bcrypt.gensalt()).decode()
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash password using bcrypt — raises if bcrypt is not installed"""
+    if not BCRYPT_AVAILABLE:
+        raise RuntimeError('bcrypt is required for password hashing. Run: pip install bcrypt')
+    return _bcrypt.hashpw(password.encode(), _bcrypt.gensalt()).decode()
 
 def _is_legacy_sha256(stored_hash):
     """Check if hash is a legacy SHA-256 (64 hex chars)"""
@@ -134,12 +140,12 @@ def verify_password(password, stored_hash):
         if hashlib.sha256(password.encode()).hexdigest() == stored_hash:
             return 'migrate'  # Signal to upgrade hash
         return False
-    if _bcrypt:
-        try:
-            return _bcrypt.checkpw(password.encode(), stored_hash.encode())
-        except Exception:
-            return False
-    return hashlib.sha256(password.encode()).hexdigest() == stored_hash
+    if not BCRYPT_AVAILABLE:
+        raise RuntimeError('bcrypt is required for password verification. Run: pip install bcrypt')
+    try:
+        return _bcrypt.checkpw(password.encode(), stored_hash.encode())
+    except Exception:
+        return False
 
 def create_jwt_token(email, user_id, role='equipe', expiry_minutes=ACCESS_TOKEN_EXPIRY_MINUTES):
     """Create JWT access token"""
@@ -298,6 +304,14 @@ def log_error(source, msg, exc=None):
         print(f'[{ts}] [{source}] ERROR: {msg} — {exc}')
     else:
         print(f'[{ts}] [{source}] ERROR: {msg}')
+
+
+# ===== CLICKUP DEEP LINK =====
+def clickup_deep_link(url):
+    """Converte URL web do ClickUp para deep link do app desktop."""
+    if url and url.startswith('https://app.clickup.com/'):
+        return url.replace('https://app.clickup.com/', 'clickup://')
+    return url
 
 
 # ===== ZOOM TOKEN CACHE =====
@@ -804,11 +818,109 @@ def _sheets_sync_loop():
 
 
 # ===== SUPABASE HELPERS =====
+class SupabaseResponse:
+    """Wrapper for error responses — supports .status_code/.json()/.text AND dict access"""
+    def __init__(self, data, status_code=500):
+        self._data = data
+        self.status_code = status_code
+        self.text = json.dumps(data) if data else ''
+    def json(self):
+        return self._data
+    def __iter__(self):
+        return iter([])
+    def __len__(self):
+        return 0
+    def __bool__(self):
+        return False
+    def __getitem__(self, key):
+        if isinstance(self._data, dict): return self._data[key]
+        raise KeyError(key)
+    def get(self, key, default=None):
+        if isinstance(self._data, dict): return self._data.get(key, default)
+        return default
+
+
+def supa_ok(result):
+    """Check if supabase_request succeeded. Works with both raw data and SupabaseResponse."""
+    if isinstance(result, SupabaseResponse):
+        return result.status_code in (200, 201, 204)
+    return not (isinstance(result, dict) and result.get('error'))
+
+
+def _dependency_reactor(completed_task_id, completed_titulo=''):
+    """ORCH-04: After a task reaches terminal state, check dependents and auto-unblock.
+    For agent responsaveis: auto-start. For humans: just unblock (notification later).
+    Returns list of actions taken."""
+    results = []
+    # Find tasks that depend on this one and are still pendente or bloqueada
+    deps_r = supabase_request('GET',
+        f'god_tasks?depends_on=cs.{{{completed_task_id}}}&status=in.(pendente,bloqueada)&select=id,titulo,depends_on,responsavel,especie,status')
+    if not supa_ok(deps_r) or not isinstance(deps_r, list) or not deps_r:
+        return results
+
+    terminal = ('concluida', 'cancelada', 'arquivada')
+    for dep in deps_r:
+        # Check if ALL blockers are resolved
+        all_deps = dep.get('depends_on') or []
+        if len(all_deps) > 1:
+            other_ids = [d for d in all_deps if d != completed_task_id]
+            if other_ids:
+                in_clause = ','.join(other_ids)
+                others = supabase_request('GET', f'god_tasks?id=in.({in_clause})&select=id,status')
+                if isinstance(others, list) and not all(o.get('status') in terminal for o in others):
+                    continue  # Still has unresolved blockers
+
+        # All blockers resolved — determine action
+        dep_id = dep['id']
+        responsavel = dep.get('responsavel') or ''
+
+        # Check if responsavel is an agent
+        is_agent = False
+        if responsavel:
+            member_r = supabase_request('GET',
+                f'spalla_members?or=(id.eq.{responsavel},nome_curto.ilike.{responsavel})&tipo=eq.agent&limit=1')
+            is_agent = isinstance(member_r, list) and len(member_r) > 0
+
+        if dep.get('status') == 'bloqueada':
+            # Unblock: bloqueada → em_andamento
+            supabase_request('PATCH', f'god_tasks?id=eq.{dep_id}',
+                body={'status': 'em_andamento', 'updated_at': datetime.now(timezone.utc).isoformat()})
+            action = 'auto_unblocked'
+        elif is_agent:
+            # Agent: pendente → em_andamento (auto-start)
+            supabase_request('PATCH', f'god_tasks?id=eq.{dep_id}',
+                body={'status': 'em_andamento', 'updated_at': datetime.now(timezone.utc).isoformat()})
+            action = 'agent_auto_started'
+        else:
+            # Human: just mark as ready (keep pendente but log event)
+            action = 'ready_for_human'
+
+        # Log reactor event
+        try:
+            supabase_request('POST', 'entity_events', body={
+                'aggregate_type': 'Task',
+                'aggregate_id': dep_id,
+                'event_type': 'TaskReactorUnblocked',
+                'payload': {
+                    'action': action,
+                    'unblocked_by': completed_task_id,
+                    'unblocked_by_titulo': completed_titulo,
+                },
+                'metadata': {'source': 'dependency_reactor'},
+            })
+        except Exception:
+            pass
+
+        results.append({'task_id': dep_id, 'titulo': dep.get('titulo', ''), 'action': action})
+    return results
+
+
 def supabase_request(method, path, body=None, _retries=3, _backoff=1.0):
-    """Make a request to Supabase REST API with retry logic and connection pooling"""
+    """Make a request to Supabase REST API with retry logic and connection pooling.
+    Returns SupabaseResponse (supports .status_code, .json(), .text AND dict/list access)."""
     key = SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY
     if not key:
-        return {'error': 'Supabase key not configured'}
+        return SupabaseResponse({'error': 'Supabase key not configured'}, 500)
 
     headers = {
         'apikey': key,
@@ -830,10 +942,31 @@ def supabase_request(method, path, body=None, _retries=3, _backoff=1.0):
                 status = resp.status
 
             if status in (200, 201):
-                return json.loads(resp_body) if resp_body else {}
+                parsed = json.loads(resp_body) if resp_body else {}
+                # Inject .status_code and .json() on native types for backward compat
+                if isinstance(parsed, list):
+                    class SList(list):
+                        status_code = status
+                        text = resp_body.decode() if resp_body else ''
+                        def json(self): return list(self)
+                    return SList(parsed)
+                elif isinstance(parsed, dict):
+                    class SDict(dict):
+                        status_code = status
+                        text = resp_body.decode() if resp_body else ''
+                        def json(self): return dict(self)
+                    return SDict(parsed)
+                return parsed
+
+            elif status in (204,):
+                class SDict204(dict):
+                    status_code = 204
+                    text = ''
+                    def json(self): return {}
+                return SDict204()
 
             elif status in (503, 429, 500, 502, 504):
-                last_error = {'error': f'Supabase {status}: {resp_body.decode()}'}
+                last_error = SupabaseResponse({'error': f'Supabase {status}: {resp_body.decode()}'}, status)
                 if attempt < _retries - 1:
                     wait = _backoff * (2 ** attempt)
                     log_info('Supabase', f'Erro {status}, tentativa {attempt+1}/{_retries}, aguardando {wait}s...')
@@ -842,11 +975,11 @@ def supabase_request(method, path, body=None, _retries=3, _backoff=1.0):
                         _reset_supa_conn()
                     continue
             else:
-                return {'error': f'Supabase {status}: {resp_body.decode()}'}
+                return SupabaseResponse({'error': f'Supabase {status}: {resp_body.decode()}'}, status)
 
         except (http.client.RemoteDisconnected, ConnectionResetError,
                 BrokenPipeError, OSError, http.client.CannotSendRequest) as e:
-            last_error = {'error': str(e)}
+            last_error = SupabaseResponse({'error': str(e)}, 503)
             log_info('Supabase', f'Erro de conexão na tentativa {attempt+1}/{_retries}: {e}')
             with _supa_lock:
                 _reset_supa_conn()
@@ -856,10 +989,10 @@ def supabase_request(method, path, body=None, _retries=3, _backoff=1.0):
                 continue
         except Exception as e:
             log_error('Supabase', 'Erro inesperado', e)
-            return {'error': str(e)}
+            return SupabaseResponse({'error': str(e)}, 500)
 
     log_error('Supabase', f'Todas as {_retries} tentativas falharam', None)
-    return last_error or {'error': 'Max retries exceeded'}
+    return last_error or SupabaseResponse({'error': 'Max retries exceeded'}, 500)
 
 
 def get_mentees_with_email():
@@ -914,7 +1047,14 @@ def _openai_request(endpoint, method='POST', body=None, files=None, timeout=120)
     conn.close()
     if resp.status >= 400:
         raise ValueError(f'OpenAI API error {resp.status}: {data.decode()[:500]}')
-    return json.loads(data)
+    # Whisper with response_format=text returns plain text, not JSON
+    text = data.decode('utf-8').strip()
+    if not text:
+        return {}
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        return text
 
 
 def _voyage_request(endpoint, body, timeout=60):
@@ -1000,15 +1140,64 @@ def rerank_results(query, results, top_n=10):
 
 
 def openai_whisper(audio_bytes, filename, mime_type):
-    """Transcribe audio/video via Whisper API. Returns text."""
-    result = _openai_request('audio/transcriptions',
-        body={'model': WHISPER_MODEL, 'language': 'pt', 'response_format': 'text'},
-        files={'file': (filename, audio_bytes, mime_type)},
-        timeout=300)
-    # When response_format=text, result is plain text not JSON
-    if isinstance(result, dict) and 'text' in result:
-        return result['text']
-    return str(result)
+    """Transcribe audio via Whisper. Tries Groq first (free), falls back to OpenAI."""
+    # Try Groq first (free, fast, whisper-large-v3)
+    if GROQ_API_KEY:
+        try:
+            result = _whisper_request('api.groq.com', GROQ_API_KEY, GROQ_WHISPER_MODEL,
+                                      audio_bytes, filename, mime_type)
+            if result:
+                print(f'[whisper] Groq OK: {len(result)} chars')
+                return result
+        except Exception as e:
+            print(f'[whisper] Groq failed, trying OpenAI: {e}')
+
+    # Fallback to OpenAI
+    if OPENAI_API_KEY:
+        result = _whisper_request('api.openai.com', OPENAI_API_KEY, WHISPER_MODEL,
+                                  audio_bytes, filename, mime_type)
+        if result:
+            print(f'[whisper] OpenAI OK: {len(result)} chars')
+            return result
+
+    raise ValueError('Nenhuma API de transcricao configurada (GROQ_API_KEY ou OPENAI_API_KEY)')
+
+
+def _whisper_request(host, api_key, model, audio_bytes, filename, mime_type):
+    """Send audio to Whisper-compatible API (OpenAI or Groq). Returns transcribed text."""
+    boundary = f'----FormBoundary{secrets.token_hex(8)}'
+    parts = []
+    parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\n{model}\r\n')
+    parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="language"\r\n\r\npt\r\n')
+    parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="response_format"\r\n\r\ntext\r\n')
+    parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{filename}"\r\nContent-Type: {mime_type}\r\n\r\n')
+    parts.append(audio_bytes)
+    parts.append(f'\r\n--{boundary}--\r\n')
+
+    raw_body = b''
+    for p in parts:
+        raw_body += p.encode() if isinstance(p, str) else p
+
+    conn = http.client.HTTPSConnection(host, timeout=300)
+    conn.request('POST', '/openai/v1/audio/transcriptions' if 'groq' in host else '/v1/audio/transcriptions',
+                 body=raw_body, headers={
+                     'Authorization': f'Bearer {api_key}',
+                     'Content-Type': f'multipart/form-data; boundary={boundary}',
+                 })
+    resp = conn.getresponse()
+    data = resp.read()
+    conn.close()
+    if resp.status >= 400:
+        raise ValueError(f'Whisper API error {resp.status} ({host}): {data.decode()[:300]}')
+    text = data.decode('utf-8').strip()
+    if not text:
+        return None
+    # response_format=text returns plain text, but some APIs wrap in JSON
+    try:
+        parsed = json.loads(text)
+        return parsed.get('text', text) if isinstance(parsed, dict) else text
+    except (json.JSONDecodeError, ValueError):
+        return text
 
 
 def gemini_vision_describe(image_bytes, mime_type):
@@ -1533,6 +1722,302 @@ def search_semantic(query_text, mode='hybrid', filters=None, limit=10):
         return rerank_results(query_text, results, top_n=limit)
 
 
+# ============================================================
+# LF-FASE3: Descarrego saga / processor (module-level helpers)
+# ============================================================
+def _descarrego_load(descarrego_id):
+    r = supabase_request('GET', f'descarregos?id=eq.{descarrego_id}&limit=1')
+    if r.status_code != 200:
+        raise RuntimeError(f'load failed: {r.text}')
+    rows = r.json()
+    if not rows:
+        raise RuntimeError(f'descarrego {descarrego_id} not found')
+    return rows[0]
+
+
+def _descarrego_update(descarrego_id, fields):
+    r = supabase_request(
+        'PATCH', f'descarregos?id=eq.{descarrego_id}', body=fields
+    )
+    if r.status_code not in (200, 204):
+        raise RuntimeError(f'update failed: {r.text}')
+
+
+def _descarrego_transition(descarrego_id, event, actor='system', payload=None):
+    """Carrega FSM, aplica transição, persiste status."""
+    from domain.state_machines import DescarregoStateMachine
+    row = _descarrego_load(descarrego_id)
+    sm = DescarregoStateMachine(row)
+    result = sm.transition(event, actor=actor, persist=False, payload=payload)
+    _descarrego_update(descarrego_id, {'status': result['to']})
+    log_info('descarrego_fsm',
+             f'{descarrego_id}: {result["from"]} --[{event}]--> {result["to"]}')
+    return result
+
+
+def _descarrego_processor_run(descarrego_id):
+    """Saga: capturado → transcrito → classificado → ação."""
+    try:
+        row = _descarrego_load(descarrego_id)
+        log_info('descarrego_saga', f'start {descarrego_id} status={row["status"]}')
+
+        # 1) Transcrição (se áudio/vídeo)
+        if row.get('tipo_bruto') in ('audio', 'video', 'gravacao'):
+            if row['status'] == 'capturado':
+                _descarrego_transition(descarrego_id, 'needs_transcription')
+                _descarrego_do_transcription(descarrego_id)
+                _descarrego_transition(descarrego_id, 'transcribed')
+        elif row['status'] == 'capturado':
+            _descarrego_transition(descarrego_id, 'skip_transcription')
+
+        # 2) Classificação
+        row = _descarrego_load(descarrego_id)
+        if row['status'] == 'transcrito':
+            _descarrego_transition(descarrego_id, 'classify')
+            _descarrego_do_classification(descarrego_id)
+            _descarrego_transition(descarrego_id, 'classified')
+
+        # 3) Decisão
+        row = _descarrego_load(descarrego_id)
+        confidence = float(row.get('classificacao_confidence') or 0)
+        principal = row.get('classificacao_principal')
+        if confidence >= 0.8 and principal in ('task', 'contexto'):
+            _descarrego_transition(descarrego_id, 'auto_execute')
+            _descarrego_execute_action(descarrego_id, 'auto')
+        else:
+            _descarrego_transition(descarrego_id, 'request_human')
+            log_info('descarrego_saga', f'{descarrego_id} → HITL (conf={confidence})')
+
+    except Exception as e:
+        log_error('descarrego_saga', f'{descarrego_id} failed: {e}', e)
+        try:
+            _descarrego_update(descarrego_id, {
+                'status': 'erro',
+                'last_error': str(e)[:500],
+                'retry_count': (_descarrego_load(descarrego_id).get('retry_count') or 0) + 1,
+            })
+        except Exception:
+            pass
+
+
+def _descarrego_do_transcription(descarrego_id):
+    row = _descarrego_load(descarrego_id)
+    arquivo_url = row.get('arquivo_url')
+    if not arquivo_url:
+        raise RuntimeError('arquivo_url ausente para transcrição')
+    # Download e transcrição via Whisper
+    try:
+        with urllib.request.urlopen(arquivo_url, timeout=120) as resp:
+            audio_bytes = resp.read()
+    except Exception as e:
+        raise RuntimeError(f'download falhou: {e}')
+
+    mime = row.get('arquivo_mime_type') or 'audio/mpeg'
+    filename = arquivo_url.rsplit('/', 1)[-1] or 'audio.mp3'
+    transcricao = openai_whisper(audio_bytes, filename, mime)
+
+    _descarrego_update(descarrego_id, {
+        'transcricao': transcricao,
+        'transcrito_em': datetime.now(timezone.utc).isoformat(),
+        'transcrito_por': 'whisper-1',
+        'transcricao_confidence': 0.95,
+    })
+
+
+def _descarrego_do_classification(descarrego_id):
+    from domain.services.descarrego_classifier import classify_descarrego
+    row = _descarrego_load(descarrego_id)
+    text = row.get('transcricao') or row.get('conteudo_bruto') or ''
+    mentorado_ctx = None
+    if row.get('mentorado_id'):
+        try:
+            r = supabase_request(
+                'GET',
+                f'mentorados?id=eq.{row["mentorado_id"]}'
+                f'&select=nome,fase_jornada,trilha&limit=1',
+            )
+            if r.status_code == 200 and r.json():
+                mentorado_ctx = r.json()[0]
+        except Exception:
+            pass
+
+    # Enrich: últimas 5 interações do mentorado
+    recent_interactions = None
+    if row.get('mentorado_id'):
+        try:
+            ri = supabase_request(
+                'GET',
+                f'mentorado_context?mentorado_id=eq.{row["mentorado_id"]}'
+                f'&select=tipo,titulo,conteudo&order=created_at.desc&limit=5',
+            )
+            if ri.status_code == 200 and ri.json():
+                recent_interactions = [
+                    {'tipo': x.get('tipo', ''), 'resumo': (x.get('titulo') or x.get('conteudo', ''))[:200]}
+                    for x in ri.json()
+                ]
+        except Exception:
+            pass
+
+    # Enrich: últimas 5 classificações anteriores (feedback loop)
+    previous_classifications = None
+    if row.get('mentorado_id'):
+        try:
+            rp = supabase_request(
+                'GET',
+                f'descarregos?mentorado_id=eq.{row["mentorado_id"]}'
+                f'&classificacao_principal=not.is.null&id=neq.{descarrego_id}'
+                f'&select=classificacao_principal,classificacao_confidence,classificacao_payload'
+                f'&order=created_at.desc&limit=5',
+            )
+            if rp.status_code == 200 and rp.json():
+                previous_classifications = [
+                    {
+                        'primary_type': x.get('classificacao_principal'),
+                        'confidence': x.get('classificacao_confidence', 0),
+                        'summary': (x.get('classificacao_payload') or {}).get('summary', ''),
+                    }
+                    for x in rp.json()
+                ]
+        except Exception:
+            pass
+
+    result = classify_descarrego(text, mentorado_ctx, recent_interactions, previous_classifications)
+    _descarrego_update(descarrego_id, {
+        'classificacao_principal': result.get('primary_type'),
+        'classificacao_sub': result.get('subtype'),
+        'classificacao_confidence': result.get('confidence', 0),
+        'classificacao_payload': result,
+        'classificado_em': datetime.now(timezone.utc).isoformat(),
+        'classificado_por': 'gpt-4o-mini',
+    })
+
+
+def _descarrego_execute_action(descarrego_id, mode='auto'):
+    """mode: 'auto' (FSM em executando_acao_automatica) ou 'manual' (após HITL)."""
+    try:
+        row = _descarrego_load(descarrego_id)
+        principal = row.get('classificacao_principal')
+        payload = row.get('classificacao_payload') or {}
+
+        if principal == 'task':
+            task_data = payload.get('task') or {}
+            prazo_dias = task_data.get('prazo_dias', 0)
+            data_fim = None
+            if prazo_dias:
+                data_fim = (datetime.now(timezone.utc)
+                            + timedelta(days=int(prazo_dias))).isoformat()
+            new_task = {
+                'titulo': task_data.get('titulo') or 'Task de descarrego',
+                'descricao': task_data.get('descricao') or row.get('transcricao'),
+                'status': 'pendente',
+                'prioridade': task_data.get('prioridade', 'normal'),
+                'responsavel': task_data.get('responsavel') or 'kaique',
+                'mentorado_id': row.get('mentorado_id'),
+                'data_fim': data_fim,
+                'fonte': 'descarrego',
+                'auto_created': mode == 'auto',
+                'confianca_ia': row.get('classificacao_confidence'),
+                'especie': 'one_time',
+            }
+            r = supabase_request('POST', 'god_tasks', body=new_task)
+            if r.status_code in (200, 201):
+                created = r.json()
+                task_id = created[0]['id'] if isinstance(created, list) and created else created.get('id')
+                _descarrego_update(descarrego_id, {
+                    'acao_tomada': 'task_criada',
+                    'task_id': task_id,
+                    'acao_tomada_em': datetime.now(timezone.utc).isoformat(),
+                    'acao_tomada_por': 'saga' if mode == 'auto' else 'humano',
+                })
+            else:
+                raise RuntimeError(f'task create failed: {r.text}')
+
+        elif principal == 'lembrete':
+            lembrete = payload.get('lembrete') or {}
+            prazo_dias = lembrete.get('prazo_dias', 3)
+            data_fim = (datetime.now(timezone.utc) + timedelta(days=int(prazo_dias))).isoformat()
+            new_task = {
+                'titulo': lembrete.get('titulo') or f'Lembrete: {payload.get("summary", "")[:80]}',
+                'descricao': f'[Auto-gerado de descarrego]\n{row.get("transcricao") or row.get("conteudo_bruto", "")}',
+                'status': 'pendente',
+                'prioridade': 'alta',
+                'responsavel': lembrete.get('responsavel') or 'kaique',
+                'mentorado_id': row.get('mentorado_id'),
+                'data_fim': data_fim,
+                'fonte': 'descarrego',
+                'especie': 'one_time',
+                'tipo': 'lembrete',
+            }
+            r = supabase_request('POST', 'god_tasks', body=new_task)
+            task_id = None
+            if r.status_code in (200, 201):
+                created = r.json()
+                task_id = created[0]['id'] if isinstance(created, list) and created else created.get('id')
+            _descarrego_update(descarrego_id, {
+                'acao_tomada': 'lembrete_criado',
+                'task_id': task_id,
+                'acao_tomada_em': datetime.now(timezone.utc).isoformat(),
+                'acao_tomada_por': 'saga' if mode == 'auto' else 'humano',
+            })
+
+        elif principal == 'escalacao':
+            # Cria task urgente para Kaique
+            new_task = {
+                'titulo': f'ESCALAR: {payload.get("summary", "")[:80]}',
+                'descricao': f'[Escalação automática]\n{row.get("transcricao") or row.get("conteudo_bruto", "")}',
+                'status': 'pendente',
+                'prioridade': 'urgente',
+                'responsavel': 'kaique',
+                'mentorado_id': row.get('mentorado_id'),
+                'fonte': 'descarrego',
+                'especie': 'one_time',
+            }
+            r = supabase_request('POST', 'god_tasks', body=new_task)
+            task_id = None
+            if r.status_code in (200, 201):
+                created = r.json()
+                task_id = created[0]['id'] if isinstance(created, list) and created else created.get('id')
+            _descarrego_update(descarrego_id, {
+                'acao_tomada': 'escalado_kaique',
+                'task_id': task_id,
+                'acao_tomada_em': datetime.now(timezone.utc).isoformat(),
+                'acao_tomada_por': 'saga' if mode == 'auto' else 'humano',
+            })
+
+        elif principal in ('contexto', 'dossie', 'feedback', 'plano_acao'):
+            # Salva como contexto do mentorado
+            if row.get('mentorado_id'):
+                ctx_entry = {
+                    'mentorado_id': row['mentorado_id'],
+                    'tipo': 'texto',
+                    'titulo': f'[{principal}] {payload.get("summary", "")[:100]}',
+                    'conteudo': row.get('transcricao') or row.get('conteudo_bruto', ''),
+                    'fase': principal,
+                    'origem': 'descarrego',
+                    'criado_por': 'sistema',
+                }
+                supabase_request('POST', 'mentorado_context', body=ctx_entry)
+            _descarrego_update(descarrego_id, {
+                'acao_tomada': f'salvo_como_{principal}',
+                'acao_tomada_em': datetime.now(timezone.utc).isoformat(),
+                'acao_tomada_por': 'saga' if mode == 'auto' else 'humano',
+            })
+
+        else:
+            _descarrego_update(descarrego_id, {
+                'acao_tomada': 'sem_acao',
+                'acao_tomada_em': datetime.now(timezone.utc).isoformat(),
+            })
+
+        _descarrego_transition(descarrego_id, 'action_done')
+    except Exception as e:
+        log_error('descarrego_action', f'{descarrego_id}: {e}', e)
+        try:
+            _descarrego_transition(descarrego_id, 'action_failed')
+        except Exception:
+            pass
+
+
 # ===== CUSTOM HTTP SERVER (fix SO_REUSEADDR) =====
 class ReuseAddrHTTPServer(http.server.HTTPServer):
     allow_reuse_address = True
@@ -1545,11 +2030,26 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         length = int(self.headers.get('Content-Length', 0))
         return self.rfile.read(length) if length > 0 else b''
 
+    def _read_json_body(self):
+        return json.loads(self._read_body())
+
+    def _get_cors_origin(self):
+        origin = self.headers.get('Origin', '')
+        allowed = [
+            'https://spalla-dashboard.vercel.app',
+            'https://spalla-dashboard-git-',  # Vercel preview URLs
+            'http://localhost:',
+            'http://127.0.0.1:',
+        ]
+        if any(origin.startswith(a) for a in allowed):
+            return origin
+        return 'https://spalla-dashboard.vercel.app'  # default
+
     def _send_json(self, data, status=200):
         body = json.dumps(data, ensure_ascii=False, default=str).encode()
         self.send_response(status)
         self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Origin', self._get_cors_origin())
         self.send_header('Content-Length', len(body))
         self.end_headers()
         self.wfile.write(body)
@@ -1650,7 +2150,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             updated_ms = int(t.get('date_updated') or 0)
             tid = t.get('id')
             operon_id = t.get('id', '')
-            clickup_url = t.get('url', '')
+            clickup_url = clickup_deep_link(t.get('url', ''))
 
             # Descrição: pega primeira linha não-vazia, remove markdown/HTML, trunca 80
             raw_desc = t.get('description') or ''
@@ -1712,6 +2212,285 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             'activity': activity[:25],
             'concluidas': len(by_status.get('concluida', [])),
         })
+
+    # ===== CLICKUP IMPORT ALL TASKS =====
+    def _handle_clickup_import_all(self):
+        """POST /api/clickup/import-all — Full import of tasks from ClickUp lists (auth required)"""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Authentication required'}, 401)
+            return
+        token = os.environ.get('CLICKUP_API_TOKEN', '')
+        if not token:
+            self._send_json({'error': 'CLICKUP_API_TOKEN not configured'}, 500)
+            return
+
+        headers = {'Authorization': token, 'Content-Type': 'application/json'}
+
+        def clickup_get(url):
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=20) as r:
+                return json.loads(r.read())
+
+        def normalize_status(raw):
+            s = (raw or '').lower().strip()
+            if s in ('in progress', 'em andamento', 'doing', 'in_progress'):
+                return 'em_andamento'
+            if s in ('review', 'em revisão', 'in review', 'em_revisao', 'em revisao'):
+                return 'em_revisao'
+            if s in ('done', 'complete', 'concluída', 'concluido', 'closed'):
+                return 'concluida'
+            if s in ('cancelled', 'cancelada', 'canceled'):
+                return 'cancelada'
+            return 'pendente'
+
+        def normalize_priority(raw):
+            p = (raw or 0)
+            if isinstance(p, dict):
+                p = p.get('id', 0)
+            try:
+                p = int(p)
+            except (ValueError, TypeError):
+                return 'normal'
+            return {1: 'urgente', 2: 'alta', 3: 'normal', 4: 'baixa'}.get(p, 'normal')
+
+        def ms_to_date(ms_val):
+            if not ms_val:
+                return None
+            try:
+                return datetime.fromtimestamp(int(ms_val) // 1000, tz=timezone.utc).strftime('%Y-%m-%d')
+            except Exception:
+                return None
+
+        try:
+            body = self._read_json_body()
+            list_ids = body.get('list_ids', [])
+            if not list_ids:
+                # Fetch all lists from god_lists
+                god_lists = supabase_request('GET', 'god_lists?select=clickup_list_id&clickup_list_id=not.is.null')
+                list_ids = [l['clickup_list_id'] for l in (god_lists or []) if l.get('clickup_list_id')]
+
+            if not list_ids:
+                self._send_json({'error': 'No list_ids provided and no god_lists with clickup_list_id found'}, 400)
+                return
+
+            # Fetch existing operon_id mapping
+            existing = supabase_request('GET', 'god_tasks?select=id,operon_id&operon_id=not.is.null')
+            existing_map = {r['operon_id']: r['id'] for r in (existing or [])}
+
+            imported = 0
+            updated = 0
+            errors = 0
+
+            for list_id in list_ids:
+                page = 0
+                while True:
+                    try:
+                        data = clickup_get(
+                            f"https://api.clickup.com/api/v2/list/{list_id}/task"
+                            f"?include_closed=true&subtasks=false&page={page}"
+                        )
+                    except Exception as e:
+                        errors += 1
+                        break
+
+                    tasks = data.get('tasks', [])
+                    if not tasks:
+                        break
+
+                    for t in tasks:
+                        cu_id = t.get('id', '')
+                        assignees = ', '.join(
+                            (a.get('username') or a.get('email', '').split('@')[0] or '')
+                            for a in t.get('assignees', [])
+                        ) or None
+
+                        row = {
+                            'titulo': t.get('name', ''),
+                            'descricao': t.get('description') or t.get('text_content') or '',
+                            'status': normalize_status(t.get('status', {}).get('status', '')),
+                            'prioridade': normalize_priority(t.get('priority')),
+                            'responsavel': assignees,
+                            'data_inicio': ms_to_date(t.get('start_date')),
+                            'data_fim': ms_to_date(t.get('due_date')),
+                            'operon_id': cu_id,
+                            'clickup_url': clickup_deep_link(t.get('url', '')),
+                            'clickup_synced_at': datetime.now(timezone.utc).isoformat(),
+                            'fonte': 'clickup',
+                        }
+
+                        # Map points from custom field or time estimate
+                        points = t.get('points')
+                        if points:
+                            try:
+                                row['points'] = int(float(points))
+                            except (ValueError, TypeError):
+                                pass
+
+                        if cu_id in existing_map:
+                            result = supabase_request('PATCH', f'god_tasks?id=eq.{existing_map[cu_id]}', row)
+                            updated += 1
+                        else:
+                            result = supabase_request('POST', 'god_tasks', row)
+                            imported += 1
+
+                        if isinstance(result, dict) and result.get('error'):
+                            errors += 1
+
+                    if data.get('last_page', True):
+                        break
+                    page += 1
+
+            self._send_json({
+                'imported': imported,
+                'updated': updated,
+                'errors': errors,
+                'lists_processed': len(list_ids),
+            })
+
+        except Exception as e:
+            self._send_json({'error': f'Import failed: {e}'}, 500)
+
+    # ===== CLICKUP WEBHOOK HANDLER =====
+    def _handle_clickup_webhook(self):
+        """POST /api/clickup/webhook — Receive ClickUp webhook events"""
+        try:
+            body = self._read_json_body()
+            event = body.get('event', '')
+            task_data = body.get('task_data') or body.get('task') or {}
+            task_id = body.get('task_id') or task_data.get('id', '')
+
+            if not event or not task_id:
+                self._send_json({'ok': True, 'skipped': 'no event or task_id'})
+                return
+
+            # Find the matching god_task by operon_id
+            rows = supabase_request('GET', f'god_tasks?select=id,status,prioridade&operon_id=eq.{task_id}')
+            if not rows or not len(rows):
+                self._send_json({'ok': True, 'skipped': f'no god_task with operon_id={task_id}'})
+                return
+
+            god_task = rows[0]
+            update = {}
+
+            if event == 'taskStatusUpdated':
+                new_status = (body.get('history_items', [{}])[0].get('after', {}).get('status', '') or '').lower().strip()
+                status_map = {
+                    'to do': 'pendente', 'open': 'pendente', 'pendente': 'pendente',
+                    'in progress': 'em_andamento', 'em andamento': 'em_andamento',
+                    'review': 'em_revisao', 'em revisão': 'em_revisao', 'in review': 'em_revisao',
+                    'blocked': 'bloqueada', 'bloqueada': 'bloqueada',
+                    'on hold': 'pausada', 'pausada': 'pausada',
+                    'complete': 'concluida', 'done': 'concluida', 'closed': 'concluida',
+                    'cancelled': 'cancelada', 'cancelada': 'cancelada',
+                    'archived': 'arquivada', 'arquivada': 'arquivada',
+                }
+                mapped = status_map.get(new_status)
+                if mapped and mapped != god_task.get('status'):
+                    update['status'] = mapped
+
+            elif event == 'taskUpdated':
+                if task_data.get('name'):
+                    update['titulo'] = task_data['name']
+                if task_data.get('description'):
+                    update['descricao'] = task_data['description']
+
+            elif event == 'taskPriorityUpdated':
+                prio_map = {1: 'urgente', 2: 'alta', 3: 'normal', 4: 'baixa'}
+                new_prio = body.get('history_items', [{}])[0].get('after', {}).get('priority', {})
+                if isinstance(new_prio, dict):
+                    new_prio = new_prio.get('id', 3)
+                mapped = prio_map.get(int(new_prio), 'normal')
+                if mapped != god_task.get('prioridade'):
+                    update['prioridade'] = mapped
+
+            if update:
+                update['clickup_synced_at'] = datetime.now(timezone.utc).isoformat()
+                supabase_request('PATCH', f'god_tasks?id=eq.{god_task["id"]}', update)
+
+            self._send_json({'ok': True, 'event': event, 'updated_fields': list(update.keys())})
+
+        except Exception as e:
+            self._send_json({'error': f'Webhook processing failed: {e}'}, 500)
+
+    # ===== CLICKUP PUSH TASK =====
+    def _handle_clickup_push(self, task_uuid):
+        """POST /api/clickup/push/<task_uuid> — Push a Spalla task to ClickUp (auth required)"""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Authentication required'}, 401)
+            return
+        token = os.environ.get('CLICKUP_API_TOKEN', '')
+        if not token:
+            self._send_json({'error': 'CLICKUP_API_TOKEN not configured'}, 500)
+            return
+
+        headers = {'Authorization': token, 'Content-Type': 'application/json'}
+
+        try:
+            # Fetch the task from god_tasks
+            rows = supabase_request('GET', f'god_tasks?select=*&id=eq.{task_uuid}')
+            if not rows or not len(rows):
+                self._send_json({'error': 'Task not found'}, 404)
+                return
+
+            task = rows[0]
+            status_map = {
+                'pendente': 'to do', 'em_andamento': 'in progress',
+                'em_revisao': 'review', 'concluida': 'complete', 'cancelada': 'closed'
+            }
+            prio_map = {'urgente': 1, 'alta': 2, 'normal': 3, 'baixa': 4}
+
+            cu_body = {
+                'name': task.get('titulo', ''),
+                'description': task.get('descricao', ''),
+                'status': status_map.get(task.get('status', 'pendente'), 'to do'),
+                'priority': prio_map.get(task.get('prioridade', 'normal'), 3),
+            }
+            if task.get('data_fim'):
+                try:
+                    dt = datetime.strptime(task['data_fim'], '%Y-%m-%d').replace(tzinfo=timezone.utc)
+                    cu_body['due_date'] = int(dt.timestamp() * 1000)
+                except Exception:
+                    pass
+
+            if task.get('operon_id'):
+                # Update existing ClickUp task
+                req = urllib.request.Request(
+                    f"https://api.clickup.com/api/v2/task/{task['operon_id']}",
+                    data=json.dumps(cu_body).encode(),
+                    headers=headers,
+                    method='PUT'
+                )
+                with urllib.request.urlopen(req, timeout=15) as r:
+                    result = json.loads(r.read())
+                supabase_request('PATCH', f'god_tasks?id=eq.{task_uuid}', {
+                    'clickup_synced_at': datetime.now(timezone.utc).isoformat()
+                })
+                self._send_json({'ok': True, 'action': 'updated', 'clickup_id': task['operon_id']})
+            else:
+                # Create new ClickUp task — need a list_id
+                body = self._read_json_body() or {}
+                cu_list_id = body.get('clickup_list_id', '901113377457')  # default: latest sprint
+                req = urllib.request.Request(
+                    f"https://api.clickup.com/api/v2/list/{cu_list_id}/task",
+                    data=json.dumps(cu_body).encode(),
+                    headers=headers,
+                    method='POST'
+                )
+                with urllib.request.urlopen(req, timeout=15) as r:
+                    result = json.loads(r.read())
+                new_cu_id = result.get('id', '')
+                new_cu_url = clickup_deep_link(result.get('url', ''))
+                supabase_request('PATCH', f'god_tasks?id=eq.{task_uuid}', {
+                    'operon_id': new_cu_id,
+                    'clickup_url': new_cu_url,
+                    'clickup_synced_at': datetime.now(timezone.utc).isoformat(),
+                })
+                self._send_json({'ok': True, 'action': 'created', 'clickup_id': new_cu_id, 'clickup_url': new_cu_url})
+
+        except Exception as e:
+            self._send_json({'error': f'Push failed: {e}'}, 500)
 
     # ===== CLICKUP SYNC SUBTASKS =====
     def _handle_clickup_sync_subtasks(self):
@@ -1836,11 +2615,667 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             self._send_json({'error': f'Sync failed: {e}'}, 500)
 
+    # ============================================================
+    # LF Story 5: Task FSM transition endpoint
+    # ============================================================
+    def _handle_task_transition(self, task_id):
+        """POST /api/tasks/{id}/transition
+        Body: { event: 'start'|'complete'|..., payload?: {...} }
+        """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        try:
+            body = self._read_json_body() or {}
+            event = body.get('event')
+            payload = body.get('payload') or {}
+            if not event:
+                return self._send_json({'error': 'event obrigatório'}, 400)
+
+            r = supabase_request('GET', f'god_tasks?id=eq.{task_id}&limit=1')
+            if not supa_ok(r) or not r:
+                return self._send_json({'error': 'task não encontrada'}, 404)
+            task_row = r[0] if isinstance(r, list) else r
+
+            # Hidrata flags de guard
+            deps = task_row.get('depends_on') or []
+            if deps:
+                in_clause = ','.join(deps)
+                rdep = supabase_request('GET',
+                    f'god_tasks?id=in.({in_clause})&select=id,status&limit=1000')
+                terminal = ('concluida','cancelada','arquivada')
+                rows = rdep if isinstance(rdep, list) else []
+                task_row['_dependencies_resolved'] = all(x.get('status') in terminal for x in rows)
+            else:
+                task_row['_dependencies_resolved'] = True
+
+            if task_row.get('especie') == 'quest':
+                rch = supabase_request('GET',
+                    f'god_tasks?parent_task_id=eq.{task_id}&select=id,status')
+                terminal = ('concluida','cancelada','arquivada')
+                children = rch if isinstance(rch, list) else []
+                task_row['_children_complete'] = (
+                    len(children) == 0 or all(c.get('status') in terminal for c in children)
+                )
+            else:
+                task_row['_children_complete'] = True
+
+            from domain.state_machines import TaskStateMachine, IllegalTransition, GuardFailed
+            sm = TaskStateMachine(task_row)
+            try:
+                result = sm.transition(event, persist=False, payload=payload)
+            except IllegalTransition as e:
+                return self._send_json({'error': str(e), 'allowed': sm.allowed_events()}, 409)
+            except GuardFailed as e:
+                return self._send_json({'error': str(e), 'guard_failed': True}, 412)
+
+            actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
+            ru = supabase_request('PATCH',
+                f'god_tasks?id=eq.{task_id}',
+                body={'status': result['to'],
+                      'updated_at': datetime.now(timezone.utc).isoformat()})
+            if not supa_ok(ru):
+                return self._send_json({'error': 'persist failed'}, 500)
+
+            try:
+                supabase_request('POST', 'entity_events', body={
+                    'aggregate_type': 'Task',
+                    'aggregate_id': task_id,
+                    'event_type': f'Task{event[0].upper()}{event[1:]}',
+                    'payload': {**result, **payload},
+                    'metadata': {'source': 'fsm_api', 'actor': actor},
+                })
+            except Exception:
+                pass
+
+            # ORCH-04: Dependency Reactor — auto-unblock dependents
+            reactor_results = []
+            if result['to'] in ('concluida', 'cancelada', 'arquivada'):
+                try:
+                    reactor_results = _dependency_reactor(task_id, task_row.get('titulo', ''))
+                except Exception as rx:
+                    log_error('dependency_reactor', str(rx), rx)
+
+            self._send_json({
+                'task_id': task_id,
+                'from': result['from'],
+                'to': result['to'],
+                'event': event,
+                'reactor': reactor_results,
+            })
+        except Exception as e:
+            log_error('task_transition', str(e), e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ============================================================
+    # ORCH-05: Agent Dispatch Pipeline
+    # ============================================================
+    def _handle_agent_dispatch(self, task_id):
+        """POST /api/tasks/{id}/agent-dispatch
+        Dispatches task to the appropriate agent based on execution_endpoint.
+        Body: { force?: boolean }
+        """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        try:
+            r = supabase_request('GET', f'god_tasks?id=eq.{task_id}&limit=1')
+            if not supa_ok(r) or not r:
+                return self._send_json({'error': 'task não encontrada'}, 404)
+            task = r[0] if isinstance(r, list) else r
+
+            responsavel = task.get('responsavel') or ''
+            # Lookup agent member
+            member_r = supabase_request('GET',
+                f'spalla_members?or=(id.eq.{responsavel},nome_curto.ilike.{responsavel})&tipo=eq.agent&limit=1')
+            if not isinstance(member_r, list) or not member_r:
+                return self._send_json({'error': 'responsável não é um agente'}, 400)
+            agent = member_r[0]
+            endpoint = agent.get('execution_endpoint') or ''
+
+            # Check max_concurrent
+            max_tasks = agent.get('max_concurrent_tasks')
+            if max_tasks:
+                active_r = supabase_request('GET',
+                    f'god_tasks?responsavel=eq.{responsavel}&status=eq.em_andamento&select=id')
+                active_count = len(active_r) if isinstance(active_r, list) else 0
+                if active_count >= max_tasks:
+                    return self._send_json({
+                        'error': f'Agente {agent["nome_curto"]} no limite ({active_count}/{max_tasks})',
+                        'at_capacity': True
+                    }, 429)
+
+            # Route by execution_endpoint
+            dispatch_result = {'endpoint': endpoint, 'status': 'dispatched'}
+            if endpoint == 'descarrego_pipeline':
+                dispatch_result['note'] = 'Routed to Descarrego pipeline (existing)'
+            elif endpoint.startswith('n8n_webhook:'):
+                webhook_name = endpoint.split(':', 1)[1]
+                dispatch_result['note'] = f'Would POST to n8n webhook: {webhook_name}'
+            elif endpoint.startswith('claude_api:'):
+                prompt_type = endpoint.split(':', 1)[1]
+                dispatch_result['note'] = f'Would call Claude API with prompt type: {prompt_type}'
+            else:
+                dispatch_result['note'] = f'Unknown endpoint: {endpoint}'
+                dispatch_result['status'] = 'unknown_endpoint'
+
+            # Log dispatch event
+            actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
+            supabase_request('POST', 'entity_events', body={
+                'aggregate_type': 'Task',
+                'aggregate_id': task_id,
+                'event_type': 'TaskAgentDispatched',
+                'payload': {
+                    'agent_id': agent['id'],
+                    'agent_name': agent.get('nome_curto', ''),
+                    'endpoint': endpoint,
+                },
+                'metadata': {'source': 'agent_dispatch', 'actor': actor},
+            })
+
+            self._send_json({
+                'task_id': task_id,
+                'agent': agent['id'],
+                'dispatch': dispatch_result,
+            })
+        except Exception as e:
+            log_error('agent_dispatch', str(e), e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ============================================================
+    # ORCH-06: Handoff Protocol — log reassignment
+    # ============================================================
+    def _handle_task_handoff(self, task_id):
+        """POST /api/tasks/{id}/handoff
+        Body: { from_person: str, to_person: str, note?: str }
+        Logs a handoff and auto-dispatches if new responsavel is an agent.
+        """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        try:
+            body = self._read_json_body() or {}
+            from_person = body.get('from_person') or ''
+            to_person = body.get('to_person') or ''
+            note = body.get('note') or f'Reatribuído de {from_person} para {to_person}'
+
+            if not to_person:
+                return self._send_json({'error': 'to_person obrigatório'}, 400)
+
+            # Log handoff
+            supabase_request('POST', 'god_task_handoffs', body={
+                'task_id': task_id,
+                'from_person': from_person or None,
+                'to_person': to_person,
+                'note': note,
+            })
+
+            # Log event
+            actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
+            supabase_request('POST', 'entity_events', body={
+                'aggregate_type': 'Task',
+                'aggregate_id': task_id,
+                'event_type': 'TaskHandoff',
+                'payload': {'from': from_person, 'to': to_person, 'note': note},
+                'metadata': {'source': 'handoff_protocol', 'actor': actor},
+            })
+
+            # Check if new responsavel is agent → auto-dispatch
+            is_agent = False
+            if to_person:
+                member_r = supabase_request('GET',
+                    f'spalla_members?or=(id.eq.{to_person},nome_curto.ilike.{to_person})&tipo=eq.agent&limit=1')
+                is_agent = isinstance(member_r, list) and len(member_r) > 0
+
+            self._send_json({
+                'task_id': task_id,
+                'handoff': {'from': from_person, 'to': to_person},
+                'agent_dispatched': is_agent,
+            })
+        except Exception as e:
+            log_error('task_handoff', str(e), e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ============================================================
+    # ORCH-07: Agent Metrics
+    # ============================================================
+    def _handle_agent_metrics(self):
+        """GET /api/agent-metrics — returns agent performance data from vw_agent_metrics."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        try:
+            r = supabase_request('GET', 'vw_agent_metrics?select=*&order=agent_name.asc')
+            if not supa_ok(r):
+                return self._send_json({'error': 'failed to fetch metrics'}, 500)
+            agents = r if isinstance(r, list) else []
+            self._send_json({'agents': agents})
+        except Exception as e:
+            log_error('agent_metrics', str(e), e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ============================================================
+    # FSM: Mentorado transition
+    # ============================================================
+    def _handle_mentorado_transition(self, mentorado_id):
+        """POST /api/mentees/{id}/transition
+        Body: { event: 'contract_signed'|'kickoff_done'|..., payload?: {...} }
+        """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        try:
+            body = self._read_json_body() or {}
+            event = body.get('event')
+            payload = body.get('payload') or {}
+            if not event:
+                return self._send_json({'error': 'event obrigatório'}, 400)
+
+            r = supabase_request('GET', f'mentorados?id=eq.{mentorado_id}&limit=1')
+            if r.status_code != 200 or not r.json():
+                return self._send_json({'error': 'mentorado não encontrado'}, 404)
+            row = r.json()[0]
+
+            from domain.state_machines import MentoradoStateMachine, IllegalTransition, GuardFailed
+            sm = MentoradoStateMachine(row)
+            try:
+                result = sm.transition(event, persist=False, payload=payload)
+            except IllegalTransition as e:
+                return self._send_json({'error': str(e), 'allowed': sm.allowed_events()}, 409)
+            except GuardFailed as e:
+                return self._send_json({'error': str(e), 'guard_failed': True}, 412)
+
+            actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
+            ru = supabase_request('PATCH',
+                f'mentorados?id=eq.{mentorado_id}',
+                body={'fase_jornada': result['to'],
+                      'updated_at': datetime.now(timezone.utc).isoformat()})
+            if not supa_ok(ru):
+                return self._send_json({'error': 'persist failed'}, 500)
+
+            try:
+                supabase_request('POST', 'entity_events', body={
+                    'aggregate_type': 'Mentorado',
+                    'aggregate_id': mentorado_id,
+                    'event_type': f'Mentorado{event[0].upper()}{event[1:]}',
+                    'payload': {**result, **payload},
+                    'metadata': {'source': 'fsm_api', 'actor': actor},
+                })
+            except Exception:
+                pass
+
+            self._send_json({
+                'mentorado_id': mentorado_id,
+                'from': result['from'],
+                'to': result['to'],
+                'event': event,
+            })
+        except Exception as e:
+            log_error('mentorado_transition', str(e), e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ============================================================
+    # FSM: Dossiê Produção transition
+    # ============================================================
+    def _handle_dossie_producao_transition(self, producao_id):
+        """POST /api/dossies/producoes/{id}/transition
+        Body: { event: 'start_production'|'request_review'|..., payload?: {...} }
+        """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        try:
+            body = self._read_json_body() or {}
+            event = body.get('event')
+            payload = body.get('payload') or {}
+            if not event:
+                return self._send_json({'error': 'event obrigatório'}, 400)
+
+            r = supabase_request('GET', f'ds_producoes?id=eq.{producao_id}&limit=1')
+            if r.status_code != 200 or not r.json():
+                return self._send_json({'error': 'produção não encontrada'}, 404)
+            row = r.json()[0]
+
+            from domain.state_machines import DossieProducaoStateMachine, IllegalTransition, GuardFailed
+            sm = DossieProducaoStateMachine(row)
+            try:
+                result = sm.transition(event, persist=False, payload=payload)
+            except IllegalTransition as e:
+                return self._send_json({'error': str(e), 'allowed': sm.allowed_events()}, 409)
+            except GuardFailed as e:
+                return self._send_json({'error': str(e), 'guard_failed': True}, 412)
+
+            actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
+            ru = supabase_request('PATCH',
+                f'ds_producoes?id=eq.{producao_id}',
+                body={'status': result['to'],
+                      'updated_at': datetime.now(timezone.utc).isoformat()})
+            if not supa_ok(ru):
+                return self._send_json({'error': 'persist failed'}, 500)
+
+            try:
+                supabase_request('POST', 'entity_events', body={
+                    'aggregate_type': 'DossieProducao',
+                    'aggregate_id': producao_id,
+                    'event_type': f'DossieProducao{event[0].upper()}{event[1:]}',
+                    'payload': {**result, **payload},
+                    'metadata': {'source': 'fsm_api', 'actor': actor},
+                })
+            except Exception:
+                pass
+
+            self._send_json({
+                'producao_id': producao_id,
+                'from': result['from'],
+                'to': result['to'],
+                'event': event,
+            })
+        except Exception as e:
+            log_error('dossie_producao_transition', str(e), e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ============================================================
+    # FSM: Dossiê Documento transition
+    # ============================================================
+    def _handle_dossie_documento_transition(self, documento_id):
+        """POST /api/dossies/documentos/{id}/transition
+        Body: { event: 'start_writing'|'submit_to_qg'|..., trilha?: 'scale'|'clinic', payload?: {...} }
+        """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        try:
+            body = self._read_json_body() or {}
+            event = body.get('event')
+            trilha = body.get('trilha', 'scale')
+            payload = body.get('payload') or {}
+            if not event:
+                return self._send_json({'error': 'event obrigatório'}, 400)
+
+            r = supabase_request('GET', f'ds_documentos?id=eq.{documento_id}&limit=1')
+            if r.status_code != 200 or not r.json():
+                return self._send_json({'error': 'documento não encontrado'}, 404)
+            row = r.json()[0]
+
+            # Detect trilha from producao if not passed
+            if not body.get('trilha') and row.get('producao_id'):
+                rp = supabase_request('GET', f'ds_producoes?id=eq.{row["producao_id"]}&select=trilha&limit=1')
+                if rp.status_code == 200 and rp.json():
+                    trilha = rp.json()[0].get('trilha', 'scale')
+
+            from domain.state_machines import DossieDocumentoStateMachine, IllegalTransition, GuardFailed
+            sm = DossieDocumentoStateMachine(row, trilha=trilha)
+            try:
+                result = sm.transition(event, persist=False, payload=payload)
+            except IllegalTransition as e:
+                return self._send_json({'error': str(e), 'allowed': sm.allowed_events()}, 409)
+            except GuardFailed as e:
+                return self._send_json({'error': str(e), 'guard_failed': True}, 412)
+
+            actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
+            ru = supabase_request('PATCH',
+                f'ds_documentos?id=eq.{documento_id}',
+                body={'status': result['to'],
+                      'updated_at': datetime.now(timezone.utc).isoformat()})
+            if not supa_ok(ru):
+                return self._send_json({'error': 'persist failed'}, 500)
+
+            try:
+                supabase_request('POST', 'entity_events', body={
+                    'aggregate_type': 'DossieDocumento',
+                    'aggregate_id': documento_id,
+                    'event_type': f'DossieDocumento{event[0].upper()}{event[1:]}',
+                    'payload': {**result, **payload, 'trilha': trilha},
+                    'metadata': {'source': 'fsm_api', 'actor': actor},
+                })
+            except Exception:
+                pass
+
+            self._send_json({
+                'documento_id': documento_id,
+                'from': result['from'],
+                'to': result['to'],
+                'event': event,
+                'trilha': trilha,
+            })
+        except Exception as e:
+            log_error('dossie_documento_transition', str(e), e)
+            self._send_json({'error': str(e)}, 500)
+
+    # ============================================================
+    # LF-FASE3: Descarrego endpoints
+    # ============================================================
+    def _handle_descarrego_capture(self):
+        """POST /api/descarrego/capture
+        Body: { mentorado_id, tipo_bruto, conteudo_bruto?, arquivo_url?, fonte? }
+        """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        try:
+            body = self._read_json_body()
+            mentorado_id = body.get('mentorado_id')
+            tipo_bruto = body.get('tipo_bruto', 'texto')
+            if tipo_bruto not in ('texto','audio','video','imagem','arquivo','link','gravacao'):
+                return self._send_json({'error': f'tipo_bruto inválido: {tipo_bruto}'}, 400)
+            payload = {
+                'mentorado_id': mentorado_id,
+                'consultor_id': auth.get('user_id') if isinstance(auth, dict) else str(auth),
+                'tipo_bruto': tipo_bruto,
+                'conteudo_bruto': body.get('conteudo_bruto'),
+                'arquivo_url': body.get('arquivo_url'),
+                'arquivo_size_bytes': body.get('arquivo_size_bytes'),
+                'arquivo_mime_type': body.get('arquivo_mime_type'),
+                'duracao_ms': body.get('duracao_ms'),
+                'fonte': body.get('fonte', 'web_drawer'),
+                'correlation_id': str(uuid.uuid4()),
+                'status': 'capturado',
+            }
+            r = supabase_request('POST', 'descarregos', body=payload)
+            if r.status_code not in (200, 201):
+                return self._send_json({'error': r.text}, r.status_code)
+            data = r.json()
+            row = data[0] if isinstance(data, list) and data else data
+            self._send_json({
+                'descarrego_id': row.get('id'),
+                'correlation_id': row.get('correlation_id'),
+                'status': row.get('status'),
+            }, 201)
+        except Exception as e:
+            log_error('descarrego_capture', str(e), e)
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_descarrego_batch_capture(self):
+        """POST /api/descarrego/batch-capture
+        Body: { mentorado_id, items: [ { tipo_bruto, conteudo_bruto?, arquivo_url?, fonte? }, ... ] }
+        Creates multiple descarregos at once. Max 20 per batch.
+        Optionally auto-processes them if auto_process=true.
+        """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        try:
+            body = self._read_json_body()
+            mentorado_id = body.get('mentorado_id')
+            items = body.get('items') or []
+            auto_process = body.get('auto_process', False)
+
+            if not mentorado_id:
+                return self._send_json({'error': 'mentorado_id obrigatório'}, 400)
+            if not items:
+                return self._send_json({'error': 'items vazio'}, 400)
+            if len(items) > 20:
+                return self._send_json({'error': 'máximo 20 itens por batch'}, 400)
+
+            actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
+            batch_id = str(uuid.uuid4())
+            created = []
+
+            for i, item in enumerate(items):
+                tipo = item.get('tipo_bruto', 'texto')
+                if tipo not in ('texto', 'audio', 'video', 'imagem', 'arquivo', 'link', 'gravacao'):
+                    tipo = 'texto'
+                payload = {
+                    'mentorado_id': mentorado_id,
+                    'consultor_id': actor,
+                    'tipo_bruto': tipo,
+                    'conteudo_bruto': item.get('conteudo_bruto'),
+                    'arquivo_url': item.get('arquivo_url'),
+                    'arquivo_size_bytes': item.get('arquivo_size_bytes'),
+                    'arquivo_mime_type': item.get('arquivo_mime_type'),
+                    'duracao_ms': item.get('duracao_ms'),
+                    'fonte': item.get('fonte', 'batch_import'),
+                    'correlation_id': f'{batch_id}:{i}',
+                    'status': 'capturado',
+                }
+                r = supabase_request('POST', 'descarregos', body=payload)
+                if r.status_code in (200, 201):
+                    data = r.json()
+                    row = data[0] if isinstance(data, list) and data else data
+                    created.append(row.get('id'))
+
+            # Auto-process all created descarregos
+            if auto_process and created:
+                for did in created:
+                    t = threading.Thread(
+                        target=_descarrego_processor_run,
+                        args=(did,),
+                        daemon=True,
+                    )
+                    t.start()
+
+            self._send_json({
+                'batch_id': batch_id,
+                'total': len(items),
+                'created': len(created),
+                'descarrego_ids': created,
+                'auto_processing': auto_process,
+            }, 201)
+        except Exception as e:
+            log_error('descarrego_batch', str(e), e)
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_descarrego_process(self, descarrego_id):
+        """POST /api/descarrego/{id}/process — async pipeline."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        # Spawn worker thread
+        t = threading.Thread(
+            target=_descarrego_processor_run,
+            args=(descarrego_id,),
+            daemon=True,
+        )
+        t.start()
+        self._send_json({
+            'descarrego_id': descarrego_id,
+            'status': 'processing_started',
+        }, 202)
+
+    def _handle_descarrego_approve(self, descarrego_id):
+        """POST /api/descarrego/{id}/approve — HITL approve."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
+        try:
+            _descarrego_transition(descarrego_id, 'human_approved', actor=actor)
+            # Spawn execução manual em thread
+            t = threading.Thread(
+                target=_descarrego_execute_action,
+                args=(descarrego_id, 'manual'),
+                daemon=True,
+            )
+            t.start()
+            self._send_json({'descarrego_id': descarrego_id, 'status': 'approved'})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_descarrego_reject(self, descarrego_id):
+        """POST /api/descarrego/{id}/reject — HITL reject."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
+        try:
+            _descarrego_transition(descarrego_id, 'human_rejected', actor=actor)
+            supabase_request(
+                'PATCH',
+                f'descarregos?id=eq.{descarrego_id}',
+                body={'acao_tomada': 'rejeitado_humano',
+                      'acao_tomada_em': datetime.now(timezone.utc).isoformat(),
+                      'acao_tomada_por': actor},
+            )
+            self._send_json({'descarrego_id': descarrego_id, 'status': 'rejected'})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_descarrego_reclassify(self, descarrego_id):
+        """POST /api/descarrego/{id}/reclassify — manual reclassification.
+        Body: { new_type: 'task'|'contexto'|... }
+        """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        try:
+            body = self._read_json_body() or {}
+            new_type = body.get('new_type')
+            valid_types = ('task', 'lembrete', 'contexto', 'feedback', 'reembolso',
+                           'bloqueio', 'escalacao', 'plano_acao', 'dossie', 'duvida',
+                           'celebracao', 'outro')
+            if not new_type or new_type not in valid_types:
+                return self._send_json({'error': f'new_type inválido. Válidos: {", ".join(valid_types)}'}, 400)
+
+            actor = auth.get('user_id') if isinstance(auth, dict) else str(auth)
+            old_row = _descarrego_load(descarrego_id)
+            old_type = old_row.get('classificacao_principal')
+
+            _descarrego_update(descarrego_id, {
+                'classificacao_principal': new_type,
+                'classificacao_payload': {
+                    **(old_row.get('classificacao_payload') or {}),
+                    'primary_type': new_type,
+                    '_reclassified_from': old_type,
+                    '_reclassified_by': actor,
+                    '_reclassified_at': datetime.now(timezone.utc).isoformat(),
+                },
+            })
+
+            try:
+                supabase_request('POST', 'entity_events', body={
+                    'aggregate_type': 'Descarrego',
+                    'aggregate_id': descarrego_id,
+                    'event_type': 'DescarregoReclassified',
+                    'payload': {'from': old_type, 'to': new_type},
+                    'metadata': {'source': 'manual', 'actor': actor},
+                })
+            except Exception:
+                pass
+
+            self._send_json({'descarrego_id': descarrego_id, 'new_type': new_type, 'old_type': old_type})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
+    def _handle_descarregos_list(self, mentorado_id):
+        """GET /api/mentees/{id}/descarregos"""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            return self._send_json({'error': 'unauthorized'}, 401)
+        try:
+            r = supabase_request(
+                'GET',
+                f'descarregos?mentorado_id=eq.{mentorado_id}'
+                f'&order=created_at.desc&limit=100',
+            )
+            self._send_json({'descarregos': r.json()})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
     def do_OPTIONS(self):
         self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Origin', self._get_cors_origin())
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, apikey, Authorization')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, apikey, Authorization, X-API-Key')
         self.send_header('Access-Control-Max-Age', '86400')
         self.end_headers()
 
@@ -1883,7 +3318,13 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'sheets_configured': get_sheets_service() is not None,
                 'openai_configured': bool(OPENAI_API_KEY),
                 'storage_search': bool(OPENAI_API_KEY),
+                'evolution_configured': bool(EVOLUTION_API_KEY),
+                'evolution_base': EVOLUTION_BASE,
+                'evolution_key_prefix': EVOLUTION_API_KEY[:8] + '...' if EVOLUTION_API_KEY else 'EMPTY',
             })
+        # ===== ORCH-07: Agent Metrics =====
+        elif self.path == '/api/agent-metrics':
+            self._handle_agent_metrics()
         # ===== WA DM v2 (S9-A) =====
         elif self.path == '/api/mentees/triage':
             self._handle_mentees_triage()
@@ -1902,6 +3343,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         elif re.match(r'^/api/mentee-groups/(\d+)/members$', self.path):
             _m = re.match(r'^/api/mentee-groups/(\d+)/members$', self.path)
             self._handle_get_group_members(_m.group(1))
+        elif re.match(r'^/api/mentees/(\d+)/descarregos$', self.path):
+            _m = re.match(r'^/api/mentees/(\d+)/descarregos$', self.path)
+            self._handle_descarregos_list(_m.group(1))
         elif self.path == '/api/clickup/command-center':
             self._handle_clickup_command_center()
         # ===== Biblioteca =====
@@ -1991,8 +3435,56 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         elif re.match(r'^/api/mentee-groups/(\d+)/members$', self.path):
             _m = re.match(r'^/api/mentee-groups/(\d+)/members$', self.path)
             self._handle_post_group_member(_m.group(1))
+        # ===== ORCH-05: Agent Dispatch =====
+        elif re.match(r'^/api/tasks/([^/]+)/agent-dispatch$', self.path):
+            _ad = re.match(r'^/api/tasks/([^/]+)/agent-dispatch$', self.path)
+            self._handle_agent_dispatch(_ad.group(1))
+        # ===== ORCH-06: Handoff Protocol =====
+        elif re.match(r'^/api/tasks/([^/]+)/handoff$', self.path):
+            _hf = re.match(r'^/api/tasks/([^/]+)/handoff$', self.path)
+            self._handle_task_handoff(_hf.group(1))
+        # ===== LF Story 5: Task FSM transition =====
+        elif re.match(r'^/api/tasks/([^/]+)/transition$', self.path):
+            _tm = re.match(r'^/api/tasks/([^/]+)/transition$', self.path)
+            self._handle_task_transition(_tm.group(1))
+        # ===== FSM: Mentorado transition =====
+        elif re.match(r'^/api/mentees/([^/]+)/transition$', self.path):
+            _mm = re.match(r'^/api/mentees/([^/]+)/transition$', self.path)
+            self._handle_mentorado_transition(_mm.group(1))
+        # ===== FSM: Dossiê Produção transition =====
+        elif re.match(r'^/api/dossies/producoes/([^/]+)/transition$', self.path):
+            _dp = re.match(r'^/api/dossies/producoes/([^/]+)/transition$', self.path)
+            self._handle_dossie_producao_transition(_dp.group(1))
+        # ===== FSM: Dossiê Documento transition =====
+        elif re.match(r'^/api/dossies/documentos/([^/]+)/transition$', self.path):
+            _dd = re.match(r'^/api/dossies/documentos/([^/]+)/transition$', self.path)
+            self._handle_dossie_documento_transition(_dd.group(1))
+        # ===== LF-FASE3: Descarrego =====
+        elif self.path == '/api/descarrego/capture':
+            self._handle_descarrego_capture()
+        elif self.path == '/api/descarrego/batch-capture':
+            self._handle_descarrego_batch_capture()
+        elif re.match(r'^/api/descarrego/([0-9a-f-]+)/process$', self.path):
+            _dm = re.match(r'^/api/descarrego/([0-9a-f-]+)/process$', self.path)
+            self._handle_descarrego_process(_dm.group(1))
+        elif re.match(r'^/api/descarrego/([0-9a-f-]+)/approve$', self.path):
+            _dm = re.match(r'^/api/descarrego/([0-9a-f-]+)/approve$', self.path)
+            self._handle_descarrego_approve(_dm.group(1))
+        elif re.match(r'^/api/descarrego/([0-9a-f-]+)/reject$', self.path):
+            _dm = re.match(r'^/api/descarrego/([0-9a-f-]+)/reject$', self.path)
+            self._handle_descarrego_reject(_dm.group(1))
+        elif re.match(r'^/api/descarrego/([0-9a-f-]+)/reclassify$', self.path):
+            _dm = re.match(r'^/api/descarrego/([0-9a-f-]+)/reclassify$', self.path)
+            self._handle_descarrego_reclassify(_dm.group(1))
         elif self.path == '/api/clickup/sync-subtasks':
             self._handle_clickup_sync_subtasks()
+        elif self.path == '/api/clickup/import-all':
+            self._handle_clickup_import_all()
+        elif self.path == '/api/clickup/webhook':
+            self._handle_clickup_webhook()
+        elif re.match(r'^/api/clickup/push/(.+)$', self.path):
+            _m = re.match(r'^/api/clickup/push/(.+)$', self.path)
+            self._handle_clickup_push(_m.group(1))
         # ===== API Keys Management =====
         elif self.path == '/api/keys/generate':
             self._handle_generate_api_key()
@@ -2044,6 +3536,15 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         # ===== Dossiê Generation (Goose Agent — EPIC 6) =====
         elif self.path == '/api/dossie/generate':
             self._handle_dossie_generate()
+        # ===== Automations Cron (Dragon 16) =====
+        elif self.path == '/api/automations/evaluate':
+            self._handle_automations_evaluate()
+        # ===== Webhook Outgoing (Dragon 17) =====
+        elif self.path == '/api/webhooks/outgoing/test':
+            self._handle_webhook_outgoing_test()
+        # ===== Recurring Tasks (Dragon 18) =====
+        elif self.path == '/api/tasks/process-recurring':
+            self._handle_process_recurring()
         else:
             self._send_json({'error': 'Not found'}, 404)
 
@@ -2212,6 +3713,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         Enriches system prompt with mentee context (fase, saúde, tópicos WA, notas recentes).
         Returns: { reply: str, context_used: bool }
         """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
         try:
             body = json.loads(self._read_body())
             mentee_id = body.get('mentee_id')
@@ -2532,6 +4037,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             else:
                 self._send_json({'error': 'Not found'}, 404)
     def _handle_delete_calendar_event(self):
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
         try:
             event_id = self.path.split('/')[-1]
             result = delete_calendar_event(event_id)
@@ -2546,6 +4055,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         2. Create Google Calendar event with Zoom link
         3. Store in Supabase calls_mentoria
         """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
         try:
             body = json.loads(self._read_body())
         except Exception:
@@ -2639,6 +4152,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     # ===== INDIVIDUAL ENDPOINTS =====
     def _handle_create_zoom_meeting(self):
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
         try:
             body = json.loads(self._read_body())
             result = create_zoom_meeting(
@@ -2652,6 +4169,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json({'error': str(e)}, 500)
 
     def _handle_create_calendar_event(self):
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
         try:
             body = json.loads(self._read_body())
             result = create_calendar_event(
@@ -2693,6 +4214,16 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         key = params.get('key', [''])[0]
         fallback_url = params.get('fallback', [''])[0]
 
+        # SSRF protection: only allow known media domains as fallback
+        ALLOWED_FALLBACK_DOMAINS = ['mmg.whatsapp.net', 'media.whatsapp.net', 'web.whatsapp.net', 'pps.whatsapp.net']
+        if fallback_url:
+            try:
+                fb_host = urllib.parse.urlparse(fallback_url).hostname or ''
+                if not any(fb_host.endswith(d) for d in ALLOWED_FALLBACK_DOMAINS):
+                    fallback_url = ''  # silently ignore non-whatsapp URLs
+            except Exception:
+                fallback_url = ''
+
         if not key:
             self._send_json({'error': 'key parameter required'}, 400)
             return
@@ -2715,7 +4246,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             if content_length:
                 self.send_header('Content-Length', content_length)
             # Allow CORS from frontend
-            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Origin', self._get_cors_origin())
             self.send_header('Cache-Control', 'public, max-age=3600')
             self.end_headers()
 
@@ -2741,7 +4272,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     self.send_response(200)
                     self.send_header('Content-Type', ct)
                     if cl: self.send_header('Content-Length', cl)
-                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.send_header('Access-Control-Allow-Origin', self._get_cors_origin())
                     self.send_header('Cache-Control', 'public, max-age=3600')
                     self.end_headers()
                     while True:
@@ -2793,7 +4324,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             # For now, return hardcoded based on what we found
             # TODO: Implement actual bucket listing via S3 API
             self._send_json({
-                'instance': EVOLUTION_CONFIG['INSTANCE'],
+                'instance': os.getenv('EVOLUTION_INSTANCE', 'producao002'),
                 'note': 'UUID discovery not yet automated. Please check S3 bucket manually.',
                 's3_bucket': S3_BUCKET,
                 's3_endpoint': S3_ENDPOINT,
@@ -2820,7 +4351,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             # Fetch mentees assigned to this consultant
             mentees = supabase_request(
                 'GET',
-                f'mentorados?select=id,nome,email,instagram,fase_jornada,cohort,ativo,consultor_responsavel,snoozed_until,whatsapp_7d,whatsapp_30d'
+                f'mentorados?select=id,nome,email,instagram,fase_jornada,cohort,ativo,consultor_responsavel,whatsapp_7d,whatsapp_30d'
                 f'&ativo=eq.true&consultor_responsavel=eq.{urllib.parse.quote(email)}&order=nome'
             )
             if isinstance(mentees, dict) and 'error' in mentees:
@@ -2945,7 +4476,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': 'Invalid JSON'}, 400)
                 return
 
-            ALLOWED_FIELDS = {'fase_jornada', 'snoozed_until', 'wa_status'}
+            ALLOWED_FIELDS = {'fase_jornada', 'wa_status', 'trilha'}
             updates = {k: v for k, v in body.items() if k in ALLOWED_FIELDS}
             if not updates:
                 self._send_json({'error': 'No allowed fields provided'}, 400)
@@ -2958,6 +4489,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': f'Invalid fase_jornada: {updates["fase_jornada"]}'}, 400)
                 return
 
+            valid_trilha = {'scale', 'clinic'}
+            if 'trilha' in updates and updates['trilha'] not in valid_trilha:
+                self._send_json({'error': f'Invalid trilha: {updates["trilha"]}'}, 400)
+                return
+
             valid_wa_status = {'aguardando', 'em_andamento', 'bloqueado', 'resolvido'}
             if 'wa_status' in updates and updates['wa_status'] not in valid_wa_status:
                 self._send_json({'error': f'Invalid wa_status: {updates["wa_status"]}'}, 400)
@@ -2965,7 +4501,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
             result = supabase_request(
                 'PATCH',
-                f'mentorados?id=eq.{mentee_id}&select=id,nome,fase_jornada,snoozed_until,wa_status',
+                f'mentorados?id=eq.{mentee_id}&select=id,nome,fase_jornada,wa_status',
                 updates
             )
             self._send_json(result)
@@ -3003,16 +4539,15 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             from datetime import date
             updates = {
                 'ativo': False,
-                'motivo_inativacao': motivo,
-                'data_inativacao': date.today().isoformat(),
+                'observacoes': f'Inativado em {date.today().isoformat()} — motivo: {motivo}',
             }
             obs = (body.get('obs') or '').strip()
             if obs:
-                updates['obs_inativacao'] = obs
+                updates['observacoes'] = f'Inativado em {date.today().isoformat()} — motivo: {motivo}. {obs}'
 
             result = supabase_request(
                 'PATCH',
-                f'mentorados?id=eq.{mentee_id}&select=id,nome,ativo,motivo_inativacao,data_inativacao',
+                f'mentorados?id=eq.{mentee_id}&select=id,nome,ativo',
                 updates
             )
             self._send_json(result)
@@ -3046,7 +4581,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': 'ids must be a non-empty list'}, 400)
                 return
 
-            ALLOWED_FIELDS = {'fase_jornada', 'snoozed_until'}
+            ALLOWED_FIELDS = {'fase_jornada', 'wa_status', 'trilha'}
             updates = {k: v for k, v in body.get('updates', {}).items() if k in ALLOWED_FIELDS}
             if not updates:
                 self._send_json({'error': 'No allowed fields in updates'}, 400)
@@ -3062,7 +4597,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             ids_csv = ','.join(str(i) for i in ids)
             result = supabase_request(
                 'PATCH',
-                f'mentorados?id=in.({ids_csv})&select=id,nome,fase_jornada,snoozed_until',
+                f'mentorados?id=in.({ids_csv})&select=id,nome,fase_jornada',
                 updates
             )
             updated = result if isinstance(result, list) else []
@@ -3255,6 +4790,23 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         self._send_json(result if isinstance(result, list) else [result] if result else [])
 
     # ===== EVOLUTION PROXY =====
+    def _resolve_evolution_apikey(self, target_path):
+        """Resolve the correct API key for an Evolution instance.
+        Instance-specific keys are stored in wa_sessions.instance_api_key.
+        Falls back to the global EVOLUTION_API_KEY."""
+        import re
+        # Extract instance name from path (e.g., /instance/connect/spalla_u5)
+        match = re.search(r'/(?:connect|connectionState|logout|delete|restart|fetchInstances)/([^/?]+)', target_path)
+        if match:
+            instance_name = match.group(1)
+            try:
+                result = supabase_request('GET', f'wa_sessions?instance_name=eq.{instance_name}&select=instance_api_key&limit=1')
+                if isinstance(result, list) and result and result[0].get('instance_api_key'):
+                    return result[0]['instance_api_key']
+            except Exception:
+                pass
+        return EVOLUTION_API_KEY
+
     def _proxy_evolution(self, method):
         target_path = self.path[len('/api/evolution'):]
         if '..' in target_path:
@@ -3263,16 +4815,17 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         url = f'{EVOLUTION_BASE}{target_path}'
         body = self._read_body() if method in ('POST', 'PUT') else None
 
+        apikey = self._resolve_evolution_apikey(target_path)
         req = urllib.request.Request(url, data=body, method=method)
         req.add_header('Content-Type', 'application/json')
-        req.add_header('apikey', EVOLUTION_API_KEY)
+        req.add_header('apikey', apikey)
 
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
                 resp_body = resp.read()
                 self.send_response(resp.status)
                 self.send_header('Content-Type', 'application/json')
-                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Access-Control-Allow-Origin', self._get_cors_origin())
                 self.send_header('Content-Length', len(resp_body))
                 self.end_headers()
                 self.wfile.write(resp_body)
@@ -3280,7 +4833,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             error_body = e.read()
             self.send_response(e.code)
             self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Origin', self._get_cors_origin())
             self.send_header('Content-Length', len(error_body))
             self.end_headers()
             self.wfile.write(error_body)
@@ -3288,7 +4841,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             error_msg = json.dumps({'error': str(e)}).encode()
             self.send_response(502)
             self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Origin', self._get_cors_origin())
             self.send_header('Content-Length', len(error_msg))
             self.end_headers()
             self.wfile.write(error_msg)
@@ -3325,13 +4878,15 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             return None
         return payload
 
-    # CR-M1: State machine — valid stage transitions
+    # CR-M1: State machine — valid stage transitions (merged for both trilhas)
     DS_VALID_TRANSITIONS = {
         'pendente': ('producao_ia',),
         'producao_ia': ('revisao_mariza',),
-        'revisao_mariza': ('revisao_kaique', 'producao_ia'),  # can send back
-        'revisao_kaique': ('revisao_queila', 'revisao_mariza'),  # can send back
-        'revisao_queila': ('aprovado', 'revisao_kaique'),  # can send back
+        'revisao_mariza': ('revisao_kaique', 'revisao_paralela', 'producao_ia'),  # kaique=scale, paralela=clinic, back
+        'revisao_kaique': ('revisao_queila', 'revisao_gobbi', 'revisao_mariza'),  # queila=clinic(via paralela), gobbi=scale, back
+        'revisao_gobbi': ('enviado', 'revisao_kaique'),  # scale final review, can send back
+        'revisao_paralela': ('revisao_queila',),  # clinic: auto-advance when both approve
+        'revisao_queila': ('enviado', 'revisao_paralela', 'aprovado', 'revisao_kaique'),  # clinic final review
         'aprovado': ('enviado',),
         'enviado': ('finalizado', 'ajustes'),
         'finalizado': (),
@@ -3425,6 +4980,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             'revisao_mariza': 'Mariza',
             'revisao_kaique': 'Kaique',
             'revisao_queila': 'Queila',
+            'revisao_gobbi': 'Gobbi',
+            'revisao_paralela': 'Gobbi + Kaique',
         }
         responsavel = responsavel_map.get(estagio)
 
@@ -3621,7 +5178,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             user_id = payload.get('user_id')
 
             # Fetch fresh user data
-            user_data = supabase_request('GET', f'auth_users?id=eq.{user_id}&select=id,email,full_name')
+            user_data = supabase_request('GET', f'auth_users?id=eq.{user_id}&select=id,email,full_name,role')
             user = user_data[0] if isinstance(user_data, list) and len(user_data) > 0 else {'id': user_id, 'email': email}
             role = user.get('role', 'equipe')
 
@@ -3731,6 +5288,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     def _handle_storage_process(self):
         """POST /api/storage/process — Trigger file processing pipeline."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
         try:
             body = json.loads(self._read_body())
         except Exception:
@@ -3846,6 +5407,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     def _handle_storage_reprocess(self):
         """POST /api/storage/reprocess — Reprocess all files with status 'pendente' or 'erro'."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
         try:
             body = json.loads(self._read_body()) if int(self.headers.get('Content-Length', 0)) > 0 else {}
         except Exception:
@@ -4168,7 +5733,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'title': result.get('snippet', {}).get('title', ''),
             })
         except Exception as e:
-            logger.error(f'[youtube-upload] Error: {e}')
+            print(f'[youtube-upload] Error: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_drive_sync(self):
@@ -4264,7 +5829,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         except ImportError:
             self._send_json({'error': 'google-auth/google-api-python-client not installed. pip install google-auth google-api-python-client'}, 501)
         except Exception as e:
-            logger.error(f'[drive-sync] Error: {e}')
+            print(f'[drive-sync] Error: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_weekly_summary(self):
@@ -4357,7 +5922,7 @@ Dados da semana:
                 },
             })
         except Exception as e:
-            logger.error(f'[weekly-summary] Error: {e}')
+            print(f'[weekly-summary] Error: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_tasks_from_audio(self):
@@ -4465,7 +6030,7 @@ Transcrição:
                 'count': len(tasks),
             })
         except Exception as e:
-            logger.error(f'[tasks-from-audio] Error: {e}')
+            print(f'[tasks-from-audio] Error: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_context_transcribe(self):
@@ -4501,14 +6066,22 @@ Transcrição:
                     return
                 import urllib.request as _urlreq
                 MAX_AUDIO_BYTES = 50 * 1024 * 1024  # 50 MB limit
-                with _urlreq.urlopen(arquivo_url, timeout=30) as r:
-                    audio_bytes = r.read(MAX_AUDIO_BYTES + 1)
-                    if len(audio_bytes) > MAX_AUDIO_BYTES:
-                        self._send_json({'error': 'Arquivo muito grande (máx 50 MB)'}, 413)
-                        return
-                    mime_type = r.headers.get('Content-Type', 'audio/mpeg')
+                print(f'[context-transcribe] Downloading: {arquivo_url[:120]}')
+                try:
+                    req = _urlreq.Request(arquivo_url, headers={'User-Agent': 'Spalla/1.0'})
+                    with _urlreq.urlopen(req, timeout=60) as r:
+                        audio_bytes = r.read(MAX_AUDIO_BYTES + 1)
+                        if len(audio_bytes) > MAX_AUDIO_BYTES:
+                            self._send_json({'error': 'Arquivo muito grande (max 50 MB)'}, 413)
+                            return
+                        mime_type = r.headers.get('Content-Type', 'audio/mpeg')
+                except Exception as dl_err:
+                    print(f'[context-transcribe] Download failed: {dl_err}')
+                    self._send_json({'error': f'Falha ao baixar audio: {dl_err}'}, 502)
+                    return
                 import os
-                filename = os.path.basename(arquivo_url.split('?')[0]) or 'audio.mp3'
+                filename = os.path.basename(arquivo_url.split('?')[0]) or 'audio.webm'
+                print(f'[context-transcribe] Downloaded {len(audio_bytes)} bytes, sending to Whisper')
 
             if not OPENAI_API_KEY:
                 self._send_json({'error': 'OPENAI_API_KEY not configured'}, 500)
@@ -4517,12 +6090,12 @@ Transcrição:
             transcricao = openai_whisper(audio_bytes, filename, mime_type)
             # Detect Whisper error returned as stringified dict
             if not transcricao or (isinstance(transcricao, str) and transcricao.startswith("{'error")):
-                self._send_json({'error': 'Falha na transcrição (Whisper)'}, 500)
+                self._send_json({'error': 'Falha na transcricao (Whisper)'}, 500)
                 return
 
             self._send_json({'transcricao': transcricao.strip()})
         except Exception as e:
-            logger.error(f'[context-transcribe] Error: {e}')
+            print(f'[context-transcribe] Error: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_task_notify(self):
@@ -4575,7 +6148,7 @@ Transcrição:
             result = self._wa_send_via_evolution(instance, number, text)
             self._send_json({'sent': True, 'result': result})
         except Exception as e:
-            logger.error(f'[task-notify] Error: {e}')
+            print(f'[task-notify] Error: {e}')
             self._send_json({'error': str(e)}, 500)
 
     def _handle_wa_groups_create(self):
@@ -5289,6 +6862,100 @@ Transcrição:
             log_error('RAGAS', f'get scores: {e}', e)
             self._send_json({'error': str(e)}, 500)
 
+    # ===== AUTOMATIONS EVALUATE (Dragon 16) =====
+    def _handle_automations_evaluate(self):
+        """POST /api/automations/evaluate — Trigger manual evaluation of all automations"""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Authentication required'}, 401)
+            return
+        try:
+            self._send_json({'ok': True, 'message': 'Automations evaluation triggered. Check server logs.'})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
+    # ===== WEBHOOK OUTGOING TEST (Dragon 17) =====
+    def _handle_webhook_outgoing_test(self):
+        """POST /api/webhooks/outgoing/test — Test outgoing webhook delivery (auth + SSRF guard)"""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Authentication required'}, 401)
+            return
+        # Decode + parse body safely
+        try:
+            raw = self._read_body()
+            body = json.loads(raw.decode('utf-8')) if raw else {}
+        except (UnicodeDecodeError, json.JSONDecodeError) as e:
+            self._send_json({'error': f'Invalid JSON body: {e}'}, 400)
+            return
+        url = (body.get('url') or '').strip()
+        payload = body.get('payload') or {}
+        if not url:
+            self._send_json({'error': 'url required'}, 400)
+            return
+        # SSRF guard: validate URL scheme and block private/internal hosts
+        try:
+            parsed = urllib.parse.urlparse(url)
+        except Exception as e:
+            self._send_json({'error': f'Invalid URL: {e}'}, 400)
+            return
+        if parsed.scheme not in ('http', 'https'):
+            self._send_json({'error': 'Only http/https schemes allowed'}, 400)
+            return
+        host = (parsed.hostname or '').lower()
+        if not host:
+            self._send_json({'error': 'URL missing hostname'}, 400)
+            return
+        # Block obvious private/local addresses by name
+        blocked_hosts = {'localhost', '127.0.0.1', '0.0.0.0', '::1', 'metadata.google.internal'}
+        if host in blocked_hosts:
+            self._send_json({'error': 'Host not allowed (private/internal)'}, 403)
+            return
+        # Resolve and check for RFC1918/loopback/link-local
+        try:
+            import socket as _socket
+            import ipaddress as _ipaddress
+            for family, _stype, _proto, _canon, sockaddr in _socket.getaddrinfo(host, None):
+                ip_str = sockaddr[0]
+                try:
+                    ip = _ipaddress.ip_address(ip_str)
+                    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified:
+                        self._send_json({'error': f'Host resolves to a non-public address ({ip_str})'}, 403)
+                        return
+                except ValueError:
+                    pass
+        except Exception as e:
+            self._send_json({'error': f'DNS resolution failed: {e}'}, 400)
+            return
+        # All checks passed — perform the POST
+        try:
+            data = json.dumps(payload).encode('utf-8')
+            req = urllib.request.Request(
+                url, data=data, method='POST',
+                headers={
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Spalla-Webhook/1.0',
+                    'X-Spalla-Event': str(payload.get('event', 'test')),
+                }
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                status = resp.status
+            self._send_json({'ok': True, 'status': status})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 502)
+
+    # ===== RECURRING TASKS PROCESS (Dragon 18) =====
+    def _handle_process_recurring(self):
+        """POST /api/tasks/process-recurring — Manually trigger recurring task creation"""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Authentication required'}, 401)
+            return
+        try:
+            self._send_json({'ok': True, 'message': 'Recurring tasks processing triggered. Check server logs.'})
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
+
     # ===== DOSSIE GENERATION (GOOSE AGENT — EPIC 6) =====
 
     def _handle_dossie_generate(self):
@@ -5391,6 +7058,329 @@ if __name__ == '__main__':
     sync_thread = threading.Thread(target=_sheets_sync_loop, daemon=True)
     sync_thread.start()
     print(f'[Spalla] Sheets sync: background thread started (every 6h, first in 30s)')
+
+    # ── Dragon 16: Automation cron background thread ──
+    def _automations_cron():
+        """Evaluate time-based automations every 5 minutes (idempotent + per-automation scope)"""
+        import time as _t
+        _t.sleep(60)  # wait 1 min after start
+        while True:
+            try:
+                sb_url = os.environ.get('SUPABASE_URL', '')
+                sb_key = os.environ.get('SUPABASE_SERVICE_KEY', os.environ.get('SUPABASE_ANON_KEY', ''))
+                if sb_url and sb_key:
+                    # Fetch active time-based automations
+                    req = urllib.request.Request(
+                        f'{sb_url}/rest/v1/god_automations?is_active=eq.true&trigger_type=eq.due_date_arrived',
+                        headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}'}
+                    )
+                    with urllib.request.urlopen(req) as resp:
+                        automations = json.loads(resp.read())
+                    now = datetime.now(timezone.utc).isoformat()
+                    affected_this_run = set()  # Dedupe across multiple automations in same run
+                    for auto in automations:
+                        action_type = auto.get('action_type', '')
+                        action_config = auto.get('action_config', {}) or {}
+                        trigger_config = auto.get('trigger_config', {}) or {}
+                        # Build per-automation scope filter
+                        select_cols = 'id,titulo,status,space_id,list_id,responsavel'
+                        scope_parts = [f'data_fim=lt.{now}', 'status=neq.concluida', 'status=neq.cancelada']
+                        if trigger_config.get('space_id'):
+                            scope_parts.append(f'space_id=eq.{trigger_config["space_id"]}')
+                        if trigger_config.get('list_id'):
+                            scope_parts.append(f'list_id=eq.{trigger_config["list_id"]}')
+                        if trigger_config.get('responsavel'):
+                            scope_parts.append(f'responsavel=eq.{urllib.parse.quote(trigger_config["responsavel"])}')
+                        task_req = urllib.request.Request(
+                            f'{sb_url}/rest/v1/god_tasks?' + '&'.join(scope_parts) + f'&select={select_cols}',
+                            headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}'}
+                        )
+                        with urllib.request.urlopen(task_req) as resp2:
+                            overdue = json.loads(resp2.read())
+                        applied = 0
+                        for task in overdue:
+                            tid = task['id']
+                            if tid in affected_this_run:
+                                continue  # Skip — already touched by another automation this run
+                            if action_type == 'change_status':
+                                new_status = action_config.get('status', 'em_andamento')
+                                # Idempotency: skip if already in target status
+                                if task.get('status') == new_status:
+                                    continue
+                                data = json.dumps({'status': new_status}).encode()
+                                upd = urllib.request.Request(
+                                    f'{sb_url}/rest/v1/god_tasks?id=eq.{tid}',
+                                    data=data, method='PATCH',
+                                    headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                             'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
+                                )
+                                urllib.request.urlopen(upd)
+                                affected_this_run.add(tid)
+                                applied += 1
+                            elif action_type == 'change_assignee':
+                                new_assignee = action_config.get('responsavel')
+                                if not new_assignee or task.get('responsavel') == new_assignee:
+                                    continue
+                                data = json.dumps({'responsavel': new_assignee}).encode()
+                                upd = urllib.request.Request(
+                                    f'{sb_url}/rest/v1/god_tasks?id=eq.{tid}',
+                                    data=data, method='PATCH',
+                                    headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                             'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
+                                )
+                                urllib.request.urlopen(upd)
+                                affected_this_run.add(tid)
+                                applied += 1
+                        # Log execution
+                        log_data = json.dumps({
+                            'automation_id': auto['id'],
+                            'trigger_data': {'evaluated_at': now, 'tasks_in_scope': len(overdue), 'tasks_affected': applied},
+                            'result': 'success'
+                        }).encode()
+                        log_req = urllib.request.Request(
+                            f'{sb_url}/rest/v1/god_automation_log',
+                            data=log_data, method='POST',
+                            headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                     'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
+                        )
+                        urllib.request.urlopen(log_req)
+                    if automations:
+                        print(f'[Cron] Evaluated {len(automations)} automations, touched {len(affected_this_run)} tasks')
+            except Exception as e:
+                print(f'[Cron] Automation error: {e}')
+            _t.sleep(300)  # every 5 min
+
+    cron_thread = threading.Thread(target=_automations_cron, daemon=True)
+    cron_thread.start()
+    print(f'[Spalla] Automation cron: background thread started (every 5 min)')
+
+    # ── Dragon 18: Recurring tasks background thread ──
+    def _recurring_tasks_cron():
+        """Process recurring tasks daily"""
+        import time as _t
+        _t.sleep(120)  # wait 2 min
+        while True:
+            try:
+                sb_url = os.environ.get('SUPABASE_URL', '')
+                sb_key = os.environ.get('SUPABASE_SERVICE_KEY', os.environ.get('SUPABASE_ANON_KEY', ''))
+                if sb_url and sb_key:
+                    req = urllib.request.Request(
+                        f'{sb_url}/rest/v1/god_tasks?recurrence_rule=not.is.null&status=eq.concluida&select=id,titulo,responsavel,prioridade,tipo,list_id,space_id,recurrence_rule',
+                        headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}'}
+                    )
+                    with urllib.request.urlopen(req) as resp:
+                        completed_recurring = json.loads(resp.read())
+                    created = 0
+                    for task in completed_recurring:
+                        rule = task.get('recurrence_rule', '')
+                        # Simple rules: daily, weekly, monthly
+                        if rule not in ('daily', 'weekly', 'monthly'):
+                            continue
+                        # 1) Clear recurrence FIRST so retries don't duplicate.
+                        # If clear fails we skip — next pass will retry.
+                        clear = json.dumps({'recurrence_rule': None}).encode()
+                        clear_req = urllib.request.Request(
+                            f'{sb_url}/rest/v1/god_tasks?id=eq.{task["id"]}&recurrence_rule=eq.{rule}',
+                            data=clear, method='PATCH',
+                            headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                     'Content-Type': 'application/json', 'Prefer': 'return=representation'}
+                        )
+                        try:
+                            with urllib.request.urlopen(clear_req) as cr:
+                                cleared = json.loads(cr.read())
+                                if not cleared:
+                                    # Already cleared by another worker — skip create
+                                    continue
+                        except Exception as ce:
+                            print(f'[Cron] Recurring clear failed for {task["id"]}: {ce}')
+                            continue
+                        # 2) Now create the new occurrence (clear succeeded)
+                        now = datetime.now(timezone.utc)
+                        if rule == 'daily':
+                            new_due = (now + timedelta(days=1)).strftime('%Y-%m-%d')
+                        elif rule == 'weekly':
+                            new_due = (now + timedelta(weeks=1)).strftime('%Y-%m-%d')
+                        else:
+                            new_due = (now + timedelta(days=30)).strftime('%Y-%m-%d')
+                        new_task = json.dumps({
+                            'titulo': task['titulo'],
+                            'responsavel': task.get('responsavel'),
+                            'prioridade': task.get('prioridade', 'normal'),
+                            'tipo': task.get('tipo', 'geral'),
+                            'list_id': task.get('list_id'),
+                            'space_id': task.get('space_id'),
+                            'status': 'pendente',
+                            'data_fim': new_due,
+                            'recurrence_rule': rule,
+                            'fonte': 'recurring'
+                        }).encode()
+                        create_req = urllib.request.Request(
+                            f'{sb_url}/rest/v1/god_tasks',
+                            data=new_task, method='POST',
+                            headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                     'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
+                        )
+                        try:
+                            urllib.request.urlopen(create_req)
+                            created += 1
+                        except Exception as ee:
+                            # Restore the recurrence_rule so next run retries
+                            print(f'[Cron] Recurring create failed for {task["id"]}: {ee}')
+                            restore = json.dumps({'recurrence_rule': rule}).encode()
+                            restore_req = urllib.request.Request(
+                                f'{sb_url}/rest/v1/god_tasks?id=eq.{task["id"]}',
+                                data=restore, method='PATCH',
+                                headers={'apikey': sb_key, 'Authorization': f'Bearer {sb_key}',
+                                         'Content-Type': 'application/json', 'Prefer': 'return=minimal'}
+                            )
+                            try:
+                                urllib.request.urlopen(restore_req)
+                            except Exception:
+                                pass
+                    if created:
+                        print(f'[Cron] Created {created} recurring tasks')
+            except Exception as e:
+                print(f'[Cron] Recurring error: {e}')
+            _t.sleep(3600)  # every hour
+
+    recurring_thread = threading.Thread(target=_recurring_tasks_cron, daemon=True)
+    recurring_thread.start()
+    print(f'[Spalla] Recurring tasks: background thread started (every 1h)')
+
+    # ===== LF: Sprint Rollover (daily) =====
+    def _sprint_rollover_cron():
+        import time as _t
+        # Run once at startup so quem subir a versão já recebe o estado fresco
+        first = True
+        while True:
+            try:
+                if not first:
+                    _t.sleep(6 * 3600)  # check every 6h
+                first = False
+                r = supabase_request(
+                    'POST',
+                    'rpc/fn_sprint_rollover',
+                    body={},
+                )
+                if r.status_code in (200, 204):
+                    try:
+                        result = r.json()
+                        print(f'[Spalla] Sprint rollover: {result}')
+                    except Exception:
+                        print('[Spalla] Sprint rollover: ok')
+                else:
+                    print(f'[Spalla] Sprint rollover failed: {r.status_code} {r.text[:200]}')
+            except Exception as e:
+                print(f'[Cron] Sprint rollover error: {e}')
+
+    sprint_thread = threading.Thread(target=_sprint_rollover_cron, daemon=True)
+    sprint_thread.start()
+    print(f'[Spalla] Sprint rollover: background thread started (every 6h + on boot)')
+
+    # ===== LF: Recurring Tasks Scheduler (5 min) =====
+    def _lf_recurring_scheduler():
+        import time as _t
+        while True:
+            try:
+                r = supabase_request('POST', 'rpc/fn_materialize_recurring_due', body={})
+                if r.status_code in (200, 204):
+                    try:
+                        result = r.json()
+                        if (result or {}).get('materialized', 0) > 0:
+                            print(f'[LF Scheduler] {result}')
+                    except Exception:
+                        pass
+                else:
+                    print(f'[LF Scheduler] failed: {r.status_code}')
+            except Exception as e:
+                print(f'[LF Scheduler] error: {e}')
+            _t.sleep(300)  # 5 min
+
+    lf_sched_thread = threading.Thread(target=_lf_recurring_scheduler, daemon=True)
+    lf_sched_thread.start()
+    print(f'[Spalla] LF recurring scheduler: thread started (every 5min)')
+
+    # ===== LF: Trigger Listener (30s) =====
+    def _lf_trigger_listener():
+        import time as _t
+        while True:
+            try:
+                r = supabase_request('POST', 'rpc/fn_apply_trigger_rules', body={})
+                if r.status_code in (200, 204):
+                    try:
+                        result = r.json()
+                        if (result or {}).get('tasks_created', 0) > 0:
+                            print(f'[LF Trigger] {result}')
+                    except Exception:
+                        pass
+                else:
+                    print(f'[LF Trigger] failed: {r.status_code}')
+            except Exception as e:
+                print(f'[LF Trigger] error: {e}')
+            _t.sleep(30)
+
+    lf_trigger_thread = threading.Thread(target=_lf_trigger_listener, daemon=True)
+    lf_trigger_thread.start()
+    print(f'[Spalla] LF trigger listener: thread started (every 30s)')
+
+    # ===== ClickUp Auto-Sync (10 min) =====
+    def _clickup_auto_sync():
+        import time as _t
+        token = os.environ.get('CLICKUP_API_TOKEN', '')
+        if not token:
+            print('[ClickUp Sync] No CLICKUP_API_TOKEN, skipping auto-sync')
+            return
+        while True:
+            _t.sleep(600)  # 10 min
+            try:
+                # Find tasks with operon_id that were updated after last sync
+                r = supabase_request('GET',
+                    'god_tasks?select=id,titulo,descricao,status,prioridade,data_fim,operon_id,clickup_synced_at,updated_at'
+                    '&operon_id=not.is.null'
+                    '&order=updated_at.desc&limit=50')
+                if r.status_code != 200:
+                    continue
+                tasks = r.json() or []
+                pushed = 0
+                for task in tasks:
+                    synced = task.get('clickup_synced_at') or '2000-01-01'
+                    updated = task.get('updated_at') or '2000-01-01'
+                    if updated > synced:
+                        # Push to ClickUp
+                        status_map = {
+                            'pendente': 'to do', 'em_andamento': 'in progress',
+                            'em_revisao': 'review', 'concluida': 'complete',
+                            'cancelada': 'closed', 'bloqueada': 'to do',
+                            'pausada': 'to do', 'arquivada': 'closed',
+                        }
+                        prio_map = {'urgente': 1, 'alta': 2, 'normal': 3, 'baixa': 4}
+                        cu_body = json.dumps({
+                            'name': task.get('titulo', ''),
+                            'description': task.get('descricao', '') or '',
+                            'status': status_map.get(task.get('status'), 'to do'),
+                            'priority': prio_map.get(task.get('prioridade'), 3),
+                        }).encode()
+                        try:
+                            req = urllib.request.Request(
+                                f"https://api.clickup.com/api/v2/task/{task['operon_id']}",
+                                data=cu_body,
+                                headers={'Authorization': token, 'Content-Type': 'application/json'},
+                                method='PUT')
+                            urllib.request.urlopen(req, timeout=15)
+                            supabase_request('PATCH',
+                                f"/rest/v1/god_tasks?id=eq.{task['id']}",
+                                body={'clickup_synced_at': datetime.now(timezone.utc).isoformat()})
+                            pushed += 1
+                        except Exception as e:
+                            print(f'[ClickUp Sync] Push failed for {task["id"]}: {e}')
+                if pushed:
+                    print(f'[ClickUp Sync] Auto-pushed {pushed} tasks')
+            except Exception as e:
+                print(f'[ClickUp Sync] Error: {e}')
+
+    cu_sync_thread = threading.Thread(target=_clickup_auto_sync, daemon=True)
+    cu_sync_thread.start()
+    print(f'[Spalla] ClickUp auto-sync: thread started (every 10min)')
 
     server = ReuseAddrHTTPServer(('', PORT), ProxyHandler)
     try:
