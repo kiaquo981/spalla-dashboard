@@ -13006,6 +13006,15 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       'institutoyaragomes': 'dra.yaragomes.jpg',
       'dra.yaragomes': 'dra.yaragomes.jpg',
       'yara gomes': 'dra.yaragomes.jpg',
+      'neonato_edu': 'neonato_edu.jpg',
+      'neonatoedu': 'neonato_edu.jpg',
+      'neonato - ana paula e jordana': 'neonato_edu.jpg',
+      'ana paula e jordana': 'neonato_edu.jpg',
+      'kava_arq': 'kava_arq.jpg',
+      'kavaarq': 'kava_arq.jpg',
+      'paula groisman e anna plachta': 'kava_arq.jpg',
+      'paula groisman': 'kava_arq.jpg',
+      'anna plachta': 'kava_arq.jpg',
     },
 
     igPhoto(handleOrName) {
