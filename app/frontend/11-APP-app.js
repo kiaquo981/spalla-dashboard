@@ -12993,6 +12993,19 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       'leandro velasco': 'dr.leandrovelasco.jpg',
       'juliana.takasu': 'juliana.takasu.jpg',
       'juliana takasu': 'juliana.takasu.jpg',
+      // Mentorados cujo IG no DB não bate com o nome do arquivo local
+      'jessicacrespi.pro': 'dra.jessicacrespi.jpg',
+      'jessicacrespipro': 'dra.jessicacrespi.jpg',
+      'mentoriamedicine': 'dratayslarabelarmino.jpg',
+      'dratayslarabelarmino': 'dratayslarabelarmino.jpg',
+      'tayslara belarmino': 'dratayslarabelarmino.jpg',
+      'metodoaurabusiness': 'thiellyprado.jpg',
+      'thiellyprado': 'thiellyprado.jpg',
+      'thielly prado': 'thiellyprado.jpg',
+      'instituto.yaragomes': 'dra.yaragomes.jpg',
+      'institutoyaragomes': 'dra.yaragomes.jpg',
+      'dra.yaragomes': 'dra.yaragomes.jpg',
+      'yara gomes': 'dra.yaragomes.jpg',
     },
 
     igPhoto(handleOrName) {
