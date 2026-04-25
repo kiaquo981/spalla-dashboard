@@ -4,6 +4,8 @@
   "framework": null,
   "rewrites": [
     { "source": "/ref", "destination": "/ref/index.html" },
+    { "source": "/ref/", "destination": "/ref/index.html" },
+    { "source": "/ref/:path*", "destination": "/ref/:path*" },
     { "source": "/(.*)", "destination": "/10-APP-index.html" }
   ],
   "headers": [
