@@ -3,6 +3,7 @@
   "outputDirectory": ".",
   "framework": null,
   "rewrites": [
+    { "source": "/ref", "destination": "/ref/index.html" },
     { "source": "/(.*)", "destination": "/10-APP-index.html" }
   ],
   "headers": [
