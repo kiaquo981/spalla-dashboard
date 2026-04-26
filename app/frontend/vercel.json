@@ -2,52 +2,49 @@
   "buildCommand": null,
   "outputDirectory": ".",
   "framework": null,
-  "rewrites": [
+  "routes": [
     {
-      "source": "/ref",
-      "destination": "/ref/index.html"
+      "src": "^/ref$",
+      "dest": "/ref/index.html"
     },
     {
-      "source": "/((?!ref/|ref$).*)",
-      "destination": "/10-APP-index.html"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/(.*).html",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache, no-store, must-revalidate"
-        }
-      ]
+      "src": "^/ref/$",
+      "dest": "/ref/index.html"
     },
     {
-      "source": "/(.*).js",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache, no-store, must-revalidate"
-        }
-      ]
+      "src": "^/(.*)\\.html$",
+      "headers": {
+        "cache-control": "no-cache, no-store, must-revalidate"
+      },
+      "continue": true
     },
     {
-      "source": "/(.*).css",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache, no-store, must-revalidate"
-        }
-      ]
+      "src": "^/(.*)\\.js$",
+      "headers": {
+        "cache-control": "no-cache, no-store, must-revalidate"
+      },
+      "continue": true
     },
     {
-      "source": "/photos/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=86400"
-        }
-      ]
+      "src": "^/(.*)\\.css$",
+      "headers": {
+        "cache-control": "no-cache, no-store, must-revalidate"
+      },
+      "continue": true
+    },
+    {
+      "src": "^/photos/(.*)$",
+      "headers": {
+        "cache-control": "public, max-age=86400"
+      },
+      "continue": true
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/.*",
+      "dest": "/10-APP-index.html"
     }
   ]
 }
