@@ -2,49 +2,80 @@
   "buildCommand": null,
   "outputDirectory": ".",
   "framework": null,
-  "routes": [
+  "rewrites": [
     {
-      "src": "^/ref$",
-      "dest": "/ref/index.html"
+      "source": "/ref",
+      "destination": "/ref/index.html"
     },
     {
-      "src": "^/ref/$",
-      "dest": "/ref/index.html"
+      "source": "/ref/",
+      "destination": "/ref/index.html"
     },
     {
-      "src": "^/(.*)\\.html$",
-      "headers": {
-        "cache-control": "no-cache, no-store, must-revalidate"
-      },
-      "continue": true
+      "source": "/ref/index.html",
+      "destination": "/ref/index.html"
     },
     {
-      "src": "^/(.*)\\.js$",
-      "headers": {
-        "cache-control": "no-cache, no-store, must-revalidate"
-      },
-      "continue": true
+      "source": "/ref/trilhas.html",
+      "destination": "/ref/trilhas.html"
     },
     {
-      "src": "^/(.*)\\.css$",
-      "headers": {
-        "cache-control": "no-cache, no-store, must-revalidate"
-      },
-      "continue": true
+      "source": "/ref/postos.html",
+      "destination": "/ref/postos.html"
     },
     {
-      "src": "^/photos/(.*)$",
-      "headers": {
-        "cache-control": "public, max-age=86400"
-      },
-      "continue": true
+      "source": "/ref/live.html",
+      "destination": "/ref/live.html"
     },
     {
-      "handle": "filesystem"
+      "source": "/ref/n8n-flow.json",
+      "destination": "/ref/n8n-flow.json"
     },
     {
-      "src": "/.*",
-      "dest": "/10-APP-index.html"
+      "source": "/ref/thumbs/:filename",
+      "destination": "/ref/thumbs/:filename"
+    },
+    {
+      "source": "/((?!ref/|ref$).*)",
+      "destination": "/10-APP-index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*).html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/(.*).js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/(.*).css",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/photos/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        }
+      ]
     }
   ]
 }
