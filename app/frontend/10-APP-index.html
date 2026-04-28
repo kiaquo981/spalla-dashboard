@@ -6495,7 +6495,7 @@
               <h2 style="margin:0">Agenda de Calls</h2>
               <p style="margin:4px 0 0;font-size:13px;color:var(--neutral-400)">Historico e agendamento de reunioes com mentorados</p>
             </div>
-            <button class="btn btn--brand" @click="scheduleForm = { mentorado: '', mentorado_id: '', tipo: 'acompanhamento', data: '', horario: '10:00', duracao: 60, email: '', notas: '' }; ui.scheduleModal = true">
+            <button class="btn btn--brand" @click="scheduleForm = { mentorado: '', mentorado_id: '', tipo: 'acompanhamento', data: '', horario: '10:00', duracao: 60, email: '', convidados_extras: '', notas: '' }; ui.scheduleModal = true">
               <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Agendar Call
             </button>
@@ -6757,6 +6757,9 @@
 
                 <label>Email do mentorado</label>
                 <input type="email" x-model="scheduleForm.email" placeholder="Preenchido automaticamente ao selecionar mentorado" class="modal__input">
+
+                <label>Convidados extras (opcional)</label>
+                <textarea x-model="scheduleForm.convidados_extras" placeholder="Emails separados por virgula, espaco ou linha. Ex: heitor@allindigitalmarketing.com.br, lara@..." class="modal__textarea" rows="2"></textarea>
 
                 <label>Notas / Pauta (opcional)</label>
                 <textarea x-model="scheduleForm.notas" placeholder="Pauta da call, topicos a discutir..." class="modal__textarea" rows="3"></textarea>

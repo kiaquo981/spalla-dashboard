@@ -698,7 +698,7 @@ function operon() {
     },
 
     // --- Schedule Form ---
-    scheduleForm: { mentorado: '', mentorado_id: '', tipo: 'acompanhamento', data: '', horario: '10:00', duracao: 60, email: '', notas: '' },
+    scheduleForm: { mentorado: '', mentorado_id: '', tipo: 'acompanhamento', data: '', horario: '10:00', duracao: 60, email: '', convidados_extras: '', notas: '' },
 
     // --- Arquivos (Storage + Semantic Search) ---
     arquivos: {
@@ -13370,6 +13370,15 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         let calendarUrl = null;
         let gcalEventId = null;
         try {
+          // Parse convidados extras: comma/space/newline separated emails
+          const extras = (f.convidados_extras || '')
+            .split(/[\s,;]+/)
+            .map(e => e.trim().toLowerCase())
+            .filter(e => e && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+          const zoomInvitees = [];
+          if (f.email) zoomInvitees.push(f.email);
+          for (const e of extras) if (!zoomInvitees.includes(e)) zoomInvitees.push(e);
+
           const zoomRes = await fetch(`${CONFIG.API_BASE}/api/zoom/create-meeting`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
@@ -13378,7 +13387,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
               start_time: `${f.data}T${f.horario}:00`,
               duration: parseInt(f.duracao) || 60,
               description: f.notas || '',
-              invitees: f.email ? [f.email] : [],
+              invitees: zoomInvitees,
             }),
           });
           const zoomData = await zoomRes.json();
@@ -13399,11 +13408,12 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           const endDt = new Date(new Date(`${startLocal}`).getTime() + durMinutes * 60000);
           const endLocal = `${endDt.getFullYear()}-${String(endDt.getMonth()+1).padStart(2,'0')}-${String(endDt.getDate()).padStart(2,'0')}T${String(endDt.getHours()).padStart(2,'0')}:${String(endDt.getMinutes()).padStart(2,'0')}:00`;
 
-          // Build attendees: mentorado + consultant (logged-in user)
+          // Build attendees: mentorado + convidados extras (do NOT auto-add logged-in user;
+          // the organizing account is adm@allindigitalmarketing.com.br via DWD impersonation,
+          // so logged-in user is not part of the meeting unless they add themselves to convidados_extras)
           const attendees = [];
-          if (f.email) attendees.push(f.email); // mentorado
-          const consultantEmail = this.auth.currentUser?.email;
-          if (consultantEmail && consultantEmail !== f.email) attendees.push(consultantEmail);
+          if (f.email) attendees.push(f.email);
+          for (const e of extras) if (!attendees.includes(e)) attendees.push(e);
 
           const calRes = await fetch(`${CONFIG.API_BASE}/api/calendar/create-event`, {
             method: 'POST',
@@ -13470,7 +13480,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         this.ui.scheduleModal = false;
         this.ui.gcalConflict = null;
         this.ui._conflictConfirmed = false;
-        this.scheduleForm = { mentorado: '', mentorado_id: '', tipo: 'acompanhamento', data: '', horario: '10:00', duracao: 60, email: '', notas: '' };
+        this.scheduleForm = { mentorado: '', mentorado_id: '', tipo: 'acompanhamento', data: '', horario: '10:00', duracao: 60, email: '', convidados_extras: '', notas: '' };
 
         // Send WhatsApp invite to mentorado
         if (menteeId && sb) {
