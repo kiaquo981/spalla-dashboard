@@ -49,6 +49,15 @@ ZOOM_CLIENT_SECRET = os.environ.get('ZOOM_CLIENT_SECRET', '')
 # Google Service Account
 GOOGLE_SA_PATH = os.environ.get('GOOGLE_SA_PATH', os.path.expanduser('~/.config/google/credentials.json'))
 
+# ClickUp (sync de calls com mentorados)
+CLICKUP_API_TOKEN = os.environ.get('CLICKUP_API_TOKEN', '')
+CLICKUP_MENTORADOS_FOLDER_ID = os.environ.get('CLICKUP_MENTORADOS_FOLDER_ID', '90117882229')
+CLICKUP_SYNC_TYPES = set(
+    t.strip() for t in os.environ.get(
+        'CLICKUP_SYNC_TYPES', 'onboarding,estrategia,apresentacao,oferta'
+    ).split(',') if t.strip()
+)
+
 # YouTube API
 YOUTUBE_API_KEY = os.environ.get('YOUTUBE_API_KEY', '')
 
@@ -384,6 +393,155 @@ def create_zoom_meeting(topic, start_time, duration=60, invitees=None):
         return {'error': f'Zoom API error: {e.code}', 'detail': err}
     except Exception as e:
         return {'error': str(e)}
+
+
+# ===== CLICKUP (sync de calls com mentorados) =====
+_clickup_lists_cache = {'data': None, 'fetched_at': 0}
+
+
+def _normalize_mentee_name(s):
+    """Normaliza nome para fuzzy match: lowercase, sem acento, sem prefixos dr/dra,
+    sem espacos extras. Match por substring nos dois sentidos."""
+    if not s:
+        return ''
+    import unicodedata
+    s = unicodedata.normalize('NFKD', s).encode('ascii', 'ignore').decode('ascii').lower()
+    for prefix in ('dra ', 'dr ', 'prof ', 'profa '):
+        if s.startswith(prefix):
+            s = s[len(prefix):]
+    return ' '.join(s.split())
+
+
+def get_clickup_lists():
+    """Lista lists no folder Mentorados. Cache de 1h."""
+    if not CLICKUP_API_TOKEN:
+        return []
+    now = time.time()
+    if _clickup_lists_cache['data'] and (now - _clickup_lists_cache['fetched_at'] < 3600):
+        return _clickup_lists_cache['data']
+    try:
+        url = f'https://api.clickup.com/api/v2/folder/{CLICKUP_MENTORADOS_FOLDER_ID}/list'
+        req = urllib.request.Request(url, headers={'Authorization': CLICKUP_API_TOKEN})
+        data = json.loads(urllib.request.urlopen(req, timeout=10).read())
+        lists = [{'id': l['id'], 'name': l['name'], 'norm': _normalize_mentee_name(l['name'])}
+                 for l in data.get('lists', [])]
+        _clickup_lists_cache['data'] = lists
+        _clickup_lists_cache['fetched_at'] = now
+        print(f'[ClickUp] cached {len(lists)} mentorado lists')
+        return lists
+    except Exception as e:
+        print(f'[ClickUp] get_lists error: {e}')
+        return _clickup_lists_cache.get('data') or []
+
+
+def find_clickup_list_for_mentee(mentee_name):
+    """Match fuzzy: normaliza ambos nomes, retorna list_id se um for substring do outro."""
+    if not mentee_name:
+        return None
+    target = _normalize_mentee_name(mentee_name)
+    if not target:
+        return None
+    lists = get_clickup_lists()
+    # match exato primeiro
+    for l in lists:
+        if l['norm'] == target:
+            return l
+    # match por substring (mentee = "Sidney Kerr e Claudia" vs list "Sidney e Cláudia")
+    target_words = set(target.split())
+    best = None
+    best_score = 0
+    for l in lists:
+        list_words = set(l['norm'].split())
+        if not list_words:
+            continue
+        overlap = len(target_words & list_words)
+        if overlap >= 2 and overlap > best_score:
+            best_score = overlap
+            best = l
+    return best
+
+
+def create_clickup_milestone(mentee_name, tipo, data_call_iso, duracao_min, zoom_url='', gcal_event_id='', responsavel=''):
+    """Cria task no ClickUp na list do mentorado para uma call agendada.
+    Filtra por CLICKUP_SYNC_TYPES — tipos fora da whitelist sao ignorados.
+    Retorna {'task_id', 'task_url'} ou {'error', 'reason'}."""
+    if not CLICKUP_API_TOKEN:
+        return {'error': 'not_configured', 'reason': 'CLICKUP_API_TOKEN ausente'}
+
+    if tipo not in CLICKUP_SYNC_TYPES:
+        return {'skipped': True, 'reason': f'tipo {tipo} fora da whitelist {sorted(CLICKUP_SYNC_TYPES)}'}
+
+    lst = find_clickup_list_for_mentee(mentee_name)
+    if not lst:
+        return {'error': 'no_list_for_mentee',
+                'reason': f'sem list ClickUp para "{mentee_name}" no folder Mentorados'}
+
+    # parse data_call (ISO com offset) -> due_date em ms epoch
+    try:
+        from datetime import datetime as _dt
+        dt = _dt.fromisoformat(data_call_iso.replace('Z', '+00:00'))
+        due_ms = int(dt.timestamp() * 1000)
+    except Exception:
+        due_ms = None
+
+    tipo_label = {
+        'onboarding': 'Onboarding',
+        'estrategia': 'Estrategica c/ Queila',
+        'apresentacao': 'Apresentacao de dossie',
+        'oferta': 'Oferta',
+    }.get(tipo, tipo.title())
+
+    data_str = ''
+    if due_ms:
+        try:
+            from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+            data_str = _dt.fromtimestamp(due_ms / 1000, _tz(_td(hours=-3))).strftime('%d/%m %Hh%M')
+        except Exception:
+            pass
+
+    title = f'📅 Call {tipo_label}'
+    if data_str:
+        title += f' — {data_str}'
+
+    description_parts = [f'**Tipo:** {tipo_label}']
+    if data_str:
+        description_parts.append(f'**Data:** {data_str} BRT ({duracao_min}min)')
+    if responsavel:
+        description_parts.append(f'**Responsavel:** {responsavel}')
+    if zoom_url:
+        description_parts.append(f'**Zoom:** {zoom_url}')
+    if gcal_event_id:
+        description_parts.append(f'_gcal_event_id: {gcal_event_id}_')
+    description_parts.append('\n_Criado automaticamente pelo Spalla Dashboard ao agendar call._')
+
+    body = {
+        'name': title,
+        'description': '\n\n'.join(description_parts),
+        'status': 'to do',
+        'priority': 3,
+    }
+    if due_ms:
+        body['due_date'] = due_ms
+        body['due_date_time'] = True
+
+    try:
+        url = f"https://api.clickup.com/api/v2/list/{lst['id']}/task"
+        req = urllib.request.Request(
+            url, method='POST',
+            headers={'Authorization': CLICKUP_API_TOKEN, 'Content-Type': 'application/json'},
+            data=json.dumps(body).encode()
+        )
+        result = json.loads(urllib.request.urlopen(req, timeout=10).read())
+        return {
+            'task_id': result.get('id'),
+            'task_url': result.get('url'),
+            'list_id': lst['id'],
+            'list_name': lst['name'],
+        }
+    except urllib.error.HTTPError as e:
+        return {'error': f'clickup_api_{e.code}', 'reason': e.read().decode()[:300]}
+    except Exception as e:
+        return {'error': 'exception', 'reason': str(e)}
 
 
 # ===== GOOGLE CALENDAR =====
@@ -3419,6 +3577,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_create_zoom_meeting()
         elif self.path == '/api/calendar/create-event':
             self._handle_create_calendar_event()
+        elif self.path == '/api/clickup/create-milestone':
+            self._handle_create_clickup_milestone()
         elif self.path == '/api/sheets/sync':
             self._handle_sheets_sync()
         elif self.path == '/api/welcome-flow/register':
@@ -4141,6 +4301,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'qa': 'acompanhamento',
                 'onboarding': 'diagnostico',
                 'estrategia': 'planejamento',
+                'apresentacao': 'planejamento',
+                'oferta': 'fechamento',
             }
             call_data = {
                 'mentorado_id': int(mentorado_id),
@@ -4156,6 +4318,28 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             }
             supa_result = insert_scheduled_call(call_data)
             result['supabase'] = supa_result if not isinstance(supa_result, list) else {'inserted': True, 'id': supa_result[0].get('id') if supa_result else None}
+
+        # Step 4: ClickUp milestone (whitelist filtered — apenas onboarding/estrategia/apresentacao/oferta)
+        try:
+            cu_result = create_clickup_milestone(
+                mentee_name=mentorado_nome,
+                tipo=tipo,
+                data_call_iso=f'{data}T{horario}:00-03:00',
+                duracao_min=duracao,
+                zoom_url=zoom_url,
+                gcal_event_id=(gcal_result or {}).get('event_id', '') if isinstance(gcal_result, dict) else '',
+                responsavel='',
+            )
+            result['clickup'] = cu_result
+            if cu_result.get('task_id'):
+                print(f"[Schedule] ClickUp task criada: {cu_result['task_url']}")
+            elif cu_result.get('skipped'):
+                print(f"[Schedule] ClickUp skipped: {cu_result['reason']}")
+            else:
+                print(f"[Schedule] ClickUp falha: {cu_result}")
+        except Exception as e:
+            result['clickup'] = {'error': 'exception', 'reason': str(e)}
+            print(f'[Schedule] ClickUp exception: {e}')
 
         self._send_json(result)
         print(f'[Schedule] Call scheduled: {topic} on {data} {horario}')
@@ -4196,6 +4380,30 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json(result)
         except Exception as e:
             self._send_json({'error': str(e)}, 500)
+
+    def _handle_create_clickup_milestone(self):
+        """POST /api/clickup/create-milestone
+        Body: {mentee_name, tipo, data_call_iso, duracao_min, zoom_url, gcal_event_id, responsavel}
+        Filtra por CLICKUP_SYNC_TYPES (whitelist). Tipos fora do escopo => skipped (nao eh erro).
+        Mentee sem list ClickUp => error no_list_for_mentee (frontend mostra toast)."""
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'Auth required'}, 401)
+            return
+        try:
+            body = json.loads(self._read_body())
+            result = create_clickup_milestone(
+                mentee_name=body.get('mentee_name', ''),
+                tipo=body.get('tipo', ''),
+                data_call_iso=body.get('data_call_iso', ''),
+                duracao_min=int(body.get('duracao_min', 60)),
+                zoom_url=body.get('zoom_url', ''),
+                gcal_event_id=body.get('gcal_event_id', ''),
+                responsavel=body.get('responsavel', ''),
+            )
+            self._send_json(result)
+        except Exception as e:
+            self._send_json({'error': 'exception', 'reason': str(e)}, 500)
 
     # ===== MEDIA PRESIGN (S3) =====
     def _handle_media_presign(self):
