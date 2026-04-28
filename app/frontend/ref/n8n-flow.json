@@ -1,0 +1,309 @@
+{
+  "name": "Fila Referencias — Perfis + Publicacoes (Fixados + Destaques)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fila-referencias-novos",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [-2400, 0],
+      "id": "webhook-entrada",
+      "name": "Webhook Entrada",
+      "webhookId": "fila-referencias-novos"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {"conditions": {"options":{"caseSensitive":true,"leftValue":"","typeValidation":"strict"}, "conditions":[{"leftValue":"={{ $json.body.type }}", "rightValue":"perfil", "operator":{"type":"string","operation":"equals"}}], "combinator":"and"}, "renameOutput": true, "outputKey": "perfil"},
+            {"conditions": {"options":{"caseSensitive":true,"leftValue":"","typeValidation":"strict"}, "conditions":[{"leftValue":"={{ $json.body.type }}", "rightValue":"publicacao", "operator":{"type":"string","operation":"equals"}}], "combinator":"and"}, "renameOutput": true, "outputKey": "publicacao"}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [-2160, 0],
+      "id": "switch-tipo",
+      "name": "Tipo da Entrada"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Modo PERFIL — preparar payload pra dois actors\nconst body = $json.body;\nreturn [{ json: {\n  username: body.username,\n  trilha: body.trilha,\n  coletar_fixados: body.coletar?.posts_fixados !== false,\n  coletar_destaques: body.coletar?.destaques !== false,\n  transcrever: body.coletar?.transcrever !== false,\n  notas: body.notas || '',\n  origem: body.origem || 'manual_form',\n  created_at: body.created_at\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1920, -200],
+      "id": "prep-perfil",
+      "name": "Preparar Perfil"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items",
+        "sendQuery": true,
+        "queryParameters": {"parameters": [{"name": "token", "value": "={{ $env.APIFY_TOKEN }}"}]},
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Content-Type", "value": "application/json"}]},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"usernames\": [\"{{ $json.username }}\"],\n  \"resultsLimit\": 30\n}",
+        "options": {"response":{"response":{"neverError": true}}}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1680, -320],
+      "id": "apify-fixados",
+      "name": "Apify Profile Scraper (Fixados)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/igview-owner~instagram-highlights-scraper/run-sync-get-dataset-items",
+        "sendQuery": true,
+        "queryParameters": {"parameters": [{"name": "token", "value": "={{ $env.APIFY_TOKEN }}"}]},
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Content-Type", "value": "application/json"}]},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"usernames\": [\"{{ $('Preparar Perfil').item.json.username }}\"]\n}",
+        "options": {"response":{"response":{"neverError": true}}}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1680, -80],
+      "id": "apify-destaques",
+      "name": "Apify Highlights (Destaques)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mescla resultados dos dois actors em itens normalizados\nconst meta = $('Preparar Perfil').first().json;\nconst profileData = $('Apify Profile Scraper (Fixados)').first()?.json || [];\nconst highlightsData = $('Apify Highlights (Destaques)').first()?.json || [];\n\nconst items = [];\n\n// Posts fixados\nif (meta.coletar_fixados && Array.isArray(profileData) && profileData[0]) {\n  const profile = profileData[0];\n  const pinned = (profile.latestPosts || []).filter(p => p.isPinned);\n  pinned.sort((a,b)=>(a.timestamp||'').localeCompare(b.timestamp||''));\n  pinned.forEach((post, idx) => {\n    items.push({\n      tipo_artefato: 'post_fixado',\n      perfil: meta.username,\n      trilha: meta.trilha,\n      posicao: idx + 1,\n      url: post.url,\n      shortcode: post.shortCode,\n      formato: post.type,\n      caption: post.caption || '',\n      display_url: post.displayUrl,\n      video_url: post.videoUrl || '',\n      likes: post.likesCount || 0,\n      comments: post.commentsCount || 0,\n      views: post.videoPlayCount || post.videoViewCount || 0,\n      timestamp: post.timestamp,\n      transcrever: meta.transcrever && post.type === 'Video',\n      notas: meta.notas,\n      origem: meta.origem,\n      created_at: meta.created_at\n    });\n  });\n}\n\n// Destaques\nif (meta.coletar_destaques && Array.isArray(highlightsData)) {\n  highlightsData.forEach(h => {\n    items.push({\n      tipo_artefato: 'destaque',\n      perfil: h.username || meta.username,\n      trilha: meta.trilha,\n      highlight_id: h.highlightId,\n      titulo: h.highlightTitle || '',\n      cover_url: h.coverImageUrl || h.coverImageUrlWrapped || '',\n      transcrever: false,\n      notas: meta.notas,\n      origem: meta.origem,\n      created_at: meta.created_at\n    });\n  });\n}\n\nreturn items.map(i => ({ json: i }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1440, -200],
+      "id": "normalizar-perfil",
+      "name": "Normalizar Itens (Perfil)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Modo PUBLICACAO — preparar payload pra apify/instagram-scraper\nconst body = $json.body;\nreturn [{ json: {\n  url: body.url,\n  shortcode: body.shortcode,\n  trilha: body.trilha,\n  tipo_estrategico_manual: body.tipo_estrategico || null,\n  etapa_funil_manual: body.etapa_funil || null,\n  notas: body.notas || '',\n  origem: body.origem || 'manual_form',\n  created_at: body.created_at\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1920, 200],
+      "id": "prep-pub",
+      "name": "Preparar Publicacao"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items",
+        "sendQuery": true,
+        "queryParameters": {"parameters": [{"name": "token", "value": "={{ $env.APIFY_TOKEN }}"}]},
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Content-Type", "value": "application/json"}]},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"directUrls\": [\"{{ $json.url }}\"],\n  \"resultsType\": \"posts\",\n  \"resultsLimit\": 1,\n  \"addParentData\": false\n}",
+        "options": {"response":{"response":{"neverError": true}}}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-1680, 200],
+      "id": "apify-pub",
+      "name": "Apify Scraper (Publicacao)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const meta = $('Preparar Publicacao').first().json;\nconst data = $json;\nconst post = Array.isArray(data) ? data[0] : data;\nif (!post || !post.shortCode) {\n  throw new Error('Apify nao retornou post valido para ' + meta.url);\n}\nreturn [{ json: {\n  tipo_artefato: 'publicacao_avulsa',\n  perfil: post.ownerUsername || '',\n  trilha: meta.trilha,\n  url: post.url,\n  shortcode: post.shortCode,\n  formato: post.type,\n  caption: post.caption || '',\n  display_url: post.displayUrl,\n  video_url: post.videoUrl || '',\n  likes: post.likesCount || 0,\n  comments: post.commentsCount || 0,\n  views: post.videoPlayCount || post.videoViewCount || 0,\n  timestamp: post.timestamp,\n  transcrever: post.type === 'Video',\n  tipo_estrategico_manual: meta.tipo_estrategico_manual,\n  etapa_funil_manual: meta.etapa_funil_manual,\n  notas: meta.notas,\n  origem: meta.origem,\n  created_at: meta.created_at\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1440, 200],
+      "id": "normalizar-pub",
+      "name": "Normalizar Item (Pub)"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {"conditions":{"options":{"caseSensitive":true,"leftValue":"","typeValidation":"strict"},"conditions":[{"leftValue":"={{ $json.transcrever }}","rightValue":"true","operator":{"type":"boolean","operation":"true"}}],"combinator":"and"}, "renameOutput":true, "outputKey":"transcrever"}
+          ],
+          "fallbackOutput": 1
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [-1200, 0],
+      "id": "switch-transcrever",
+      "name": "Precisa Transcrever?"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.video_url }}",
+        "options": {"response":{"response":{"responseFormat":"file"}}}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-960, -120],
+      "id": "download-video",
+      "name": "Download Video"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.assemblyai.com/v2/upload",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Authorization", "value": "={{ $env.ASSEMBLYAI_KEY }}"}, {"name": "Content-Type", "value": "application/octet-stream"}]},
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-720, -120],
+      "id": "upload-assembly",
+      "name": "Upload AssemblyAI"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.assemblyai.com/v2/transcript",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Authorization", "value": "={{ $env.ASSEMBLYAI_KEY }}"}, {"name": "Content-Type", "value": "application/json"}]},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"audio_url\": \"{{ $json.upload_url }}\",\n  \"language_detection\": true\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-480, -120],
+      "id": "iniciar-transcricao",
+      "name": "Iniciar Transcricao"
+    },
+    {
+      "parameters": {"unit": "seconds", "amount": 30},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [-240, -120],
+      "id": "wait-30s",
+      "name": "Wait 30s",
+      "webhookId": "wait-30s"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.assemblyai.com/v2/transcript/{{ $('Iniciar Transcricao').item.json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Authorization", "value": "={{ $env.ASSEMBLYAI_KEY }}"}]},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [0, -120],
+      "id": "get-transcricao",
+      "name": "Get Transcricao"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {"conditions":{"options":{"caseSensitive":true,"leftValue":"","typeValidation":"strict"},"conditions":[{"leftValue":"={{ $json.status }}","rightValue":"completed","operator":{"type":"string","operation":"equals"}}],"combinator":"and"}, "renameOutput":true, "outputKey":"completed"},
+            {"conditions":{"options":{"caseSensitive":true,"leftValue":"","typeValidation":"strict"},"conditions":[{"leftValue":"={{ $json.status }}","rightValue":"error","operator":{"type":"string","operation":"equals"}}],"combinator":"and"}, "renameOutput":true, "outputKey":"error"}
+          ],
+          "fallbackOutput": 2
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [240, -120],
+      "id": "switch-status-trans",
+      "name": "Status Transcricao"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $('Switch Transcrever?').first().json;\nconst trans = $json;\nreturn [{ json: { ...item, transcricao: trans.text || '', language_code: trans.language_code || '', audio_duration_ms: trans.audio_duration || 0 } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, -240],
+      "id": "merge-trans",
+      "name": "Merge Transcricao"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Classificacao heuristica determinista (mesma usada no banco offline)\nconst i = $json;\nconst caption = (i.caption || '') + ' ' + (i.transcricao || '');\nconst lc = caption.toLowerCase();\n\nfunction matchAny(patterns) {\n  return patterns.some(p => new RegExp(p, 'i').test(lc));\n}\n\nlet tipo_estrategico = i.tipo_estrategico_manual;\nif (!tipo_estrategico) {\n  if (i.tipo_artefato === 'destaque') {\n    const t = (i.titulo || '').toLowerCase();\n    if (/quem sou|sobre mim|trajet|hist[oó]ria|apresent/.test(t)) tipo_estrategico = 'Quem Sou';\n    else if (/result|transform|antes.*depois|case|sucesso|depoiment/.test(t)) tipo_estrategico = 'Resultados';\n    else if (/m[eé]tod|protocolo|jornada|mentoria|clinic|tratament/.test(t)) tipo_estrategico = 'Metodologia/Produto';\n    else if (/faq|d[uú]vid|pergunt|valor|investiment|pre[çc]/.test(t)) tipo_estrategico = 'FAQ';\n    else if (/dica|educa|tutorial|passo|tip/.test(t)) tipo_estrategico = 'Dicas Grátis';\n    else if (/oferta|comprar|vagas|inscri|link|bio|agend|whats/.test(t)) tipo_estrategico = 'Mentoria/Produto/Oferta';\n    else if (/bastidor|vlog|rotina|home|pessoal|lifestyle/.test(t)) tipo_estrategico = 'Bastidores';\n    else tipo_estrategico = 'Específico do Nicho';\n  } else {\n    const apresentacao = ['quem sou', 'me chamo', 'me apresent', 'trabalho com', 'atendo', 'especialista em', 'sobre mim', 'minha hist'];\n    const prova = ['antes e depois', 'caso clínic', 'depoiment', 'transforma', 'resultado', 'paciente', 'aluno', 'aluna', 'mentorad', 'testemunh', 'evolu', 'jornada'];\n    const oferta = ['agend[ae]', 'agendar', 'avalia[cç][aã]o', 'link na bio', 'clique no link', 'whatsapp', 'comente .* receb', 'quero o', 'aula gratuita', 'ebook'];\n    const ap = matchAny(apresentacao); const pv = matchAny(prova); const of = matchAny(oferta);\n    if (i.posicao === 1 && ap) tipo_estrategico = 'Apresentação';\n    else if (i.posicao === 3 && of) tipo_estrategico = 'Oferta/CTA';\n    else if (of) tipo_estrategico = 'Oferta/CTA';\n    else if (pv) tipo_estrategico = 'Prova Social';\n    else if (ap) tipo_estrategico = 'Apresentação';\n    else tipo_estrategico = 'Indefinido';\n  }\n}\n\nlet etapa_funil = i.etapa_funil_manual;\nif (!etapa_funil) {\n  if (tipo_estrategico === 'Oferta/CTA') etapa_funil = 'ACAO';\n  else if (tipo_estrategico === 'Prova Social' || tipo_estrategico === 'Resultados' || tipo_estrategico === 'Quem Sou') etapa_funil = 'CONFIANCA';\n  else etapa_funil = 'DESCOBERTA';\n}\n\nreturn [{ json: { ...i, tipo_estrategico, etapa_funil } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 0],
+      "id": "classificar",
+      "name": "Classificar"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO agente.referencias_conteudo (\n  perfil, trilha, tipo_artefato, posicao,\n  url, shortcode, formato, caption,\n  display_url, video_url, cover_url, highlight_id, titulo,\n  likes, comments, views, timestamp_post,\n  transcricao, language_code, audio_duration_ms,\n  tipo_estrategico, etapa_funil,\n  notas, origem, created_at\n) VALUES (\n  $1, $2, $3, $4, $5, $6, $7, $8,\n  $9, $10, $11, $12, $13,\n  $14, $15, $16, $17,\n  $18, $19, $20,\n  $21, $22,\n  $23, $24, NOW()\n) ON CONFLICT (shortcode, highlight_id) DO UPDATE SET\n  caption = EXCLUDED.caption,\n  transcricao = EXCLUDED.transcricao,\n  tipo_estrategico = EXCLUDED.tipo_estrategico,\n  etapa_funil = EXCLUDED.etapa_funil\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [   $json.perfil,   $json.trilha,   $json.tipo_artefato,   $json.posicao || null,   $json.url || null,   $json.shortcode || null,   $json.formato || null,   $json.caption || null,   $json.display_url || null,   $json.video_url || null,   $json.cover_url || null,   $json.highlight_id || null,   $json.titulo || null,   $json.likes || 0,   $json.comments || 0,   $json.views || 0,   $json.timestamp || null,   $json.transcricao || null,   $json.language_code || null,   $json.audio_duration_ms || 0,   $json.tipo_estrategico,   $json.etapa_funil,   $json.notas || null,   $json.origem ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [960, 0],
+      "id": "insert-postgres",
+      "name": "Insert Referencia",
+      "credentials": {"postgres": {"id": "REPLACE_WITH_YOUR_CREDENTIAL_ID", "name": "Postgres | case"}}
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"ok\": true,\n  \"insert_id\": {{ $json.id }},\n  \"perfil\": \"{{ $json.perfil || $('Classificar').item.json.perfil }}\",\n  \"tipo_artefato\": \"{{ $('Classificar').item.json.tipo_artefato }}\",\n  \"tipo_estrategico\": \"{{ $('Classificar').item.json.tipo_estrategico }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1200, 0],
+      "id": "responder",
+      "name": "Responder"
+    }
+  ],
+  "connections": {
+    "Webhook Entrada": {"main": [[{"node":"Tipo da Entrada","type":"main","index":0}]]},
+    "Tipo da Entrada": {"main": [[{"node":"Preparar Perfil","type":"main","index":0}], [{"node":"Preparar Publicacao","type":"main","index":0}]]},
+    "Preparar Perfil": {"main": [[{"node":"Apify Profile Scraper (Fixados)","type":"main","index":0}, {"node":"Apify Highlights (Destaques)","type":"main","index":0}]]},
+    "Apify Highlights (Destaques)": {"main": [[{"node":"Normalizar Itens (Perfil)","type":"main","index":0}]]},
+    "Apify Profile Scraper (Fixados)": {"main": [[{"node":"Normalizar Itens (Perfil)","type":"main","index":0}]]},
+    "Normalizar Itens (Perfil)": {"main": [[{"node":"Precisa Transcrever?","type":"main","index":0}]]},
+    "Preparar Publicacao": {"main": [[{"node":"Apify Scraper (Publicacao)","type":"main","index":0}]]},
+    "Apify Scraper (Publicacao)": {"main": [[{"node":"Normalizar Item (Pub)","type":"main","index":0}]]},
+    "Normalizar Item (Pub)": {"main": [[{"node":"Precisa Transcrever?","type":"main","index":0}]]},
+    "Precisa Transcrever?": {"main": [[{"node":"Download Video","type":"main","index":0}], [{"node":"Classificar","type":"main","index":0}]]},
+    "Download Video": {"main": [[{"node":"Upload AssemblyAI","type":"main","index":0}]]},
+    "Upload AssemblyAI": {"main": [[{"node":"Iniciar Transcricao","type":"main","index":0}]]},
+    "Iniciar Transcricao": {"main": [[{"node":"Wait 30s","type":"main","index":0}]]},
+    "Wait 30s": {"main": [[{"node":"Get Transcricao","type":"main","index":0}]]},
+    "Get Transcricao": {"main": [[{"node":"Status Transcricao","type":"main","index":0}]]},
+    "Status Transcricao": {"main": [[{"node":"Merge Transcricao","type":"main","index":0}], [{"node":"Classificar","type":"main","index":0}], [{"node":"Wait 30s","type":"main","index":0}]]},
+    "Merge Transcricao": {"main": [[{"node":"Classificar","type":"main","index":0}]]},
+    "Classificar": {"main": [[{"node":"Insert Referencia","type":"main","index":0}]]},
+    "Insert Referencia": {"main": [[{"node":"Responder","type":"main","index":0}]]}
+  },
+  "settings": {"executionOrder": "v1"},
+  "meta": {
+    "instanceId": "case-mentoring",
+    "description": "Pipeline para alimentar agente.referencias_conteudo a partir de POST com {type:perfil|publicacao}. Modo perfil: scrape posts fixados (apify/instagram-profile-scraper) + destaques (igview-owner/instagram-highlights-scraper). Modo publicacao: scrape post single (apify/instagram-scraper). Em ambos: se for video, AssemblyAI transcribe. Classificacao heuristica + insert ON CONFLICT update. Webhook: POST /webhook/fila-referencias-novos com payload do form HTML.",
+    "env_required": ["APIFY_TOKEN", "ASSEMBLYAI_KEY"],
+    "schema_postgres": "agente.referencias_conteudo precisa ter colunas: perfil, trilha, tipo_artefato, posicao, url, shortcode, formato, caption, display_url, video_url, cover_url, highlight_id, titulo, likes, comments, views, timestamp_post, transcricao, language_code, audio_duration_ms, tipo_estrategico, etapa_funil, notas, origem, created_at. UNIQUE INDEX em (shortcode, highlight_id) com NULLs DISTINCT."
+  }
+}
