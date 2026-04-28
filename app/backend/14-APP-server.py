@@ -57,6 +57,10 @@ CLICKUP_SYNC_TYPES = set(
         'CLICKUP_SYNC_TYPES', 'onboarding,estrategia,apresentacao,oferta'
     ).split(',') if t.strip()
 )
+# Custom task type ID. Default 1 = "milestone" (MARCO no ClickUp).
+# Outras opcoes na All In Marketing: 1001=Call, 0=Task padrao.
+# Lista via GET /team/9011530618/custom_item.
+CLICKUP_TASK_TYPE_ID = int(os.environ.get('CLICKUP_TASK_TYPE_ID', '1'))
 
 # Cron de sincronizacao Calendar -> ClickUp (auth do GitHub Actions / external scheduler)
 CRON_SECRET = os.environ.get('CRON_SECRET', '')
@@ -523,6 +527,10 @@ def create_clickup_milestone(mentee_name, tipo, data_call_iso, duracao_min, zoom
         'description': '\n\n'.join(description_parts),
         'status': 'to do',
         'priority': 3,
+        # Marca a task como Milestone (MARCO) no ClickUp via custom_item_id=1.
+        # Configuravel via env CLICKUP_TASK_TYPE_ID se quiser usar outro tipo
+        # custom da All In (ex: 1001 = "Call").
+        'custom_item_id': CLICKUP_TASK_TYPE_ID,
     }
     if due_ms:
         body['due_date'] = due_ms
@@ -551,22 +559,90 @@ def create_clickup_milestone(mentee_name, tipo, data_call_iso, duracao_min, zoom
 def _parse_event_summary(summary):
     """Extrai (mentee_name, tipo) do summary do Google Calendar.
 
-    Padroes aceitos:
-      '[Case] Camille Bragança - apresentacao - 28/04/2026'  (criado pelo Spalla)
-      '[Case] Jordanna - estrategia'
-      '[CASE] thiago kailer - onboarding - sem data'
-      '[case] Vania de Paula - apresentacao'
+    Suporta dois formatos:
 
-    Retorna ('', '') se nao casar."""
+    1) Spalla canonico: '[Case] {nome} - {tipo} - {data}'
+       Ex: '[Case] Camille Bragança - apresentacao - 28/04/2026'
+
+    2) Humano (agendamento manual no Calendar): '[Case] {nome} - {descricao livre}'
+       Ex: '[Case] Tayslara Belarmino - Reunião de Acompanhamento do Plano'
+           '[Case] Jessica Crespi - Reunião de Apresentação do Dossiê 1'
+           '[Case] Heitor <> Débora cadore - Revisão apresentação e Pitch'
+       Nesse caso o 'tipo' eh inferido por keywords no resto:
+         - 'apresenta' / 'dossi'    -> apresentacao
+         - 'onboarding' / 'kick'    -> onboarding
+         - 'estrate' / 'queila'     -> estrategia
+         - 'oferta' / 'pitch'       -> oferta
+         - 'acompanha' / 'plano'    -> acompanhamento (fora da whitelist)
+         - 'qa' / 'duvida'          -> qa (fora da whitelist)
+         - default                  -> '' (nao matcha)
+
+    Retorna ('', '') se nao casar.
+    """
     if not summary:
         return ('', '')
     import re
-    m = re.match(r'^\[case\]\s*(.+?)\s*-\s*([a-z_]+)(?:\s*-.*)?$', summary.strip(), re.IGNORECASE)
-    if not m:
+    s = summary.strip()
+    if not s.lower().startswith('[case]'):
         return ('', '')
-    mentee = m.group(1).strip()
-    tipo = m.group(2).strip().lower()
-    return (mentee, tipo)
+    rest = s[6:].strip()  # remove [Case]
+
+    # Convencao da equipe: '{consultor} <> {mentorada}' indica call entre membro
+    # do time e mentee. Se ha '<>', a mentorada eh o que vem DEPOIS dele.
+    # Membros conhecidos do time pra rejeitar como mentee:
+    TEAM = {'heitor', 'lara', 'queila', 'mariza', 'hugo', 'kaique', 'gobbi'}
+
+    if '<>' in rest:
+        before, after = rest.split('<>', 1)
+        before = before.strip(' -')
+        after = after.strip(' -')
+        # 'after' pode ainda conter ' - {detalhe}': split por hifen
+        after_parts = re.split(r'\s+-\s+', after, maxsplit=1)
+        candidate = after_parts[0].strip()
+        detail = (after_parts[1] if len(after_parts) > 1 else '').strip()
+        # se 'before' eh team member e 'after' nao eh, mentee = candidate
+        if before.lower() in TEAM and candidate.lower() not in TEAM:
+            mentee = candidate
+        # senao, pode ser '{mentorada} <> {algo}' invertido; tenta usar 'before'
+        elif before and before.lower() not in TEAM:
+            mentee = before
+            # detail vira tudo depois do '<>'
+            detail = after
+        else:
+            mentee = candidate or before
+    else:
+        # split em hifen normal
+        parts = re.split(r'\s+-\s+', rest, maxsplit=1)
+        mentee = parts[0].strip(' -')
+        detail = (parts[1] if len(parts) > 1 else '').strip()
+
+    if not mentee:
+        return ('', '')
+
+    # Caso 1: Spalla canonico — segundo segmento eh um token snake_case puro
+    m = re.match(r'^([a-z_]+)(?:\s*-.*)?$', detail, re.IGNORECASE)
+    if m and m.group(1).lower() in ('onboarding', 'estrategia', 'apresentacao',
+                                     'oferta', 'acompanhamento', 'qa', 'conselho'):
+        return (mentee, m.group(1).lower())
+
+    # Caso 2: humano — infere por keywords (lower + sem acento)
+    import unicodedata
+    norm = unicodedata.normalize('NFKD', detail).encode('ascii', 'ignore').decode('ascii').lower()
+    if any(k in norm for k in ('apresenta', 'dossi')):
+        return (mentee, 'apresentacao')
+    if any(k in norm for k in ('onboarding', 'kick')):
+        return (mentee, 'onboarding')
+    if any(k in norm for k in ('estrate', 'queila')):
+        return (mentee, 'estrategia')
+    if any(k in norm for k in ('oferta', 'pitch')):
+        return (mentee, 'oferta')
+    if any(k in norm for k in ('acompanha', 'plano')):
+        return (mentee, 'acompanhamento')
+    if any(k in norm for k in (' qa', 'qa ', 'duvida', 'tira-duvida', 'tira duvida')):
+        return (mentee, 'qa')
+    # nome capturado mas tipo desconhecido — devolve mentee + '' (vai pra skipped_tipo,
+    # logado pra inspecao manual)
+    return (mentee, '')
 
 
 def _match_mentee_by_attendee(emails, cu_lists):
