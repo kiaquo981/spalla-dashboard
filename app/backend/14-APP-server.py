@@ -58,6 +58,10 @@ CLICKUP_SYNC_TYPES = set(
     ).split(',') if t.strip()
 )
 
+# Cron de sincronizacao Calendar -> ClickUp (auth do GitHub Actions / external scheduler)
+CRON_SECRET = os.environ.get('CRON_SECRET', '')
+GCAL_IMPERSONATE = os.environ.get('GCAL_IMPERSONATE', '')
+
 # YouTube API
 YOUTUBE_API_KEY = os.environ.get('YOUTUBE_API_KEY', '')
 
@@ -542,6 +546,82 @@ def create_clickup_milestone(mentee_name, tipo, data_call_iso, duracao_min, zoom
         return {'error': f'clickup_api_{e.code}', 'reason': e.read().decode()[:300]}
     except Exception as e:
         return {'error': 'exception', 'reason': str(e)}
+
+
+def _parse_event_summary(summary):
+    """Extrai (mentee_name, tipo) do summary do Google Calendar.
+
+    Padroes aceitos:
+      '[Case] Camille Bragança - apresentacao - 28/04/2026'  (criado pelo Spalla)
+      '[Case] Jordanna - estrategia'
+      '[CASE] thiago kailer - onboarding - sem data'
+      '[case] Vania de Paula - apresentacao'
+
+    Retorna ('', '') se nao casar."""
+    if not summary:
+        return ('', '')
+    import re
+    m = re.match(r'^\[case\]\s*(.+?)\s*-\s*([a-z_]+)(?:\s*-.*)?$', summary.strip(), re.IGNORECASE)
+    if not m:
+        return ('', '')
+    mentee = m.group(1).strip()
+    tipo = m.group(2).strip().lower()
+    return (mentee, tipo)
+
+
+def _match_mentee_by_attendee(emails, cu_lists):
+    """Tenta inferir nome do mentorado a partir dos emails dos attendees.
+    Match heuristico: pra cada email, extrai username e checa se alguma list
+    do ClickUp tem nome cujo primeiro nome aparece no username.
+    Retorna nome da list (ou '' se nada bater)."""
+    if not emails or not cu_lists:
+        return ''
+    for email in emails:
+        local = (email.split('@')[0] or '').lower()
+        # extrai tokens alfanumericos (ignora pontos/numbers)
+        import re
+        tokens = [t for t in re.split(r'[^a-z]+', local) if len(t) >= 4]
+        for l in cu_lists:
+            for word in l['norm'].split():
+                if len(word) >= 4 and word in tokens:
+                    return l['name']
+    return ''
+
+
+def _log_cron_sync(gcal_event_id, summary, organizer, mentee_name, list_id, tipo,
+                   task_id, task_url, status, status_reason):
+    """Insere/upsert linha em cron_calendar_sync_log pra dedup + auditoria.
+    Falhas de log sao apenas printadas (nao quebram o fluxo).
+    Usa urllib direto pra setar header Prefer com merge-duplicates."""
+    try:
+        body = {
+            'gcal_event_id': gcal_event_id,
+            'gcal_summary': (summary or '')[:500],
+            'gcal_organizer': organizer or None,
+            'mentee_name': mentee_name,
+            'matched_list_id': list_id,
+            'tipo': tipo,
+            'clickup_task_id': task_id,
+            'clickup_task_url': task_url,
+            'status': status,
+            'status_reason': (status_reason or '')[:500] if status_reason else None,
+            'source': 'cron_calendar',
+        }
+        key = SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY
+        url = f'{SUPABASE_URL}/rest/v1/cron_calendar_sync_log?on_conflict=gcal_event_id'
+        req = urllib.request.Request(
+            url, method='POST',
+            headers={
+                'apikey': key,
+                'Authorization': f'Bearer {key}',
+                'Content-Type': 'application/json',
+                'Prefer': 'resolution=merge-duplicates,return=minimal',
+            },
+            data=json.dumps(body).encode()
+        )
+        urllib.request.urlopen(req, timeout=10).read()
+    except Exception as e:
+        print(f'[Cron] log_sync failed for {gcal_event_id}: {e}')
 
 
 # ===== GOOGLE CALENDAR =====
@@ -3579,6 +3659,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_create_calendar_event()
         elif self.path == '/api/clickup/create-milestone':
             self._handle_create_clickup_milestone()
+        elif self.path == '/api/cron/sync-calendar-to-clickup':
+            self._handle_cron_sync_calendar_to_clickup()
         elif self.path == '/api/sheets/sync':
             self._handle_sheets_sync()
         elif self.path == '/api/welcome-flow/register':
@@ -4403,6 +4485,177 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             )
             self._send_json(result)
         except Exception as e:
+            self._send_json({'error': 'exception', 'reason': str(e)}, 500)
+
+    def _handle_cron_sync_calendar_to_clickup(self):
+        """POST /api/cron/sync-calendar-to-clickup
+        Auth: header X-Cron-Secret = env CRON_SECRET.
+        Lista eventos do Google Calendar do GCAL_IMPERSONATE numa janela de
+        [agora-24h, agora+30dias], dedup via tabela cron_calendar_sync_log,
+        extrai mentee + tipo do summary (padrao '[Case] {nome} - {tipo} - {data}'),
+        e cria task ClickUp pra cada match novo dentro da whitelist.
+
+        Body opcional: {window_days_back: int, window_days_forward: int, dry_run: bool}
+        """
+        # Auth
+        provided = self.headers.get('X-Cron-Secret', '').strip()
+        if not CRON_SECRET or not hmac.compare_digest(provided, CRON_SECRET):
+            self._send_json({'error': 'Invalid cron secret'}, 401)
+            return
+
+        try:
+            body = {}
+            try:
+                body = json.loads(self._read_body() or '{}')
+            except Exception:
+                pass
+
+            days_back = int(body.get('window_days_back', 1))
+            days_fwd = int(body.get('window_days_forward', 30))
+            dry_run = bool(body.get('dry_run', False))
+
+            svc = get_gcal_service()
+            if not svc:
+                self._send_json({'error': 'Google Calendar not configured'}, 500)
+                return
+
+            now = datetime.now(timezone.utc)
+            time_min = (now - timedelta(days=days_back)).isoformat()
+            time_max = (now + timedelta(days=days_fwd)).isoformat()
+
+            print(f'[Cron] sync calendar->clickup window={time_min}..{time_max} dry_run={dry_run}')
+
+            try:
+                evs = svc.events().list(
+                    calendarId='primary',
+                    timeMin=time_min,
+                    timeMax=time_max,
+                    singleEvents=True,
+                    orderBy='startTime',
+                    maxResults=250,
+                ).execute()
+            except Exception as e:
+                self._send_json({'error': f'gcal list failed: {e}'}, 500)
+                return
+
+            events = evs.get('items', [])
+            counters = {'fetched': len(events), 'synced': 0,
+                        'skipped_already': 0, 'skipped_no_match': 0,
+                        'skipped_tipo': 0, 'skipped_no_list': 0,
+                        'skipped_no_start': 0, 'errors': 0}
+            details = []
+
+            # Pre-fetch lists ClickUp (cacheado)
+            cu_lists = get_clickup_lists()
+
+            # Pre-fetch dedup map: gcal_event_ids ja sincronizados
+            try:
+                already_logged = supabase_request(
+                    'GET',
+                    'cron_calendar_sync_log?select=gcal_event_id&limit=10000'
+                )
+                already = {r['gcal_event_id'] for r in (already_logged or [])
+                           if isinstance(r, dict) and r.get('gcal_event_id')}
+            except Exception as e:
+                print(f'[Cron] dedup fetch failed: {e}')
+                already = set()
+
+            for ev in events:
+                eid = ev.get('id', '')
+                summary = (ev.get('summary') or '').strip()
+                organizer = (ev.get('organizer') or {}).get('email', '')
+
+                if not eid or eid in already:
+                    counters['skipped_already'] += 1
+                    continue
+
+                start = (ev.get('start') or {}).get('dateTime', '')
+                if not start:
+                    counters['skipped_no_start'] += 1
+                    continue
+
+                # Parse mentee + tipo do summary. Padrao Spalla: '[Case] {nome} - {tipo} - {data}'
+                mentee_name, tipo = _parse_event_summary(summary)
+
+                # Fallback: tentar match por attendee email se nao casou no titulo
+                if not mentee_name:
+                    attendees = ev.get('attendees', []) or []
+                    emails = [a.get('email', '') for a in attendees if a.get('email')]
+                    mentee_name = _match_mentee_by_attendee(emails, cu_lists)
+
+                if not mentee_name:
+                    counters['skipped_no_match'] += 1
+                    if not dry_run:
+                        _log_cron_sync(eid, summary, organizer, None, None, None, None, None,
+                                       'skipped_no_match', 'sem mentee no titulo nem attendee match')
+                    details.append({'eid': eid, 'summary': summary[:60], 'status': 'skipped_no_match'})
+                    continue
+
+                if tipo not in CLICKUP_SYNC_TYPES:
+                    counters['skipped_tipo'] += 1
+                    if not dry_run:
+                        _log_cron_sync(eid, summary, organizer, mentee_name, None, tipo, None, None,
+                                       'skipped_tipo', f'tipo {tipo} fora da whitelist')
+                    details.append({'eid': eid, 'mentee': mentee_name, 'tipo': tipo, 'status': 'skipped_tipo'})
+                    continue
+
+                if dry_run:
+                    counters['synced'] += 1
+                    details.append({'eid': eid, 'mentee': mentee_name, 'tipo': tipo, 'status': 'would_sync'})
+                    continue
+
+                # Cria task ClickUp
+                try:
+                    duracao_min = 60
+                    end = (ev.get('end') or {}).get('dateTime', '')
+                    if end:
+                        try:
+                            sd = datetime.fromisoformat(start.replace('Z', '+00:00'))
+                            ed = datetime.fromisoformat(end.replace('Z', '+00:00'))
+                            duracao_min = max(15, int((ed - sd).total_seconds() / 60))
+                        except Exception:
+                            pass
+
+                    cu = create_clickup_milestone(
+                        mentee_name=mentee_name,
+                        tipo=tipo,
+                        data_call_iso=start,
+                        duracao_min=duracao_min,
+                        zoom_url=ev.get('location', '') or '',
+                        gcal_event_id=eid,
+                        responsavel='',
+                    )
+                    if cu.get('task_id'):
+                        counters['synced'] += 1
+                        _log_cron_sync(eid, summary, organizer, mentee_name,
+                                       cu.get('list_id'), tipo, cu.get('task_id'),
+                                       cu.get('task_url'), 'synced', None)
+                        details.append({'eid': eid, 'mentee': mentee_name, 'tipo': tipo,
+                                        'task_url': cu.get('task_url'), 'status': 'synced'})
+                    elif cu.get('error') == 'no_list_for_mentee':
+                        counters['skipped_no_list'] += 1
+                        _log_cron_sync(eid, summary, organizer, mentee_name, None, tipo,
+                                       None, None, 'skipped_no_list', cu.get('reason'))
+                        details.append({'eid': eid, 'mentee': mentee_name, 'tipo': tipo,
+                                        'status': 'skipped_no_list'})
+                    else:
+                        counters['errors'] += 1
+                        _log_cron_sync(eid, summary, organizer, mentee_name, None, tipo,
+                                       None, None, 'error', json.dumps(cu)[:300])
+                        details.append({'eid': eid, 'mentee': mentee_name, 'tipo': tipo,
+                                        'status': 'error', 'reason': cu})
+                except Exception as e:
+                    counters['errors'] += 1
+                    _log_cron_sync(eid, summary, organizer, mentee_name, None, tipo,
+                                   None, None, 'error', str(e)[:300])
+                    details.append({'eid': eid, 'mentee': mentee_name, 'tipo': tipo,
+                                    'status': 'exception', 'reason': str(e)})
+
+            print(f'[Cron] sync done counters={counters}')
+            self._send_json({'counters': counters, 'details': details, 'dry_run': dry_run})
+
+        except Exception as e:
+            print(f'[Cron] handler exception: {e}')
             self._send_json({'error': 'exception', 'reason': str(e)}, 500)
 
     # ===== MEDIA PRESIGN (S3) =====

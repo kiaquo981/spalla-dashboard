@@ -1,0 +1,58 @@
+name: Cron — Sync Calendar -> ClickUp
+
+# Roda 2x ao dia: 12:00 e 21:00 UTC = 09:00 e 18:00 BRT.
+# GitHub cron pode atrasar 5-15min em horarios de pico — ok para nosso caso.
+on:
+  schedule:
+    - cron: "0 12,21 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (nao cria task ClickUp, so mostra o que faria)"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+      window_days_back:
+        description: "Janela passada (dias)"
+        required: false
+        default: "1"
+      window_days_forward:
+        description: "Janela futura (dias)"
+        required: false
+        default: "30"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: POST /api/cron/sync-calendar-to-clickup
+        env:
+          BACKEND_URL: ${{ secrets.SPALLA_BACKEND_URL }}
+          CRON_SECRET: ${{ secrets.SPALLA_CRON_SECRET }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          WIN_BACK: ${{ inputs.window_days_back || '1' }}
+          WIN_FWD: ${{ inputs.window_days_forward || '30' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BACKEND_URL:-}" ] || [ -z "${CRON_SECRET:-}" ]; then
+            echo "::error::SPALLA_BACKEND_URL ou SPALLA_CRON_SECRET nao setados como secrets"
+            exit 1
+          fi
+          PAYLOAD=$(printf '{"dry_run":%s,"window_days_back":%s,"window_days_forward":%s}' \
+            "$DRY_RUN" "$WIN_BACK" "$WIN_FWD")
+          echo "POST $BACKEND_URL/api/cron/sync-calendar-to-clickup"
+          echo "Payload: $PAYLOAD"
+          RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST \
+            "$BACKEND_URL/api/cron/sync-calendar-to-clickup" \
+            -H "X-Cron-Secret: $CRON_SECRET" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          CODE=$(echo "$RESPONSE" | tail -n 1)
+          echo "HTTP $CODE"
+          echo "$BODY" | python3 -m json.tool || echo "$BODY"
+          if [ "$CODE" != "200" ]; then
+            exit 1
+          fi
