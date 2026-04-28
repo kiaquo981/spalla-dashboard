@@ -13372,7 +13372,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         try {
           const zoomRes = await fetch(`${CONFIG.API_BASE}/api/zoom/create-meeting`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
             body: JSON.stringify({
               topic: titulo,
               start_time: `${f.data}T${f.horario}:00`,
@@ -13382,9 +13382,14 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
             }),
           });
           const zoomData = await zoomRes.json();
+          if (!zoomRes.ok) {
+            console.error('[Schedule] Zoom create failed', zoomRes.status, zoomData);
+            this.toast?.(`Zoom: ${zoomData.error || zoomRes.status}`, 'warning');
+          }
           if (zoomData.join_url) zoomUrl = zoomData.join_url;
         } catch (e) {
           console.warn('[Schedule] Zoom creation warning:', e.message);
+          this.toast?.(`Zoom falhou: ${e.message}`, 'warning');
         }
 
         try {
@@ -13402,7 +13407,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
           const calRes = await fetch(`${CONFIG.API_BASE}/api/calendar/create-event`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
             body: JSON.stringify({
               summary: titulo,
               start_iso: startLocal,
@@ -13413,10 +13418,15 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
             }),
           });
           const calData = await calRes.json();
+          if (!calRes.ok) {
+            console.error('[Schedule] Calendar create failed', calRes.status, calData);
+            this.toast?.(`Calendar: ${calData.error || calRes.status}`, 'warning');
+          }
           if (calData.html_link) calendarUrl = calData.html_link;
           if (calData.event_id) gcalEventId = calData.event_id;
         } catch (e) {
           console.warn('[Schedule] Calendar creation warning:', e.message);
+          this.toast?.(`Calendar falhou: ${e.message}`, 'warning');
         }
 
         // Then: Insert into Supabase with links
