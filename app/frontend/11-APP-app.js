@@ -13468,6 +13468,34 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
         this.toast('Call agendada: Zoom ' + (zoomUrl ? '✓' : '○') + ' Calendar ' + (calendarUrl ? '✓' : '○'), 'success');
 
+        // ClickUp sync (whitelist filtered backend-side: onboarding/estrategia/apresentacao/oferta)
+        try {
+          const cuRes = await fetch(`${CONFIG.API_BASE}/api/clickup/create-milestone`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.auth.accessToken}` },
+            body: JSON.stringify({
+              mentee_name: f.mentorado,
+              tipo: f.tipo,
+              data_call_iso: `${f.data}T${f.horario}:00-03:00`,
+              duracao_min: parseInt(f.duracao) || 60,
+              zoom_url: zoomUrl || '',
+              gcal_event_id: gcalEventId || '',
+            }),
+          });
+          const cuData = await cuRes.json();
+          if (cuData.task_id) {
+            this.toast(`✓ Task no ClickUp: ${cuData.list_name}`, 'success');
+          } else if (cuData.skipped) {
+            console.log('[ClickUp] skipped:', cuData.reason);
+          } else if (cuData.error === 'no_list_for_mentee') {
+            this.toast(`⚠ Sem lista ClickUp pra ${f.mentorado} — crie em Mentorados`, 'warning');
+          } else if (cuData.error) {
+            this.toast(`ClickUp falhou: ${cuData.reason || cuData.error}`, 'warning');
+          }
+        } catch (e) {
+          console.warn('[ClickUp] sync warning:', e.message);
+        }
+
         // Store locally for immediate UI update
         if (!this.data.scheduledCalls) this.data.scheduledCalls = [];
         this.data.scheduledCalls.push({
