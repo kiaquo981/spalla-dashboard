@@ -422,6 +422,16 @@ def get_gcal_service():
             print(f'[GCal] No credentials found (GOOGLE_SA_JSON not set, {GOOGLE_SA_PATH} not found)')
             return None
 
+        # Domain-Wide Delegation: impersonate a Workspace user so events are
+        # organized BY them (not by the service account), and invites are sent
+        # from their address. Requires the service account's Client ID to be
+        # authorized in admin.google.com → API Controls → Domain-wide Delegation
+        # with scope https://www.googleapis.com/auth/calendar.
+        impersonate = os.environ.get('GCAL_IMPERSONATE', '').strip()
+        if impersonate:
+            credentials = credentials.with_subject(impersonate)
+            print(f'[GCal] impersonating {impersonate} via DWD')
+
         _gcal_service = build('calendar', 'v3', credentials=credentials)
         return _gcal_service
     except Exception as e:
