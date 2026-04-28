@@ -3562,6 +3562,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'status': 'ok',
                 'zoom_configured': bool(ZOOM_ACCOUNT_ID and ZOOM_CLIENT_ID),
                 'gcal_configured': bool(os.environ.get('GOOGLE_SA_JSON') or os.environ.get('GOOGLE_SA_CREDENTIALS_B64') or os.path.exists(GOOGLE_SA_PATH)),
+                'gcal_impersonate': GCAL_IMPERSONATE or None,
                 'supabase_configured': bool(SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY),
                 'sheets_configured': get_sheets_service() is not None,
                 'openai_configured': bool(OPENAI_API_KEY),
@@ -3569,6 +3570,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 'evolution_configured': bool(EVOLUTION_API_KEY),
                 'evolution_base': EVOLUTION_BASE,
                 'evolution_key_prefix': EVOLUTION_API_KEY[:8] + '...' if EVOLUTION_API_KEY else 'EMPTY',
+                'clickup_configured': bool(CLICKUP_API_TOKEN),
+                'cron_configured': bool(CRON_SECRET),
+                'cron_secret_len': len(CRON_SECRET) if CRON_SECRET else 0,
+                'cron_secret_sha8': hashlib.sha256(CRON_SECRET.encode()).hexdigest()[:8] if CRON_SECRET else None,
             })
         # ===== ORCH-07: Agent Metrics =====
         elif self.path == '/api/agent-metrics':
