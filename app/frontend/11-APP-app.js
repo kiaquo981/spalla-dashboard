@@ -13446,7 +13446,10 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         }
         const insertObj = {
           mentorado_id: menteeId,
-          data_call: `${f.data}T${f.horario}:00`,
+          // Inclui offset BRT (-03:00) explicitamente — sem isso o Postgres TIMESTAMPTZ
+          // assume UTC, e o horario aparece -3h no Spalla. Calendar/Zoom acertam porque
+          // o backend ja envia timeZone:America/Sao_Paulo no payload.
+          data_call: `${f.data}T${f.horario}:00-03:00`,
           duracao_minutos: parseInt(f.duracao) || 60,
           tipo: f.tipo || 'acompanhamento',
           status_call: 'agendada',
