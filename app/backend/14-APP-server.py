@@ -454,8 +454,11 @@ def find_clickup_list_for_mentee(mentee_name):
     for l in lists:
         if l['norm'] == target:
             return l
-    # match por substring (mentee = "Sidney Kerr e Claudia" vs list "Sidney e Cláudia")
+    # match por overlap de palavras (mentee = 'Sidney Kerr e Claudia' vs list
+    # 'Sidney e Cláudia'); aceita 2+ palavras OU 1 palavra unica e longa
+    # (>= 5 chars), pra cobrir casos curtos como 'Elina', 'Vânia', 'Dani'.
     target_words = set(target.split())
+    long_target_words = {w for w in target_words if len(w) >= 5}
     best = None
     best_score = 0
     for l in lists:
@@ -466,7 +469,22 @@ def find_clickup_list_for_mentee(mentee_name):
         if overlap >= 2 and overlap > best_score:
             best_score = overlap
             best = l
-    return best
+    if best:
+        return best
+    # fallback: 1 palavra unica e longa, sem ambiguidade (so 1 list bate)
+    for w in long_target_words:
+        candidates = [l for l in lists if w in l['norm'].split()]
+        if len(candidates) == 1:
+            return candidates[0]
+    # fallback final: 'Dani' deve casar com 'Daniela' por prefixo (apelido comum)
+    for w in target_words:
+        if len(w) >= 4:
+            candidates = [l for l in lists
+                          if any(lw.startswith(w) and len(lw) > len(w)
+                                 for lw in l['norm'].split())]
+            if len(candidates) == 1:
+                return candidates[0]
+    return None
 
 
 def create_clickup_milestone(mentee_name, tipo, data_call_iso, duracao_min, zoom_url='', gcal_event_id='', responsavel=''):
@@ -522,10 +540,12 @@ def create_clickup_milestone(mentee_name, tipo, data_call_iso, duracao_min, zoom
         description_parts.append(f'_gcal_event_id: {gcal_event_id}_')
     description_parts.append('\n_Criado automaticamente pelo Spalla Dashboard ao agendar call._')
 
+    # NOTA: nao mandamos 'status' explicitamente porque cada list ClickUp
+    # tem seu proprio workflow (ex: 'aberto', 'em andamento'). Sem status
+    # explicito, ClickUp usa o status padrao da list.
     body = {
         'name': title,
         'description': '\n\n'.join(description_parts),
-        'status': 'to do',
         'priority': 3,
         # Marca a task como Milestone (MARCO) no ClickUp via custom_item_id=1.
         # Configuravel via env CLICKUP_TASK_TYPE_ID se quiser usar outro tipo
