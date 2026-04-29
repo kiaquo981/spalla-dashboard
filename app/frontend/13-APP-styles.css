@@ -3330,14 +3330,19 @@ img { max-width: 100%; display: block; }
 /* Buddy pull-up modal (Processar Últimas Calls Manualmente) — Operon ID */
 .buddy-pullup-overlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
   z-index: var(--z-modal, 1100);
   background: var(--overlay-medium, rgba(28, 25, 16, 0.5));
   backdrop-filter: blur(6px);
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding: 0 var(--sp-4) 0;
+  padding: 0;
 }
 .buddy-pullup {
   width: 100%;

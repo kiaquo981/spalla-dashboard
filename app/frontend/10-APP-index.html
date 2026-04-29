@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="16-APP-operon-molecules.css?v=3">
   <link rel="stylesheet" href="17-APP-operon-utilities.css?v=2">
   <link rel="stylesheet" href="18-APP-operon-bridge.css?v=1">
-  <link rel="stylesheet" href="13-APP-styles.css?v=211">
+  <link rel="stylesheet" href="13-APP-styles.css?v=212">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1c1910,#35301d,#1c1910);font-family:'Inter',system-ui,sans-serif;color:var(--brand-500,#8a7d52);font-size:24px;font-weight:700;letter-spacing:0.05em; }
@@ -6806,7 +6806,7 @@
           </div>
 
           <!-- Pull-up Modal: Buddy (Processar Últimas Calls Manualmente) -->
-          <div class="buddy-pullup-overlay" x-show="ui.processCallsModal" x-transition.opacity @click.self="ui.processCallsModal = false; ui.processCallsExpanded = false" role="dialog" aria-modal="true" aria-label="Processar últimas calls manualmente">
+          <template x-teleport="body"><div class="buddy-pullup-overlay" x-show="ui.processCallsModal" x-transition.opacity @click.self="ui.processCallsModal = false; ui.processCallsExpanded = false" role="dialog" aria-modal="true" aria-label="Processar últimas calls manualmente">
             <div class="buddy-pullup" :class="{ 'buddy-pullup--open': ui.processCallsModal, 'buddy-pullup--expanded': ui.processCallsExpanded }">
               <div class="buddy-pullup__handle" @click="ui.processCallsExpanded = !ui.processCallsExpanded" :title="ui.processCallsExpanded ? 'Reduzir' : 'Expandir'"></div>
               <div class="buddy-pullup__header">
@@ -6829,7 +6829,7 @@
                 <iframe x-show="ui.processCallsModal" :src="ui.processCallsModal ? '/buddy' : 'about:blank'" class="buddy-pullup__iframe" loading="lazy" title="Buddy"></iframe>
               </div>
             </div>
-          </div>
+          </div></template>
         </div>
 
         <!-- ===== PAGE: WHATSAPP ===== -->
@@ -12914,7 +12914,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=250"></script>
+  <script src="11-APP-app.js?v=251"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">
