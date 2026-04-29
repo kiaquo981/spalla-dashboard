@@ -3307,6 +3307,16 @@ img { max-width: 100%; display: block; }
   background: var(--danger);
   color: white;
 }
+.wa-pendencias__bulk-btn + .wa-pendencias__bulk-btn { margin-left: 6px; }
+.wa-pendencias__bulk-btn--filter {
+  border-color: #7c3aed;
+  color: #7c3aed;
+}
+.wa-pendencias__bulk-btn--filter:hover,
+.wa-pendencias__bulk-btn--filter.wa-pendencias__bulk-btn--active {
+  background: #7c3aed;
+  color: white;
+}
 
 .wa-pendencias__list {
   max-height: 480px;

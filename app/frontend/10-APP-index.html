@@ -1833,7 +1833,7 @@
             <!-- Filters -->
             <select class="ln-select" x-model="ui.filters.risco"><option value="">Risco</option><option value="critico">Critico</option><option value="alto">Alto</option><option value="medio">Medio</option><option value="baixo">Baixo</option></select>
             <select class="ln-select" x-model="ui.filters.cohort"><option value="">Cohort</option><option value="N1">N1</option><option value="N2">N2</option></select>
-            <select class="ln-select" x-model="ui.filters.status"><option value="">Status</option><option value="em_dia">Em Dia</option><option value="com_pendencia">Pendencia</option><option value="sem_call">Sem Call 21d+</option></select>
+            <select class="ln-select" x-model="ui.filters.status"><option value="">Status</option><option value="em_dia">Em Dia</option><option value="com_pendencia">Pendencia</option><option value="sem_call">Sem Call 21d+</option><option value="sem_resposta">Sem Resposta</option></select>
             <select class="ln-select" x-model="ui.filters.financeiro"><option value="">Financeiro</option><option value="sem_contrato">Sem Contrato</option><option value="atrasado">Pgto Atrasado</option><option value="em_dia">Em Dia</option><option value="quitado">Quitado</option></select>
             <button class="ln-phase-pill" :class="{ 'ln-phase-pill--active': ui.filters.carteira === myCarteira }" @click="ui.filters.carteira = ui.filters.carteira === myCarteira ? '' : myCarteira" x-show="myCarteira" style="white-space:nowrap;font-size:12px;padding:4px 10px" title="Filtrar mentorados da minha carteira">Minha Carteira <span style="font-weight:700" x-text="'(' + data.mentees.filter(m => m.consultor_responsavel === myCarteira).length + ')'"></span></button>
             <select class="ln-select" x-model="ui.filters.carteira"><option value="">Consultor</option><option value="Lara">Lara</option><option value="Heitor">Heitor</option></select>
@@ -1849,6 +1849,7 @@
                 <span>Mensagens Aguardando Resposta</span>
                 <span class="wa-pendencias__count" x-text="data.pendencias.length"></span>
                 <svg class="wa-pendencias__chevron" :class="{'wa-pendencias__chevron--up': !pendenciasMinimized}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                <button class="wa-pendencias__bulk-btn wa-pendencias__bulk-btn--filter" @click.stop="ui.filters.status = ui.filters.status === 'sem_resposta' ? '' : 'sem_resposta'; document.querySelector('.ln-list')?.scrollIntoView({behavior:'smooth',block:'start'})" :class="{ 'wa-pendencias__bulk-btn--active': ui.filters.status === 'sem_resposta' }" title="Filtrar lista de mentorados por quem está sem resposta" x-show="data.pendencias.length > 0 && !pendenciasMinimized">Filtrar lista</button>
                 <button class="wa-pendencias__bulk-btn" @click.stop="markAllAsResponded()" title="Marcar todas como respondidas" x-show="data.pendencias.length > 0 && !pendenciasMinimized">Limpar todas</button>
               </div>
             </div>
