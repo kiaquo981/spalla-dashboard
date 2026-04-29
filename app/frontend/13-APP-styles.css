@@ -3341,9 +3341,10 @@ img { max-width: 100%; display: block; }
 }
 .buddy-pullup {
   width: 100%;
-  max-width: 1080px;
-  height: 78vh;
-  max-height: 760px;
+  max-width: 960px;
+  height: 68vh;
+  max-height: 620px;
+  min-height: 480px;
   background: var(--bg-primary, #fff);
   border: 1px solid var(--neutral-200, #e5e3dc);
   border-bottom: 0;
