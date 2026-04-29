@@ -426,6 +426,7 @@ function operon() {
       expandedCall: null,
       scheduleModal: false,
       scheduling: false,
+      processCallsModal: false,
       // WA DM v2 — Inbox (S9-B)
       waInbox: {
         open: false,

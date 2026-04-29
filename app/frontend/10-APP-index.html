@@ -6509,10 +6509,16 @@
               <h2 style="margin:0">Agenda de Calls</h2>
               <p style="margin:4px 0 0;font-size:13px;color:var(--neutral-400)">Historico e agendamento de reunioes com mentorados</p>
             </div>
-            <button class="btn btn--brand" @click="scheduleForm = { mentorado: '', mentorado_id: '', tipo: 'acompanhamento', data: '', horario: '10:00', duracao: 60, email: '', convidados_extras: '', notas: '' }; ui.scheduleModal = true">
-              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Agendar Call
-            </button>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button class="btn btn--outline" @click="ui.processCallsModal = true" title="Abrir Buddy: processar últimas calls manualmente">
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Processar Últimas Calls Manualmente
+              </button>
+              <button class="btn btn--brand" @click="scheduleForm = { mentorado: '', mentorado_id: '', tipo: 'acompanhamento', data: '', horario: '10:00', duracao: 60, email: '', convidados_extras: '', notas: '' }; ui.scheduleModal = true">
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Agendar Call
+              </button>
+            </div>
           </div>
 
           <!-- Stats row -->
@@ -6795,6 +6801,23 @@
                   <span x-show="!ui.scheduling" x-text="getScheduleBlock(scheduleForm.mentorado) ? 'Bloqueado' : 'Agendar Call'"></span>
                   <span x-show="ui.scheduling">Agendando...</span>
                 </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pull-up Modal: Buddy (Processar Últimas Calls Manualmente) -->
+          <div class="buddy-pullup-overlay" x-show="ui.processCallsModal" x-transition.opacity @click.self="ui.processCallsModal = false" role="dialog" aria-modal="true" aria-label="Processar últimas calls manualmente">
+            <div class="buddy-pullup" :class="{ 'buddy-pullup--open': ui.processCallsModal }">
+              <div class="buddy-pullup__handle" @click="ui.processCallsModal = false" title="Fechar"></div>
+              <div class="buddy-pullup__header">
+                <div>
+                  <h3 style="margin:0;font-size:16px">Processar Últimas Calls Manualmente</h3>
+                  <p style="margin:2px 0 0;font-size:12px;color:var(--neutral-400)">Buddy · processamento manual de transcrições e dossiês de call</p>
+                </div>
+                <button class="buddy-pullup__close" @click="ui.processCallsModal = false" aria-label="Fechar">&times;</button>
+              </div>
+              <div class="buddy-pullup__body">
+                <iframe x-show="ui.processCallsModal" :src="ui.processCallsModal ? '/buddy' : 'about:blank'" class="buddy-pullup__iframe" loading="lazy" title="Buddy"></iframe>
               </div>
             </div>
           </div>
