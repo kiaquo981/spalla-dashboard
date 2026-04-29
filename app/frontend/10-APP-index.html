@@ -1862,10 +1862,20 @@
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                 <span>Tudo respondido — nenhuma mensagem pendente</span>
               </div>
-              <!-- Zero-state filtrado: tem pendências, mas filtro de carteira ativo zerou -->
+              <!-- Zero-state filtrado: tem pendências, mas algum filtro escondeu todas -->
               <div x-show="data.pendencias.length > 0 && pendenciasList.length === 0" style="padding:14px 16px;background:var(--warning-bg, #fff7ed);border-left:3px solid #f59e0b;font-size:12px;color:var(--text-secondary);display:flex;align-items:center;justify-content:space-between;gap:8px">
-                <span>Filtro de carteira ativo escondeu <strong x-text="data.pendencias.length"></strong> pendência(s).</span>
-                <button class="wa-pendencias__bulk-btn" @click="ui.filters.carteira = ''" style="font-size:11px">Limpar filtro</button>
+                <span>
+                  <template x-if="ui.filters.status === 'aguardando_resposta'">
+                    <span>Filtro <strong>Aguardando Resposta</strong> escondeu <strong x-text="data.pendencias.length"></strong> pendência(s) de reforço.</span>
+                  </template>
+                  <template x-if="ui.filters.status === 'precisa_reforco'">
+                    <span>Filtro <strong>Reforço Pendente</strong> escondeu <strong x-text="data.pendencias.length"></strong> pendência(s) aguardando resposta da equipe.</span>
+                  </template>
+                  <template x-if="ui.filters.status !== 'aguardando_resposta' && ui.filters.status !== 'precisa_reforco'">
+                    <span>Filtro de carteira ativo escondeu <strong x-text="data.pendencias.length"></strong> pendência(s).</span>
+                  </template>
+                </span>
+                <button class="wa-pendencias__bulk-btn" @click="ui.filters.status === 'aguardando_resposta' || ui.filters.status === 'precisa_reforco' ? ui.filters.status = '' : ui.filters.carteira = ''" style="font-size:11px">Limpar filtro</button>
               </div>
               <template x-for="p in pendenciasVisible" :key="p.interacao_id">
                 <div class="wa-pendencia-item" style="cursor:pointer" @click="openMenteeChat({grupo_whatsapp_id: p.chat_id || p.grupo_whatsapp_id, nome: p.mentorado_nome})" title="Abrir conversa no WhatsApp">
