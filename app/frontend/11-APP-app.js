@@ -917,6 +917,13 @@ function operon() {
         );
         list = list.filter(p => menteeIds.has(p.mentorado_id));
       }
+      // Espelha o filtro de status do select: se "aguardando_resposta", só mentee→equipe; se "precisa_reforco", só equipe→mentee
+      const statusFilter = this.ui.filters?.status;
+      if (statusFilter === 'aguardando_resposta') {
+        list = list.filter(p => p.direcao !== 'team_to_mentee');
+      } else if (statusFilter === 'precisa_reforco') {
+        list = list.filter(p => p.direcao === 'team_to_mentee');
+      }
       return list.sort((a, b) => {
         return (prioOrder[a.prioridade_calculada] ?? 3) - (prioOrder[b.prioridade_calculada] ?? 3);
       });
