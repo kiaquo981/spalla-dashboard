@@ -3327,77 +3327,131 @@ img { max-width: 100%; display: block; }
   color: white;
 }
 
-/* Buddy pull-up modal (Processar Últimas Calls Manualmente) */
+/* Buddy pull-up modal (Processar Últimas Calls Manualmente) — Operon ID */
 .buddy-pullup-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1100;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
+  z-index: var(--z-modal, 1100);
+  background: var(--overlay-medium, rgba(28, 25, 16, 0.5));
+  backdrop-filter: blur(6px);
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  padding: 0 var(--sp-4) 0;
 }
 .buddy-pullup {
   width: 100%;
-  max-width: 1280px;
-  height: 94vh;
-  background: #fff;
-  border-radius: 16px 16px 0 0;
-  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2);
+  max-width: 1080px;
+  height: 78vh;
+  max-height: 760px;
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--neutral-200, #e5e3dc);
+  border-bottom: 0;
+  border-radius: var(--r-xl, 16px) var(--r-xl, 16px) 0 0;
+  box-shadow: var(--shadow-2xl, 0 -16px 48px rgba(28, 25, 16, 0.18));
   display: flex;
   flex-direction: column;
   overflow: hidden;
   transform: translateY(100%);
-  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
 }
 .buddy-pullup--open { transform: translateY(0); }
+.buddy-pullup--expanded {
+  height: 94vh;
+  max-height: none;
+  max-width: 100%;
+  border-radius: 0;
+}
 .buddy-pullup__handle {
   width: 100%;
   display: flex;
   justify-content: center;
-  padding: 8px 0 4px;
+  padding: var(--sp-2) 0 0;
   cursor: pointer;
+  flex-shrink: 0;
 }
 .buddy-pullup__handle::before {
   content: "";
   display: block;
-  width: 40px;
+  width: 44px;
   height: 4px;
-  background: #d1d5db;
-  border-radius: 2px;
+  background: var(--neutral-300, #d4d0c5);
+  border-radius: var(--r-full, 9999px);
+  transition: background 0.15s ease;
 }
+.buddy-pullup__handle:hover::before { background: var(--brand-500, #8a7d52); }
 .buddy-pullup__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 20px 14px;
-  border-bottom: 1px solid #e5e7eb;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-5) var(--sp-4);
+  border-bottom: 1px solid var(--neutral-200, #e5e3dc);
+  background: var(--bg-primary, #fff);
   flex-shrink: 0;
 }
-.buddy-pullup__close {
-  background: transparent;
-  border: none;
-  font-size: 24px;
-  line-height: 1;
-  cursor: pointer;
-  color: #6b7280;
-  padding: 4px 10px;
-  border-radius: 6px;
-  transition: background 0.15s;
+.buddy-pullup__title {
+  font-family: var(--font-display, 'Optima', Georgia, serif);
+  font-size: var(--text-lg, 18px);
+  font-weight: 500;
+  color: var(--brand-900, #35301d);
+  letter-spacing: var(--tracking-tight, -0.01em);
+  margin: 0;
+  line-height: 1.2;
 }
-.buddy-pullup__close:hover { background: #f3f4f6; color: #111827; }
+.buddy-pullup__subtitle {
+  margin: 2px 0 0;
+  font-size: var(--text-xs, 12px);
+  color: var(--text-muted, #807a67);
+}
+.buddy-pullup__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex-shrink: 0;
+}
+.buddy-pullup__icon-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-secondary, #5a564c);
+  border-radius: var(--r-md, 8px);
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.buddy-pullup__icon-btn:hover {
+  background: var(--cream-100, #f5f4f0);
+  color: var(--brand-900, #35301d);
+  border-color: var(--neutral-200, #e5e3dc);
+}
+.buddy-pullup__icon-btn svg { width: 16px; height: 16px; stroke-width: 2; }
+.buddy-pullup__close {
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 300;
+}
 .buddy-pullup__body {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  background: #fafafa;
+  background: var(--bg-app, #faf9f7);
 }
 .buddy-pullup__iframe {
   width: 100%;
   height: 100%;
   border: 0;
   display: block;
+  background: var(--bg-app, #faf9f7);
+}
+@media (max-width: 768px) {
+  .buddy-pullup-overlay { padding: 0; }
+  .buddy-pullup { height: 92vh; max-height: none; max-width: 100%; }
+  .buddy-pullup__header { padding: var(--sp-3) var(--sp-4); }
+  .buddy-pullup__title { font-size: var(--text-md, 16px); }
 }
 
 .wa-pendencias__list {

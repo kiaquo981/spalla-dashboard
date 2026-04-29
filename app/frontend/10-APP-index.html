@@ -6806,15 +6806,24 @@
           </div>
 
           <!-- Pull-up Modal: Buddy (Processar Últimas Calls Manualmente) -->
-          <div class="buddy-pullup-overlay" x-show="ui.processCallsModal" x-transition.opacity @click.self="ui.processCallsModal = false" role="dialog" aria-modal="true" aria-label="Processar últimas calls manualmente">
-            <div class="buddy-pullup" :class="{ 'buddy-pullup--open': ui.processCallsModal }">
-              <div class="buddy-pullup__handle" @click="ui.processCallsModal = false" title="Fechar"></div>
+          <div class="buddy-pullup-overlay" x-show="ui.processCallsModal" x-transition.opacity @click.self="ui.processCallsModal = false; ui.processCallsExpanded = false" role="dialog" aria-modal="true" aria-label="Processar últimas calls manualmente">
+            <div class="buddy-pullup" :class="{ 'buddy-pullup--open': ui.processCallsModal, 'buddy-pullup--expanded': ui.processCallsExpanded }">
+              <div class="buddy-pullup__handle" @click="ui.processCallsExpanded = !ui.processCallsExpanded" :title="ui.processCallsExpanded ? 'Reduzir' : 'Expandir'"></div>
               <div class="buddy-pullup__header">
                 <div>
-                  <h3 style="margin:0;font-size:16px">Processar Últimas Calls Manualmente</h3>
-                  <p style="margin:2px 0 0;font-size:12px;color:var(--neutral-400)">Buddy · processamento manual de transcrições e dossiês de call</p>
+                  <h3 class="buddy-pullup__title">Processar Últimas Calls Manualmente</h3>
+                  <p class="buddy-pullup__subtitle">Buddy · processamento manual de transcrições e dossiês de call</p>
                 </div>
-                <button class="buddy-pullup__close" @click="ui.processCallsModal = false" aria-label="Fechar">&times;</button>
+                <div class="buddy-pullup__actions">
+                  <a class="buddy-pullup__icon-btn" href="/buddy" target="_blank" rel="noopener" title="Abrir em nova aba">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M14 3h7v7M21 3l-9 9M19 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h6"/></svg>
+                  </a>
+                  <button class="buddy-pullup__icon-btn" @click="ui.processCallsExpanded = !ui.processCallsExpanded" :title="ui.processCallsExpanded ? 'Reduzir' : 'Expandir tela cheia'">
+                    <svg x-show="!ui.processCallsExpanded" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                    <svg x-show="ui.processCallsExpanded" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg>
+                  </button>
+                  <button class="buddy-pullup__icon-btn buddy-pullup__close" @click="ui.processCallsModal = false; ui.processCallsExpanded = false" aria-label="Fechar" title="Fechar">&times;</button>
+                </div>
               </div>
               <div class="buddy-pullup__body">
                 <iframe x-show="ui.processCallsModal" :src="ui.processCallsModal ? '/buddy' : 'about:blank'" class="buddy-pullup__iframe" loading="lazy" title="Buddy"></iframe>
