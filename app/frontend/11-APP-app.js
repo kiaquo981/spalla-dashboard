@@ -821,8 +821,10 @@ function operon() {
         list = list.filter(m => (m.tarefas_atrasadas || 0) === 0 && (m.risco_churn === 'baixo' || m.risco_churn === 'medio'));
       } else if (this.ui.filters.status === 'sem_call') {
         list = list.filter(m => (m.dias_desde_call || 999) > 21);
-      } else if (this.ui.filters.status === 'sem_resposta') {
-        list = list.filter(m => (m.msgs_pendentes_resposta || 0) > 0);
+      } else if (this.ui.filters.status === 'aguardando_resposta') {
+        list = list.filter(m => (m.msgs_aguardando_resposta || 0) > 0);
+      } else if (this.ui.filters.status === 'precisa_reforco') {
+        list = list.filter(m => (m.msgs_para_reforcar || 0) > 0);
       } else if (this.ui.filters.status === 'risco_critico') {
         list = list.filter(m => m.risco_churn === 'critico' || m.risco_churn === 'alto');
       }
@@ -967,11 +969,13 @@ function operon() {
       }
       // Remove from local list
       this.data.pendencias = this.data.pendencias.filter(p => p.interacao_id !== interacaoId);
-      // Update mentee counts
+      // Update mentee counts (split by direcao)
       const pending = this.data.pendencias;
       this.data.mentees = this.data.mentees.map(m => {
-        const count = pending.filter(p => p.mentorado_id === m.id).length;
-        return { ...m, msgs_pendentes_resposta: count };
+        const mPends = pending.filter(p => p.mentorado_id === m.id);
+        const aguardando = mPends.filter(p => p.direcao !== 'team_to_mentee').length;
+        const reforco = mPends.filter(p => p.direcao === 'team_to_mentee').length;
+        return { ...m, msgs_pendentes_resposta: mPends.length, msgs_aguardando_resposta: aguardando, msgs_para_reforcar: reforco };
       });
       this.toast('Mensagem marcada como respondida', 'success');
     },
@@ -988,7 +992,7 @@ function operon() {
         return;
       }
       this.data.pendencias = [];
-      this.data.mentees = this.data.mentees.map(m => ({ ...m, msgs_pendentes_resposta: 0 }));
+      this.data.mentees = this.data.mentees.map(m => ({ ...m, msgs_pendentes_resposta: 0, msgs_aguardando_resposta: 0, msgs_para_reforcar: 0 }));
       this.toast('Todas as mensagens marcadas como respondidas', 'success');
     },
 
@@ -2867,12 +2871,21 @@ function operon() {
             // Single source of truth: always derive from pendencias.data.
             const pendsByMentee = {};
             pendencias.data.forEach(p => {
-              if (p.mentorado_id) pendsByMentee[p.mentorado_id] = (pendsByMentee[p.mentorado_id] || 0) + 1;
+              if (!p.mentorado_id) return;
+              const bucket = pendsByMentee[p.mentorado_id] || (pendsByMentee[p.mentorado_id] = { total: 0, aguardando: 0, reforco: 0 });
+              bucket.total += 1;
+              if (p.direcao === 'team_to_mentee') bucket.reforco += 1;
+              else bucket.aguardando += 1;
             });
-            this.data.mentees = this.data.mentees.map(m => ({
-              ...m,
-              msgs_pendentes_resposta: pendsByMentee[m.id] || 0,
-            }));
+            this.data.mentees = this.data.mentees.map(m => {
+              const b = pendsByMentee[m.id] || { total: 0, aguardando: 0, reforco: 0 };
+              return {
+                ...m,
+                msgs_pendentes_resposta: b.total,
+                msgs_aguardando_resposta: b.aguardando,
+                msgs_para_reforcar: b.reforco,
+              };
+            });
           }
           if (calls.data?.length) {
             // Normalize calls data (from calls_mentoria table directly)

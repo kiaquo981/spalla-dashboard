@@ -3309,12 +3309,21 @@ img { max-width: 100%; display: block; }
 }
 .wa-pendencias__bulk-btn + .wa-pendencias__bulk-btn { margin-left: 6px; }
 .wa-pendencias__bulk-btn--filter {
-  border-color: #7c3aed;
-  color: #7c3aed;
+  border-color: #1e40af;
+  color: #1e40af;
 }
 .wa-pendencias__bulk-btn--filter:hover,
 .wa-pendencias__bulk-btn--filter.wa-pendencias__bulk-btn--active {
-  background: #7c3aed;
+  background: #1e40af;
+  color: white;
+}
+.wa-pendencias__bulk-btn--filter-aguardando {
+  border-color: #92400e;
+  color: #92400e;
+}
+.wa-pendencias__bulk-btn--filter-aguardando:hover,
+.wa-pendencias__bulk-btn--filter-aguardando.wa-pendencias__bulk-btn--active {
+  background: #92400e;
   color: white;
 }
 
