@@ -492,6 +492,7 @@ function operon() {
       scheduledCalls: [],
       gcalEvents: [],
       pendencias: [],
+      aguardandoResposta: [],  // raw interacoes_mentoria mentee→equipe não respondidas (sem filtro do classifier)
       paPlanos: [],       // vw_pa_pipeline data
       paMenteePa: null,   // full PA for current mentee detail
       paAllFases: [],     // lightweight fases for sentinel calcs
@@ -919,13 +920,13 @@ function operon() {
         );
         list = list.filter(p => menteeIds.has(p.mentorado_id));
       }
-      // Espelha o filtro de status do select: se "aguardando_resposta", só mentee→equipe; se "precisa_reforco", só equipe→mentee
+      // Filtro de status: card de pendências é REFORÇO/COMPROMISSOS (vem da view com classifier)
+      // "Aguardando resposta" tem card próprio (raw) — quando esse filtro está ativo, esse card oculta todos os itens
       const statusFilter = this.ui.filters?.status;
       if (statusFilter === 'aguardando_resposta') {
-        list = list.filter(p => p.direcao !== 'team_to_mentee');
-      } else if (statusFilter === 'precisa_reforco') {
-        list = list.filter(p => p.direcao === 'team_to_mentee');
+        return [];
       }
+      // Sem filtro ou "precisa_reforco": mostra todos os itens da view
       return list.sort((a, b) => {
         return (prioOrder[a.prioridade_calculada] ?? 3) - (prioOrder[b.prioridade_calculada] ?? 3);
       });
@@ -936,6 +937,37 @@ function operon() {
 
     get pendenciasVisible() {
       return this.pendenciasExpanded ? this.pendenciasList : this.pendenciasList.slice(0, 15);
+    },
+
+    // Aguardando Resposta — fonte raw (interacoes_mentoria), sem filtro do classifier
+    aguardandoMinimized: false,
+    aguardandoExpanded: false,
+
+    get aguardandoRespostaList() {
+      const prioOrder = { critico: 0, alto: 1, medio: 2, baixo: 3 };
+      let list = [...(this.data.aguardandoResposta || [])];
+      const consultor = this.ui.filters?.carteira;
+      if (consultor) {
+        const menteeIds = new Set(
+          (this.data.mentees || [])
+            .filter(m => m.consultor_responsavel === consultor)
+            .map(m => m.id)
+        );
+        list = list.filter(p => menteeIds.has(p.mentorado_id));
+      }
+      // Espelha filtro de status do select
+      const statusFilter = this.ui.filters?.status;
+      if (statusFilter === 'precisa_reforco') {
+        // Esse card é só pra aguardando — se filtro é reforço, esconde tudo
+        return [];
+      }
+      return list.sort((a, b) => {
+        return (prioOrder[a.prioridade_calculada] ?? 3) - (prioOrder[b.prioridade_calculada] ?? 3);
+      });
+    },
+
+    get aguardandoRespostaVisible() {
+      return this.aguardandoExpanded ? this.aguardandoRespostaList : this.aguardandoRespostaList.slice(0, 15);
     },
 
     formatHorasPendente(horas) {
@@ -976,24 +1008,22 @@ function operon() {
         console.error('[Spalla] markAsResponded error:', error);
         return;
       }
-      // Remove from local list
+      // Remove de ambas fontes locais
       this.data.pendencias = this.data.pendencias.filter(p => p.interacao_id !== interacaoId);
-      // Update mentee counts (split by direcao)
-      const pending = this.data.pendencias;
-      this.data.mentees = this.data.mentees.map(m => {
-        const mPends = pending.filter(p => p.mentorado_id === m.id);
-        const aguardando = mPends.filter(p => p.direcao !== 'team_to_mentee').length;
-        const reforco = mPends.filter(p => p.direcao === 'team_to_mentee').length;
-        return { ...m, msgs_pendentes_resposta: mPends.length, msgs_aguardando_resposta: aguardando, msgs_para_reforcar: reforco };
-      });
+      this.data.aguardandoResposta = (this.data.aguardandoResposta || []).filter(p => p.interacao_id !== interacaoId);
+      this._reconcileMenteeCounters();
       this.toast('Mensagem marcada como respondida', 'success');
     },
 
     async markAllAsResponded() {
-      if (!confirm('Marcar TODAS as ' + this.data.pendencias.length + ' mensagens como respondidas?')) return;
+      const total = this.data.pendencias.length + (this.data.aguardandoResposta || []).length;
+      if (!confirm('Marcar TODAS as ' + total + ' mensagens como respondidas?')) return;
       const sb2 = await initSupabase();
       if (!sb2) return;
-      const ids = this.data.pendencias.map(p => p.interacao_id);
+      const ids = [
+        ...this.data.pendencias.map(p => p.interacao_id),
+        ...(this.data.aguardandoResposta || []).map(p => p.interacao_id),
+      ];
       const { error } = await sb2.from('interacoes_mentoria').update({ respondido: true }).in('id', ids);
       if (error) {
         this.toast('Erro ao marcar mensagens', 'error');
@@ -1001,8 +1031,28 @@ function operon() {
         return;
       }
       this.data.pendencias = [];
+      this.data.aguardandoResposta = [];
       this.data.mentees = this.data.mentees.map(m => ({ ...m, msgs_pendentes_resposta: 0, msgs_aguardando_resposta: 0, msgs_para_reforcar: 0 }));
       this.toast('Todas as mensagens marcadas como respondidas', 'success');
+    },
+
+    // Helper: recalcula contadores derivados em todos os mentees a partir das 2 fontes
+    _reconcileMenteeCounters() {
+      const buckets = {};
+      (this.data.pendencias || []).forEach(p => {
+        if (!p.mentorado_id) return;
+        const b = buckets[p.mentorado_id] || (buckets[p.mentorado_id] = { reforco: 0, aguardando: 0 });
+        if (p.direcao === 'team_to_mentee') b.reforco += 1;
+      });
+      (this.data.aguardandoResposta || []).forEach(p => {
+        if (!p.mentorado_id) return;
+        const b = buckets[p.mentorado_id] || (buckets[p.mentorado_id] = { reforco: 0, aguardando: 0 });
+        b.aguardando += 1;
+      });
+      this.data.mentees = this.data.mentees.map(m => {
+        const b = buckets[m.id] || { reforco: 0, aguardando: 0 };
+        return { ...m, msgs_pendentes_resposta: b.reforco + b.aguardando, msgs_aguardando_resposta: b.aguardando, msgs_para_reforcar: b.reforco };
+      });
     },
 
     waBadgeClass(m) {
@@ -2817,10 +2867,19 @@ function operon() {
       sb = await initSupabase();
       if (sb) {
         try {
-          const [mentees, cohort, pendencias, paPipeline, waWeekly, waAlertas] = await Promise.all([
+          const [mentees, cohort, pendencias, aguardandoRaw, paPipeline, waWeekly, waAlertas] = await Promise.all([
             sb.from('vw_god_overview').select('*'),
             sb.from('vw_god_cohort').select('*'),
             sb.from('vw_god_pendencias').select('*').order('created_at', { ascending: true }),
+            // Raw: msgs do mentee aguardando resposta da equipe (sem filtro do classifier)
+            sb.from('interacoes_mentoria')
+              .select('id, mentorado_id, conteudo, sender_name, message_type, created_at, mentorados!inner(id, nome, consultor_responsavel, ativo, cohort, grupo_whatsapp_id)')
+              .eq('eh_equipe', false)
+              .eq('requer_resposta', true)
+              .eq('respondido', false)
+              .eq('mentorados.ativo', true)
+              .neq('mentorados.cohort', 'tese')
+              .order('created_at', { ascending: false }),
             sb.from('vw_pa_pipeline').select('*'),
             sb.from('vw_wa_mentee_weekly_stats').select('*'),
             sb.from('vw_alertas_command_center').select('*'),
@@ -2875,27 +2934,52 @@ function operon() {
           if (cohort.data?.length) this.data.cohort = cohort.data;
           if (pendencias.data) {
             this.data.pendencias = pendencias.data;
-            // Reconcile msgs_pendentes_resposta per mentee to match the actual pendencias list.
-            // vw_god_overview and vw_god_pendencias use different logic → counts never match.
-            // Single source of truth: always derive from pendencias.data.
-            const pendsByMentee = {};
-            pendencias.data.forEach(p => {
-              if (!p.mentorado_id) return;
-              const bucket = pendsByMentee[p.mentorado_id] || (pendsByMentee[p.mentorado_id] = { total: 0, aguardando: 0, reforco: 0 });
-              bucket.total += 1;
-              if (p.direcao === 'team_to_mentee') bucket.reforco += 1;
-              else bucket.aguardando += 1;
-            });
-            this.data.mentees = this.data.mentees.map(m => {
-              const b = pendsByMentee[m.id] || { total: 0, aguardando: 0, reforco: 0 };
-              return {
-                ...m,
-                msgs_pendentes_resposta: b.total,
-                msgs_aguardando_resposta: b.aguardando,
-                msgs_para_reforcar: b.reforco,
-              };
-            });
           }
+          // Mapeia "aguardando resposta" (raw — sem filtro do classifier que tem falsos negativos).
+          // Cada item vira shape compatível com o template de pendência (id, mentorado_id, mentorado_nome, conteudo_truncado, etc).
+          if (aguardandoRaw.error) console.error('[Spalla] Aguardando raw query error:', aguardandoRaw.error.message);
+          this.data.aguardandoResposta = (aguardandoRaw.data || []).map(r => {
+            const m = r.mentorados || {};
+            const nowMs = Date.now();
+            const created = new Date(r.created_at).getTime();
+            const horas = Math.round((nowMs - created) / 36e5 * 10) / 10;
+            return {
+              interacao_id: r.id,
+              mentorado_id: r.mentorado_id,
+              mentorado_nome: m.nome || '?',
+              consultor_responsavel: m.consultor_responsavel,
+              chat_id: m.grupo_whatsapp_id,
+              grupo_whatsapp_id: m.grupo_whatsapp_id,
+              conteudo_truncado: (r.conteudo || '').slice(0, 200),
+              tipo_interacao: r.message_type,
+              autor_identificado: r.sender_name,
+              created_at: r.created_at,
+              horas_pendente: horas,
+              prioridade_calculada: horas > 48 ? 'critico' : horas > 24 ? 'alto' : horas > 12 ? 'medio' : 'baixo',
+              eh_equipe: false,
+              direcao: 'mentee_to_team',
+            };
+          });
+          // Reconcile counters per mentee — ambas as fontes feedback contagem do filtro
+          const pendsByMentee = {};
+          (pendencias.data || []).forEach(p => {
+            if (!p.mentorado_id) return;
+            const b = pendsByMentee[p.mentorado_id] || (pendsByMentee[p.mentorado_id] = { reforco: 0, aguardando: 0 });
+            if (p.direcao === 'team_to_mentee') b.reforco += 1;
+          });
+          this.data.aguardandoResposta.forEach(a => {
+            const b = pendsByMentee[a.mentorado_id] || (pendsByMentee[a.mentorado_id] = { reforco: 0, aguardando: 0 });
+            b.aguardando += 1;
+          });
+          this.data.mentees = this.data.mentees.map(m => {
+            const b = pendsByMentee[m.id] || { reforco: 0, aguardando: 0 };
+            return {
+              ...m,
+              msgs_pendentes_resposta: b.reforco + b.aguardando,
+              msgs_aguardando_resposta: b.aguardando,
+              msgs_para_reforcar: b.reforco,
+            };
+          });
           if (calls.data?.length) {
             // Normalize calls data (from calls_mentoria table directly)
             this._supabaseCalls = calls.data.map(c => ({
