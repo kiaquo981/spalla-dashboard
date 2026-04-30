@@ -2871,14 +2871,14 @@ function operon() {
             sb.from('vw_god_overview').select('*'),
             sb.from('vw_god_cohort').select('*'),
             sb.from('vw_god_pendencias').select('*').order('created_at', { ascending: true }),
-            // Raw: msgs do mentee aguardando resposta da equipe (sem filtro do classifier)
+            // Raw: msgs do mentee aguardando resposta da equipe (sem filtro do classifier
+            // E sem filtros no mentorado — bate 100% com interacoes_mentoria raw,
+            // que é a fonte de verdade para "aguardando resposta")
             sb.from('interacoes_mentoria')
-              .select('id, mentorado_id, conteudo, sender_name, message_type, created_at, mentorados!inner(id, nome, consultor_responsavel, ativo, cohort, grupo_whatsapp_id)')
+              .select('id, mentorado_id, conteudo, sender_name, message_type, created_at, mentorados(id, nome, consultor_responsavel, ativo, cohort, grupo_whatsapp_id)')
               .eq('eh_equipe', false)
               .eq('requer_resposta', true)
               .eq('respondido', false)
-              .eq('mentorados.ativo', true)
-              .neq('mentorados.cohort', 'tese')
               .order('created_at', { ascending: false }),
             sb.from('vw_pa_pipeline').select('*'),
             sb.from('vw_wa_mentee_weekly_stats').select('*'),
