@@ -2871,14 +2871,13 @@ function operon() {
             sb.from('vw_god_overview').select('*'),
             sb.from('vw_god_cohort').select('*'),
             sb.from('vw_god_pendencias').select('*').order('created_at', { ascending: true }),
-            // Raw: msgs do mentee aguardando resposta da equipe (sem filtro do classifier
-            // E sem filtros no mentorado — bate 100% com interacoes_mentoria raw,
-            // que é a fonte de verdade para "aguardando resposta")
+            // Aguardando Resposta — regra: última msg do chat foi do mentee (eh_equipe=false)
+            // e ainda não foi marcada como respondida pelo operador. Não depende de
+            // `requer_resposta` do classifier (que tem falsos negativos massivos).
+            // Pega últimas 14 dias de msgs e processa no client.
             sb.from('interacoes_mentoria')
-              .select('id, mentorado_id, conteudo, sender_name, message_type, created_at, mentorados(id, nome, consultor_responsavel, ativo, cohort, grupo_whatsapp_id)')
-              .eq('eh_equipe', false)
-              .eq('requer_resposta', true)
-              .eq('respondido', false)
+              .select('id, mentorado_id, conteudo, sender_name, message_type, created_at, eh_equipe, respondido, mentorados(id, nome, consultor_responsavel, ativo, cohort, grupo_whatsapp_id)')
+              .gte('created_at', new Date(Date.now() - 14 * 86400000).toISOString())
               .order('created_at', { ascending: false }),
             sb.from('vw_pa_pipeline').select('*'),
             sb.from('vw_wa_mentee_weekly_stats').select('*'),
@@ -2935,31 +2934,54 @@ function operon() {
           if (pendencias.data) {
             this.data.pendencias = pendencias.data;
           }
-          // Mapeia "aguardando resposta" (raw — sem filtro do classifier que tem falsos negativos).
-          // Cada item vira shape compatível com o template de pendência (id, mentorado_id, mentorado_nome, conteudo_truncado, etc).
+          // Aguardando Resposta — derivar a partir da regra "última msg do chat foi do mentee".
+          // Para cada mentorado, agrupa msgs ordenadas por created_at desc; se a primeira (= última temporalmente)
+          // foi de eh_equipe=false e respondido=false, o chat está aguardando resposta da equipe.
           if (aguardandoRaw.error) console.error('[Spalla] Aguardando raw query error:', aguardandoRaw.error.message);
-          this.data.aguardandoResposta = (aguardandoRaw.data || []).map(r => {
-            const m = r.mentorados || {};
-            const nowMs = Date.now();
-            const created = new Date(r.created_at).getTime();
-            const horas = Math.round((nowMs - created) / 36e5 * 10) / 10;
-            return {
-              interacao_id: r.id,
-              mentorado_id: r.mentorado_id,
-              mentorado_nome: m.nome || '?',
-              consultor_responsavel: m.consultor_responsavel,
-              chat_id: m.grupo_whatsapp_id,
-              grupo_whatsapp_id: m.grupo_whatsapp_id,
-              conteudo_truncado: (r.conteudo || '').slice(0, 200),
-              tipo_interacao: r.message_type,
-              autor_identificado: r.sender_name,
-              created_at: r.created_at,
-              horas_pendente: horas,
-              prioridade_calculada: horas > 48 ? 'critico' : horas > 24 ? 'alto' : horas > 12 ? 'medio' : 'baixo',
-              eh_equipe: false,
-              direcao: 'mentee_to_team',
-            };
-          });
+          {
+            const byChat = new Map();
+            // Query já vem ordenada por created_at desc (mais recente primeiro)
+            (aguardandoRaw.data || []).forEach(r => {
+              if (!r.mentorado_id) return;
+              if (!byChat.has(r.mentorado_id)) byChat.set(r.mentorado_id, []);
+              byChat.get(r.mentorado_id).push(r);
+            });
+            const aguardando = [];
+            for (const [mid, msgs] of byChat) {
+              const ultima = msgs[0];
+              if (!ultima) continue;
+              // Regra: última msg foi do mentee (eh_equipe=false) e ainda não marcada como respondida
+              if (ultima.eh_equipe || ultima.respondido) continue;
+              const m = ultima.mentorados || {};
+              const nowMs = Date.now();
+              const created = new Date(ultima.created_at).getTime();
+              const horas = Math.round((nowMs - created) / 36e5 * 10) / 10;
+              // Conta quantas msgs do mentee desde a última msg da equipe (pra mostrar "X msgs novas")
+              let novas = 0;
+              for (const m2 of msgs) {
+                if (m2.eh_equipe) break;
+                novas += 1;
+              }
+              aguardando.push({
+                interacao_id: ultima.id,
+                mentorado_id: ultima.mentorado_id,
+                mentorado_nome: m.nome || '?',
+                consultor_responsavel: m.consultor_responsavel,
+                chat_id: m.grupo_whatsapp_id,
+                grupo_whatsapp_id: m.grupo_whatsapp_id,
+                conteudo_truncado: (ultima.conteudo || '').slice(0, 200),
+                tipo_interacao: ultima.message_type,
+                autor_identificado: ultima.sender_name,
+                created_at: ultima.created_at,
+                horas_pendente: horas,
+                prioridade_calculada: horas > 48 ? 'critico' : horas > 24 ? 'alto' : horas > 12 ? 'medio' : 'baixo',
+                eh_equipe: false,
+                direcao: 'mentee_to_team',
+                msgs_novas: novas, // quantas msgs do mentee desde última da equipe
+              });
+            }
+            this.data.aguardandoResposta = aguardando;
+          }
           // Reconcile counters per mentee — ambas as fontes feedback contagem do filtro
           const pendsByMentee = {};
           (pendencias.data || []).forEach(p => {
