@@ -320,6 +320,12 @@ function operon() {
       waSearchQuery: '',
       waSearchResults: [],
       waSearchOpen: false,
+      // Onda 4: navegação entre matches + FAB nova msg + lightbox enriquecido
+      waSearchActiveIdx: 0,
+      waNewMsgFabVisible: false,
+      waNewMsgFabCount: 0,
+      waLightboxList: [],
+      waLightboxIdx: 0,
       waTypingIndicator: false,
       waGroupsPanel: false,
       waGroupsSyncing: false,
@@ -2485,6 +2491,10 @@ function operon() {
                   const el = document.getElementById('wa-messages-end');
                   if (el) el.scrollIntoView({ behavior: 'smooth' });
                 });
+              } else if (!newMsg.key?.fromMe) {
+                // Onda 4: user scrollado pra cima + msg de outro = mostra FAB
+                this.ui.waNewMsgFabVisible = true;
+                this.ui.waNewMsgFabCount = (this.ui.waNewMsgFabCount || 0) + 1;
               }
             }
             // TASK-05: Check if this message resolves a pending follow-up
@@ -10674,6 +10684,77 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       }
     },
 
+    // Onda 4: navegação entre matches do search com ↑/↓ e ESC pra fechar
+    waSearchNext() {
+      const total = this.ui.waSearchResults?.length || 0;
+      if (!total) return;
+      this.ui.waSearchActiveIdx = (this.ui.waSearchActiveIdx + 1) % total;
+      const r = this.ui.waSearchResults[this.ui.waSearchActiveIdx];
+      if (r?.message_id) this.scrollToWaMessage(r.message_id);
+    },
+    waSearchPrev() {
+      const total = this.ui.waSearchResults?.length || 0;
+      if (!total) return;
+      this.ui.waSearchActiveIdx = (this.ui.waSearchActiveIdx - 1 + total) % total;
+      const r = this.ui.waSearchResults[this.ui.waSearchActiveIdx];
+      if (r?.message_id) this.scrollToWaMessage(r.message_id);
+    },
+
+    // Onda 4: FAB "↓ Nova mensagem" — observa scroll do feed; quando user
+    // está scrollado pra cima e chega msg, mostra pílula
+    waOnFeedScroll(ev) {
+      const el = ev?.target;
+      if (!el) return;
+      const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      if (distFromBottom < 80) {
+        this.ui.waNewMsgFabVisible = false;
+        this.ui.waNewMsgFabCount = 0;
+      }
+    },
+    waJumpToBottom() {
+      const el = document.getElementById('wa-messages-end');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      this.ui.waNewMsgFabVisible = false;
+      this.ui.waNewMsgFabCount = 0;
+    },
+
+    // Onda 4: lightbox sofisticado — coleta todas as imgs do chat e navega ←/→
+    openWaLightbox(currentUrl) {
+      const list = [];
+      (this.data.whatsappMessages || []).forEach(m => {
+        const id = m.key?.id;
+        const url = id ? this.waMediaUrls?.[id] : null;
+        if (url && this.getWaMessageType?.(m) === 'image') list.push(url);
+      });
+      const idx = Math.max(0, list.indexOf(currentUrl));
+      this.ui.waLightboxList = list.length ? list : [currentUrl];
+      this.ui.waLightboxIdx = idx;
+      this.ui.waLightboxUrl = list.length ? list[idx] : currentUrl;
+    },
+    waLightboxNext() {
+      const list = this.ui.waLightboxList || [];
+      if (list.length < 2) return;
+      this.ui.waLightboxIdx = (this.ui.waLightboxIdx + 1) % list.length;
+      this.ui.waLightboxUrl = list[this.ui.waLightboxIdx];
+    },
+    waLightboxPrev() {
+      const list = this.ui.waLightboxList || [];
+      if (list.length < 2) return;
+      this.ui.waLightboxIdx = (this.ui.waLightboxIdx - 1 + list.length) % list.length;
+      this.ui.waLightboxUrl = list[this.ui.waLightboxIdx];
+    },
+    waLightboxDownload() {
+      const url = this.ui.waLightboxUrl;
+      if (!url) return;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'imagem-' + Date.now() + '.jpg';
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    },
+
     // ===== Audio Recording (Story 6) =====
     async waStartRecording() {
       try {
@@ -10767,9 +10848,15 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           .limit(20);
         if (error) throw error;
         this.ui.waSearchResults = data || [];
+        this.ui.waSearchActiveIdx = 0;
+        // Onda 4: pula direto pro primeiro match
+        if (this.ui.waSearchResults.length && this.ui.waSearchResults[0].message_id) {
+          this.scrollToWaMessage(this.ui.waSearchResults[0].message_id);
+        }
       } catch (e) {
         console.error('[Spalla] WA search error:', e);
         this.ui.waSearchResults = [];
+        this.ui.waSearchActiveIdx = 0;
       }
     },
 

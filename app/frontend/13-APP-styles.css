@@ -1317,8 +1317,35 @@ img { max-width: 100%; display: block; }
 .wa-day-separator span { display: inline-block; padding: 4px 12px; background: rgba(255, 255, 255, 0.92); border-radius: var(--r-full); box-shadow: var(--shadow-sm); font-size: 11px; font-weight: 600; color: var(--neutral-600); text-transform: capitalize; letter-spacing: 0.02em; }
 
 /* Lightbox */
-.wa-lightbox { position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; }
-.wa-lightbox__close { position: absolute; top: 16px; right: 16px; background: none; border: none; color: #fff; font-size: 32px; cursor: pointer; z-index: 1; }
+.wa-lightbox { position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.92); display: flex; align-items: center; justify-content: center; }
+.wa-lightbox__close { position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.12); border: none; color: #fff; font-size: 28px; cursor: pointer; z-index: 1; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
+.wa-lightbox__close:hover { background: rgba(255,255,255,0.22); }
+/* Onda 4: lightbox sofisticado — navegação ←/→, download, contador */
+.wa-lightbox__nav { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.12); border: none; color: #fff; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s; z-index: 1; }
+.wa-lightbox__nav:hover { background: rgba(255,255,255,0.22); }
+.wa-lightbox__nav--prev { left: 24px; }
+.wa-lightbox__nav--next { right: 24px; }
+.wa-lightbox__toolbar { position: absolute; top: 16px; left: 16px; display: flex; align-items: center; gap: 8px; color: #fff; font-size: 13px; z-index: 1; }
+.wa-lightbox__counter { background: rgba(0,0,0,0.4); padding: 4px 10px; border-radius: var(--r-full); font-variant-numeric: tabular-nums; }
+.wa-lightbox__btn { background: rgba(255,255,255,0.12); border: none; color: #fff; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
+.wa-lightbox__btn:hover { background: rgba(255,255,255,0.22); }
+
+/* Onda 4: FAB "↓ Nova mensagem" — pílula flutuante */
+.wa-new-msg-fab { position: absolute; right: 24px; bottom: 100px; background: #25d366; color: #fff; border: none; border-radius: var(--r-full); padding: 8px 14px; font-size: 13px; font-weight: 500; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.18); display: flex; align-items: center; gap: 6px; transition: transform 0.18s ease-out, opacity 0.18s; z-index: 5; }
+.wa-new-msg-fab:hover { transform: translateY(-1px); }
+.wa-new-msg-fab__count { background: #fff; color: #25d366; border-radius: 10px; padding: 1px 7px; font-size: 11px; font-weight: 700; min-width: 18px; text-align: center; }
+
+/* Onda 4: search counter + navegação ↑/↓ */
+.wa-search-counter { font-size: 12px; color: var(--neutral-500); padding: 0 8px; font-variant-numeric: tabular-nums; }
+.wa-search-nav { display: flex; align-items: center; gap: 2px; }
+.wa-search-nav button { background: none; border: none; color: var(--neutral-500); cursor: pointer; padding: 4px; border-radius: var(--r-sm); display: flex; align-items: center; justify-content: center; }
+.wa-search-nav button:hover { background: var(--neutral-100); color: var(--neutral-800); }
+
+/* Onda 4: empty states humanos — ilustração + microcopy + CTA */
+.wa-empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; text-align: center; gap: 12px; color: var(--neutral-500); height: 100%; }
+.wa-empty-state__svg { width: 96px; height: 96px; opacity: 0.5; }
+.wa-empty-state__title { font-size: 15px; font-weight: 600; color: var(--neutral-700); margin: 0; }
+.wa-empty-state__hint { font-size: 13px; color: var(--neutral-500); max-width: 320px; line-height: 1.5; margin: 0; }
 
 /* Mic button */
 .wa-mic-btn { background: none; border: none; cursor: pointer; padding: 6px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }

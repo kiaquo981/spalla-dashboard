@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="16-APP-operon-molecules.css?v=3">
   <link rel="stylesheet" href="17-APP-operon-utilities.css?v=2">
   <link rel="stylesheet" href="18-APP-operon-bridge.css?v=1">
-  <link rel="stylesheet" href="13-APP-styles.css?v=216">
+  <link rel="stylesheet" href="13-APP-styles.css?v=217">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1c1910,#35301d,#1c1910);font-family:'Inter',system-ui,sans-serif;color:var(--brand-500,#8a7d52);font-size:24px;font-weight:700;letter-spacing:0.05em; }
@@ -7050,7 +7050,17 @@
                   </div>
                 </template>
                 <div class="wa-sidebar__loading" x-show="ui.whatsappLoading && !data.whatsappChats.length">Carregando conversas...</div>
-                <div class="wa-sidebar__empty" x-show="!ui.whatsappLoading && !data.whatsappChats.length">Nenhuma conversa ainda.</div>
+                <!-- Onda 4: empty state humano com ilustração + microcopy -->
+                <div class="wa-empty-state" x-show="!ui.whatsappLoading && !data.whatsappChats.length">
+                  <svg class="wa-empty-state__svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.2">
+                    <path d="M52 31a20 20 0 0 1-29.5 17.5L8 52l3.5-13.8A20 20 0 1 1 52 31z"/>
+                    <circle cx="22" cy="31" r="2" fill="currentColor"/>
+                    <circle cx="32" cy="31" r="2" fill="currentColor"/>
+                    <circle cx="42" cy="31" r="2" fill="currentColor"/>
+                  </svg>
+                  <p class="wa-empty-state__title">Sem conversas por aqui ainda</p>
+                  <p class="wa-empty-state__hint">Conecte seu WhatsApp pra começar a conversar com seus mentorados direto do Spalla.</p>
+                </div>
               </div>
               <!-- Disconnect link at bottom of sidebar -->
               <div class="wa-sidebar__footer">
@@ -7067,8 +7077,14 @@
               <div class="wa-search-overlay" x-show="ui.waSearchOpen" x-transition>
                 <div class="wa-search-bar">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                  <input type="text" x-model="ui.waSearchQuery" placeholder="Buscar mensagens..." @input.debounce.400ms="waSearchMessages()" @keydown.escape="ui.waSearchOpen = false" x-ref="waSearchInput">
-                  <button @click="ui.waSearchOpen = false; ui.waSearchQuery = ''; ui.waSearchResults = []">&times;</button>
+                  <input type="text" x-model="ui.waSearchQuery" placeholder="Buscar mensagens..." @input.debounce.400ms="waSearchMessages()" @keydown.escape="ui.waSearchOpen = false" @keydown.enter.prevent="waSearchNext()" @keydown.arrow-down.prevent="waSearchNext()" @keydown.arrow-up.prevent="waSearchPrev()" x-ref="waSearchInput">
+                  <!-- Onda 4: contador + navegação ↑/↓ -->
+                  <span class="wa-search-counter" x-show="ui.waSearchResults.length > 0" x-text="(ui.waSearchActiveIdx + 1) + ' de ' + ui.waSearchResults.length"></span>
+                  <span class="wa-search-nav" x-show="ui.waSearchResults.length > 1">
+                    <button @click="waSearchPrev()" title="Anterior (↑)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg></button>
+                    <button @click="waSearchNext()" title="Próximo (↓)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
+                  </span>
+                  <button @click="ui.waSearchOpen = false; ui.waSearchQuery = ''; ui.waSearchResults = []; ui.waSearchActiveIdx = 0">&times;</button>
                 </div>
                 <div class="wa-search-results" x-show="ui.waSearchResults.length > 0">
                   <template x-for="r in ui.waSearchResults" :key="r.id">
@@ -7107,7 +7123,7 @@
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 </button>
               </div>
-              <div class="wa-chat__messages" x-show="ui.whatsappSelectedChat">
+              <div class="wa-chat__messages" x-show="ui.whatsappSelectedChat" @scroll.passive="waOnFeedScroll($event)">
                 <template x-for="(msg, mi) in data.whatsappMessages" :key="msg.key?.id || mi">
                   <div style="display:contents">
                     <template x-if="shouldShowWaDateSeparator(msg, data.whatsappMessages[mi - 1])">
@@ -7143,7 +7159,7 @@
                     <template x-if="getWaMessageType(msg) === 'image'">
                       <div class="wa-bubble__media">
                         <template x-if="waMediaUrls[msg.key?.id]">
-                          <img :src="waMediaUrls[msg.key?.id]" @click="ui.waLightboxUrl = waMediaUrls[msg.key?.id]" style="max-width:280px; border-radius:8px; cursor:pointer; object-fit:cover;" :alt="msg.message?.imageMessage?.caption || 'Imagem'" loading="lazy">
+                          <img :src="waMediaUrls[msg.key?.id]" @click="openWaLightbox(waMediaUrls[msg.key?.id])" style="max-width:280px; border-radius:8px; cursor:pointer; object-fit:cover;" :alt="msg.message?.imageMessage?.caption || 'Imagem'" loading="lazy">
                         </template>
                         <template x-if="!waMediaUrls[msg.key?.id]">
                           <div class="wa-media-loading" @click="loadWaMedia(msg)" style="width:280px;height:200px;background:#f0f0f0;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:#666;">
@@ -7218,6 +7234,13 @@
                 <div id="wa-messages-end"></div>
                 <div class="wa-chat__loading" x-show="ui.whatsappLoading">Carregando mensagens...</div>
               </div>
+              <!-- Onda 4: FAB "↓ Nova mensagem" — quando user scrollou pra cima e chegou msg -->
+              <button class="wa-new-msg-fab" x-show="ui.waNewMsgFabVisible && ui.whatsappSelectedChat" x-transition.opacity @click="waJumpToBottom()" title="Ir para a mais recente">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                <span x-show="ui.waNewMsgFabCount > 0" class="wa-new-msg-fab__count" x-text="ui.waNewMsgFabCount > 99 ? '99+' : ui.waNewMsgFabCount"></span>
+                <span x-show="!ui.waNewMsgFabCount">Nova mensagem</span>
+                <span x-show="ui.waNewMsgFabCount > 0" x-text="ui.waNewMsgFabCount === 1 ? 'nova mensagem' : 'novas mensagens'"></span>
+              </button>
               <!-- Reply preview bar -->
               <div class="wa-reply-bar" x-show="ui.waReplyTo" x-transition>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
@@ -7262,18 +7285,35 @@
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                 </button>
               </div>
-              <div class="wa-chat__empty" x-show="!ui.whatsappSelectedChat">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-                <p>Selecione uma conversa para ver as mensagens</p>
+              <!-- Onda 4: empty state humano quando nenhum chat selecionado -->
+              <div class="wa-empty-state" x-show="!ui.whatsappSelectedChat">
+                <svg class="wa-empty-state__svg" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.2">
+                  <path d="M52 31a20 20 0 0 1-29.5 17.5L8 52l3.5-13.8A20 20 0 1 1 52 31z"/>
+                  <path d="M22 26h20M22 31h20M22 36h12" stroke-linecap="round"/>
+                </svg>
+                <p class="wa-empty-state__title">Escolha uma conversa pra começar</p>
+                <p class="wa-empty-state__hint">Selecione um chat na lateral pra ver mensagens, responder, ou vincular um mentorado.</p>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Image Lightbox (outside wa-layout to avoid flex interference) -->
-        <div class="wa-lightbox" x-show="ui.waLightboxUrl" x-transition.opacity @click.self="ui.waLightboxUrl = null" style="display:none" :style="ui.waLightboxUrl ? 'display:flex' : 'display:none'">
-          <button class="wa-lightbox__close" @click="ui.waLightboxUrl = null">&times;</button>
+        <!-- Onda 4: lightbox sofisticado — navegação ←/→, download, contador, ESC fecha -->
+        <div class="wa-lightbox" x-show="ui.waLightboxUrl" x-transition.opacity @click.self="ui.waLightboxUrl = null; ui.waLightboxList = []; ui.waLightboxIdx = 0" @keydown.escape.window="ui.waLightboxUrl = null" @keydown.arrow-left.window="waLightboxPrev()" @keydown.arrow-right.window="waLightboxNext()" tabindex="0" style="display:none" :style="ui.waLightboxUrl ? 'display:flex' : 'display:none'">
+          <div class="wa-lightbox__toolbar">
+            <span class="wa-lightbox__counter" x-show="ui.waLightboxList && ui.waLightboxList.length > 1" x-text="(ui.waLightboxIdx + 1) + ' / ' + ui.waLightboxList.length"></span>
+            <button class="wa-lightbox__btn" @click="waLightboxDownload()" title="Baixar">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+          </div>
+          <button class="wa-lightbox__close" @click="ui.waLightboxUrl = null; ui.waLightboxList = []">&times;</button>
+          <button class="wa-lightbox__nav wa-lightbox__nav--prev" x-show="ui.waLightboxList && ui.waLightboxList.length > 1" @click.stop="waLightboxPrev()" title="Anterior (←)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
           <img :src="ui.waLightboxUrl" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain;">
+          <button class="wa-lightbox__nav wa-lightbox__nav--next" x-show="ui.waLightboxList && ui.waLightboxList.length > 1" @click.stop="waLightboxNext()" title="Próximo (→)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
         </div>
 
         <!-- ===== PAGE: WA TOPICS BOARD ===== -->
@@ -13006,7 +13046,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=258"></script>
+  <script src="11-APP-app.js?v=259"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">
