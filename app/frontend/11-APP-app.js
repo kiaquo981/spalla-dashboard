@@ -4432,7 +4432,6 @@ function operon() {
     },
 
     // Onda 1: grouping — true se primeira bolha de um grupo (sender mudou, gap > 60s, ou novo dia)
-    // Formato Evolution (/whatsapp panel): msg.key.fromMe + msg.pushName + msg.messageTimestamp (segundos)
     isWaFirstOfGroup(msg, prevMsg) {
       if (!prevMsg) return true;
       if (!!msg?.key?.fromMe !== !!prevMsg?.key?.fromMe) return true;
@@ -4454,6 +4453,73 @@ function operon() {
       const b = new Date(prevMsg?.created_at || 0).getTime();
       if (a && b && Math.abs(a - b) > 60000) return true;
       return this.shouldShowWaDateSeparator(msg, prevMsg);
+    },
+
+    // Onda 2: sidebar richness helpers — preview/timestamp/unread/pending
+    getWaChatPreview(chat) {
+      const lm = chat?.lastMessage;
+      if (!lm?.message) return '';
+      const m = lm.message;
+      let txt = m.conversation || m.extendedTextMessage?.text || '';
+      if (!txt) {
+        if (m.imageMessage) txt = '📷 Imagem';
+        else if (m.videoMessage) txt = '🎥 Vídeo';
+        else if (m.audioMessage) txt = '🎤 Áudio';
+        else if (m.documentMessage) txt = '📎 Documento';
+        else if (m.stickerMessage) txt = 'Sticker';
+        else txt = '';
+      }
+      const prefix = lm.key?.fromMe ? 'Você: ' : '';
+      const out = (prefix + txt).replace(/\s+/g, ' ').trim();
+      return out.length > 50 ? out.slice(0, 50) + '…' : out;
+    },
+
+    getWaChatTimestampLabel(chat) {
+      const ts = chat?.lastMessage?.messageTimestamp || chat?.updatedAt;
+      if (!ts) return '';
+      const d = typeof ts === 'number' ? new Date(ts * 1000) : new Date(ts);
+      if (isNaN(d.getTime())) return '';
+      const now = new Date();
+      const sameDay = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+      if (sameDay) return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const diffDays = Math.round((now - d) / 86400000);
+      if (diffDays === 1) return 'Ontem';
+      if (diffDays < 7) return d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    },
+
+    getWaChatUnread(chat) {
+      const n = Number(chat?.unreadCount || chat?.unread || 0);
+      return n > 0 ? n : 0;
+    },
+
+    // Pendência: última msg foi do mentee (não fromMe) há mais de 24h
+    getWaChatPendingHours(chat) {
+      const lm = chat?.lastMessage;
+      if (!lm || lm.key?.fromMe) return 0;
+      const ts = Number(lm.messageTimestamp || 0);
+      if (!ts) return 0;
+      return Math.floor((Date.now() / 1000 - ts) / 3600);
+    },
+
+    // Mentorado vinculado ao chat (via wa_groups)
+    getWaChatLinkedMentee(chat) {
+      const jid = chat?.remoteJid || chat?.id;
+      if (!jid) return null;
+      const g = (this.data.waGroups || []).find(g => g.group_jid === jid);
+      if (!g?.mentorado_id) return null;
+      const m = (this.data.mentees || []).find(m => m.id === g.mentorado_id);
+      return m ? { id: m.id, name: m.full_name || m.nome || 'Mentorado' } : null;
+    },
+
+    // Telefone formatado pra header (extraído do JID)
+    getWaChatPhone(chat) {
+      const jid = chat?.remoteJid || chat?.id || '';
+      if (jid.endsWith('@g.us')) return ''; // grupo, sem telefone
+      const num = jid.replace('@s.whatsapp.net', '').replace('@lid', '').replace(/\D/g, '');
+      if (num.length >= 12) return `+${num.slice(0,2)} ${num.slice(2,4)} ${num.slice(4,9)}-${num.slice(9)}`;
+      if (num.length >= 10) return `+${num}`;
+      return '';
     },
 
     // Clean sender name — replace raw JID numbers with readable format

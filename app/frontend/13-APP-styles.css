@@ -1140,15 +1140,31 @@ img { max-width: 100%; display: block; }
 .wa-sidebar__header { padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--neutral-200); display: flex; justify-content: space-between; align-items: center; }
 .wa-sidebar__header h3 { font-size: var(--text-md); font-weight: 600; margin: 0; }
 .wa-sidebar__list { flex: 1; overflow-y: auto; }
-.wa-sidebar__item { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); cursor: pointer; transition: background var(--t-fast); border-bottom: 1px solid var(--neutral-100); }
+/* Onda 2: sidebar item richness — preview + timestamp + unread + pendência pulsante */
+.wa-sidebar__item { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); cursor: pointer; transition: background var(--t-fast); border-bottom: 1px solid var(--neutral-100); position: relative; }
 .wa-sidebar__item:hover { background: var(--neutral-50); }
 .wa-sidebar__item.active { background: var(--brand-50); border-left: 3px solid var(--brand-500); }
-.wa-sidebar__item-name { font-weight: 500; font-size: var(--text-sm); color: var(--neutral-900); }
+.wa-sidebar__item-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.wa-sidebar__item-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.wa-sidebar__item-name { font-weight: 500; font-size: var(--text-sm); color: var(--neutral-900); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wa-sidebar__item-time { font-size: 11px; color: var(--neutral-400); flex-shrink: 0; }
+.wa-sidebar__item-preview { font-size: 12px; color: var(--neutral-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.wa-sidebar__item-meta { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.wa-sidebar__item-unread { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: #25d366; color: #fff; font-size: 11px; font-weight: 600; }
+.wa-sidebar__item-pending { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; animation: wa-pulse-soft 1.6s ease-in-out infinite; flex-shrink: 0; }
+@keyframes wa-pulse-soft { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.55; transform: scale(0.85); } }
 .wa-sidebar__loading, .wa-sidebar__empty { padding: var(--sp-6); text-align: center; color: var(--neutral-400); font-size: var(--text-sm); }
 
 .wa-chat { flex: 1; display: flex; flex-direction: column; background: var(--neutral-50); min-width: 0; overflow: hidden; }
+/* Onda 2: header expandido com 2 linhas — nome + meta (telefone, status, mentorado vinculado) */
 .wa-chat__header { padding: var(--sp-3) var(--sp-4); background: #fff; border-bottom: 1px solid var(--neutral-200); display: flex; align-items: center; gap: var(--sp-3); }
 .wa-chat__header h3 { font-size: var(--text-md); font-weight: 600; margin: 0; }
+.wa-chat__header-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.wa-chat__header-info h3 { line-height: 1.2; }
+.wa-chat__header-meta { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--neutral-500); }
+.wa-chat__header-meta .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--neutral-300); display: inline-block; }
+.wa-chat__header-mentee-link { color: var(--brand-600); text-decoration: none; font-weight: 500; cursor: pointer; }
+.wa-chat__header-mentee-link:hover { text-decoration: underline; }
 .wa-chat__back-btn { display: none; background: none; border: none; cursor: pointer; padding: 4px; color: var(--neutral-600); }
 /* Onda 1: wallpaper sutil — diferencia "ferramenta caseira" de "produto polido" */
 .wa-chat__messages { flex: 1; overflow-y: auto; padding: var(--sp-4); display: flex; flex-direction: column; gap: 0; background: linear-gradient(180deg, #f7faf9 0%, #f0f4f0 100%); }
