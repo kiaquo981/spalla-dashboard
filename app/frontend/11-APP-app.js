@@ -10224,6 +10224,80 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       return this.data.waSession?.phone_number || null;
     },
 
+    // Cache em memória pra evitar fetch repetido da mesma foto
+    _waProfilePicCache: {},
+
+    // Lazy-fetch da foto de perfil pra um JID específico (Evolution API).
+    // Usado pelo sidebar quando chat individual não tem profilePicUrl populada.
+    async fetchWaProfilePicture(remoteJid) {
+      if (!remoteJid) return null;
+      if (this._waProfilePicCache[remoteJid] !== undefined) return this._waProfilePicCache[remoteJid];
+      this._waProfilePicCache[remoteJid] = null; // marca como "fetching" pra evitar dupe
+      const { instance } = this._waActiveInstance();
+      if (!instance) return null;
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/fetchProfilePictureUrl/${instance}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ number: remoteJid }),
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        const url = data?.profilePictureUrl || data?.profile_picture_url || null;
+        if (url) {
+          this._waProfilePicCache[remoteJid] = url;
+          // Atualiza o objeto chat na lista (Alpine reage e renderiza)
+          const chat = (this.data.whatsappChats || []).find(c => (c.remoteJid || c.id) === remoteJid);
+          if (chat) chat.profilePicUrl = url;
+        }
+        return url;
+      } catch (e) {
+        return null;
+      }
+    },
+
+    // Garante que chat individual tenha foto antes de renderizar (chamado via x-init)
+    ensureWaChatProfilePic(chat) {
+      if (!chat) return;
+      const jid = chat.remoteJid || chat.id || '';
+      // Só pra chats individuais (não grupo) que não têm foto ainda
+      if (jid.endsWith('@g.us') || chat.profilePicUrl) return;
+      this.fetchWaProfilePicture(jid);
+    },
+
+    // JID do número conectado (formato Evolution: 5527XXXX@s.whatsapp.net)
+    waOwnerJid() {
+      const phone = this.waSessionPhone();
+      if (!phone) return '';
+      const num = String(phone).replace(/\D/g, '');
+      return num ? `${num}@s.whatsapp.net` : '';
+    },
+
+    // Detecta se uma msg menciona o número do user logado.
+    // Evolution salva mentions em msg.message.extendedTextMessage.contextInfo.mentionedJid (array)
+    isWaMessageMentioningMe(msg) {
+      const myJid = this.waOwnerJid();
+      if (!myJid) return false;
+      const myNum = myJid.split('@')[0];
+      const mentions = msg?.message?.extendedTextMessage?.contextInfo?.mentionedJid
+        || msg?.contextInfo?.mentionedJid
+        || msg?.mentionedJid
+        || [];
+      if (Array.isArray(mentions) && mentions.some(j => String(j).startsWith(myNum))) return true;
+      // Fallback: procura @numero literal no texto
+      const text = this.getWaMessageText ? this.getWaMessageText(msg) : (msg?.message?.conversation || '');
+      if (text && new RegExp(`@${myNum}\\b`).test(text)) return true;
+      return false;
+    },
+
+    // Sidebar: chat tem menção ao user nas últimas msgs ou na lastMessage?
+    waChatHasMention(chat) {
+      if (!chat) return false;
+      const lm = chat.lastMessage;
+      if (lm && this.isWaMessageMentioningMe(lm)) return true;
+      return false;
+    },
+
     // ===================== WHATSAPP (Evolution API) =====================
 
     async fetchWhatsAppChats() {
