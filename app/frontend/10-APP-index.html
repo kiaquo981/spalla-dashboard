@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="16-APP-operon-molecules.css?v=3">
   <link rel="stylesheet" href="17-APP-operon-utilities.css?v=2">
   <link rel="stylesheet" href="18-APP-operon-bridge.css?v=1">
-  <link rel="stylesheet" href="13-APP-styles.css?v=218">
+  <link rel="stylesheet" href="13-APP-styles.css?v=219">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1c1910,#35301d,#1c1910);font-family:'Inter',system-ui,sans-serif;color:var(--brand-500,#8a7d52);font-size:24px;font-weight:700;letter-spacing:0.05em; }
@@ -7138,6 +7138,10 @@
                 <button class="wa-chat__search-btn" @click="ui.waSearchOpen = !ui.waSearchOpen; $nextTick(() => $refs.waSearchInput?.focus())" title="Buscar mensagens">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 </button>
+                <!-- Onda 6: toggle do mini-card mentorado contextual -->
+                <button class="wa-chat__info-btn" :class="{ 'wa-chat__info-btn--active': ui.waMenteeCardOpen }" x-show="getWaSelectedChatMenteeFull()" @click="toggleWaMenteeCard()" title="Detalhes do mentorado">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                </button>
               </div>
               <div class="wa-chat__messages" x-show="ui.whatsappSelectedChat" @scroll.passive="waOnFeedScroll($event)">
                 <template x-for="(msg, mi) in data.whatsappMessages" :key="msg.key?.id || mi">
@@ -7160,7 +7164,19 @@
                     <!-- Onda 3: cor única por sender no nome -->
                     <div class="wa-bubble__sender" x-show="!msg.key?.fromMe" :style="{ color: waSenderColor(msg.pushName) }" x-text="msg.pushName || 'Desconhecido'"></div>
                     <template x-if="getWaMessageType(msg) === 'text'">
-                      <div class="wa-bubble__text" x-text="getWaMessageText(msg)"></div>
+                      <div>
+                        <div class="wa-bubble__text" x-text="getWaMessageText(msg)"></div>
+                        <!-- Onda 6: link preview card (favicon + domínio + path) -->
+                        <template x-if="extractFirstUrl(getWaMessageText(msg))">
+                          <a class="wa-link-preview" :href="extractFirstUrl(getWaMessageText(msg)).url" target="_blank" rel="noopener">
+                            <div class="wa-link-preview__icon"><img :src="extractFirstUrl(getWaMessageText(msg)).favicon" :alt="extractFirstUrl(getWaMessageText(msg)).domain" loading="lazy" onerror="this.style.display='none'"></div>
+                            <div class="wa-link-preview__body">
+                              <span class="wa-link-preview__domain" x-text="extractFirstUrl(getWaMessageText(msg)).domain"></span>
+                              <span class="wa-link-preview__path" x-text="extractFirstUrl(getWaMessageText(msg)).path || extractFirstUrl(getWaMessageText(msg)).url"></span>
+                            </div>
+                          </a>
+                        </template>
+                      </div>
                     </template>
                     <template x-if="getWaMessageType(msg) === 'audio'">
                       <div class="wa-bubble__media">
@@ -7328,6 +7344,52 @@
                 <p class="wa-empty-state__hint">Selecione um chat na lateral pra ver mensagens, responder, ou vincular um mentorado.</p>
               </div>
             </div>
+            <!-- Onda 6: mini-card mentorado contextual (painel direito collapsible) -->
+            <template x-if="ui.waMenteeCardOpen && ui.whatsappSelectedChat && getWaSelectedChatMenteeFull()">
+              <aside class="wa-mentee-card" x-data="{ m: getWaSelectedChatMenteeFull() }" x-transition>
+                <div class="wa-mentee-card__header">
+                  <h4 class="wa-mentee-card__title">Mentorado</h4>
+                  <button class="wa-mentee-card__close" @click="ui.waMenteeCardOpen = false" title="Fechar">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+                <div class="wa-mentee-card__photo-wrap">
+                  <div class="wa-mentee-card__photo">
+                    <template x-if="m?.photo_url || m?.foto_url || m?.photo">
+                      <img :src="m?.photo_url || m?.foto_url || m?.photo" :alt="m?.full_name || m?.nome" loading="lazy">
+                    </template>
+                    <template x-if="!(m?.photo_url || m?.foto_url || m?.photo)">
+                      <span x-text="avatarInitials(m?.full_name || m?.nome || '?')"></span>
+                    </template>
+                  </div>
+                  <p class="wa-mentee-card__name" x-text="m?.full_name || m?.nome || 'Mentorado'"></p>
+                  <span class="wa-mentee-card__sub" x-show="m?.fase || m?.status" x-text="m?.fase || m?.status"></span>
+                </div>
+                <template x-if="m?.last_call_at || m?.ultima_call">
+                  <div class="wa-mentee-card__section">
+                    <div class="wa-mentee-card__section-label">Última call</div>
+                    <div class="wa-mentee-card__section-value" x-text="new Date(m?.last_call_at || m?.ultima_call).toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' })"></div>
+                  </div>
+                </template>
+                <template x-if="m?.tags?.length || m?.tags_array?.length">
+                  <div class="wa-mentee-card__section">
+                    <div class="wa-mentee-card__section-label">Tags</div>
+                    <div class="wa-mentee-card__tags">
+                      <template x-for="t in (m?.tags || m?.tags_array || [])" :key="t">
+                        <span class="wa-mentee-card__tag" x-text="t"></span>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+                <template x-if="m?.email">
+                  <div class="wa-mentee-card__section">
+                    <div class="wa-mentee-card__section-label">Email</div>
+                    <div class="wa-mentee-card__section-value" x-text="m?.email" style="word-break:break-all"></div>
+                  </div>
+                </template>
+                <button class="wa-mentee-card__cta" @click="openDetail(m?.id); navigate('detail'); ui.waMenteeCardOpen = false">Ver ficha completa</button>
+              </aside>
+            </template>
           </div>
         </div>
 
@@ -13079,7 +13141,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=260"></script>
+  <script src="11-APP-app.js?v=261"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">

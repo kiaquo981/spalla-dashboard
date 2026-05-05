@@ -326,6 +326,8 @@ function operon() {
       waNewMsgFabCount: 0,
       waLightboxList: [],
       waLightboxIdx: 0,
+      // Onda 6: mini-card mentorado contextual (painel collapsible)
+      waMenteeCardOpen: false,
       waTypingIndicator: false,
       waGroupsPanel: false,
       waGroupsSyncing: false,
@@ -10665,6 +10667,45 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       // Convert URLs to <a> tags
       return escaped.replace(/(https?:\/\/[^\s<"']+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:#3b82f6;text-decoration:underline;word-break:break-all">$1</a>');
+    },
+
+    // Onda 6: lookup do mentee linkado por wa_groups (defensivo — funciona mesmo sem Onda 2 mergeada)
+    waChatLinkedMenteeId(chat) {
+      const jid = chat?.remoteJid || chat?.id;
+      if (!jid) return null;
+      const g = (this.data.waGroups || []).find(g => g.group_jid === jid);
+      return g?.mentorado_id || null;
+    },
+
+    // Onda 6: extrai a primeira URL de um texto pra renderizar preview card (favicon + domínio + URL)
+    extractFirstUrl(text) {
+      if (!text) return null;
+      const m = text.match(/https?:\/\/[^\s<"']+/);
+      if (!m) return null;
+      try {
+        const u = new URL(m[0]);
+        return {
+          url: m[0],
+          domain: u.hostname.replace(/^www\./, ''),
+          favicon: `https://www.google.com/s2/favicons?domain=${u.hostname}&sz=64`,
+          path: u.pathname && u.pathname !== '/' ? u.pathname.slice(0, 60) : '',
+        };
+      } catch (e) {
+        return null;
+      }
+    },
+
+    // Onda 6: abre/fecha mini-card do mentorado vinculado (painel direito do chat)
+    toggleWaMenteeCard() {
+      this.ui.waMenteeCardOpen = !this.ui.waMenteeCardOpen;
+    },
+
+    // Resolve dados completos do mentee vinculado pra mini-card
+    getWaSelectedChatMenteeFull() {
+      const chat = this.ui.whatsappSelectedChat;
+      const id = chat ? this.waChatLinkedMenteeId(chat) : null;
+      if (!id) return null;
+      return (this.data.mentees || []).find(m => m.id === id) || null;
     },
 
     // ===== Reply-to helpers =====
