@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="16-APP-operon-molecules.css?v=3">
   <link rel="stylesheet" href="17-APP-operon-utilities.css?v=2">
   <link rel="stylesheet" href="18-APP-operon-bridge.css?v=1">
-  <link rel="stylesheet" href="13-APP-styles.css?v=217">
+  <link rel="stylesheet" href="13-APP-styles.css?v=218">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1c1910,#35301d,#1c1910);font-family:'Inter',system-ui,sans-serif;color:var(--brand-500,#8a7d52);font-size:24px;font-weight:700;letter-spacing:0.05em; }
@@ -2947,7 +2947,23 @@
                         <template x-if="msg.content_type === 'audio'">
                           <div class="wa-bubble__media">
                             <template x-if="msg.media_url">
-                              <audio controls :src="waDetailMediaUrl(msg.media_url)" style="max-width:260px;border-radius:8px" preload="none"></audio>
+                              <div>
+                                <!-- Onda 5: player custom com waveform também na ficha do mentorado -->
+                                <div class="wa-audio" x-data="waAudioPlayer(waDetailMediaUrl(msg.media_url), msg.id || mi)" x-init="init()">
+                                  <button class="wa-audio__play" @click="toggle()" :title="playing ? 'Pausar' : 'Tocar'">
+                                    <svg x-show="!playing" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                    <svg x-show="playing" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                                  </button>
+                                  <div class="wa-audio__waveform">
+                                    <template x-for="(h, bi) in bars" :key="bi">
+                                      <div class="wa-audio__bar" :class="{ 'wa-audio__bar--played': bi / 28 <= progress }" :style="{ height: h + 'px' }" @click.stop="seekTo(bi)"></div>
+                                    </template>
+                                  </div>
+                                  <span class="wa-audio__time" x-text="playing || currentTime > 0 ? fmtTime(currentTime) : fmtTime(duration)"></span>
+                                  <button class="wa-audio__speed" @click="cycleSpeed()" :title="'Velocidade ' + speed + 'x'" x-text="speed + 'x'"></button>
+                                </div>
+                                <audio class="wa-audio--legacy" controls :src="waDetailMediaUrl(msg.media_url)" style="max-width:260px;border-radius:8px" preload="none"></audio>
+                              </div>
                             </template>
                             <template x-if="!msg.media_url">
                               <div style="padding:8px;color:var(--neutral-400);font-size:12px">🎤 Audio</div>
@@ -7149,7 +7165,24 @@
                     <template x-if="getWaMessageType(msg) === 'audio'">
                       <div class="wa-bubble__media">
                         <template x-if="waMediaUrls[msg.key?.id]">
-                          <audio controls :src="waMediaUrls[msg.key?.id]" style="max-width:280px; border-radius:8px;"></audio>
+                          <div>
+                            <!-- Onda 5: player custom com waveform (substitui <audio controls> nativo) -->
+                            <div class="wa-audio" x-data="waAudioPlayer(waMediaUrls[msg.key?.id], msg.key?.id)" x-init="init()">
+                              <button class="wa-audio__play" @click="toggle()" :title="playing ? 'Pausar' : 'Tocar'">
+                                <svg x-show="!playing" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                <svg x-show="playing" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                              </button>
+                              <div class="wa-audio__waveform">
+                                <template x-for="(h, bi) in bars" :key="bi">
+                                  <div class="wa-audio__bar" :class="{ 'wa-audio__bar--played': bi / 28 <= progress }" :style="{ height: h + 'px' }" @click.stop="seekTo(bi)"></div>
+                                </template>
+                              </div>
+                              <span class="wa-audio__time" x-text="playing || currentTime > 0 ? fmtTime(currentTime) : fmtTime(duration)"></span>
+                              <button class="wa-audio__speed" @click="cycleSpeed()" :title="'Velocidade ' + speed + 'x'" x-text="speed + 'x'"></button>
+                            </div>
+                            <!-- Backup: native audio disponível via body[data-wa-audio="legacy"] -->
+                            <audio class="wa-audio--legacy" controls :src="waMediaUrls[msg.key?.id]" style="max-width:280px;border-radius:8px"></audio>
+                          </div>
                         </template>
                         <template x-if="!waMediaUrls[msg.key?.id]">
                           <div class="wa-media-loading" @click="loadWaMedia(msg)" style="padding:12px;background:#f0f0f0;border-radius:8px;cursor:pointer;text-align:center;font-size:14px;color:#666;">Carregando audio...</div>
@@ -13046,7 +13079,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=259"></script>
+  <script src="11-APP-app.js?v=260"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">

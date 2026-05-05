@@ -4452,7 +4452,6 @@ function operon() {
       return this.shouldShowWaDateSeparator(msg, prevMsg);
     },
 
-    // Onda 1: grouping para ficha do mentorado — formato Supabase (is_from_team + sender + created_at ISO)
     isDetailWaFirstOfGroup(msg, prevMsg) {
       if (!prevMsg) return true;
       const aTeam = !!(msg?.is_from_team || msg?.sender === 'Equipe CASE');
@@ -4465,7 +4464,65 @@ function operon() {
       return this.shouldShowWaDateSeparator(msg, prevMsg);
     },
 
-    // Onda 2: sidebar richness helpers — preview/timestamp/unread/pending
+    // Onda 5: gerador determinístico de waveform
+    waAudioBars(msgId) {
+      const id = String(msgId || 'wa');
+      const bars = [];
+      let h = 0;
+      for (let i = 0; i < id.length; i++) h = ((h << 5) - h + id.charCodeAt(i)) | 0;
+      for (let i = 0; i < 28; i++) {
+        h = (h * 9301 + 49297) % 233280;
+        const v = Math.abs(h % 100) / 100;
+        const env = Math.sin((i / 28) * Math.PI);
+        const height = 6 + v * 22 * (0.4 + env * 0.6);
+        bars.push(Math.round(height));
+      }
+      return bars;
+    },
+
+    // Onda 5: player custom factory (rollback via body[data-wa-audio="legacy"])
+    waAudioPlayer(url, msgId) {
+      const parent = this;
+      return {
+        url, msgId,
+        playing: false, progress: 0, duration: 0, currentTime: 0,
+        speed: 1, speeds: [1, 1.5, 2], bars: [], audio: null,
+        init() {
+          this.bars = parent.waAudioBars(msgId);
+          this.audio = new Audio(this.url);
+          this.audio.preload = 'metadata';
+          this.audio.addEventListener('loadedmetadata', () => { this.duration = this.audio.duration || 0; });
+          this.audio.addEventListener('timeupdate', () => {
+            this.currentTime = this.audio.currentTime || 0;
+            this.progress = this.duration ? this.currentTime / this.duration : 0;
+          });
+          this.audio.addEventListener('ended', () => { this.playing = false; this.progress = 0; this.currentTime = 0; });
+          this.audio.addEventListener('error', () => { this.playing = false; });
+        },
+        toggle() {
+          if (!this.audio) return;
+          if (this.playing) { this.audio.pause(); this.playing = false; }
+          else { this.audio.play().then(() => this.playing = true).catch(() => this.playing = false); }
+        },
+        cycleSpeed() {
+          const idx = this.speeds.indexOf(this.speed);
+          this.speed = this.speeds[(idx + 1) % this.speeds.length];
+          if (this.audio) this.audio.playbackRate = this.speed;
+        },
+        seekTo(barIdx) {
+          if (!this.audio || !this.duration) return;
+          this.audio.currentTime = this.duration * (barIdx / 28);
+        },
+        fmtTime(s) {
+          if (!s || isNaN(s)) return '0:00';
+          const m = Math.floor(s / 60);
+          const sec = Math.floor(s % 60);
+          return `${m}:${sec.toString().padStart(2, '0')}`;
+        },
+      };
+    },
+
+    // Onda 2: sidebar richness helpers
     getWaChatPreview(chat) {
       const lm = chat?.lastMessage;
       if (!lm?.message) return '';
@@ -4503,7 +4560,6 @@ function operon() {
       return n > 0 ? n : 0;
     },
 
-    // Pendência: última msg foi do mentee (não fromMe) há mais de 24h
     getWaChatPendingHours(chat) {
       const lm = chat?.lastMessage;
       if (!lm || lm.key?.fromMe) return 0;
@@ -4512,7 +4568,6 @@ function operon() {
       return Math.floor((Date.now() / 1000 - ts) / 3600);
     },
 
-    // Mentorado vinculado ao chat (via wa_groups)
     getWaChatLinkedMentee(chat) {
       const jid = chat?.remoteJid || chat?.id;
       if (!jid) return null;
@@ -4522,10 +4577,9 @@ function operon() {
       return m ? { id: m.id, name: m.full_name || m.nome || 'Mentorado' } : null;
     },
 
-    // Telefone formatado pra header (extraído do JID)
     getWaChatPhone(chat) {
       const jid = chat?.remoteJid || chat?.id || '';
-      if (jid.endsWith('@g.us')) return ''; // grupo, sem telefone
+      if (jid.endsWith('@g.us')) return '';
       const num = jid.replace('@s.whatsapp.net', '').replace('@lid', '').replace(/\D/g, '');
       if (num.length >= 12) return `+${num.slice(0,2)} ${num.slice(2,4)} ${num.slice(4,9)}-${num.slice(9)}`;
       if (num.length >= 10) return `+${num}`;
