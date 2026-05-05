@@ -1,0 +1,71 @@
+name: Diodo — Quality Ratchet
+
+on:
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  diodo-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Run Diodo gate (compare against baseline)
+        id: gate
+        continue-on-error: true
+        run: |
+          node .diodo/measure.mjs --gate | tee diodo-report.txt
+
+      - name: Comment report on PR
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let body;
+            try {
+              body = fs.readFileSync('diodo-report.txt', 'utf8');
+            } catch {
+              body = 'Diodo gate did not produce a report.';
+            }
+            const passed = !body.includes('Gate FAIL');
+            const header = passed ? '🟢 **Diodo: PASS**' : '🔴 **Diodo: FAIL — métricas regrediram**';
+            const comment = `${header}\n\n\`\`\`\n${body}\n\`\`\`\n\n_Quality ratchet: PR não pode regredir métricas congeladas em \`.diodo/baseline.json\`. Pra subir o sarrafo (após melhoria intencional), rode \`node .diodo/measure.mjs --baseline\` localmente e commite._`;
+
+            // Procura comment anterior pra atualizar (evita spam)
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const prev = comments.find(c => c.user?.type === 'Bot' && c.body?.includes('Diodo:'));
+            if (prev) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                comment_id: prev.id, body: comment,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: context.issue.number, body: comment,
+              });
+            }
+
+      # Modo descritivo: warning, não block.
+      # Pra ativar block (gate hard), troque por `if: steps.gate.outcome == 'failure'`.
+      - name: Annotate as warning (descritivo, não-bloqueante)
+        if: steps.gate.outcome == 'failure'
+        run: |
+          echo "::warning::Diodo gate detectou regressão de métricas. Modo descritivo ativado — não bloqueia merge. Veja comentário do PR."
