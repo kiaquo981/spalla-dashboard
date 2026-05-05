@@ -10276,6 +10276,30 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.ui.whatsappLoading = false;
     },
 
+    // Marca todas as mensagens de um chat como lidas no servidor Evolution.
+    // Best-effort: erros são swallowed pra não bloquear UI.
+    async markWaChatAsRead(remoteJid) {
+      const { instance } = this._waActiveInstance();
+      if (!instance || !remoteJid) return;
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/markChatUnread/${instance}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat: remoteJid, unread: false }),
+        });
+        if (!res.ok) {
+          // Fallback: tenta o endpoint legado markMessageAsRead
+          await fetch(`${CONFIG.API_BASE}/api/evolution/chat/markMessageAsRead/${instance}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ readMessages: [{ remoteJid, fromMe: false, id: '' }] }),
+          });
+        }
+      } catch (e) {
+        // No-op — UI já zerou o badge localmente
+      }
+    },
+
     async selectWhatsAppChat(chat) {
       const { instance } = this._waActiveInstance();
       if (!instance) return;
@@ -10285,6 +10309,14 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
       const groupJid = chat.remoteJid || chat.id;
       this._loadingGroupJid = groupJid;
+
+      // Zera o badge de não-lidas localmente (UI responde imediatamente)
+      // e dispara o markAsRead na Evolution em background (persiste no servidor)
+      if (chat && (chat.unreadCount > 0 || chat.unread > 0)) {
+        chat.unreadCount = 0;
+        chat.unread = 0;
+        this.markWaChatAsRead(groupJid).catch(e => console.warn('[Spalla] markAsRead falhou:', e?.message));
+      }
 
       // Strategy: try Supabase wa_messages first, fallback to Evolution API
       let usedRealtime = false;
