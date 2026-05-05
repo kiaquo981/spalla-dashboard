@@ -10314,7 +10314,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           const chats = await res.json();
           // Show all chats sorted by most recent
           // Use remoteJid as primary identifier (id can be null in Evolution v2)
-          this.data.whatsappChats = (chats || [])
+          this.data.whatsappChats = this._applyWaReadOverride((chats || [])
             .filter(c => c && (c.remoteJid || c.id))
             .filter(c => c.remoteJid !== 'status@broadcast') // Exclude status updates
             .map(c => {
@@ -10330,7 +10330,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
                 }
               }
               return c;
-            })
+            }))
             .sort((a, b) => {
               const ta = new Date(a.updatedAt || 0).getTime();
               const tb = new Date(b.updatedAt || 0).getTime();
@@ -10350,28 +10350,96 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.ui.whatsappLoading = false;
     },
 
-    // Marca todas as mensagens de um chat como lidas no servidor Evolution.
-    // Best-effort: erros são swallowed pra não bloquear UI.
+    // Override local persistido em localStorage. Cliente é fonte de verdade
+    // pro estado "lido" porque a Evolution às vezes não persiste markAsRead
+    // e o polling traz unreadCount antigo de volta. TTL de 7 dias.
+    // Auto-invalidação: se chegou nova msg APÓS o markRead, entry expira.
+    _WA_READ_KEY: 'spalla_wa_read_chats_v1',
+
+    _loadWaReadOverride() {
+      try {
+        const raw = localStorage.getItem(this._WA_READ_KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+        const TTL = 7 * 24 * 3600 * 1000;
+        const now = Date.now();
+        let dirty = false;
+        for (const [jid, ts] of Object.entries(parsed)) {
+          if (now - ts > TTL) { delete parsed[jid]; dirty = true; }
+        }
+        if (dirty) localStorage.setItem(this._WA_READ_KEY, JSON.stringify(parsed));
+        return parsed;
+      } catch { return {}; }
+    },
+
+    _markWaChatLocallyRead(remoteJid) {
+      if (!remoteJid) return;
+      try {
+        const override = this._loadWaReadOverride();
+        override[remoteJid] = Date.now();
+        localStorage.setItem(this._WA_READ_KEY, JSON.stringify(override));
+      } catch {}
+    },
+
+    // Aplica o override em uma lista de chats (zera unreadCount em chats marcados localmente).
+    // Chamado no fetchWhatsAppChats e no polling pra que o badge não volte a aparecer.
+    _applyWaReadOverride(chats) {
+      const override = this._loadWaReadOverride();
+      let dirty = false;
+      for (const c of (chats || [])) {
+        const jid = c?.remoteJid || c?.id;
+        if (!jid || !override[jid]) continue;
+        // Se chegou nova msg DEPOIS de ter marcado lido, NÃO zera (badge é legítimo)
+        const lastTs = Number(c?.lastMessage?.messageTimestamp || 0) * 1000;
+        const readTs = override[jid];
+        if (lastTs > readTs) {
+          delete override[jid];
+          dirty = true;
+          continue;
+        }
+        // Override ativo: zera badge
+        c.unreadCount = 0;
+        c.unread = 0;
+      }
+      if (dirty) {
+        try { localStorage.setItem(this._WA_READ_KEY, JSON.stringify(override)); } catch {}
+      }
+      return chats;
+    },
+
+    // Marca todas as mensagens de um chat como lidas.
+    // 1. Local (localStorage) — fonte de verdade resistente ao polling.
+    // 2. Servidor Evolution — best-effort, tenta múltiplos endpoints.
     async markWaChatAsRead(remoteJid) {
+      // 1. Local primeiro (instantâneo e persistente)
+      this._markWaChatLocallyRead(remoteJid);
+
+      // 2. Tenta servidor (best-effort)
       const { instance } = this._waActiveInstance();
       if (!instance || !remoteJid) return;
-      try {
-        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/markChatUnread/${instance}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat: remoteJid, unread: false }),
-        });
-        if (!res.ok) {
-          // Fallback: tenta o endpoint legado markMessageAsRead
-          await fetch(`${CONFIG.API_BASE}/api/evolution/chat/markMessageAsRead/${instance}`, {
+      const tryEndpoints = [
+        { path: `chat/markChatUnread/${instance}`, body: { chat: remoteJid, unread: false } },
+        { path: `chat/markMessageAsRead/${instance}`, body: { readMessages: this._waCollectUnreadIds(remoteJid) } },
+        { path: `chat/markChatRead/${instance}`, body: { number: remoteJid } },
+      ];
+      for (const ep of tryEndpoints) {
+        try {
+          const res = await fetch(`${CONFIG.API_BASE}/api/evolution/${ep.path}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ readMessages: [{ remoteJid, fromMe: false, id: '' }] }),
+            body: JSON.stringify(ep.body),
           });
-        }
-      } catch (e) {
-        // No-op — UI já zerou o badge localmente
+          if (res.ok) return;
+        } catch {}
       }
+    },
+
+    _waCollectUnreadIds(remoteJid) {
+      const msgs = this.data.whatsappMessages || [];
+      return msgs
+        .filter(m => !m.key?.fromMe)
+        .slice(-30)
+        .map(m => ({ remoteJid, fromMe: false, id: m.key?.id || '' }))
+        .filter(x => x.id);
     },
 
     async selectWhatsAppChat(chat) {
