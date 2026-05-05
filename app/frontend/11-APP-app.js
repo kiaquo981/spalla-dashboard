@@ -4393,18 +4393,42 @@ function operon() {
       }
     },
 
-    // Date label for day separators in chat
-    waDateLabel(dateStr) {
-      if (!dateStr) return '';
-      const d = new Date(dateStr);
+    // Date label for day separators in chat — accepts ISO string, Unix seconds, Date, or null
+    waDateLabel(input) {
+      if (input === null || input === undefined || input === '') return '';
+      let d;
+      if (input instanceof Date) {
+        d = input;
+      } else if (typeof input === 'number') {
+        // Unix timestamp in seconds (Evolution API convention)
+        d = new Date(input * 1000);
+      } else {
+        d = new Date(input);
+      }
+      if (isNaN(d.getTime())) return '';
       const today = new Date();
       const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
-      if (d.toDateString() === today.toDateString()) return 'Hoje';
-      if (d.toDateString() === yesterday.toDateString()) return 'Ontem';
-      const dias = ['Domingo','Segunda','Terca','Quarta','Quinta','Sexta','Sabado'];
-      const diff = Math.floor((today - d) / (1000*60*60*24));
-      if (diff < 7) return dias[d.getDay()];
-      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+      if (sameDay(d, today)) return 'Hoje';
+      if (sameDay(d, yesterday)) return 'Ontem';
+      const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const startD = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const diffDays = Math.round((startToday - startD) / 86400000);
+      if (diffDays > 1 && diffDays < 7) {
+        return d.toLocaleDateString('pt-BR', { weekday: 'long' }).replace(/^./, c => c.toUpperCase());
+      }
+      if (d.getFullYear() === today.getFullYear()) {
+        return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' });
+      }
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+    },
+
+    shouldShowWaDateSeparator(msg, prevMsg) {
+      const a = msg?.messageTimestamp ?? msg?.created_at;
+      if (!a) return false;
+      const b = prevMsg?.messageTimestamp ?? prevMsg?.created_at;
+      if (!b) return true;
+      return this.waDateLabel(a) !== this.waDateLabel(b);
     },
 
     // Clean sender name — replace raw JID numbers with readable format

@@ -2928,7 +2928,7 @@
                     <template x-for="(msg, mi) in data.detail?.last_interactions || []" :key="mi">
                       <div>
                       <!-- Day separator -->
-                      <div x-show="mi === 0 || waDateLabel(msg.created_at) !== waDateLabel((data.detail?.last_interactions || [])[mi-1]?.created_at)" class="wa-day-separator">
+                      <div x-show="mi === 0 || waDateLabel(msg.created_at) !== waDateLabel((data.detail?.last_interactions || [])[mi-1]?.created_at)" class="wa-date-separator">
                         <span x-text="waDateLabel(msg.created_at)"></span>
                       </div>
                       <div class="wa-bubble" :class="{ 'wa-bubble--me': msg.is_from_team || msg.sender === 'Equipe CASE' }" style="max-width:85%;position:relative">
@@ -7081,6 +7081,10 @@
               </div>
               <div class="wa-chat__messages" x-show="ui.whatsappSelectedChat">
                 <template x-for="(msg, mi) in data.whatsappMessages" :key="msg.key?.id || mi">
+                  <div style="display:contents">
+                    <template x-if="shouldShowWaDateSeparator(msg, data.whatsappMessages[mi - 1])">
+                      <div class="wa-date-separator"><span x-text="waDateLabel(msg.messageTimestamp)"></span></div>
+                    </template>
                   <div class="wa-bubble" :class="{ 'wa-bubble--me': msg.key?.fromMe }" :id="'wa-msg-' + (msg.key?.id || mi)">
                     <!-- Action buttons (reply + save to context) -->
                     <div class="wa-bubble__actions">
@@ -7169,6 +7173,7 @@
                         </span>
                       </template>
                     </div>
+                  </div>
                   </div>
                 </template>
                 <div id="wa-messages-end"></div>
