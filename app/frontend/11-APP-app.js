@@ -4431,6 +4431,31 @@ function operon() {
       return this.waDateLabel(a) !== this.waDateLabel(b);
     },
 
+    // Onda 1: grouping — true se primeira bolha de um grupo (sender mudou, gap > 60s, ou novo dia)
+    // Formato Evolution (/whatsapp panel): msg.key.fromMe + msg.pushName + msg.messageTimestamp (segundos)
+    isWaFirstOfGroup(msg, prevMsg) {
+      if (!prevMsg) return true;
+      if (!!msg?.key?.fromMe !== !!prevMsg?.key?.fromMe) return true;
+      if ((msg?.pushName || '') !== (prevMsg?.pushName || '')) return true;
+      const a = Number(msg?.messageTimestamp || 0) * 1000;
+      const b = Number(prevMsg?.messageTimestamp || 0) * 1000;
+      if (a && b && Math.abs(a - b) > 60000) return true;
+      return this.shouldShowWaDateSeparator(msg, prevMsg);
+    },
+
+    // Onda 1: grouping para ficha do mentorado — formato Supabase (is_from_team + sender + created_at ISO)
+    isDetailWaFirstOfGroup(msg, prevMsg) {
+      if (!prevMsg) return true;
+      const aTeam = !!(msg?.is_from_team || msg?.sender === 'Equipe CASE');
+      const bTeam = !!(prevMsg?.is_from_team || prevMsg?.sender === 'Equipe CASE');
+      if (aTeam !== bTeam) return true;
+      if ((msg?.sender || '') !== (prevMsg?.sender || '')) return true;
+      const a = new Date(msg?.created_at || 0).getTime();
+      const b = new Date(prevMsg?.created_at || 0).getTime();
+      if (a && b && Math.abs(a - b) > 60000) return true;
+      return this.shouldShowWaDateSeparator(msg, prevMsg);
+    },
+
     // Clean sender name — replace raw JID numbers with readable format
     waCleanSenderName(name) {
       if (!name) return 'Desconhecido';

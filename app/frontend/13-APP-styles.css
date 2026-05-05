@@ -1150,7 +1150,8 @@ img { max-width: 100%; display: block; }
 .wa-chat__header { padding: var(--sp-3) var(--sp-4); background: #fff; border-bottom: 1px solid var(--neutral-200); display: flex; align-items: center; gap: var(--sp-3); }
 .wa-chat__header h3 { font-size: var(--text-md); font-weight: 600; margin: 0; }
 .wa-chat__back-btn { display: none; background: none; border: none; cursor: pointer; padding: 4px; color: var(--neutral-600); }
-.wa-chat__messages { flex: 1; overflow-y: auto; padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-2); }
+/* Onda 1: wallpaper sutil — diferencia "ferramenta caseira" de "produto polido" */
+.wa-chat__messages { flex: 1; overflow-y: auto; padding: var(--sp-4); display: flex; flex-direction: column; gap: 0; background: linear-gradient(180deg, #f7faf9 0%, #f0f4f0 100%); }
 .wa-date-separator { text-align: center; margin: var(--sp-3) 0 var(--sp-2); align-self: center; }
 .wa-date-separator span { display: inline-block; padding: 4px 12px; background: rgba(255, 255, 255, 0.92); border-radius: var(--r-full); box-shadow: var(--shadow-sm); font-size: 11px; font-weight: 600; color: var(--neutral-600); text-transform: capitalize; letter-spacing: 0.02em; }
 .wa-chat__input { padding: var(--sp-3) var(--sp-4); background: #fff; border-top: 1px solid var(--neutral-200); display: flex; gap: var(--sp-2); }
@@ -1244,8 +1245,15 @@ img { max-width: 100%; display: block; }
   border-top: 1px solid var(--neutral-200, #e2e8f0);
 }
 
-.wa-bubble { max-width: 70%; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); font-size: var(--text-sm); background: #fff; box-shadow: var(--shadow-sm); align-self: flex-start; display: flex; flex-direction: column; position: relative; }
+/* Onda 1: bubble densidade adulta — trava em 540px no desktop, mantém 70% no mobile */
+.wa-bubble { max-width: min(70%, 540px); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); font-size: var(--text-sm); background: #fff; box-shadow: var(--shadow-sm); align-self: flex-start; display: flex; flex-direction: column; position: relative; margin-top: 12px; }
 .wa-bubble--me { background: #dcf8c6; align-self: flex-end; }
+/* Onda 1: grouping consecutivo — bubbles do mesmo sender em sequência colam (gap 2px) */
+.wa-bubble--grouped { margin-top: 2px; }
+.wa-bubble--grouped .wa-bubble__sender { display: none; }
+/* Onda 1: tail (ponta) na primeira bolha de cada grupo — toque WhatsApp clássico */
+.wa-bubble--first:not(.wa-bubble--me) { border-top-left-radius: 2px; }
+.wa-bubble--first.wa-bubble--me { border-top-right-radius: 2px; }
 .wa-bubble__sender { font-weight: 600; font-size: var(--text-xs); color: var(--brand-600); margin-bottom: 2px; }
 .wa-bubble__text { color: var(--neutral-800); word-break: break-word; }
 .wa-bubble__media { display: flex; flex-direction: column; gap: var(--sp-2); }
@@ -1254,8 +1262,9 @@ img { max-width: 100%; display: block; }
 .wa-bubble__media img { width: 100%; border-radius: var(--r-md); }
 .wa-bubble__time { font-size: 10px; color: var(--neutral-400); }
 .wa-bubble__footer { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 2px; }
-.wa-bubble__status { display: inline-flex; align-items: center; line-height: 1; }
+.wa-bubble__status { display: inline-flex; align-items: center; line-height: 1; animation: wa-status-fadein 220ms ease-out; }
 .wa-bubble__status svg { vertical-align: middle; }
+@keyframes wa-status-fadein { from { opacity: 0; transform: translateY(1px); } to { opacity: 1; transform: none; } }
 .wa-status--pending svg { stroke: var(--neutral-400); }
 .wa-status--sent svg { stroke: var(--neutral-400); }
 .wa-status--delivered svg { stroke: var(--neutral-500); }
@@ -2800,7 +2809,9 @@ img { max-width: 100%; display: block; }
 .call-card--latest .call-card__timeline-dot { background: #10b981; }
 
 /* Detail WA Feed */
-.detail-wa-feed { display: flex; flex-direction: column; gap: 8px; }
+/* Onda 1: wallpaper também na ficha do mentorado pra paridade visual */
+.detail-wa-feed { display: flex; flex-direction: column; gap: 0; }
+#detail-wa-feed { background: linear-gradient(180deg, #f7faf9 0%, #f0f4f0 100%); }
 .wa-msg--sent { background: #f0fdf4 !important; border-left: 3px solid #25d366 !important; }
 
 /* ================================================================
