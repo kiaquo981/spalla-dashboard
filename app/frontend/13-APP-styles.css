@@ -8297,3 +8297,56 @@ img { max-width: 100%; display: block; }
 .wa-shortcuts-key { display: inline-block; padding: 2px 8px; background: var(--neutral-100); border: 1px solid var(--neutral-200); border-bottom-width: 2px; border-radius: 4px; font-size: 11px; font-weight: 600; color: var(--neutral-700); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; min-width: 18px; text-align: center; }
 .wa-shortcuts-modal__close { margin-top: 16px; width: 100%; padding: 8px; background: var(--neutral-100); border: none; border-radius: var(--r-md); cursor: pointer; font-size: 13px; color: var(--neutral-700); }
 .wa-shortcuts-modal__close:hover { background: var(--neutral-200); }
+
+/* ===== Onda 8: Dark mode WhatsApp — overrides canônicos ===== */
+[data-theme="dark"] .wa-sidebar,
+[data-theme="dark"] .wa-chat__header,
+[data-theme="dark"] .wa-mentee-card { background: #111b21; border-color: #2a3942; }
+[data-theme="dark"] .wa-sidebar__item { border-bottom-color: rgba(255,255,255,0.04); }
+[data-theme="dark"] .wa-sidebar__item:hover { background: #202c33; }
+[data-theme="dark"] .wa-sidebar__item.active { background: #2a3942; border-left-color: #25d366; }
+[data-theme="dark"] .wa-sidebar__item-name,
+[data-theme="dark"] .wa-chat__header h3,
+[data-theme="dark"] .wa-mentee-card__name { color: #e9edef; }
+[data-theme="dark"] .wa-sidebar__item-preview,
+[data-theme="dark"] .wa-sidebar__item-time,
+[data-theme="dark"] .wa-chat__header-meta,
+[data-theme="dark"] .wa-mentee-card__sub,
+[data-theme="dark"] .wa-mentee-card__section-value { color: #8696a0; }
+
+[data-theme="dark"] .wa-chat,
+[data-theme="dark"] .wa-chat__messages { background: #0b141a; }
+[data-theme="dark"] .wa-chat__messages { background-image: linear-gradient(180deg, #0b141a 0%, #0a1015 100%); }
+
+[data-theme="dark"] .wa-bubble { background: #202c33; box-shadow: 0 1px 0.5px rgba(0,0,0,0.3); }
+[data-theme="dark"] .wa-bubble--me { background: #005c4b; }
+[data-theme="dark"] .wa-bubble__text { color: #e9edef; }
+[data-theme="dark"] .wa-bubble__time { color: #8696a0; }
+[data-theme="dark"] .wa-date-separator span { background: rgba(11,20,26,0.85); color: #8696a0; box-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+
+[data-theme="dark"] .wa-bubble__reply-preview { background: rgba(255,255,255,0.06); color: #d1d7db; }
+[data-theme="dark"] .wa-bubble__reply-preview-text { color: #c4cdd1; }
+[data-theme="dark"] .wa-bubble__reply-preview-thumb { background: rgba(255,255,255,0.08); }
+
+[data-theme="dark"] .wa-link-preview { background: rgba(255,255,255,0.06); color: #d1d7db; }
+[data-theme="dark"] .wa-link-preview__path { color: #8696a0; }
+[data-theme="dark"] .wa-link-preview__icon { background: rgba(255,255,255,0.1); }
+
+[data-theme="dark"] .wa-audio { background: rgba(255,255,255,0.06); }
+[data-theme="dark"] .wa-bubble--me .wa-audio { background: rgba(0,0,0,0.18); }
+[data-theme="dark"] .wa-audio__bar { background: #54656f; }
+[data-theme="dark"] .wa-audio__time { color: #8696a0; }
+[data-theme="dark"] .wa-audio__speed { background: rgba(255,255,255,0.1); color: #e9edef; }
+
+[data-theme="dark"] .wa-chat__input { background: #1f2c34; border-top-color: #2a3942; }
+[data-theme="dark"] .wa-chat__input input { background: #2a3942; color: #e9edef; border-color: #2a3942; }
+
+[data-theme="dark"] .wa-shortcuts-modal { background: #1f2c34; color: #e9edef; }
+[data-theme="dark"] .wa-shortcuts-modal h3 { color: #e9edef; }
+[data-theme="dark"] .wa-shortcuts-key { background: #2a3942; border-color: #3b4a54; color: #e9edef; }
+
+[data-theme="dark"] .wa-empty-state__title { color: #d1d7db; }
+[data-theme="dark"] .wa-empty-state__hint { color: #8696a0; }
+
+[data-theme="dark"] .wa-load-more button { background: #1f2c34; border-color: #2a3942; color: #d1d7db; }
+[data-theme="dark"] .wa-load-more button:hover { background: #2a3942; }
