@@ -328,6 +328,10 @@ function operon() {
       waLightboxIdx: 0,
       // Onda 6: mini-card mentorado contextual (painel collapsible)
       waMenteeCardOpen: false,
+      // Onda 7: performance + atalhos + animação envio
+      waMaxVisibleMessages: 200,
+      waShortcutsOpen: false,
+      waJustSentId: null,
       waTypingIndicator: false,
       waGroupsPanel: false,
       waGroupsSyncing: false,
@@ -2012,6 +2016,8 @@ function operon() {
       try {
         // Apply stored dark mode
         if (this.darkMode) document.documentElement.setAttribute('data-theme', 'dark');
+        // Onda 7: registra atalhos de teclado globais
+        window.addEventListener('keydown', (ev) => this.handleWaShortcuts(ev));
         // Deep-link: resolve URL pathname to page
         const pathname = window.location.pathname.replace(/^\//, '').replace(/\/$/, '');
         // Deep-link: /mentorado/:id — store for after auth
@@ -10379,6 +10385,9 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         _replyToId: replyToId,
       };
       this.data.whatsappMessages.push(optimisticMsg);
+      // Onda 7: marca msg recém-enviada pra animação send-pop (300ms)
+      this.ui.waJustSentId = optimisticMsg.key.id;
+      setTimeout(() => { if (this.ui.waJustSentId === optimisticMsg.key.id) this.ui.waJustSentId = null; }, 600);
       this.$nextTick(() => {
         const el = document.getElementById('wa-messages-end');
         if (el) el.scrollIntoView({ behavior: 'smooth' });
@@ -10658,6 +10667,54 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     getWaChatName(chat) {
       return chat?.name || chat?.subject || chat?.pushName || chat?.id?.split('@')[0] || 'Chat';
+    },
+
+    // Onda 7: virtual scrolling pragmático — slice das últimas N msgs
+    // Alpine sem virtual scrolling real é caro de implementar; cap em 200 cobre 99% dos casos
+    visibleWaMessages() {
+      const all = this.data.whatsappMessages || [];
+      const max = this.ui.waMaxVisibleMessages || 200;
+      if (all.length <= max) return all;
+      return all.slice(-max);
+    },
+    waLoadMoreMessages() {
+      this.ui.waMaxVisibleMessages = (this.ui.waMaxVisibleMessages || 200) + 200;
+    },
+
+    // Onda 7: atalhos de teclado globais — só ativos quando /whatsapp está aberto
+    handleWaShortcuts(ev) {
+      if (this.ui.page !== 'whatsapp') return;
+      const tag = (ev.target?.tagName || '').toLowerCase();
+      const isInput = tag === 'input' || tag === 'textarea' || ev.target?.isContentEditable;
+      // ESC sempre ativo
+      if (ev.key === 'Escape') {
+        if (this.ui.waShortcutsOpen) { this.ui.waShortcutsOpen = false; ev.preventDefault(); return; }
+        if (this.ui.waLightboxUrl) { this.ui.waLightboxUrl = null; ev.preventDefault(); return; }
+        if (this.ui.waMenteeCardOpen) { this.ui.waMenteeCardOpen = false; ev.preventDefault(); return; }
+        return;
+      }
+      // Outros só fora de input
+      if (isInput) return;
+      const k = ev.key.toLowerCase();
+      if (k === '?') { this.ui.waShortcutsOpen = !this.ui.waShortcutsOpen; ev.preventDefault(); return; }
+      if (k === '/') {
+        if (this.ui.whatsappSelectedChat) {
+          this.ui.waSearchOpen = true;
+          this.$nextTick(() => this.$refs.waSearchInput?.focus());
+          ev.preventDefault();
+        }
+        return;
+      }
+      if (k === 'j' || k === 'k') {
+        const chats = this.data.whatsappChats || [];
+        if (!chats.length) return;
+        const curIdx = this.ui.whatsappSelectedChat ? chats.findIndex(c => c.id === this.ui.whatsappSelectedChat.id) : -1;
+        const nextIdx = k === 'j'
+          ? (curIdx >= chats.length - 1 ? 0 : curIdx + 1)
+          : (curIdx <= 0 ? chats.length - 1 : curIdx - 1);
+        if (chats[nextIdx]) this.selectWhatsAppChat(chats[nextIdx]);
+        ev.preventDefault();
+      }
     },
 
     // Convert URLs in text to clickable links (safe — escapes HTML first)
