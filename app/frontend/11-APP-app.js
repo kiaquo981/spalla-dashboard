@@ -10625,6 +10625,45 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       return text.length > 60 ? text.substring(0, 60) + '...' : text;
     },
 
+    // Onda 3: reply preview enriquecido — sender + tipo de mídia + thumb URL
+    getReplyPreviewMeta(messageId) {
+      if (!messageId) return { sender: '', type: 'text', thumbUrl: '', icon: '' };
+      const msg = this.data.whatsappMessages.find(m => m.key?.id === messageId);
+      if (!msg) return { sender: '', type: 'text', thumbUrl: '', icon: '' };
+      const sender = msg.key?.fromMe ? 'Você' : (msg.pushName || 'Mensagem');
+      const m = msg.message || {};
+      let type = 'text', icon = '';
+      if (m.imageMessage) { type = 'image'; icon = '📷'; }
+      else if (m.videoMessage) { type = 'video'; icon = '🎥'; }
+      else if (m.audioMessage) { type = 'audio'; icon = '🎤'; }
+      else if (m.documentMessage) { type = 'document'; icon = '📎'; }
+      else if (m.stickerMessage) { type = 'sticker'; icon = '🌟'; }
+      const thumbUrl = (this.waMediaUrls && this.waMediaUrls[msg.key?.id]) || '';
+      return { sender, type, thumbUrl, icon };
+    },
+
+    // Onda 3: cor única por sender — hash do JID/pushName em 8 cores curadas
+    // Aplicado no .wa-bubble__sender pra ajudar rastreio em grupos com 4+ pessoas
+    waSenderColor(name) {
+      if (!name) return '#4a5e3a';
+      const palette = ['#1f7a8c','#5a3e8a','#8a4f1f','#1f6b3a','#8a1f4f','#3e6b1f','#6b1f1f','#1f3e6b'];
+      let hash = 0;
+      for (let i = 0; i < name.length; i++) hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
+      return palette[Math.abs(hash) % palette.length];
+    },
+
+    // Onda 3: avatar mini só na primeira bolha do grupo (em chats que NÃO são "me")
+    // Para chats de grupo, usa profilePicUrl do sender se disponível, senão iniciais
+    waSenderAvatarUrl(msg) {
+      // Por enquanto, sem fallback de profilePicUrl por participante (Evolution não expõe)
+      return '';
+    },
+
+    waSenderInitials(name) {
+      if (!name) return '?';
+      return this.avatarInitials(name);
+    },
+
     scrollToWaMessage(messageId) {
       if (!messageId) return;
       const el = document.getElementById('wa-msg-' + messageId);
