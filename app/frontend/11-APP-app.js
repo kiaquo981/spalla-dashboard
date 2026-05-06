@@ -10227,33 +10227,63 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
     // Cache em memória pra evitar fetch repetido da mesma foto
     _waProfilePicCache: {},
 
+    // Detecta URLs do WhatsApp que servem placeholder/silhueta cinza
+    // (quando o contato não tem foto definida). Tratamos como "sem foto".
+    _isWaPlaceholderUrl(url) {
+      if (!url || typeof url !== 'string') return false;
+      const lower = url.toLowerCase();
+      return lower.includes('no-foto')
+        || lower.includes('default_avatar')
+        || lower.includes('default-profile')
+        || lower.includes('no_photo')
+        || lower.includes('no-photo')
+        || lower.includes('placeholder');
+    },
+
     // Lazy-fetch da foto de perfil pra um JID específico (Evolution API).
     // Usado pelo sidebar quando chat individual não tem profilePicUrl populada.
     async fetchWaProfilePicture(remoteJid) {
       if (!remoteJid) return null;
+      if (this._waProfilePicCache[remoteJid] === 'fetching') return null; // já em andamento
       if (this._waProfilePicCache[remoteJid] !== undefined) return this._waProfilePicCache[remoteJid];
-      this._waProfilePicCache[remoteJid] = null; // marca como "fetching" pra evitar dupe
+      this._waProfilePicCache[remoteJid] = 'fetching';
       const { instance } = this._waActiveInstance();
-      if (!instance) return null;
+      if (!instance) { delete this._waProfilePicCache[remoteJid]; return null; }
       try {
         const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/fetchProfilePictureUrl/${instance}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ number: remoteJid }),
         });
-        if (!res.ok) return null;
+        if (!res.ok) {
+          this._waProfilePicCache[remoteJid] = null; // sem foto, nunca tenta de novo
+          return null;
+        }
         const data = await res.json();
         const url = data?.profilePictureUrl || data?.profile_picture_url || null;
-        if (url) {
+        // Filtra URLs placeholder do WhatsApp (silhueta cinza)
+        if (url && !this._isWaPlaceholderUrl(url)) {
           this._waProfilePicCache[remoteJid] = url;
-          // Atualiza o objeto chat na lista (Alpine reage e renderiza)
           const chat = (this.data.whatsappChats || []).find(c => (c.remoteJid || c.id) === remoteJid);
           if (chat) chat.profilePicUrl = url;
+          return url;
         }
-        return url;
+        // Sem foto válida → marca como null definitivo
+        this._waProfilePicCache[remoteJid] = null;
+        return null;
       } catch (e) {
+        delete this._waProfilePicCache[remoteJid]; // permite re-tentar em caso de erro de rede
         return null;
       }
+    },
+
+    // Chamado pelo onerror do <img> — quando a URL do WhatsApp falha (CDN expirada,
+    // CORS, etc), zera profilePicUrl pra Alpine renderizar o fallback de initials.
+    onWaProfilePicError(chat) {
+      if (!chat) return;
+      chat.profilePicUrl = null;
+      const jid = chat.remoteJid || chat.id;
+      if (jid) this._waProfilePicCache[jid] = null;
     },
 
     // Garante que chat individual tenha foto antes de renderizar (chamado via x-init)
