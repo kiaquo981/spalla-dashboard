@@ -2936,6 +2936,27 @@ function operon() {
 
           if (mentees.data?.length) {
             this.data.mentees = mentees.data;
+            // Enriquece com status operacional direto de public.mentorados
+            // (vw_god_overview retorna NULL pra esses campos por causa de cache de view antigo;
+            // a fonte de verdade vive em "case".mentorados, exposta via public.mentorados após mig 81)
+            try {
+              const { data: statusRows } = await sb.from('mentorados').select('id,contrato_assinado,status_financeiro,dia_pagamento');
+              if (statusRows?.length) {
+                const byId = Object.fromEntries(statusRows.map(r => [r.id, r]));
+                this.data.mentees = this.data.mentees.map(m => {
+                  const s = byId[m.id];
+                  if (!s) return m;
+                  return {
+                    ...m,
+                    contrato_assinado: s.contrato_assinado !== null ? s.contrato_assinado : m.contrato_assinado,
+                    status_financeiro: s.status_financeiro || m.status_financeiro,
+                    dia_pagamento: s.dia_pagamento != null ? s.dia_pagamento : m.dia_pagamento,
+                  };
+                });
+              }
+            } catch (e) {
+              console.warn('[Spalla] enrich status from public.mentorados falhou:', e?.message);
+            }
             // Load emails for schedule form auto-fill via backend API
             // (vw_god_overview doesn't expose email; direct table access blocked by RLS)
             try {
