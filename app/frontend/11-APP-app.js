@@ -13810,8 +13810,13 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       'medacademyresidencia': 'medacademyresidencia.jpg',
       'andre renato': 'medacademyresidencia.jpg',
       'andré renato': 'medacademyresidencia.jpg',
-      'lucilalargura': 'lucilalargura.jpg',
-      'lucila largura': 'lucilalargura.jpg',
+      'dralucilalargura': 'dralucilalargura.jpg',
+      'lucila largura': 'dralucilalargura.jpg',
+      'lucila zimmermann largura': 'dralucilalargura.jpg',
+      'dra.deborahperes': 'dra.deborahperes.jpg',
+      'dradeborahperes': 'dra.deborahperes.jpg',
+      'deborah haydee': 'dra.deborahperes.jpg',
+      'deborah peres': 'dra.deborahperes.jpg',
     },
 
     igPhoto(handleOrName) {
