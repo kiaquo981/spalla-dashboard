@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "measured_at": "2026-05-06T00:11:49.824Z",
-  "git_sha": "4bd872f4248e62f9762cc33c0c3ad9e63d855c60",
+  "measured_at": "2026-05-06T00:42:37.709Z",
+  "git_sha": "acfe568ad6bfb2eac84ea5dff732a68fe6746d3d",
   "metrics": {
     "largest_file_lines": 16361,
     "files_over_2k_lines": 4,
