@@ -885,8 +885,10 @@ function operon() {
       }).length;
       // Calculate pending tasks from board (god_tasks)
       const tarefasPendentes = this.data.tasks.filter(t => t.status === 'pendente' || t.status === 'em_andamento').length;
-      // WhatsApp pending messages — read from pendencias list (single source of truth, always in sync)
-      const msgsPendentes = this.data.pendencias.length;
+      // WhatsApp pending: card "Reforços pendentes" conta SÓ team→mentee (alinhado com a seção "Reforço & Compromissos").
+      // Aguardando resposta (mentee→equipe) é contado separado e renderizado na própria seção.
+      const msgsPendentes = (this.data.pendencias || []).filter(p => p.direcao === 'team_to_mentee').length;
+      const msgsAguardando = (this.data.aguardandoResposta || []).length;
       const mentoradosCriticos = this.data.mentees.filter(m => (m.horas_sem_resposta_equipe || 0) > 24).length;
       return {
         totalMentorados,
@@ -898,6 +900,7 @@ function operon() {
         semContrato,
         pgtoAtrasado,
         msgsPendentes,
+        msgsAguardando,
         mentoradosCriticos,
         paEmExecucao: this.data.paPlanos.filter(p => p.status_geral === 'em_andamento').length,
         paParados: this.data.paPlanos.filter(p => p.status_geral === 'em_andamento' && (p.dias_sem_update || 0) > 14).length,
@@ -918,9 +921,12 @@ function operon() {
     },
 
     // Pendencias: sorted by priority
+    // Card "Reforço & Compromissos" é EXCLUSIVAMENTE team→mentee.
+    // Itens mentee→team da view vivem na seção "Aguardando Resposta" (fonte raw separada).
+    // Sem este filtro, mensagens de mentee aparecem duplicadas em ambas as seções.
     get pendenciasList() {
       const prioOrder = { critico: 0, alto: 1, medio: 2, baixo: 3 };
-      let list = [...this.data.pendencias];
+      let list = (this.data.pendencias || []).filter(p => p.direcao === 'team_to_mentee');
       // Filtrar por consultor se filtro ativo
       const consultor = this.ui.filters?.carteira;
       if (consultor) {
@@ -2463,7 +2469,8 @@ function operon() {
     startDataRefresh() {
       if (this._refreshInterval) clearInterval(this._refreshInterval);
       this._refreshInterval = setInterval(() => {
-        this.loadDashboard();
+        // Refresh silencioso — não pisca skeleton. Mantém estado/scroll/filtros do usuário.
+        this.loadDashboard({ silent: true });
       }, this._refreshIntervalMs);
     },
 
@@ -2880,8 +2887,10 @@ function operon() {
       }
     },
 
-    async loadDashboard() {
-      this.ui.loading = true;
+    async loadDashboard({ silent = false } = {}) {
+      // Auto-refresh em background NÃO seta loading=true pra não piscar a tela.
+      // Só o load inicial e o botão "Atualizar" mostram skeleton.
+      if (!silent) this.ui.loading = true;
       sb = await initSupabase();
       if (sb) {
         try {
@@ -3039,8 +3048,9 @@ function operon() {
       this.ui.loading = false;
       // F2.5 — rebuild notifications after dashboard data loads
       this._buildNotifications();
-      // Auto-refresh disabled — only WhatsApp polling active
-      // if (this.supabaseConnected) this.startDataRefresh();
+      // Auto-refresh: religado com modo silent pra resolver dado-fantasma (Lauanne respondida ainda aparece).
+      // Intervalo via _refreshIntervalMs (60s default).
+      if (this.supabaseConnected && !this._refreshInterval) this.startDataRefresh();
     },
 
     // === ALERTS BAR (Wave 1 F1.1) ===
