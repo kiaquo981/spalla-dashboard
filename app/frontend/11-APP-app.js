@@ -372,6 +372,8 @@ function operon() {
       // WA Management — Notas Estruturadas
       notesDrawer: { open: false, menteeId: null, menteeNome: '', tipo: 'livre' },
       offboardModal: { open: false, menteeId: null, menteeNome: '', motivo: '', obs: '', loading: false },
+      // Status operacional editável (contrato, financeiro, dia pagamento)
+      statusEditModal: { open: false, menteeId: null, menteeNome: '', contrato_assinado: true, status_financeiro: 'em_dia', dia_pagamento: null, loading: false },
       notesDrawerTab: 'notes',   // I-5: 'notes' | 'files'
       notesSaving: false,
       notesForm: {
@@ -13170,6 +13172,67 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     openOffboardModal(menteeId, menteeNome) {
       this.ui.offboardModal = { open: true, menteeId, menteeNome, motivo: '', obs: '', loading: false };
+    },
+
+    // ===================== Status operacional do mentorado =====================
+    openStatusEditModal(menteeId) {
+      const m = (this.data.mentees || []).find(x => x.id === menteeId);
+      if (!m) { this.toast('Mentorado nao encontrado', 'warning'); return; }
+      this.ui.statusEditModal = {
+        open: true,
+        menteeId,
+        menteeNome: m.nome || 'Mentorado',
+        contrato_assinado: m.contrato_assinado !== false,
+        status_financeiro: m.status_financeiro || 'em_dia',
+        dia_pagamento: m.dia_pagamento || null,
+        loading: false,
+      };
+    },
+
+    closeStatusEditModal() {
+      this.ui.statusEditModal = { open: false, menteeId: null, menteeNome: '', contrato_assinado: true, status_financeiro: 'em_dia', dia_pagamento: null, loading: false };
+    },
+
+    async saveStatusEdit() {
+      const s = this.ui.statusEditModal;
+      if (!s.menteeId) return;
+      s.loading = true;
+      try {
+        const dp = s.dia_pagamento === '' || s.dia_pagamento === null ? null : Number(s.dia_pagamento);
+        const body = {
+          contrato_assinado: !!s.contrato_assinado,
+          status_financeiro: s.status_financeiro,
+          dia_pagamento: dp,
+        };
+        const resp = await fetch(`${CONFIG.API_BASE}/api/mentees/${s.menteeId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.auth.accessToken}`,
+          },
+          body: JSON.stringify(body),
+        });
+        if (!resp.ok) {
+          const txt = await resp.text();
+          throw new Error(txt || `HTTP ${resp.status}`);
+        }
+        // Atualiza local — Alpine reage e badges somem instantaneamente
+        const local = (this.data.mentees || []).find(x => x.id === s.menteeId);
+        if (local) {
+          local.contrato_assinado = body.contrato_assinado;
+          local.status_financeiro = body.status_financeiro;
+          local.dia_pagamento = body.dia_pagamento;
+        }
+        if (this.data.detail?.profile?.id === s.menteeId) {
+          Object.assign(this.data.detail.profile, body);
+        }
+        this.toast('Status atualizado', 'success');
+        this.closeStatusEditModal();
+      } catch (e) {
+        this.toast('Erro ao salvar: ' + (e.message || ''), 'error');
+      } finally {
+        s.loading = false;
+      }
     },
 
     closeOffboardModal() {

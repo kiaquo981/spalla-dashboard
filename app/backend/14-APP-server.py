@@ -5048,7 +5048,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': 'Invalid JSON'}, 400)
                 return
 
-            ALLOWED_FIELDS = {'fase_jornada', 'wa_status', 'trilha'}
+            ALLOWED_FIELDS = {
+                'fase_jornada', 'wa_status', 'trilha',
+                # Status operacional editável pelo dashboard
+                'contrato_assinado', 'status_financeiro', 'dia_pagamento',
+            }
             updates = {k: v for k, v in body.items() if k in ALLOWED_FIELDS}
             if not updates:
                 self._send_json({'error': 'No allowed fields provided'}, 400)
@@ -5071,9 +5075,25 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': f'Invalid wa_status: {updates["wa_status"]}'}, 400)
                 return
 
+            # Validações status operacional
+            if 'contrato_assinado' in updates and not isinstance(updates['contrato_assinado'], bool):
+                self._send_json({'error': 'contrato_assinado deve ser boolean'}, 400)
+                return
+
+            valid_status_fin = {'em_dia', 'atrasado', 'quitado', 'sem_contrato', 'pago'}
+            if 'status_financeiro' in updates and updates['status_financeiro'] not in valid_status_fin:
+                self._send_json({'error': f'Invalid status_financeiro: {updates["status_financeiro"]}'}, 400)
+                return
+
+            if 'dia_pagamento' in updates:
+                dp = updates['dia_pagamento']
+                if dp is not None and (not isinstance(dp, int) or dp < 1 or dp > 31):
+                    self._send_json({'error': 'dia_pagamento deve ser int 1-31 ou null'}, 400)
+                    return
+
             result = supabase_request(
                 'PATCH',
-                f'mentorados?id=eq.{mentee_id}&select=id,nome,fase_jornada,wa_status',
+                f'mentorados?id=eq.{mentee_id}&select=id,nome,fase_jornada,wa_status,contrato_assinado,status_financeiro,dia_pagamento',
                 updates
             )
             self._send_json(result)
