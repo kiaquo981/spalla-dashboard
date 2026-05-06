@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "measured_at": "2026-05-06T00:05:07.042Z",
-  "git_sha": "958a32953cbde9ae00deedd8759a9f80f034ff67",
+  "measured_at": "2026-05-06T00:11:49.824Z",
+  "git_sha": "4bd872f4248e62f9762cc33c0c3ad9e63d855c60",
   "metrics": {
-    "largest_file_lines": 16353,
+    "largest_file_lines": 16361,
     "files_over_2k_lines": 4,
     "files_over_5k_lines": 4,
-    "total_loc_frontend_js": 19156,
+    "total_loc_frontend_js": 19164,
     "total_loc_frontend_css": 10296,
     "total_loc_frontend_html": 15411,
     "total_loc_backend_py": 8957,
@@ -21,7 +21,7 @@
   },
   "file_sizes": {
     "app/frontend/00-config-env.js": 12,
-    "app/frontend/11-APP-app.js": 16353,
+    "app/frontend/11-APP-app.js": 16361,
     "app/frontend/12-APP-data.js": 1638,
     "app/frontend/13-APP-photos.js": 64,
     "app/frontend/19-APP-welcome-flow.js": 110,

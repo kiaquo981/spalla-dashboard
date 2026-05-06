@@ -13720,6 +13720,14 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       'paula groisman e anna plachta': 'kava_arq.jpg',
       'paula groisman': 'kava_arq.jpg',
       'anna plachta': 'kava_arq.jpg',
+      // Adicionados 2026-05-05 — fotos baixadas do Instagram CDN
+      'anadeparis': 'anadeparis.jpg',
+      'ana deparis': 'anadeparis.jpg',
+      'medacademyresidencia': 'medacademyresidencia.jpg',
+      'andre renato': 'medacademyresidencia.jpg',
+      'andré renato': 'medacademyresidencia.jpg',
+      'lucilalargura': 'lucilalargura.jpg',
+      'lucila largura': 'lucilalargura.jpg',
     },
 
     igPhoto(handleOrName) {
