@@ -2578,6 +2578,8 @@ function operon() {
       // NÃO setar msgObj.mediaUrl — loadWaMedia confia nessa URL e cacheia direto.
       // URLs mmg.whatsapp.net expiram em 24-48h. Em vez disso, deixa pra construir
       // S3 stream URL com fallback (vai pelo /api/media/stream).
+      // Se row já tem media_storage_key (ingest-from-url worker rodou), usa direto.
+      const _storageKey = row.media_storage_key;
       // Detect forwarded messages (sender starts with ~)
       const senderRaw = row.sender_name || 'Desconhecido';
       const isForwarded = senderRaw.startsWith('~');
@@ -2591,6 +2593,7 @@ function operon() {
         _replyToId: row.quoted_message_id,
         _contentType: contentType,
         _mediaUrl: row.media_url,
+        _mediaStorageKey: _storageKey,  // S3 key se ingest-from-url já rodou
         _isForwarded: isForwarded,
       };
     },
@@ -10952,7 +10955,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       let usedRealtime = false;
       try {
         const { data: rawMsgs, error } = await sb.from('whatsapp_messages')
-          .select('id,message_id,group_id,sender_name,type,content,media_url,media_mime_type,quoted_message_id,timestamp,is_from_team')
+          .select('id,message_id,group_id,sender_name,type,content,media_url,media_mime_type,media_storage_key,quoted_message_id,timestamp,is_from_team')
           .eq('group_id', groupJid)
           .order('timestamp', { ascending: false })
           .limit(100);
@@ -11322,6 +11325,16 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       // Return cached URL if available
       if (this.waMediaUrls && this.waMediaUrls[msgId]) {
         return this.waMediaUrls[msgId];
+      }
+
+      // Prioridade absoluta: media_storage_key (heavy worker já fez ingest pro S3)
+      // Garantia de funcionar — backend stream proxy serve do Hetzner direto.
+      if (msg._mediaStorageKey) {
+        const storageUrl = `${CONFIG.API_BASE}/api/media/stream?key=${encodeURIComponent(msg._mediaStorageKey)}`;
+        if (!this.waMediaUrls) this.waMediaUrls = {};
+        this.waMediaUrls[msgId] = storageUrl;
+        this.waMediaUrls = { ...this.waMediaUrls };
+        return storageUrl;
       }
 
       // mmg.whatsapp.net: URLs CDN expiram em 24-48h. NÃO trustar — sempre passar pelo

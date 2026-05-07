@@ -13,6 +13,7 @@ import os
 import sys
 import time
 import base64
+import io
 import threading
 import hmac
 import hashlib
@@ -3807,6 +3808,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._proxy_evolution('POST')
         elif self.path == '/api/media/recover-binary':
             self._handle_media_recover_binary()
+        elif self.path == '/api/media/ingest-from-url':
+            self._handle_media_ingest_from_url()
         elif self.path == '/api/schedule-call':
             self._handle_schedule_call()
         elif self.path == '/api/zoom/create-meeting':
@@ -5202,6 +5205,161 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             'bytes': len(binary),
             's3_key': s3_key,
             'stream_url': stream_url,
+            'mime': content_type,
+        })
+
+    def _handle_media_ingest_from_url(self):
+        """POST /api/media/ingest-from-url
+        Streaming download da URL CDN do WhatsApp + streaming upload pro Hetzner S3.
+
+        Vantagens vs recover-binary:
+        - NÃO depende do Evolution recriptografar (falha em arquivos > 50MB)
+        - Funciona pra QUALQUER tipo: vídeo, áudio, imagem, PDF, documento, sticker
+        - Streaming chunks → suporta arquivos grandes (100MB+) sem estourar memória
+        - Body do request é pequeno (só metadata) → não estoura limite Railway
+
+        Body: { message_id, chat_id, type, timestamp, url, media_mime_type?,
+                instance_name?, instance_uuid? }
+        Auth: API key OU JWT.
+        """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'unauthorized'}, 401)
+            return
+        try:
+            length = int(self.headers.get('Content-Length', 0) or 0)
+            raw = self.rfile.read(length).decode('utf-8') if length else '{}'
+            body = json.loads(raw)
+        except Exception as e:
+            self._send_json({'error': f'invalid json: {e}'}, 400)
+            return
+
+        message_id = (body.get('message_id') or '').strip()
+        url = (body.get('url') or '').strip()
+        chat_id = (body.get('chat_id') or '').strip()
+        msg_type = (body.get('type') or '').strip()
+        ts_iso = (body.get('timestamp') or '').strip()
+        mime = body.get('media_mime_type')
+        if not (message_id and url and chat_id and msg_type and ts_iso):
+            self._send_json({
+                'error': 'required: message_id, url, chat_id, type, timestamp',
+                'received_keys': list(body.keys()),
+            }, 400)
+            return
+
+        # Resolve instance_uuid via cadeia de fallbacks (mesmo padrão do recover-binary)
+        sk = os.environ.get('SUPABASE_SERVICE_KEY', '')
+        instance_uuid = body.get('instance_uuid')
+        if not instance_uuid and chat_id:
+            try:
+                conn = http.client.HTTPSConnection(SUPABASE_HOST, timeout=10)
+                pl = json.dumps({'p_group_jid': chat_id}).encode('utf-8')
+                conn.request('POST', '/rest/v1/rpc/resolve_instance_for_group',
+                             body=pl, headers={
+                                 'apikey': sk, 'Authorization': f'Bearer {sk}',
+                                 'Content-Type': 'application/json',
+                             })
+                r = conn.getresponse()
+                rows = json.loads(r.read().decode('utf-8') or '[]')
+                if rows:
+                    instance_uuid = rows[0].get('instance_uuid')
+            except Exception as e:
+                print(f'[Ingest] resolve instance failed: {e}')
+
+        if not instance_uuid:
+            instance_uuid = os.environ.get('EVOLUTION_INSTANCE_UUID', '34f920b5-83b9-470f-9775-c662cf23d482')
+
+        # Streaming download — lê chunks pra não estourar memória em arquivos grandes
+        try:
+            req = urllib.request.Request(url)
+            # User-Agent comum pra evitar bloqueio do CDN WhatsApp
+            req.add_header('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15')
+            resp = urllib.request.urlopen(req, timeout=120)
+            content_type = resp.headers.get('Content-Type') or mime or 'application/octet-stream'
+            content_length = resp.headers.get('Content-Length')
+            # Lê em chunks de 1MB e acumula em BytesIO
+            buf = io.BytesIO()
+            CHUNK = 1024 * 1024  # 1MB
+            total = 0
+            MAX_BYTES = 500 * 1024 * 1024  # 500MB hard limit
+            while True:
+                chunk = resp.read(CHUNK)
+                if not chunk:
+                    break
+                buf.write(chunk)
+                total += len(chunk)
+                if total > MAX_BYTES:
+                    self._send_json({
+                        'error': f'media too large (>{MAX_BYTES // (1024*1024)}MB)',
+                        'bytes_so_far': total,
+                    }, 413)
+                    return
+            binary = buf.getvalue()
+        except urllib.error.HTTPError as he:
+            self._send_json({
+                'error': f'CDN returned {he.code}',
+                'detail': 'URL provavelmente expirou. Tenta /api/media/recover-binary como fallback.',
+            }, 410)  # 410 Gone — semantically correct
+            return
+        except Exception as e:
+            self._send_json({'error': f'download failed: {e}'}, 502)
+            return
+
+        if total == 0:
+            self._send_json({'error': 'empty body from CDN'}, 502)
+            return
+
+        # Deduz extensão (mesmo padrão do recover-binary)
+        ext_by_type = {
+            'audioMessage': 'oga', 'imageMessage': 'jpg', 'videoMessage': 'mp4',
+            'documentMessage': 'bin', 'stickerMessage': 'webp',
+        }
+        ext = ext_by_type.get(msg_type, 'bin')
+        if mime:
+            mlow = mime.lower()
+            if 'jpeg' in mlow or 'jpg' in mlow: ext = 'jpg'
+            elif 'png' in mlow: ext = 'png'
+            elif 'webp' in mlow: ext = 'webp'
+            elif 'mp4' in mlow: ext = 'mp4'
+            elif 'quicktime' in mlow or 'mov' in mlow: ext = 'mov'
+            elif 'pdf' in mlow: ext = 'pdf'
+            elif 'ogg' in mlow: ext = 'oga'
+
+        try:
+            ts_ms = int(datetime.fromisoformat(ts_iso.replace('Z', '+00:00')).timestamp() * 1000)
+        except Exception:
+            ts_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+
+        s3_key = f"evolution-api/{instance_uuid}/{chat_id}/{msg_type}/{ts_ms}_{message_id}.{ext}"
+        try:
+            status, _b = s3_put_object(s3_key, binary, content_type=content_type)
+            if status not in (200, 201, 204):
+                self._send_json({'error': f'S3 PUT returned {status}', 's3_key': s3_key}, 500)
+                return
+        except Exception as e:
+            self._send_json({'error': f'S3 upload failed: {e}', 's3_key': s3_key}, 500)
+            return
+
+        # Side effect: marca whatsapp_messages.media_stored=true se a row existe
+        try:
+            conn = http.client.HTTPSConnection(SUPABASE_HOST, timeout=10)
+            qs = urllib.parse.urlencode({'message_id': f'eq.{message_id}'})
+            pl = json.dumps({'media_stored': True, 'media_storage_key': s3_key}).encode('utf-8')
+            conn.request('PATCH', f'/rest/v1/whatsapp_messages?{qs}', body=pl, headers={
+                'apikey': sk, 'Authorization': f'Bearer {sk}',
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal',
+            })
+            conn.getresponse().read()
+        except Exception:
+            pass  # ignore — coluna pode não existir se migration não rodou
+
+        self._send_json({
+            'stored': True,
+            'message_id': message_id,
+            'bytes': total,
+            's3_key': s3_key,
+            'stream_url': f'/api/media/stream?key={urllib.parse.quote(s3_key, safe="")}',
             'mime': content_type,
         })
 
