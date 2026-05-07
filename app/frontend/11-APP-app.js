@@ -2575,8 +2575,9 @@ function operon() {
       } else {
         msgObj.conversation = row.content || `[${rawType}]`;
       }
-      // Also set mediaUrl at message level for eagerlyLoadWaMediaUrls
-      if (row.media_url) msgObj.mediaUrl = row.media_url;
+      // NÃO setar msgObj.mediaUrl — loadWaMedia confia nessa URL e cacheia direto.
+      // URLs mmg.whatsapp.net expiram em 24-48h. Em vez disso, deixa pra construir
+      // S3 stream URL com fallback (vai pelo /api/media/stream).
       // Detect forwarded messages (sender starts with ~)
       const senderRaw = row.sender_name || 'Desconhecido';
       const isForwarded = senderRaw.startsWith('~');
@@ -10963,6 +10964,8 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         if (!error && dbMsgs && dbMsgs.length > 0) {
           // Use Supabase data — convert to Evolution format for HTML compatibility
           this.data.whatsappMessages = dbMsgs.map(row => this._waDbToEvolutionFormat(row));
+          // Pre-aquece URLs de mídia (não era chamado nesse path antes — bug)
+          this.eagerlyLoadWaMediaUrls(this.data.whatsappMessages);
           // Subscribe to Realtime for live updates
           this._subscribeWaRealtime(groupJid);
           usedRealtime = true;
@@ -11321,12 +11324,17 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         return this.waMediaUrls[msgId];
       }
 
-      // Check if Evolution API already provided a presigned mediaUrl (best case!)
-      if (msg.message?.mediaUrl) {
+      // mmg.whatsapp.net: URLs CDN expiram em 24-48h. NÃO trustar — sempre passar pelo
+      // /api/media/stream que tenta Hetzner S3 primeiro (durável) com fallback pra URL.
+      const isWaCdn = (u) => typeof u === 'string' && u.includes('mmg.whatsapp.net');
+
+      // Check if Evolution API already provided a presigned mediaUrl não-WhatsApp (best case!)
+      const directMediaUrl = msg.message?.mediaUrl;
+      if (directMediaUrl && !isWaCdn(directMediaUrl)) {
         if (!this.waMediaUrls) this.waMediaUrls = {};
-        this.waMediaUrls[msgId] = msg.message.mediaUrl;
+        this.waMediaUrls[msgId] = directMediaUrl;
         this.waMediaUrls = { ...this.waMediaUrls };
-        return msg.message.mediaUrl;
+        return directMediaUrl;
       }
 
       // Fallback: construct stream URL via our backend proxy
@@ -11363,17 +11371,23 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const extension = mediaType === 'audioMessage' ? 'oga' : mediaType === 'imageMessage' ? 'jpg' : 'mp4';
       const filename = `${timestamp}_${msgId}.${extension}`;
 
-      // Build S3 key
+      // Build S3 key + fallback se temos URL CDN (mesmo que expirada — backend tenta de qq jeito)
       const s3Key = `evolution-api/${instanceId}/${chatId}/${mediaType}/${filename}`;
-      const streamUrl = `${CONFIG.API_BASE}/api/media/stream?key=${encodeURIComponent(s3Key)}`;
+      const fallbackUrl = directMediaUrl
+        || msg.message?.audioMessage?.url
+        || msg.message?.imageMessage?.url
+        || msg.message?.videoMessage?.url
+        || msg.message?.documentMessage?.url
+        || msg._mediaUrl;
+      let streamUrl = `${CONFIG.API_BASE}/api/media/stream?key=${encodeURIComponent(s3Key)}`;
+      if (fallbackUrl) streamUrl += `&fallback=${encodeURIComponent(fallbackUrl)}`;
 
-
-      // Set URL immediately
+      // Set URL immediately + retorna pra UI
       if (!this.waMediaUrls) this.waMediaUrls = {};
       this.waMediaUrls[msgId] = streamUrl;
       this.waMediaUrls = { ...this.waMediaUrls };
 
-      return ''; // Return empty URL initially (will be filled when fetch completes)
+      return streamUrl; // pra <video src=""> renderizar imediatamente
     },
 
     getWaMessageTime(msg) {
