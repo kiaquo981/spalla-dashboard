@@ -637,12 +637,38 @@ function getInstagramPhoto(handle) {
   return `https://unavatar.io/instagram/${h}`;
 }
 
+// ===== HELPER: Format follower count =====
+// Aceita número absoluto ou null. Renderiza "26.4K", "1.2M", "850" ou "-".
+function formatFollowers(count) {
+  if (count == null) return null;
+  const n = Number(count);
+  if (!isFinite(n) || n < 0) return null;
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace('.0', '') + 'M';
+  if (n >= 1_000) return (n / 1_000).toFixed(1).replace('.0', '') + 'K';
+  return String(n);
+}
+
 // ===== HELPER: Get follower count =====
+// Fonte de verdade: banco (vw_mentorados_seguidores_latest), preenchido pelo CRON Apify semanal.
+// Fallback: INSTAGRAM_PROFILES (hardcoded, demo) — só pra mentees não cobertos pelo CRON ainda.
 function getFollowers(handle) {
   const p = getInstagramProfile(handle);
-  if (!p || p.seguidores === null) return null;
-  if (p.seguidores >= 1000) return (p.seguidores / 1000).toFixed(1).replace('.0', '') + 'K';
-  return String(p.seguidores);
+  if (!p || p.seguidores == null) return null;
+  return formatFollowers(p.seguidores);
+}
+
+// ===== HELPER: Format delta com sinal e cor sugerida =====
+// Retorna { text: "↑350", percent: "+1.2%", color: "#10b981" } ou null.
+function formatFollowersDelta(delta, percent) {
+  if (delta == null || delta === 0) return null;
+  const up = delta > 0;
+  const arrow = up ? '↑' : '↓';
+  const abs = Math.abs(delta);
+  return {
+    text: arrow + formatFollowers(abs),
+    percent: (percent != null) ? (up ? '+' : '') + percent + '%' : null,
+    color: up ? '#10b981' : '#dc2626',
+  };
 }
 
 // ===== APIFY INTEGRATION: Fetch Instagram profiles =====
