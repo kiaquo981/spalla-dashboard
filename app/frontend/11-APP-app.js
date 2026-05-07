@@ -6642,6 +6642,7 @@ function operon() {
 
         this._extracao = {
           mentee: profile,
+          groupJid,
           messages,
           transcriptions,
           interacoes,
@@ -6758,9 +6759,9 @@ function operon() {
         //   evolution-api/{instanceUuid}/{chatId}/{mediaType}/{tsMs}_{msgId}.{ext}
         // Backend /api/media/stream tenta Hetzner primeiro, cai no fallback se a key não bate.
         const instanceUuid = (typeof EVOLUTION_CONFIG !== 'undefined' && EVOLUTION_CONFIG?.INSTANCE_UUID) || '';
-        const chatId = groupJid;
+        const chatId = this._extracao.groupJid;
         const buildStreamUrl = (m) => {
-          if (!instanceUuid || !m.message_id || !m.timestamp) return null;
+          if (!instanceUuid || !chatId || !m.message_id || !m.timestamp) return null;
           const tsMs = new Date(m.timestamp).getTime();
           const ext = extByType[m.type] || extFromMime(m.media_mime_type);
           const s3Key = `evolution-api/${instanceUuid}/${chatId}/${m.type}/${tsMs}_${m.message_id}.${ext}`;
