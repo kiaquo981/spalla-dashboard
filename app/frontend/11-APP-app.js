@@ -785,6 +785,8 @@ function operon() {
     _detailArquivos: [],
     _detailArquivosLoading: false,
     _detailArquivosSearch: '',
+    _extracao: null,
+    _extracaoLoading: false,
 
     // --- API Integration State ---
     _menteesWithEmail: [],
@@ -6516,6 +6518,103 @@ function operon() {
         console.error('[Arquivos] loadDetailArquivos failed:', e);
       }
       this._detailArquivosLoading = false;
+    },
+
+    // ===== 5.6 — EXTRAÇÃO DE GRUPO WPP (E2E export estilo WhatsApp) =====
+
+    async loadExtracaoWpp(mentoradoId) {
+      const mid = mentoradoId || this.ui.selectedMenteeId;
+      const profile = this.data.detail?.profile;
+      if (!mid || !this.supabase || !profile) return;
+      this._extracaoLoading = true;
+      this._extracao = null;
+      const groupJid = profile.grupo_whatsapp_id;
+      if (!groupJid) {
+        this._extracao = { error: 'Mentorado sem grupo WhatsApp cadastrado.' };
+        this._extracaoLoading = false;
+        return;
+      }
+      try {
+        // 1) Mensagens raw (whatsapp_messages) ordenadas — fonte primária com media_url
+        const msgsRes = await this.supabase
+          .from('whatsapp_messages')
+          .select('message_id,timestamp,sender_name,participant,type,content,caption,file_name,duration,media_mime_type,media_url,metadata,is_deleted')
+          .eq('group_id', groupJid)
+          .is('deleted_at', null)
+          .order('timestamp', { ascending: true })
+          .limit(10000);
+        if (msgsRes.error) throw msgsRes.error;
+        const messages = (msgsRes.data || []).filter(m => !m.is_deleted);
+
+        // 2) Transcrições de áudio (Whisper) — buscar só pros message_ids de áudio
+        const audioIds = messages.filter(m => m.type === 'audioMessage').map(m => m.message_id).filter(Boolean);
+        let transcriptions = [];
+        if (audioIds.length > 0) {
+          const txRes = await this.supabase
+            .from('whatsapp_audio_transcriptions')
+            .select('message_id,transcription,duration_seconds,language')
+            .in('message_id', audioIds);
+          if (!txRes.error) transcriptions = txRes.data || [];
+        }
+
+        // 3) interacoes_mentoria (descrição LLM de imagem + transcrição backup)
+        const intRes = await this.supabase
+          .from('interacoes_mentoria')
+          .select('message_id,conteudo,transcription,sender_name,timestamp')
+          .eq('mentorado_id', mid)
+          .order('timestamp', { ascending: true })
+          .limit(10000);
+        const interacoes = intRes.error ? [] : (intRes.data || []);
+
+        // Stats por tipo
+        const byType = {};
+        for (const m of messages) byType[m.type] = (byType[m.type] || 0) + 1;
+        const dateRange = messages.length > 0
+          ? { first: messages[0].timestamp, last: messages[messages.length - 1].timestamp }
+          : null;
+
+        this._extracao = {
+          mentee: profile,
+          messages,
+          transcriptions,
+          interacoes,
+          stats: {
+            total: messages.length,
+            byType,
+            dateRange,
+            audios: audioIds.length,
+            transcricoes: transcriptions.length,
+            mediaUrls: messages.filter(m => m.media_url).length,
+            interacoesEnriched: interacoes.length,
+          },
+        };
+      } catch (e) {
+        console.error('[ExtracaoWpp] load failed:', e);
+        this._extracao = { error: e?.message || 'Falha ao carregar mensagens.' };
+      }
+      this._extracaoLoading = false;
+    },
+
+    downloadExtracaoChat() {
+      if (!this._extracao || this._extracao.error) {
+        this.toast?.('Carrega a extração antes de baixar', 'error');
+        return;
+      }
+      const txt = formatWhatsappExport(this._extracao);
+      const safeName = (this._extracao.mentee.nome || 'mentee')
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_|_$/g, '');
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const blob = new Blob(['﻿' + txt], { type: 'text/plain;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `chat-${safeName}-${dateStr}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      this.toast?.(`Chat baixado: ${this._extracao.stats.total} mensagens`, 'success');
     },
 
     get filteredDetailArquivos() {

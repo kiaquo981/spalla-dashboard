@@ -2182,6 +2182,11 @@
                 Arquivos
                 <span class="op-tab__count" x-show="_detailArquivos.length" x-text="_detailArquivos.length"></span>
               </button>
+              <button class="op-tab" :class="{ active: ui.activeDetailTab === 'extracao_wpp' }" @click="ui.activeDetailTab = 'extracao_wpp'; if(!_extracao) loadExtracaoWpp(data.detail?.profile?.id)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                Extração de Grupo Wpp
+                <span class="op-tab__count" x-show="_extracao?.stats?.total" x-text="_extracao?.stats?.total"></span>
+              </button>
               <button class="op-tab" :class="{ active: ui.activeDetailTab === 'contexto' }" @click="ui.activeDetailTab = 'contexto'; loadMenteeContext(data.detail?.profile?.id); loadMenteeDescarregos(data.detail?.profile?.id)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                 Contexto
@@ -3526,6 +3531,66 @@
             </div>
 
             <!-- TAB: MENSAGENS removed — Chatwoot deprecated, replaced by WhatsApp tab -->
+
+            <!-- ===== TAB: EXTRAÇÃO DE GRUPO WPP (E2E export estilo WhatsApp) ===== -->
+            <div class="op-tab-content" x-show="ui.activeDetailTab === 'extracao_wpp'" x-cloak>
+              <div style="padding:16px;max-width:920px">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px">
+                  <div>
+                    <h3 style="margin:0 0 4px;font-size:16px">Extração de Grupo WhatsApp</h3>
+                    <p style="margin:0;font-size:13px;color:var(--neutral-500)">Baixa todo o histórico do grupo deste mentorado em formato <code>chat.txt</code> estilo WhatsApp — mensagens, transcrições de áudio, descrições de imagem, URLs de mídia.</p>
+                  </div>
+                  <button class="btn btn--primary" @click="downloadExtracaoChat()" :disabled="!_extracao || _extracao.error || _extracaoLoading" style="white-space:nowrap">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Baixar chat.txt
+                  </button>
+                </div>
+
+                <div x-show="_extracaoLoading" style="padding:24px;text-align:center;color:var(--neutral-500)">
+                  <div class="spinner" style="margin:0 auto 8px"></div>
+                  Carregando histórico completo do grupo…
+                </div>
+
+                <div x-show="!_extracaoLoading && _extracao?.error" style="padding:14px 16px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#991b1b;font-size:13px">
+                  <strong>Não foi possível carregar:</strong> <span x-text="_extracao?.error"></span>
+                </div>
+
+                <div x-show="!_extracaoLoading && _extracao?.stats" style="display:grid;gap:12px">
+                  <!-- Stats grid -->
+                  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px">
+                    <div class="stat-box"><div class="stat-box__val" x-text="_extracao?.stats?.total || 0"></div><div class="stat-box__label">Mensagens</div></div>
+                    <div class="stat-box"><div class="stat-box__val" x-text="_extracao?.stats?.audios || 0"></div><div class="stat-box__label">Áudios</div></div>
+                    <div class="stat-box"><div class="stat-box__val" x-text="_extracao?.stats?.transcricoes || 0"></div><div class="stat-box__label">Transcrições</div></div>
+                    <div class="stat-box"><div class="stat-box__val" x-text="_extracao?.stats?.mediaUrls || 0"></div><div class="stat-box__label">Mídias</div></div>
+                    <div class="stat-box"><div class="stat-box__val" x-text="_extracao?.stats?.interacoesEnriched || 0"></div><div class="stat-box__label">Interações enriquecidas</div></div>
+                  </div>
+
+                  <!-- Date range -->
+                  <div x-show="_extracao?.stats?.dateRange" style="padding:10px 12px;background:var(--neutral-50);border-radius:6px;font-size:12px;color:var(--neutral-600)">
+                    Período: <strong x-text="_extracao?.stats?.dateRange?.first?.slice(0,10)"></strong>
+                    →
+                    <strong x-text="_extracao?.stats?.dateRange?.last?.slice(0,10)"></strong>
+                  </div>
+
+                  <!-- Breakdown por tipo -->
+                  <div>
+                    <div style="font-size:12px;color:var(--neutral-500);margin-bottom:6px;font-weight:500">Quebra por tipo</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px">
+                      <template x-for="[type, count] in Object.entries(_extracao?.stats?.byType || {})" :key="type">
+                        <span class="badge badge--neutral" style="font-size:11px">
+                          <span x-text="type"></span>: <strong x-text="count"></strong>
+                        </span>
+                      </template>
+                    </div>
+                  </div>
+
+                  <!-- Note -->
+                  <div style="padding:10px 12px;background:#f0f9ff;border-left:3px solid #0ea5e9;border-radius:4px;font-size:12px;color:#075985">
+                    Inclui transcrição de áudio (Whisper), descrição de imagem (LLM enrich), legendas, URLs de mídia (Hetzner CDN — links válidos enquanto perfil ativo) e metadados de quem enviou + timestamp.
+                  </div>
+                </div>
+              </div>
+            </div>
 
             <!-- ===== TAB: CONTEXTO (Context Hub — áudio, texto, links, arquivos) ===== -->
             <div class="op-tab-content" x-show="ui.activeDetailTab === 'contexto'" x-cloak>

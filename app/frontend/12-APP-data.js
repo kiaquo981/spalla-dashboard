@@ -671,6 +671,127 @@ function formatFollowersDelta(delta, percent) {
   };
 }
 
+// ===== WHATSAPP CHAT EXPORT (formato fiel ao "Export Chat" do WhatsApp) =====
+// Cruza whatsapp_messages (raw + media_url) + whatsapp_audio_transcriptions (Whisper) +
+// interacoes_mentoria (descrição LLM de imagem como fallback).
+// Output: string pronta pra Blob/download.
+function formatWhatsappExport({ mentee, messages, transcriptions, interacoes }) {
+  // Index pra lookup O(1) por message_id
+  const transcriptByMsg = {};
+  for (const t of (transcriptions || [])) {
+    if (t.message_id && t.transcription) transcriptByMsg[t.message_id] = t;
+  }
+  const interacaoByMsg = {};
+  for (const i of (interacoes || [])) {
+    if (i.message_id) interacaoByMsg[i.message_id] = i;
+  }
+
+  // Formato data WhatsApp: 12/03/2026 14:04
+  const fmtDate = (iso) => {
+    if (!iso) return '??/??/???? ??:??';
+    const d = new Date(iso);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mi = String(d.getMinutes()).padStart(2, '0');
+    return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+  };
+
+  const fmtDuration = (s) => {
+    if (!s) return '';
+    const sec = Math.round(Number(s));
+    const m = Math.floor(sec / 60);
+    const r = sec % 60;
+    return ` (${m}:${String(r).padStart(2, '0')})`;
+  };
+
+  const sender = (m) => m.sender_name || m.participant || 'Desconhecido';
+  const lines = [];
+
+  // Header estilo WhatsApp + metadata Spalla
+  lines.push(`# Conversa: ${mentee.nome || mentee.id}`);
+  lines.push(`# Grupo: ${mentee.grupo_whatsapp_id || '(sem grupo)'}`);
+  lines.push(`# Mentorado ID: ${mentee.id}`);
+  lines.push(`# Exportado em: ${fmtDate(new Date().toISOString())}`);
+  lines.push(`# Total mensagens: ${(messages || []).length}`);
+  lines.push('');
+
+  for (const m of (messages || [])) {
+    const ts = fmtDate(m.timestamp);
+    const who = sender(m);
+    const type = m.type || 'conversation';
+
+    switch (type) {
+      case 'conversation':
+      case 'extendedTextMessage':
+      case 'text':
+      case 'chat': {
+        const txt = (m.content || '').replace(/\n/g, '\n');
+        lines.push(`[${ts}] ${who}: ${txt}`);
+        break;
+      }
+      case 'audioMessage': {
+        lines.push(`[${ts}] ${who}: ‎<áudio omitido${fmtDuration(m.duration)}>`);
+        const tx = transcriptByMsg[m.message_id];
+        const fallback = interacaoByMsg[m.message_id]?.conteudo;
+        if (tx?.transcription) {
+          lines.push(`[Transcrição] ${tx.transcription}`);
+        } else if (fallback && fallback !== '[Áudio]') {
+          lines.push(`[Transcrição] ${fallback}`);
+        }
+        if (m.media_url) lines.push(`[Mídia] ${m.media_url}`);
+        break;
+      }
+      case 'imageMessage':
+      case 'albumMessage': {
+        const tag = type === 'albumMessage' ? 'álbum' : 'imagem';
+        lines.push(`[${ts}] ${who}: ‎<${tag} omitida>`);
+        if (m.caption) lines.push(`[Legenda] ${m.caption}`);
+        if (m.content && m.content !== '[Imagem]' && m.content !== '[Álbum]') {
+          lines.push(`[Conteúdo] ${m.content}`);
+        }
+        const desc = interacaoByMsg[m.message_id]?.conteudo;
+        if (desc && desc !== m.content) lines.push(`[Descrição] ${desc}`);
+        if (m.media_url) lines.push(`[Mídia] ${m.media_url}`);
+        break;
+      }
+      case 'videoMessage': {
+        lines.push(`[${ts}] ${who}: ‎<vídeo omitido${fmtDuration(m.duration)}>`);
+        if (m.caption) lines.push(`[Legenda] ${m.caption}`);
+        if (m.media_url) lines.push(`[Mídia] ${m.media_url}`);
+        break;
+      }
+      case 'documentMessage': {
+        const fname = m.file_name || 'documento';
+        lines.push(`[${ts}] ${who}: ‎<documento: ${fname}>`);
+        if (m.caption) lines.push(`[Legenda] ${m.caption}`);
+        if (m.media_url) lines.push(`[Mídia] ${m.media_url}`);
+        break;
+      }
+      case 'stickerMessage': {
+        lines.push(`[${ts}] ${who}: ‎<sticker>`);
+        if (m.media_url) lines.push(`[Mídia] ${m.media_url}`);
+        break;
+      }
+      case 'reactionMessage': {
+        const emoji = m.content || m.metadata?.emoji || '?';
+        lines.push(`[${ts}] ${who}: ‎<reagiu: ${emoji}>`);
+        break;
+      }
+      case 'secretEncryptedMessage': {
+        lines.push(`[${ts}] ${who}: ‎<mensagem criptografada — conteúdo não recuperável>`);
+        break;
+      }
+      default: {
+        lines.push(`[${ts}] ${who}: ‎<${type}> ${m.content || ''}`);
+        if (m.media_url) lines.push(`[Mídia] ${m.media_url}`);
+      }
+    }
+  }
+
+  return lines.join('\n');
+}
 // ===== APIFY INTEGRATION: Fetch Instagram profiles =====
 async function fetchInstagramProfilesFromApify(handles) {
   /**
