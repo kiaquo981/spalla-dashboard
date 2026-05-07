@@ -3564,11 +3564,13 @@
                 <div x-show="!_extracaoLoading && _extracao?.stats" style="display:grid;gap:12px">
                   <!-- Stats grid -->
                   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px">
-                    <div class="stat-box"><div class="stat-box__val" x-text="_extracao?.stats?.total || 0"></div><div class="stat-box__label">Mensagens</div></div>
+                    <div class="stat-box"><div class="stat-box__val" x-text="_extracao?.stats?.total || 0"></div><div class="stat-box__label">Mensagens (union)</div></div>
                     <div class="stat-box"><div class="stat-box__val" x-text="_extracao?.stats?.audios || 0"></div><div class="stat-box__label">Áudios</div></div>
-                    <div class="stat-box"><div class="stat-box__val" x-text="_extracao?.stats?.transcricoes || 0"></div><div class="stat-box__label">Transcrições</div></div>
-                    <div class="stat-box"><div class="stat-box__val" x-text="_extracao?.stats?.mediaUrls || 0"></div><div class="stat-box__label">Mídias</div></div>
+                    <div class="stat-box"><div class="stat-box__val" x-text="_extracao?.stats?.transcricoes || 0"></div><div class="stat-box__label">Transcrições Whisper</div></div>
+                    <div class="stat-box"><div class="stat-box__val" x-text="_extracao?.stats?.mediaUrls || 0"></div><div class="stat-box__label">Mídias (Hetzner)</div></div>
                     <div class="stat-box"><div class="stat-box__val" x-text="_extracao?.stats?.interacoesEnriched || 0"></div><div class="stat-box__label">Interações enriquecidas</div></div>
+                    <div class="stat-box" x-show="_extracao?.stats?.syntheticFromInteracoes > 0"><div class="stat-box__val" x-text="_extracao?.stats?.syntheticFromInteracoes || 0"></div><div class="stat-box__label">Resgatadas só de interações</div></div>
+                    <div class="stat-box" x-show="_extracao?.stats?.analisesPeriodicas > 0"><div class="stat-box__val" x-text="_extracao?.stats?.analisesPeriodicas || 0"></div><div class="stat-box__label">Análises periódicas</div></div>
                   </div>
 
                   <!-- Date range -->
@@ -3591,8 +3593,14 @@
                   </div>
 
                   <!-- Note -->
-                  <div style="padding:10px 12px;background:#f0f9ff;border-left:3px solid #0ea5e9;border-radius:4px;font-size:12px;color:#075985">
-                    <strong>ZIP inclui:</strong> <code>_chat.txt</code> (formato WhatsApp) + pasta <code>media/</code> com imagens, áudios, vídeos, PDFs e documentos. Mídias vêm do <strong>Hetzner Object Storage</strong> (cache durável via <code>/api/media/stream</code>) com fallback automático pra URL original do WhatsApp CDN. Falhas vão pro <code>_media_errors.txt</code>.
+                  <div style="padding:10px 12px;background:#f0f9ff;border-left:3px solid #0ea5e9;border-radius:4px;font-size:12px;color:#075985;line-height:1.5">
+                    <strong>ZIP inclui:</strong>
+                    <br/>• <code>_chat.txt</code> — histórico no formato WhatsApp (UNION de <code>whatsapp_messages</code> + <code>interacoes_mentoria</code> dedup por <code>message_id</code>)
+                    <br/>• <code>media/</code> — imagens, áudios, vídeos, PDFs, docs (Hetzner S3 via <code>/api/media/stream</code> com fallback automático pra URL WhatsApp)
+                    <br/>• <code>transcricoes_audio.txt</code> — transcrições Whisper isoladas
+                    <br/>• <code>analises_periodicas.txt</code> — sumarizações geradas pelo Scraper v34 (resumo, tópicos, sentimento, gaps)
+                    <br/>• <code>_raw_data.json</code> — dump completo pra reprocessamento
+                    <br/>• <code>_media_errors.txt</code> — só se algo falhar
                   </div>
                 </div>
               </div>

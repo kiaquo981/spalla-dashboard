@@ -6561,19 +6561,38 @@ function operon() {
         return;
       }
       try {
-        // 1) Mensagens raw (whatsapp_messages) ordenadas — fonte primária com media_url
-        const msgsRes = await this.supabase
-          .from('whatsapp_messages')
-          .select('message_id,timestamp,sender_name,participant,type,content,caption,file_name,duration,media_mime_type,media_url,metadata,is_deleted')
-          .eq('group_id', groupJid)
-          .is('deleted_at', null)
-          .order('timestamp', { ascending: true })
-          .limit(10000);
-        if (msgsRes.error) throw msgsRes.error;
-        const messages = (msgsRes.data || []).filter(m => !m.is_deleted);
+        // 1) whatsapp_messages — fonte primária com media_url + caption + duration
+        const [waRes, intRes, anaRes] = await Promise.all([
+          this.supabase
+            .from('whatsapp_messages')
+            .select('message_id,timestamp,sender_name,participant,type,content,caption,file_name,duration,media_mime_type,media_url,metadata,is_deleted')
+            .eq('group_id', groupJid)
+            .is('deleted_at', null)
+            .order('timestamp', { ascending: true })
+            .limit(20000),
+          this.supabase
+            .from('interacoes_mentoria')
+            .select('message_id,conteudo,transcription,sender_name,timestamp,message_type,eh_equipe,sender_phone')
+            .eq('mentorado_id', mid)
+            .order('timestamp', { ascending: true })
+            .limit(20000),
+          // analises_whatsapp — sumarizações periódicas geradas pelo pipeline
+          this.supabase
+            .from('analises_whatsapp')
+            .select('id,periodo_inicio,periodo_fim,resumo,topicos_principais,sentimento_geral,nivel_engajamento,problemas_mencionados,avancos_reportados,vendas_mencionadas,total_mensagens,msgs_mentorado,msgs_time_case,dias_ativos,maior_gap_dias,processado_em')
+            .eq('mentorado_id', mid)
+            .order('periodo_inicio', { ascending: true }),
+        ]);
 
-        // 2) Transcrições de áudio (Whisper) — buscar só pros message_ids de áudio
-        const audioIds = messages.filter(m => m.type === 'audioMessage').map(m => m.message_id).filter(Boolean);
+        if (waRes.error) throw waRes.error;
+        const waMessages = (waRes.data || []).filter(m => !m.is_deleted);
+        const interacoes = intRes.error ? [] : (intRes.data || []);
+        const analises = anaRes.error ? [] : (anaRes.data || []);
+
+        // 2) Transcrições Whisper — só pros message_ids de áudio (de QUALQUER fonte)
+        const audioIdsFromWa = waMessages.filter(m => m.type === 'audioMessage').map(m => m.message_id);
+        const audioIdsFromInt = interacoes.filter(i => i.message_type === 'audioMessage').map(i => i.message_id);
+        const audioIds = [...new Set([...audioIdsFromWa, ...audioIdsFromInt].filter(Boolean))];
         let transcriptions = [];
         if (audioIds.length > 0) {
           const txRes = await this.supabase
@@ -6583,16 +6602,38 @@ function operon() {
           if (!txRes.error) transcriptions = txRes.data || [];
         }
 
-        // 3) interacoes_mentoria (descrição LLM de imagem + transcrição backup)
-        const intRes = await this.supabase
-          .from('interacoes_mentoria')
-          .select('message_id,conteudo,transcription,sender_name,timestamp')
-          .eq('mentorado_id', mid)
-          .order('timestamp', { ascending: true })
-          .limit(10000);
-        const interacoes = intRes.error ? [] : (intRes.data || []);
+        // 3) UNION das fontes — dedup por message_id, prioriza whatsapp_messages (tem media_url)
+        const byId = new Map();
+        for (const m of waMessages) {
+          if (m.message_id) byId.set(m.message_id, m);
+        }
+        let synthetic = 0;
+        for (const i of interacoes) {
+          if (!i.message_id || byId.has(i.message_id)) continue;
+          // Msg que existe SÓ em interacoes_mentoria — sintetiza no formato whatsapp_messages.
+          // Geralmente são msgs de texto do periodo antes do scraper popular whatsapp_messages.
+          byId.set(i.message_id, {
+            message_id: i.message_id,
+            timestamp: i.timestamp,
+            sender_name: i.sender_name,
+            participant: null,
+            type: i.message_type || 'conversation',
+            content: i.conteudo,
+            caption: null,
+            file_name: null,
+            duration: null,
+            media_mime_type: null,
+            media_url: null,
+            metadata: { _source: 'interacoes_mentoria_only' },
+            is_deleted: false,
+          });
+          synthetic += 1;
+        }
+        const messages = Array.from(byId.values()).sort((a, b) => {
+          return (a.timestamp || '').localeCompare(b.timestamp || '');
+        });
 
-        // Stats por tipo
+        // Stats
         const byType = {};
         for (const m of messages) byType[m.type] = (byType[m.type] || 0) + 1;
         const dateRange = messages.length > 0
@@ -6604,6 +6645,7 @@ function operon() {
           messages,
           transcriptions,
           interacoes,
+          analises,
           stats: {
             total: messages.length,
             byType,
@@ -6612,6 +6654,8 @@ function operon() {
             transcricoes: transcriptions.length,
             mediaUrls: messages.filter(m => m.media_url).length,
             interacoesEnriched: interacoes.length,
+            syntheticFromInteracoes: synthetic,
+            analisesPeriodicas: analises.length,
           },
         };
       } catch (e) {
@@ -6642,6 +6686,50 @@ function operon() {
         // 1) chat.txt na raiz
         const txt = formatWhatsappExport(this._extracao);
         zip.file('_chat.txt', '﻿' + txt);
+
+        // 1b) Transcrições isoladas — útil pra busca/rag depois
+        if ((this._extracao.transcriptions || []).length > 0) {
+          const txLines = ['# Transcrições de áudio (Whisper)', ''];
+          for (const t of this._extracao.transcriptions) {
+            const msg = (this._extracao.messages || []).find(m => m.message_id === t.message_id);
+            const ts = msg?.timestamp || '';
+            const who = msg?.sender_name || '?';
+            txLines.push(`[${ts}] ${who} (${t.duration_seconds || '?'}s · ${t.language || '?'})`);
+            txLines.push(`message_id: ${t.message_id}`);
+            txLines.push(t.transcription);
+            txLines.push('');
+          }
+          zip.file('transcricoes_audio.txt', txLines.join('\n'));
+        }
+
+        // 1c) Análises periódicas (analises_whatsapp) — sumarizações geradas pelo pipeline
+        if ((this._extracao.analises || []).length > 0) {
+          const anLines = ['# Análises Periódicas — pipeline Spalla WhatsApp Scraper v34', ''];
+          for (const a of this._extracao.analises) {
+            anLines.push(`## Período: ${a.periodo_inicio?.slice(0,10)} → ${a.periodo_fim?.slice(0,10)}`);
+            anLines.push(`Processado em: ${a.processado_em}`);
+            anLines.push(`Mensagens: ${a.total_mensagens} (mentee=${a.msgs_mentorado} · equipe=${a.msgs_time_case})`);
+            anLines.push(`Dias ativos: ${a.dias_ativos} · Maior gap: ${a.maior_gap_dias} dias`);
+            anLines.push(`Sentimento: ${a.sentimento_geral} · Engajamento: ${a.nivel_engajamento}`);
+            if (a.resumo) anLines.push(`\nResumo:\n${a.resumo}`);
+            if (a.topicos_principais?.length) anLines.push(`\nTópicos:\n${(Array.isArray(a.topicos_principais) ? a.topicos_principais : [a.topicos_principais]).map(t => '- ' + t).join('\n')}`);
+            if (a.problemas_mencionados?.length) anLines.push(`\nProblemas:\n${(Array.isArray(a.problemas_mencionados) ? a.problemas_mencionados : [a.problemas_mencionados]).map(t => '- ' + t).join('\n')}`);
+            if (a.avancos_reportados?.length) anLines.push(`\nAvanços:\n${(Array.isArray(a.avancos_reportados) ? a.avancos_reportados : [a.avancos_reportados]).map(t => '- ' + t).join('\n')}`);
+            if (a.vendas_mencionadas) anLines.push(`\nVendas mencionadas: ${JSON.stringify(a.vendas_mencionadas)}`);
+            anLines.push('\n---\n');
+          }
+          zip.file('analises_periodicas.txt', anLines.join('\n'));
+        }
+
+        // 1d) JSON cru com tudo — debug/reprocessamento
+        zip.file('_raw_data.json', JSON.stringify({
+          mentee: this._extracao.mentee,
+          stats: this._extracao.stats,
+          messages: this._extracao.messages,
+          transcriptions: this._extracao.transcriptions,
+          analises: this._extracao.analises,
+          exported_at: new Date().toISOString(),
+        }, null, 2));
 
         // 2) baixa cada mídia em paralelo (concurrency limit pra não estourar browser)
         const mediaMsgs = this._extracao.messages.filter(m => m.media_url);
