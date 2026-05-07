@@ -3799,12 +3799,14 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_auth_refresh()
         elif self.path == '/api/auth/reset-password':
             self._handle_auth_reset_password()
+        elif self.path == '/api/evolution/sync-instances':
+            # IMPORTANT: rota específica DEVE vir antes do proxy genérico
+            # /api/evolution/* — senão cai no proxy e dá 404 da Evolution.
+            self._handle_evolution_sync_instances()
         elif self.path.startswith('/api/evolution/'):
             self._proxy_evolution('POST')
         elif self.path == '/api/media/recover-binary':
             self._handle_media_recover_binary()
-        elif self.path == '/api/evolution/sync-instances':
-            self._handle_evolution_sync_instances()
         elif self.path == '/api/schedule-call':
             self._handle_schedule_call()
         elif self.path == '/api/zoom/create-meeting':
