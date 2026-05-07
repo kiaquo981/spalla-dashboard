@@ -2041,9 +2041,14 @@
                     <span class="mc-card__metric-label">WA 7d</span>
                     <span class="mc-card__metric-val" x-text="m.whatsapp_7d != null ? m.whatsapp_7d : '-'"></span>
                   </div>
-                  <div class="mc-card__metric">
+                  <div class="mc-card__metric" :title="(igFollowersDelta(m) ? igFollowersDelta(m).percent + ' vs semana passada' : '')">
                     <span class="mc-card__metric-label">Seguidores</span>
-                    <span class="mc-card__metric-val" x-text="igFollowers(m.instagram) || '-'"></span>
+                    <span class="mc-card__metric-val">
+                      <span x-text="igFollowers(m) || '-'"></span>
+                      <template x-if="igFollowersDelta(m)">
+                        <span style="font-size:10px;font-weight:600;margin-left:4px" :style="'color:' + igFollowersDelta(m).color" x-text="igFollowersDelta(m).text"></span>
+                      </template>
+                    </span>
                   </div>
                 </div>
 

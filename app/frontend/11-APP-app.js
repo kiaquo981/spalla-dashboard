@@ -543,6 +543,7 @@ function operon() {
       waGroups: [],             // wa_groups from Supabase (Story 8)
       waWeeklyStats: [],        // vw_wa_mentee_weekly_stats (WA Intelligence)
       waAlertas: [],            // vw_alertas_command_center (Story 6)
+      seguidoresByMenteeId: {}, // vw_mentorados_seguidores_latest indexado por mentorado_id (CRON Apify semanal)
       agentMetrics: [],         // vw_agent_metrics (ORCH-07)
       _menteeWaActivity: [],    // vw_wa_mentee_activity for selected mentorado
       // WA DM v2 (S9-B)
@@ -2894,7 +2895,7 @@ function operon() {
       sb = await initSupabase();
       if (sb) {
         try {
-          const [mentees, cohort, pendencias, aguardandoRaw, paPipeline, waWeekly, waAlertas] = await Promise.all([
+          const [mentees, cohort, pendencias, aguardandoRaw, paPipeline, waWeekly, waAlertas, seguidores] = await Promise.all([
             sb.from('vw_god_overview').select('*'),
             sb.from('vw_god_cohort').select('*'),
             sb.from('vw_god_pendencias').select('*').order('created_at', { ascending: true }),
@@ -2910,6 +2911,10 @@ function operon() {
             sb.from('vw_pa_pipeline').select('*'),
             sb.from('vw_wa_mentee_weekly_stats').select('*'),
             sb.from('vw_alertas_command_center').select('*'),
+            // Seguidores Instagram (snapshot semanal via CRON Apify n8n).
+            // View calcula delta vs snapshot anterior. View nova ainda pode não existir
+            // antes da migration ser aplicada — daí o try/catch downstream.
+            sb.from('vw_mentorados_seguidores_latest').select('*'),
           ]);
           // Load calls in background (non-blocking)
           const calls = await sb.from('calls_mentoria')
@@ -2927,6 +2932,19 @@ function operon() {
           if (waWeekly.data) this.data.waWeeklyStats = waWeekly.data;
           if (waAlertas.error) console.error('[Spalla] WA Alertas query error:', waAlertas.error?.message);
           if (waAlertas.data) this.data.waAlertas = waAlertas.data;
+          // Seguidores: indexa por mentorado_id pra lookup O(1) nos cards.
+          // Erro 42P01 (view não existe) é silencioso — antes da migration o frontend
+          // só cai no fallback do array hardcoded em INSTAGRAM_PROFILES.
+          if (seguidores.error) {
+            if (seguidores.error.code !== '42P01') {
+              console.error('[Spalla] Seguidores query error:', seguidores.error.message);
+            }
+            this.data.seguidoresByMenteeId = {};
+          } else if (seguidores.data) {
+            this.data.seguidoresByMenteeId = Object.fromEntries(
+              seguidores.data.filter(r => r.mentorado_id != null).map(r => [r.mentorado_id, r])
+            );
+          }
           // Load lightweight fases + acoes for sentinel calculations
           const [paFasesRes, paAcoesRes] = await Promise.all([
             sb.from('pa_fases').select('id, plano_id, titulo, tipo, status, ordem, origem'),
@@ -13578,8 +13596,24 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       return this.igPhoto(m?.instagram || call.mentorado);
     },
 
-    igFollowers(handle) {
-      return getFollowers(handle);
+    // Seguidores: aceita mentee inteiro OU handle string (back-compat).
+    // Prefere lookup por mentorado_id no banco (CRON Apify); cai no array hardcoded
+    // se o mentee ainda não foi coletado pelo CRON.
+    igFollowers(menteeOrHandle) {
+      if (menteeOrHandle && typeof menteeOrHandle === 'object' && menteeOrHandle.id != null) {
+        const row = (this.data.seguidoresByMenteeId || {})[menteeOrHandle.id];
+        if (row && row.followers_atual != null) return formatFollowers(row.followers_atual);
+        return getFollowers(menteeOrHandle.instagram);
+      }
+      return getFollowers(menteeOrHandle);
+    },
+
+    // Delta semanal: { text, percent, color } ou null. Só funciona com mentee object.
+    igFollowersDelta(mentee) {
+      if (!mentee || mentee.id == null) return null;
+      const row = (this.data.seguidoresByMenteeId || {})[mentee.id];
+      if (!row) return null;
+      return formatFollowersDelta(row.delta_followers, row.delta_percent);
     },
 
     igProfile(handle) {
