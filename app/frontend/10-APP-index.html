@@ -3592,7 +3592,7 @@
 
                   <!-- Note -->
                   <div style="padding:10px 12px;background:#f0f9ff;border-left:3px solid #0ea5e9;border-radius:4px;font-size:12px;color:#075985">
-                    <strong>ZIP inclui:</strong> <code>_chat.txt</code> (formato WhatsApp) + pasta <code>media/</code> com imagens, áudios, vídeos, PDFs e documentos baixados das URLs do WhatsApp CDN. Mídias antigas podem falhar (URLs assinadas expiram em ~24-48h) — falhas vão pro <code>_media_errors.txt</code> com URL pra recuperação manual.
+                    <strong>ZIP inclui:</strong> <code>_chat.txt</code> (formato WhatsApp) + pasta <code>media/</code> com imagens, áudios, vídeos, PDFs e documentos. Mídias vêm do <strong>Hetzner Object Storage</strong> (cache durável via <code>/api/media/stream</code>) com fallback automático pra URL original do WhatsApp CDN. Falhas vão pro <code>_media_errors.txt</code>.
                   </div>
                 </div>
               </div>

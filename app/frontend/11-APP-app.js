@@ -6663,33 +6663,61 @@ function operon() {
           const slash = m.split('/')[1] || 'bin';
           return slash.split(';')[0].replace(/[^a-z0-9]/g, '') || 'bin';
         };
+        const extByType = { audioMessage: 'oga', imageMessage: 'jpg', videoMessage: 'mp4', documentMessage: 'bin' };
         const slug = (s) => (s || '').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
 
+        // Constrói S3 key da Hetzner pro padrão indexado pelo Evolution:
+        //   evolution-api/{instanceUuid}/{chatId}/{mediaType}/{tsMs}_{msgId}.{ext}
+        // Backend /api/media/stream tenta Hetzner primeiro, cai no fallback se a key não bate.
+        const instanceUuid = (typeof EVOLUTION_CONFIG !== 'undefined' && EVOLUTION_CONFIG?.INSTANCE_UUID) || '';
+        const chatId = groupJid;
+        const buildStreamUrl = (m) => {
+          if (!instanceUuid || !m.message_id || !m.timestamp) return null;
+          const tsMs = new Date(m.timestamp).getTime();
+          const ext = extByType[m.type] || extFromMime(m.media_mime_type);
+          const s3Key = `evolution-api/${instanceUuid}/${chatId}/${m.type}/${tsMs}_${m.message_id}.${ext}`;
+          const params = new URLSearchParams({ key: s3Key });
+          if (m.media_url) params.set('fallback', m.media_url);
+          return `${CONFIG.API_BASE}/api/media/stream?${params.toString()}`;
+        };
+
         const fetchOne = async (m) => {
-          try {
-            const resp = await fetch(m.media_url, { mode: 'cors' });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            const blob = await resp.blob();
-            const ext = m.file_name?.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase()
-                     || extFromMime(m.media_mime_type);
-            const ts = (m.timestamp || '').replace(/[:.]/g, '-').slice(0, 19);
-            const idShort = (m.message_id || 'msg').slice(-12);
-            const fname = m.file_name
-              ? `${ts}_${idShort}_${slug(m.file_name)}`
-              : `${ts}_${idShort}_${m.type || 'media'}.${ext}`;
-            mediaFolder.file(fname, blob);
-            this._extracaoProgress.done += 1;
-          } catch (e) {
-            errors.push({
-              message_id: m.message_id,
-              type: m.type,
-              timestamp: m.timestamp,
-              sender: m.sender_name,
-              url: m.media_url,
-              error: e.message || String(e),
-            });
-            this._extracaoProgress.errors += 1;
+          // Estratégia: primeiro tenta o stream proxy do backend (Hetzner durável + fallback),
+          // se não conseguir construir a key OU se backend retornar 404, cai no fetch direto da URL.
+          const streamUrl = buildStreamUrl(m);
+          const tryUrls = streamUrl ? [streamUrl, m.media_url] : [m.media_url];
+          let lastErr = null;
+          for (const url of tryUrls) {
+            if (!url) continue;
+            try {
+              const resp = await fetch(url, { mode: 'cors' });
+              if (!resp.ok) { lastErr = new Error('HTTP ' + resp.status); continue; }
+              const blob = await resp.blob();
+              if (blob.size === 0) { lastErr = new Error('empty body'); continue; }
+              const ext = m.file_name?.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase()
+                       || extByType[m.type]
+                       || extFromMime(m.media_mime_type);
+              const ts = (m.timestamp || '').replace(/[:.]/g, '-').slice(0, 19);
+              const idShort = (m.message_id || 'msg').slice(-12);
+              const fname = m.file_name
+                ? `${ts}_${idShort}_${slug(m.file_name)}`
+                : `${ts}_${idShort}_${m.type || 'media'}.${ext}`;
+              mediaFolder.file(fname, blob);
+              this._extracaoProgress.done += 1;
+              return;
+            } catch (e) {
+              lastErr = e;
+            }
           }
+          errors.push({
+            message_id: m.message_id,
+            type: m.type,
+            timestamp: m.timestamp,
+            sender: m.sender_name,
+            url: m.media_url,
+            error: lastErr?.message || String(lastErr) || 'unknown',
+          });
+          this._extracaoProgress.errors += 1;
         };
 
         // Concurrency 6 (suficiente p/ não derrubar o browser)
