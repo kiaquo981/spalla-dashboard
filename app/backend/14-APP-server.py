@@ -5048,7 +5048,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': 'Invalid JSON'}, 400)
                 return
 
-            ALLOWED_FIELDS = {'fase_jornada', 'wa_status', 'trilha'}
+            ALLOWED_FIELDS = {
+                'fase_jornada', 'wa_status', 'trilha',
+                # Status operacional editável pelo dashboard
+                'contrato_assinado', 'status_financeiro', 'dia_pagamento',
+            }
             updates = {k: v for k, v in body.items() if k in ALLOWED_FIELDS}
             if not updates:
                 self._send_json({'error': 'No allowed fields provided'}, 400)
@@ -5071,11 +5075,58 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({'error': f'Invalid wa_status: {updates["wa_status"]}'}, 400)
                 return
 
-            result = supabase_request(
-                'PATCH',
-                f'mentorados?id=eq.{mentee_id}&select=id,nome,fase_jornada,wa_status',
-                updates
-            )
+            # Validações status operacional
+            if 'contrato_assinado' in updates and not isinstance(updates['contrato_assinado'], bool):
+                self._send_json({'error': 'contrato_assinado deve ser boolean'}, 400)
+                return
+
+            valid_status_fin = {'em_dia', 'atrasado', 'quitado', 'sem_contrato', 'pago'}
+            if 'status_financeiro' in updates and updates['status_financeiro'] not in valid_status_fin:
+                self._send_json({'error': f'Invalid status_financeiro: {updates["status_financeiro"]}'}, 400)
+                return
+
+            if 'dia_pagamento' in updates:
+                dp = updates['dia_pagamento']
+                if dp is not None and (not isinstance(dp, int) or dp < 1 or dp > 31):
+                    self._send_json({'error': 'dia_pagamento deve ser int 1-31 ou null'}, 400)
+                    return
+
+            # Status operacional precisa de RPC (bypassa schema cache desatualizado do PostgREST).
+            # Demais campos (fase_jornada, wa_status, trilha) ainda usam PATCH normal.
+            STATUS_FIELDS = {'contrato_assinado', 'status_financeiro', 'dia_pagamento'}
+            status_updates = {k: v for k, v in updates.items() if k in STATUS_FIELDS}
+            other_updates = {k: v for k, v in updates.items() if k not in STATUS_FIELDS}
+
+            result = None
+            if status_updates:
+                rpc_body = {'p_id': int(mentee_id)}
+                if 'contrato_assinado' in status_updates:
+                    rpc_body['p_contrato_assinado'] = status_updates['contrato_assinado']
+                if 'status_financeiro' in status_updates:
+                    rpc_body['p_status_financeiro'] = status_updates['status_financeiro']
+                if 'dia_pagamento' in status_updates:
+                    rpc_body['p_dia_pagamento'] = status_updates['dia_pagamento']
+                result = supabase_request('POST', 'rpc/set_mentorado_status', rpc_body)
+                # Se RPC não existir (migration não aplicada ainda), retorna 422 com hint útil
+                rcode = getattr(result, 'status_code', None)
+                if rcode and rcode >= 400:
+                    text = getattr(result, 'text', '')
+                    if 'PGRST202' in text or 'set_mentorado_status' in text:
+                        self._send_json({
+                            'error': 'Migration 80 não aplicada — função set_mentorado_status() não existe no Supabase',
+                            'hint': 'Rode sql/migrations/80-SQL-mentorado-status-rpc.sql no Supabase Studio',
+                            'supabase_response': text,
+                        }, 422)
+                        return
+                    self._send_json({'error': f'Supabase erro {rcode}', 'detail': text}, 500)
+                    return
+
+            if other_updates:
+                result = supabase_request(
+                    'PATCH',
+                    f'mentorados?id=eq.{mentee_id}&select=id,nome,fase_jornada,wa_status',
+                    other_updates
+                )
             self._send_json(result)
         except Exception as e:
             log_error('PatchMentee', f'_handle_patch_mentee failed: {e}')

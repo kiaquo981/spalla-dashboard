@@ -372,6 +372,8 @@ function operon() {
       // WA Management — Notas Estruturadas
       notesDrawer: { open: false, menteeId: null, menteeNome: '', tipo: 'livre' },
       offboardModal: { open: false, menteeId: null, menteeNome: '', motivo: '', obs: '', loading: false },
+      // Status operacional editável (contrato, financeiro, dia pagamento)
+      statusEditModal: { open: false, menteeId: null, menteeNome: '', contrato_assinado: true, status_financeiro: 'em_dia', dia_pagamento: null, loading: false },
       notesDrawerTab: 'notes',   // I-5: 'notes' | 'files'
       notesSaving: false,
       notesForm: {
@@ -2961,6 +2963,27 @@ function operon() {
 
           if (mentees.data?.length) {
             this.data.mentees = mentees.data;
+            // Enriquece com status operacional direto de public.mentorados
+            // (vw_god_overview retorna NULL pra esses campos por causa de cache de view antigo;
+            // a fonte de verdade vive em "case".mentorados, exposta via public.mentorados após mig 81)
+            try {
+              const { data: statusRows } = await sb.from('mentorados').select('id,contrato_assinado,status_financeiro,dia_pagamento');
+              if (statusRows?.length) {
+                const byId = Object.fromEntries(statusRows.map(r => [r.id, r]));
+                this.data.mentees = this.data.mentees.map(m => {
+                  const s = byId[m.id];
+                  if (!s) return m;
+                  return {
+                    ...m,
+                    contrato_assinado: s.contrato_assinado !== null ? s.contrato_assinado : m.contrato_assinado,
+                    status_financeiro: s.status_financeiro || m.status_financeiro,
+                    dia_pagamento: s.dia_pagamento != null ? s.dia_pagamento : m.dia_pagamento,
+                  };
+                });
+              }
+            } catch (e) {
+              console.warn('[Spalla] enrich status from public.mentorados falhou:', e?.message);
+            }
             // Load emails for schedule form auto-fill via backend API
             // (vw_god_overview doesn't expose email; direct table access blocked by RLS)
             try {
@@ -10252,6 +10275,110 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       return this.data.waSession?.phone_number || null;
     },
 
+    // Cache em memória pra evitar fetch repetido da mesma foto
+    _waProfilePicCache: {},
+
+    // Detecta URLs do WhatsApp que servem placeholder/silhueta cinza
+    // (quando o contato não tem foto definida). Tratamos como "sem foto".
+    _isWaPlaceholderUrl(url) {
+      if (!url || typeof url !== 'string') return false;
+      const lower = url.toLowerCase();
+      return lower.includes('no-foto')
+        || lower.includes('default_avatar')
+        || lower.includes('default-profile')
+        || lower.includes('no_photo')
+        || lower.includes('no-photo')
+        || lower.includes('placeholder');
+    },
+
+    // Lazy-fetch da foto de perfil pra um JID específico (Evolution API).
+    // Usado pelo sidebar quando chat individual não tem profilePicUrl populada.
+    async fetchWaProfilePicture(remoteJid) {
+      if (!remoteJid) return null;
+      if (this._waProfilePicCache[remoteJid] === 'fetching') return null; // já em andamento
+      if (this._waProfilePicCache[remoteJid] !== undefined) return this._waProfilePicCache[remoteJid];
+      this._waProfilePicCache[remoteJid] = 'fetching';
+      const { instance } = this._waActiveInstance();
+      if (!instance) { delete this._waProfilePicCache[remoteJid]; return null; }
+      try {
+        const res = await fetch(`${CONFIG.API_BASE}/api/evolution/chat/fetchProfilePictureUrl/${instance}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ number: remoteJid }),
+        });
+        if (!res.ok) {
+          this._waProfilePicCache[remoteJid] = null; // sem foto, nunca tenta de novo
+          return null;
+        }
+        const data = await res.json();
+        const url = data?.profilePictureUrl || data?.profile_picture_url || null;
+        // Filtra URLs placeholder do WhatsApp (silhueta cinza)
+        if (url && !this._isWaPlaceholderUrl(url)) {
+          this._waProfilePicCache[remoteJid] = url;
+          const chat = (this.data.whatsappChats || []).find(c => (c.remoteJid || c.id) === remoteJid);
+          if (chat) chat.profilePicUrl = url;
+          return url;
+        }
+        // Sem foto válida → marca como null definitivo
+        this._waProfilePicCache[remoteJid] = null;
+        return null;
+      } catch (e) {
+        delete this._waProfilePicCache[remoteJid]; // permite re-tentar em caso de erro de rede
+        return null;
+      }
+    },
+
+    // Chamado pelo onerror do <img> — quando a URL do WhatsApp falha (CDN expirada,
+    // CORS, etc), zera profilePicUrl pra Alpine renderizar o fallback de initials.
+    onWaProfilePicError(chat) {
+      if (!chat) return;
+      chat.profilePicUrl = null;
+      const jid = chat.remoteJid || chat.id;
+      if (jid) this._waProfilePicCache[jid] = null;
+    },
+
+    // Garante que chat individual tenha foto antes de renderizar (chamado via x-init)
+    ensureWaChatProfilePic(chat) {
+      if (!chat) return;
+      const jid = chat.remoteJid || chat.id || '';
+      // Só pra chats individuais (não grupo) que não têm foto ainda
+      if (jid.endsWith('@g.us') || chat.profilePicUrl) return;
+      this.fetchWaProfilePicture(jid);
+    },
+
+    // JID do número conectado (formato Evolution: 5527XXXX@s.whatsapp.net)
+    waOwnerJid() {
+      const phone = this.waSessionPhone();
+      if (!phone) return '';
+      const num = String(phone).replace(/\D/g, '');
+      return num ? `${num}@s.whatsapp.net` : '';
+    },
+
+    // Detecta se uma msg menciona o número do user logado.
+    // Evolution salva mentions em msg.message.extendedTextMessage.contextInfo.mentionedJid (array)
+    isWaMessageMentioningMe(msg) {
+      const myJid = this.waOwnerJid();
+      if (!myJid) return false;
+      const myNum = myJid.split('@')[0];
+      const mentions = msg?.message?.extendedTextMessage?.contextInfo?.mentionedJid
+        || msg?.contextInfo?.mentionedJid
+        || msg?.mentionedJid
+        || [];
+      if (Array.isArray(mentions) && mentions.some(j => String(j).startsWith(myNum))) return true;
+      // Fallback: procura @numero literal no texto
+      const text = this.getWaMessageText ? this.getWaMessageText(msg) : (msg?.message?.conversation || '');
+      if (text && new RegExp(`@${myNum}\\b`).test(text)) return true;
+      return false;
+    },
+
+    // Sidebar: chat tem menção ao user nas últimas msgs ou na lastMessage?
+    waChatHasMention(chat) {
+      if (!chat) return false;
+      const lm = chat.lastMessage;
+      if (lm && this.isWaMessageMentioningMe(lm)) return true;
+      return false;
+    },
+
     // ===================== WHATSAPP (Evolution API) =====================
 
     async fetchWhatsAppChats() {
@@ -10268,7 +10395,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
           const chats = await res.json();
           // Show all chats sorted by most recent
           // Use remoteJid as primary identifier (id can be null in Evolution v2)
-          this.data.whatsappChats = (chats || [])
+          this.data.whatsappChats = this._applyWaReadOverride((chats || [])
             .filter(c => c && (c.remoteJid || c.id))
             .filter(c => c.remoteJid !== 'status@broadcast') // Exclude status updates
             .map(c => {
@@ -10284,7 +10411,7 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
                 }
               }
               return c;
-            })
+            }))
             .sort((a, b) => {
               const ta = new Date(a.updatedAt || 0).getTime();
               const tb = new Date(b.updatedAt || 0).getTime();
@@ -10304,6 +10431,98 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.ui.whatsappLoading = false;
     },
 
+    // Override local persistido em localStorage. Cliente é fonte de verdade
+    // pro estado "lido" porque a Evolution às vezes não persiste markAsRead
+    // e o polling traz unreadCount antigo de volta. TTL de 7 dias.
+    // Auto-invalidação: se chegou nova msg APÓS o markRead, entry expira.
+    _WA_READ_KEY: 'spalla_wa_read_chats_v1',
+
+    _loadWaReadOverride() {
+      try {
+        const raw = localStorage.getItem(this._WA_READ_KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+        const TTL = 7 * 24 * 3600 * 1000;
+        const now = Date.now();
+        let dirty = false;
+        for (const [jid, ts] of Object.entries(parsed)) {
+          if (now - ts > TTL) { delete parsed[jid]; dirty = true; }
+        }
+        if (dirty) localStorage.setItem(this._WA_READ_KEY, JSON.stringify(parsed));
+        return parsed;
+      } catch { return {}; }
+    },
+
+    _markWaChatLocallyRead(remoteJid) {
+      if (!remoteJid) return;
+      try {
+        const override = this._loadWaReadOverride();
+        override[remoteJid] = Date.now();
+        localStorage.setItem(this._WA_READ_KEY, JSON.stringify(override));
+      } catch {}
+    },
+
+    // Aplica o override em uma lista de chats (zera unreadCount em chats marcados localmente).
+    // Chamado no fetchWhatsAppChats e no polling pra que o badge não volte a aparecer.
+    _applyWaReadOverride(chats) {
+      const override = this._loadWaReadOverride();
+      let dirty = false;
+      for (const c of (chats || [])) {
+        const jid = c?.remoteJid || c?.id;
+        if (!jid || !override[jid]) continue;
+        // Se chegou nova msg DEPOIS de ter marcado lido, NÃO zera (badge é legítimo)
+        const lastTs = Number(c?.lastMessage?.messageTimestamp || 0) * 1000;
+        const readTs = override[jid];
+        if (lastTs > readTs) {
+          delete override[jid];
+          dirty = true;
+          continue;
+        }
+        // Override ativo: zera badge
+        c.unreadCount = 0;
+        c.unread = 0;
+      }
+      if (dirty) {
+        try { localStorage.setItem(this._WA_READ_KEY, JSON.stringify(override)); } catch {}
+      }
+      return chats;
+    },
+
+    // Marca todas as mensagens de um chat como lidas.
+    // 1. Local (localStorage) — fonte de verdade resistente ao polling.
+    // 2. Servidor Evolution — best-effort, tenta múltiplos endpoints.
+    async markWaChatAsRead(remoteJid) {
+      // 1. Local primeiro (instantâneo e persistente)
+      this._markWaChatLocallyRead(remoteJid);
+
+      // 2. Tenta servidor (best-effort)
+      const { instance } = this._waActiveInstance();
+      if (!instance || !remoteJid) return;
+      const tryEndpoints = [
+        { path: `chat/markChatUnread/${instance}`, body: { chat: remoteJid, unread: false } },
+        { path: `chat/markMessageAsRead/${instance}`, body: { readMessages: this._waCollectUnreadIds(remoteJid) } },
+        { path: `chat/markChatRead/${instance}`, body: { number: remoteJid } },
+      ];
+      for (const ep of tryEndpoints) {
+        try {
+          const res = await fetch(`${CONFIG.API_BASE}/api/evolution/${ep.path}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(ep.body),
+          });
+          if (res.ok) return;
+        } catch {}
+      }
+    },
+
+    _waCollectUnreadIds(remoteJid) {
+      const msgs = this.data.whatsappMessages || [];
+      return msgs
+        .filter(m => !m.key?.fromMe)
+        .slice(-30)
+        .map(m => ({ remoteJid, fromMe: false, id: m.key?.id || '' }))
+        .filter(x => x.id);
+    },
+
     async selectWhatsAppChat(chat) {
       const { instance } = this._waActiveInstance();
       if (!instance) return;
@@ -10313,6 +10532,14 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
       const groupJid = chat.remoteJid || chat.id;
       this._loadingGroupJid = groupJid;
+
+      // Zera o badge de não-lidas localmente (UI responde imediatamente)
+      // e dispara o markAsRead na Evolution em background (persiste no servidor)
+      if (chat && (chat.unreadCount > 0 || chat.unread > 0)) {
+        chat.unreadCount = 0;
+        chat.unread = 0;
+        this.markWaChatAsRead(groupJid).catch(e => console.warn('[Spalla] markAsRead falhou:', e?.message));
+      }
 
       // Strategy: try Supabase wa_messages first, fallback to Evolution API
       let usedRealtime = false;
@@ -12996,6 +13223,67 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       this.ui.offboardModal = { open: true, menteeId, menteeNome, motivo: '', obs: '', loading: false };
     },
 
+    // ===================== Status operacional do mentorado =====================
+    openStatusEditModal(menteeId) {
+      const m = (this.data.mentees || []).find(x => x.id === menteeId);
+      if (!m) { this.toast('Mentorado nao encontrado', 'warning'); return; }
+      this.ui.statusEditModal = {
+        open: true,
+        menteeId,
+        menteeNome: m.nome || 'Mentorado',
+        contrato_assinado: m.contrato_assinado !== false,
+        status_financeiro: m.status_financeiro || 'em_dia',
+        dia_pagamento: m.dia_pagamento || null,
+        loading: false,
+      };
+    },
+
+    closeStatusEditModal() {
+      this.ui.statusEditModal = { open: false, menteeId: null, menteeNome: '', contrato_assinado: true, status_financeiro: 'em_dia', dia_pagamento: null, loading: false };
+    },
+
+    async saveStatusEdit() {
+      const s = this.ui.statusEditModal;
+      if (!s.menteeId) return;
+      s.loading = true;
+      try {
+        const dp = s.dia_pagamento === '' || s.dia_pagamento === null ? null : Number(s.dia_pagamento);
+        const body = {
+          contrato_assinado: !!s.contrato_assinado,
+          status_financeiro: s.status_financeiro,
+          dia_pagamento: dp,
+        };
+        const resp = await fetch(`${CONFIG.API_BASE}/api/mentees/${s.menteeId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.auth.accessToken}`,
+          },
+          body: JSON.stringify(body),
+        });
+        if (!resp.ok) {
+          const txt = await resp.text();
+          throw new Error(txt || `HTTP ${resp.status}`);
+        }
+        // Atualiza local — Alpine reage e badges somem instantaneamente
+        const local = (this.data.mentees || []).find(x => x.id === s.menteeId);
+        if (local) {
+          local.contrato_assinado = body.contrato_assinado;
+          local.status_financeiro = body.status_financeiro;
+          local.dia_pagamento = body.dia_pagamento;
+        }
+        if (this.data.detail?.profile?.id === s.menteeId) {
+          Object.assign(this.data.detail.profile, body);
+        }
+        this.toast('Status atualizado', 'success');
+        this.closeStatusEditModal();
+      } catch (e) {
+        this.toast('Erro ao salvar: ' + (e.message || ''), 'error');
+      } finally {
+        s.loading = false;
+      }
+    },
+
     closeOffboardModal() {
       this.ui.offboardModal = { open: false, menteeId: null, menteeNome: '', motivo: '', obs: '', loading: false };
     },
@@ -13544,6 +13832,19 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       'paula groisman e anna plachta': 'kava_arq.jpg',
       'paula groisman': 'kava_arq.jpg',
       'anna plachta': 'kava_arq.jpg',
+      // Adicionados 2026-05-05 — fotos baixadas do Instagram CDN
+      'anadeparis': 'anadeparis.jpg',
+      'ana deparis': 'anadeparis.jpg',
+      'medacademyresidencia': 'medacademyresidencia.jpg',
+      'andre renato': 'medacademyresidencia.jpg',
+      'andré renato': 'medacademyresidencia.jpg',
+      'dralucilalargura': 'dralucilalargura.jpg',
+      'lucila largura': 'dralucilalargura.jpg',
+      'lucila zimmermann largura': 'dralucilalargura.jpg',
+      'dra.deborahperes': 'dra.deborahperes.jpg',
+      'dradeborahperes': 'dra.deborahperes.jpg',
+      'deborah haydee': 'dra.deborahperes.jpg',
+      'deborah peres': 'dra.deborahperes.jpg',
     },
 
     igPhoto(handleOrName) {

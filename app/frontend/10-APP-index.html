@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="16-APP-operon-molecules.css?v=3">
   <link rel="stylesheet" href="17-APP-operon-utilities.css?v=2">
   <link rel="stylesheet" href="18-APP-operon-bridge.css?v=1">
-  <link rel="stylesheet" href="13-APP-styles.css?v=221">
+  <link rel="stylesheet" href="13-APP-styles.css?v=222">
   <style>
     [x-cloak] { display: none !important; }
     #loading-fallback { position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1c1910,#35301d,#1c1910);font-family:'Inter',system-ui,sans-serif;color:var(--brand-500,#8a7d52);font-size:24px;font-weight:700;letter-spacing:0.05em; }
@@ -2018,9 +2018,9 @@
                   <span class="mc-card__phase-tag" :class="phaseClass(m.fase_jornada)" x-text="phaseLabel(m.fase_jornada)"></span>
                   <span class="mc-card__marco" x-show="m.marco_atual" x-text="m.marco_atual"></span>
                   <span class="mc-card__cohort" x-text="m.cohort"></span>
-                  <span class="mc-card__fin-badge mc-card__fin-badge--danger" x-show="!m.contrato_assinado" title="Contrato nao assinado">SEM CONTRATO</span>
-                  <span class="mc-card__fin-badge mc-card__fin-badge--danger" x-show="m.status_financeiro === 'atrasado'" title="Pagamento atrasado">INADIMPLENTE</span>
-                  <span class="mc-card__fin-badge mc-card__fin-badge--success" x-show="m.status_financeiro === 'quitado'">QUITADO</span>
+                  <span class="mc-card__fin-badge mc-card__fin-badge--danger" x-show="!m.contrato_assinado" title="Click para atualizar status" style="cursor:pointer" @click.stop="openStatusEditModal(m.id)">SEM CONTRATO ✎</span>
+                  <span class="mc-card__fin-badge mc-card__fin-badge--danger" x-show="m.status_financeiro === 'atrasado'" title="Click para atualizar status" style="cursor:pointer" @click.stop="openStatusEditModal(m.id)">INADIMPLENTE ✎</span>
+                  <span class="mc-card__fin-badge mc-card__fin-badge--success" x-show="m.status_financeiro === 'quitado'" title="Click para atualizar status" style="cursor:pointer" @click.stop="openStatusEditModal(m.id)">QUITADO</span>
                   <span class="mc-card__wa-badge" :class="waBadgeClass(m)" x-show="m.msgs_pendentes_resposta > 0">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z"/></svg>
                     <span x-text="m.msgs_pendentes_resposta"></span>
@@ -2196,6 +2196,37 @@
 
             <!-- ===== TAB: RESUMO ===== -->
             <div class="op-tab-content" x-show="ui.activeDetailTab === 'resumo'">
+              <!-- Status Operacional (contrato + financeiro + dia pgto) -->
+              <div class="card" style="margin-bottom:12px">
+                <div class="card__header">
+                  <h3>Status Operacional</h3>
+                  <button class="btn btn--xs btn--brand" @click="openStatusEditModal(data.detail?.profile?.id)" :disabled="!data.detail?.profile?.id">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Editar
+                  </button>
+                </div>
+                <div class="card__body" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+                  <!-- Contrato -->
+                  <div style="padding:10px 12px;background:var(--neutral-50);border-radius:8px;cursor:pointer" @click="openStatusEditModal(data.detail?.profile?.id)" title="Click pra atualizar">
+                    <div style="font-size:11px;font-weight:600;color:var(--neutral-500);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px">Contrato</div>
+                    <div style="display:flex;align-items:center;gap:6px">
+                      <span x-show="data.detail?.profile?.contrato_assinado !== false" style="font-size:14px;font-weight:600;color:#16a34a">✓ Assinado</span>
+                      <span x-show="data.detail?.profile?.contrato_assinado === false" style="font-size:14px;font-weight:600;color:#dc2626">✗ Sem contrato</span>
+                    </div>
+                  </div>
+                  <!-- Status Financeiro -->
+                  <div style="padding:10px 12px;background:var(--neutral-50);border-radius:8px;cursor:pointer" @click="openStatusEditModal(data.detail?.profile?.id)" title="Click pra atualizar">
+                    <div style="font-size:11px;font-weight:600;color:var(--neutral-500);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px">Financeiro</div>
+                    <div style="font-size:14px;font-weight:600" :style="{ color: ({em_dia:'#0284c7',quitado:'#16a34a',pago:'#16a34a',atrasado:'#dc2626',sem_contrato:'#a16207'}[data.detail?.profile?.status_financeiro] || 'var(--neutral-700)') }" x-text="({em_dia:'Em dia',quitado:'Quitado',pago:'Pago',atrasado:'Atrasado',sem_contrato:'Sem contrato'}[data.detail?.profile?.status_financeiro] || '—')"></div>
+                  </div>
+                  <!-- Dia pagamento -->
+                  <div style="padding:10px 12px;background:var(--neutral-50);border-radius:8px;cursor:pointer" @click="openStatusEditModal(data.detail?.profile?.id)" title="Click pra atualizar">
+                    <div style="font-size:11px;font-weight:600;color:var(--neutral-500);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px">Dia pgto</div>
+                    <div style="font-size:14px;font-weight:600;color:var(--neutral-800)" x-text="data.detail?.profile?.dia_pagamento ? 'Dia ' + data.detail?.profile?.dia_pagamento : '—'"></div>
+                  </div>
+                </div>
+              </div>
+
               <!-- Health Score Breakdown -->
               <div class="card health-breakdown" x-data="{ hs: calcHealthScore(data.detail?.profile || {}) }">
                 <div class="card__header">
@@ -7053,9 +7084,9 @@
               </div>
               <div class="wa-sidebar__list" x-show="!ui.waMobileSidebarHidden">
                 <template x-for="chat in data.whatsappChats.filter(c => !ui.waFaseFilter || (data.waGroups.find(g => g.group_jid === (c.remoteJid || c.id))?.fase || 'Geral') === ui.waFaseFilter.toLowerCase())" :key="chat.id">
-                  <div class="wa-sidebar__item" :class="{ active: ui.whatsappSelectedChat?.id === chat.id }" @click="selectWhatsAppChat(chat); if(window.innerWidth <= 768) ui.waMobileSidebarHidden = true">
-                    <img x-show="chat.profilePicUrl" :src="chat.profilePicUrl" class="avatar avatar--sm" style="width:32px;height:32px;border-radius:50%;object-fit:cover" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex'">
-                    <div class="avatar avatar--sm avatar--success" :style="chat.profilePicUrl && 'display:none'" x-text="avatarInitials(getWaChatName(chat))"></div>
+                  <div class="wa-sidebar__item" :class="{ active: ui.whatsappSelectedChat?.id === chat.id }" x-init="ensureWaChatProfilePic(chat)" @click="selectWhatsAppChat(chat); if(window.innerWidth <= 768) ui.waMobileSidebarHidden = true">
+                    <img x-show="chat.profilePicUrl" :src="chat.profilePicUrl" class="avatar avatar--sm" style="width:32px;height:32px;border-radius:50%;object-fit:cover" referrerpolicy="no-referrer" loading="lazy" @error="onWaProfilePicError(chat)">
+                    <div class="avatar avatar--sm avatar--success" x-show="!chat.profilePicUrl" x-text="avatarInitials(getWaChatName(chat))"></div>
                     <div class="wa-sidebar__item-info">
                       <div class="wa-sidebar__item-row">
                         <span class="wa-sidebar__item-name" x-text="getWaChatName(chat)"></span>
@@ -7065,6 +7096,7 @@
                         <span class="wa-sidebar__item-preview" x-text="getWaChatPreview(chat)"></span>
                         <span class="wa-sidebar__item-meta">
                           <span class="wa-sidebar__item-pending" x-show="getWaChatPendingHours(chat) >= 24" :title="'Pendente há ' + getWaChatPendingHours(chat) + 'h'"></span>
+                          <span class="wa-sidebar__item-mention" x-show="waChatHasMention(chat)" title="Você foi mencionado">@</span>
                           <span class="wa-sidebar__item-unread" x-show="getWaChatUnread(chat) > 0" x-text="getWaChatUnread(chat) > 99 ? '99+' : getWaChatUnread(chat)"></span>
                         </span>
                       </div>
@@ -7123,8 +7155,8 @@
                 <button class="wa-chat__back-btn" @click="ui.waMobileSidebarHidden = false; ui.whatsappSelectedChat = null; stopWhatsAppPolling()">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
                 </button>
-                <img x-show="ui.whatsappSelectedChat?.profilePicUrl" :src="ui.whatsappSelectedChat?.profilePicUrl" class="avatar avatar--sm" style="width:36px;height:36px;border-radius:50%;object-fit:cover" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex'">
-                <div class="avatar avatar--sm avatar--success" :style="ui.whatsappSelectedChat?.profilePicUrl && 'display:none'" x-text="avatarInitials(getWaChatName(ui.whatsappSelectedChat))"></div>
+                <img x-show="ui.whatsappSelectedChat?.profilePicUrl" :src="ui.whatsappSelectedChat?.profilePicUrl" class="avatar avatar--sm" style="width:36px;height:36px;border-radius:50%;object-fit:cover" referrerpolicy="no-referrer" loading="lazy" @error="onWaProfilePicError(ui.whatsappSelectedChat)">
+                <div class="avatar avatar--sm avatar--success" x-show="!ui.whatsappSelectedChat?.profilePicUrl" x-text="avatarInitials(getWaChatName(ui.whatsappSelectedChat))" x-init="ensureWaChatProfilePic(ui.whatsappSelectedChat)"></div>
                 <!-- Onda 2: header expandido — nome + linha 2 com telefone, status, mentorado vinculado -->
                 <div class="wa-chat__header-info">
                   <h3 x-text="getWaChatName(ui.whatsappSelectedChat)"></h3>
@@ -7159,7 +7191,9 @@
                     <template x-if="shouldShowWaDateSeparator(msg, visibleWaMessages()[mi - 1])">
                       <div class="wa-date-separator"><span x-text="waDateLabel(msg.messageTimestamp)"></span></div>
                     </template>
-                  <div class="wa-bubble" :class="{ 'wa-bubble--me': msg.key?.fromMe, 'wa-bubble--first': isWaFirstOfGroup(msg, data.whatsappMessages[mi-1]), 'wa-bubble--grouped': !isWaFirstOfGroup(msg, data.whatsappMessages[mi-1]), 'wa-bubble--just-sent': msg.key?.id === ui.waJustSentId }" :id="'wa-msg-' + (msg.key?.id || mi)">
+                  <div class="wa-bubble" :class="{ 'wa-bubble--me': msg.key?.fromMe, 'wa-bubble--first': isWaFirstOfGroup(msg, data.whatsappMessages[mi-1]), 'wa-bubble--grouped': !isWaFirstOfGroup(msg, data.whatsappMessages[mi-1]), 'wa-bubble--just-sent': msg.key?.id === ui.waJustSentId, 'wa-bubble--mention': isWaMessageMentioningMe(msg) }" :id="'wa-msg-' + (msg.key?.id || mi)">
+                    <!-- Mention badge: msg menciona o número conectado -->
+                    <span class="wa-bubble__mention-badge" x-show="isWaMessageMentioningMe(msg)" title="Você foi mencionado">@</span>
                     <!-- Onda 3: avatar mini só na primeira bolha do grupo (não-me) -->
                     <div class="wa-bubble__avatar" x-show="!msg.key?.fromMe && isWaFirstOfGroup(msg, data.whatsappMessages[mi-1])" :style="{ background: waSenderColor(msg.pushName) }" x-text="waSenderInitials(msg.pushName || 'Desconhecido')"></div>
                     <!-- Action buttons (reply + save to context) -->
@@ -7400,6 +7434,48 @@
                 <button class="wa-mentee-card__cta" @click="openDetail(m?.id); navigate('detail'); ui.waMenteeCardOpen = false">Ver ficha completa</button>
               </aside>
             </template>
+          </div>
+        </div>
+
+        <!-- Modal: Status operacional do mentorado (contrato + financeiro + dia pgto) -->
+        <div x-show="ui.statusEditModal.open" x-transition.opacity @click.self="closeStatusEditModal()" @keydown.escape.window="ui.statusEditModal.open && closeStatusEditModal()" style="position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center" :style="ui.statusEditModal.open ? 'display:flex' : 'display:none'">
+          <div style="background:#fff;border-radius:12px;padding:24px;max-width:440px;width:90%;box-shadow:0 16px 48px rgba(0,0,0,0.3)" x-transition>
+            <h3 style="margin:0 0 4px;font-size:16px;font-weight:600;color:var(--neutral-900)">Status operacional</h3>
+            <p style="margin:0 0 18px;font-size:13px;color:var(--neutral-500)" x-text="ui.statusEditModal.menteeNome"></p>
+
+            <!-- Contrato assinado -->
+            <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--neutral-50);border-radius:8px;cursor:pointer;margin-bottom:10px">
+              <input type="checkbox" x-model="ui.statusEditModal.contrato_assinado" style="width:18px;height:18px;cursor:pointer">
+              <span style="flex:1;font-size:14px;font-weight:500;color:var(--neutral-800)">Contrato assinado</span>
+              <span class="badge badge--xs" :class="ui.statusEditModal.contrato_assinado ? 'badge--success' : 'badge--danger'" x-text="ui.statusEditModal.contrato_assinado ? 'SIM' : 'NÃO'"></span>
+            </label>
+
+            <!-- Status financeiro -->
+            <label style="display:block;margin-bottom:10px">
+              <span style="display:block;font-size:12px;font-weight:600;color:var(--neutral-600);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px">Status financeiro</span>
+              <select x-model="ui.statusEditModal.status_financeiro" style="width:100%;padding:8px 10px;border:1px solid var(--neutral-200);border-radius:6px;font-size:14px;background:#fff">
+                <option value="em_dia">Em dia</option>
+                <option value="quitado">Quitado</option>
+                <option value="atrasado">Atrasado (inadimplente)</option>
+                <option value="pago">Pago (à vista)</option>
+                <option value="sem_contrato">Sem contrato</option>
+              </select>
+            </label>
+
+            <!-- Dia pagamento -->
+            <label style="display:block;margin-bottom:18px">
+              <span style="display:block;font-size:12px;font-weight:600;color:var(--neutral-600);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px">Dia do pagamento (1-31)</span>
+              <input type="number" min="1" max="31" x-model="ui.statusEditModal.dia_pagamento" placeholder="ex: 10" style="width:100%;padding:8px 10px;border:1px solid var(--neutral-200);border-radius:6px;font-size:14px">
+            </label>
+
+            <!-- Ações -->
+            <div style="display:flex;gap:8px">
+              <button class="btn btn--sm btn--ghost" style="flex:1" @click="closeStatusEditModal()" :disabled="ui.statusEditModal.loading">Cancelar</button>
+              <button class="btn btn--sm btn--brand" style="flex:1" @click="saveStatusEdit()" :disabled="ui.statusEditModal.loading">
+                <span x-show="!ui.statusEditModal.loading">Salvar</span>
+                <span x-show="ui.statusEditModal.loading">Salvando...</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -13169,7 +13245,7 @@
   <script src="12-APP-data.js?v=73"></script>
   <script src="13-APP-photos.js?v=73"></script>
   <script src="19-APP-welcome-flow.js?v=20260314b"></script>
-  <script src="11-APP-app.js?v=262"></script>
+  <script src="11-APP-app.js?v=271"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">
