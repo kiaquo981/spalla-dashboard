@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "measured_at": "2026-05-07T21:29:58.650Z",
-  "git_sha": "5dcf855bc7750f8355ac403711f9aad718f8262b",
+  "measured_at": "2026-05-07T21:47:22.836Z",
+  "git_sha": "a5b501902218d3bd6469d96204876e9a6bfcdc65",
   "metrics": {
     "largest_file_lines": 16897,
     "files_over_2k_lines": 4,
@@ -9,7 +9,7 @@
     "total_loc_frontend_js": 19847,
     "total_loc_frontend_css": 10296,
     "total_loc_frontend_html": 15577,
-    "total_loc_backend_py": 9257,
+    "total_loc_backend_py": 9394,
     "hardcoded_secrets_count": 0,
     "inline_event_handlers": 45,
     "console_log_count": 23,
@@ -41,7 +41,7 @@
     "app/frontend/ref/live.html": 215,
     "app/frontend/ref/postos.html": 507,
     "app/frontend/ref/trilhas.html": 472,
-    "app/backend/14-APP-server.py": 8262,
+    "app/backend/14-APP-server.py": 8399,
     "app/backend/domain/__init__.py": 1,
     "app/backend/domain/services/__init__.py": 1,
     "app/backend/domain/services/descarrego_classifier.py": 153,

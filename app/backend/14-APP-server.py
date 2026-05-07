@@ -3803,6 +3803,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._proxy_evolution('POST')
         elif self.path == '/api/media/recover-binary':
             self._handle_media_recover_binary()
+        elif self.path == '/api/evolution/sync-instances':
+            self._handle_evolution_sync_instances()
         elif self.path == '/api/schedule-call':
             self._handle_schedule_call()
         elif self.path == '/api/zoom/create-meeting':
@@ -4998,28 +5000,96 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 print(f'[Recover] Supabase lookup failed: {e}')
 
-        # Resolve instance_name + instance_uuid via wa_groups (fonte de verdade pós-mig 2026-05-07).
-        # Multi-instância: producao002 (Kaique), spalla_u9 (Mariza), spalla_u8, etc — cada uma com UUID
-        # próprio nos paths Hetzner S3. Sem esse lookup, mídia da Mariza nunca aparecia.
+        # Resolve instance_name + instance_uuid via cadeia de fallbacks:
+        #   1. body explícito (caller já sabia)
+        #   2. resolve_instance_for_group RPC (wa_groups + evolution_instances JOIN)
+        #   3. evolution_instances direto via instance_name (se body só trouxe nome)
+        #   4. Auto-sync com Evolution API + retry passo 2/3 (UUID stale ou instância nova)
         meta['instance_uuid'] = body.get('instance_uuid')
-        if (not meta['instance_name'] or not meta['instance_uuid']) and meta['chat_id']:
+        sk = os.environ.get('SUPABASE_SERVICE_KEY', '')
+
+        def _resolve_via_group(chat_id):
+            try:
+                conn = http.client.HTTPSConnection(SUPABASE_HOST, timeout=10)
+                pl = json.dumps({'p_group_jid': chat_id}).encode('utf-8')
+                conn.request('POST', '/rest/v1/rpc/resolve_instance_for_group',
+                             body=pl, headers={
+                                 'apikey': sk, 'Authorization': f'Bearer {sk}',
+                                 'Content-Type': 'application/json',
+                             })
+                r = conn.getresponse()
+                rows = json.loads(r.read().decode('utf-8') or '[]')
+                if rows: return rows[0]
+            except Exception as e:
+                print(f'[Recover] resolve_via_group failed: {e}')
+            return None
+
+        def _resolve_via_name(name):
             try:
                 conn = http.client.HTTPSConnection(SUPABASE_HOST, timeout=10)
                 qs = urllib.parse.urlencode({
-                    'group_jid': f"eq.{meta['chat_id']}",
+                    'instance_name': f'eq.{name}',
                     'select': 'instance_name,instance_uuid', 'limit': '1',
                 })
-                conn.request('GET', f'/rest/v1/wa_groups?{qs}', headers={
-                    'apikey': os.environ.get('SUPABASE_SERVICE_KEY', ''),
-                    'Authorization': f"Bearer {os.environ.get('SUPABASE_SERVICE_KEY', '')}",
+                conn.request('GET', f'/rest/v1/evolution_instances?{qs}', headers={
+                    'apikey': sk, 'Authorization': f'Bearer {sk}',
                 })
                 r = conn.getresponse()
                 rows = json.loads(r.read().decode('utf-8') or '[]')
-                if rows:
-                    meta['instance_name'] = meta['instance_name'] or rows[0].get('instance_name')
-                    meta['instance_uuid'] = meta['instance_uuid'] or rows[0].get('instance_uuid')
+                if rows: return rows[0]
             except Exception as e:
-                print(f'[Recover] Instance lookup failed: {e}')
+                print(f'[Recover] resolve_via_name failed: {e}')
+            return None
+
+        if (not meta['instance_uuid']) and meta['chat_id']:
+            row = _resolve_via_group(meta['chat_id'])
+            if row:
+                meta['instance_name'] = meta['instance_name'] or row.get('instance_name')
+                meta['instance_uuid'] = meta['instance_uuid'] or row.get('instance_uuid')
+
+        if (not meta['instance_uuid']) and meta['instance_name']:
+            row = _resolve_via_name(meta['instance_name'])
+            if row:
+                meta['instance_uuid'] = row.get('instance_uuid')
+
+        # Auto-sync proativo: se ainda sem UUID, refresha evolution_instances e re-tenta
+        if not meta['instance_uuid']:
+            print(f'[Recover] No UUID resolved, triggering auto-sync...')
+            try:
+                req = urllib.request.Request(
+                    f'{EVOLUTION_BASE}/instance/fetchInstances',
+                    headers={'apikey': EVOLUTION_API_KEY},
+                )
+                resp = urllib.request.urlopen(req, timeout=15)
+                instances = json.loads(resp.read().decode('utf-8'))
+                # Match local-first
+                for inst in instances:
+                    name = inst.get('name')
+                    uuid = inst.get('id')
+                    if not (name and uuid): continue
+                    try:
+                        conn = http.client.HTTPSConnection(SUPABASE_HOST, timeout=8)
+                        pl = json.dumps({
+                            'p_instance_name': name, 'p_instance_uuid': uuid,
+                            'p_owner_jid': inst.get('ownerJid'),
+                            'p_connection_status': inst.get('connectionStatus'),
+                            'p_raw_payload': inst,
+                        }).encode('utf-8')
+                        conn.request('POST', '/rest/v1/rpc/upsert_evolution_instance',
+                                     body=pl, headers={
+                                         'apikey': sk, 'Authorization': f'Bearer {sk}',
+                                         'Content-Type': 'application/json',
+                                     })
+                        conn.getresponse().read()
+                    except Exception: pass
+                # Re-tenta resolve via group
+                if meta['chat_id']:
+                    row = _resolve_via_group(meta['chat_id'])
+                    if row:
+                        meta['instance_name'] = meta['instance_name'] or row.get('instance_name')
+                        meta['instance_uuid'] = meta['instance_uuid'] or row.get('instance_uuid')
+            except Exception as e:
+                print(f'[Recover] Auto-sync failed: {e}')
 
         instance = meta['instance_name'] or 'producao002'  # default conhecido
 
@@ -5131,6 +5201,73 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             's3_key': s3_key,
             'stream_url': stream_url,
             'mime': content_type,
+        })
+
+    def _handle_evolution_sync_instances(self):
+        """POST /api/evolution/sync-instances
+        Busca todas as instâncias da Evolution API + faz upsert em
+        evolution_instances. Idempotente. Pode rodar via cron OU on-demand
+        quando o recover-binary detecta UUID stale.
+
+        Auth: API key (n8n) OU JWT admin.
+        """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'unauthorized'}, 401)
+            return
+        try:
+            req = urllib.request.Request(
+                f'{EVOLUTION_BASE}/instance/fetchInstances',
+                headers={'apikey': EVOLUTION_API_KEY},
+            )
+            resp = urllib.request.urlopen(req, timeout=20)
+            instances = json.loads(resp.read().decode('utf-8'))
+        except Exception as e:
+            self._send_json({'error': f'Evolution fetchInstances failed: {e}'}, 502)
+            return
+
+        if not isinstance(instances, list):
+            self._send_json({'error': 'Evolution response not a list', 'raw_preview': str(instances)[:300]}, 502)
+            return
+
+        upserted = []
+        errors = []
+        sk = os.environ.get('SUPABASE_SERVICE_KEY', '')
+        for inst in instances:
+            name = inst.get('name')
+            uuid = inst.get('id')
+            if not (name and uuid):
+                continue
+            try:
+                conn = http.client.HTTPSConnection(SUPABASE_HOST, timeout=10)
+                payload = json.dumps({
+                    'p_instance_name': name,
+                    'p_instance_uuid': uuid,
+                    'p_owner_jid': inst.get('ownerJid'),
+                    'p_connection_status': inst.get('connectionStatus'),
+                    'p_raw_payload': inst,
+                }).encode('utf-8')
+                conn.request('POST', '/rest/v1/rpc/upsert_evolution_instance', body=payload, headers={
+                    'apikey': sk,
+                    'Authorization': f'Bearer {sk}',
+                    'Content-Type': 'application/json',
+                    'Prefer': 'return=representation',
+                })
+                r = conn.getresponse()
+                body = r.read().decode('utf-8')
+                if r.status >= 400:
+                    errors.append({'instance': name, 'status': r.status, 'body': body[:200]})
+                else:
+                    upserted.append({'instance': name, 'uuid': uuid, 'status': inst.get('connectionStatus')})
+            except Exception as e:
+                errors.append({'instance': name, 'error': str(e)})
+
+        self._send_json({
+            'synced': len(upserted),
+            'errors': len(errors),
+            'instances': upserted,
+            'failures': errors[:10],  # limita resposta
+            'total_evolution': len(instances),
         })
 
     def _handle_instance_uuid(self):
