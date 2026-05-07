@@ -282,6 +282,55 @@ def generate_presigned_url(key, expires=3600):
     url = f'https://{host}{canonical_uri}?{canonical_querystring}&X-Amz-Signature={signature}'
     return url
 
+
+def s3_put_object(key, body_bytes, content_type='application/octet-stream'):
+    """Upload bytes diretamente pro Hetzner S3 via PUT presigned (AWS SigV4).
+    Usado pelo recover-binary endpoint pra cachear mídia perdida."""
+    host = S3_ENDPOINT
+    algorithm = 'AWS4-HMAC-SHA256'
+    now = datetime.now(timezone.utc)
+    amz_date = now.strftime('%Y%m%dT%H%M%SZ')
+    datestamp = now.strftime('%Y%m%d')
+
+    method = 'PUT'
+    canonical_uri = f'/{S3_BUCKET}/{key}'
+    credential_scope = f'{datestamp}/{S3_REGION}/s3/aws4_request'
+
+    payload_hash = hashlib.sha256(body_bytes).hexdigest()
+    canonical_headers = (
+        f'content-type:{content_type}\n'
+        f'host:{host}\n'
+        f'x-amz-content-sha256:{payload_hash}\n'
+        f'x-amz-date:{amz_date}\n'
+    )
+    signed_headers = 'content-type;host;x-amz-content-sha256;x-amz-date'
+
+    canonical_request = f'{method}\n{canonical_uri}\n\n{canonical_headers}\n{signed_headers}\n{payload_hash}'
+    canonical_request_hash = hashlib.sha256(canonical_request.encode()).hexdigest()
+    string_to_sign = f'{algorithm}\n{amz_date}\n{credential_scope}\n{canonical_request_hash}'
+
+    kDate = hmac.new(f'AWS4{S3_SECRET_KEY}'.encode(), datestamp.encode(), hashlib.sha256).digest()
+    kRegion = hmac.new(kDate, S3_REGION.encode(), hashlib.sha256).digest()
+    kService = hmac.new(kRegion, b's3', hashlib.sha256).digest()
+    kSigning = hmac.new(kService, b'aws4_request', hashlib.sha256).digest()
+    signature = hmac.new(kSigning, string_to_sign.encode(), hashlib.sha256).hexdigest()
+    authorization = (
+        f'{algorithm} Credential={S3_ACCESS_KEY}/{credential_scope}, '
+        f'SignedHeaders={signed_headers}, Signature={signature}'
+    )
+
+    url = f'https://{host}{canonical_uri}'
+    req = urllib.request.Request(url, data=body_bytes, method='PUT')
+    req.add_header('Host', host)
+    req.add_header('Content-Type', content_type)
+    req.add_header('Content-Length', str(len(body_bytes)))
+    req.add_header('X-Amz-Date', amz_date)
+    req.add_header('X-Amz-Content-SHA256', payload_hash)
+    req.add_header('Authorization', authorization)
+    resp = urllib.request.urlopen(req, timeout=60)
+    return resp.status, resp.read()
+
+
 # ===== SUPABASE CONNECTION POOL =====
 SUPABASE_HOST = 'knusqfbvhsqworzyhvip.supabase.co'
 _supa_lock = threading.Lock()
@@ -3752,6 +3801,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_auth_reset_password()
         elif self.path.startswith('/api/evolution/'):
             self._proxy_evolution('POST')
+        elif self.path == '/api/media/recover-binary':
+            self._handle_media_recover_binary()
         elif self.path == '/api/schedule-call':
             self._handle_schedule_call()
         elif self.path == '/api/zoom/create-meeting':
@@ -4883,6 +4934,189 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             print(f'[Stream] Error: {e}')
             self._send_json({'error': str(e)}, 500)
+
+    def _handle_media_recover_binary(self):
+        """POST /api/media/recover-binary
+        Body: { message_id, instance_name?, chat_id?, type?, timestamp? }
+        Recupera binário via Evolution API getBase64FromMediaMessage,
+        upload pro Hetzner S3 e retorna stream URL.
+
+        Estratégia:
+          1. Se body incompleto: busca metadados em whatsapp_messages via REST.
+          2. Chama Evolution: POST /chat/getBase64FromMediaMessage/{instance}
+             body: {message: {key: {id: msgId, remoteJid: chatId, fromMe: false}}}
+          3. Decode base64, deduz extensão, upload S3 com key padrão Evolution.
+          4. Retorna stream URL pro frontend retentar.
+        """
+        try:
+            length = int(self.headers.get('Content-Length', 0) or 0)
+            raw = self.rfile.read(length).decode('utf-8') if length else '{}'
+            body = json.loads(raw)
+        except Exception as e:
+            self._send_json({'error': f'invalid json: {e}'}, 400)
+            return
+
+        message_id = (body.get('message_id') or '').strip()
+        if not message_id:
+            self._send_json({'error': 'message_id is required'}, 400)
+            return
+
+        # Step 1: complete metadata from whatsapp_messages if not provided
+        meta = {
+            'instance_name': body.get('instance_name'),
+            'chat_id': body.get('chat_id'),
+            'type': body.get('type'),
+            'timestamp': body.get('timestamp'),
+            'mime': body.get('media_mime_type'),
+        }
+        if not (meta['chat_id'] and meta['type'] and meta['timestamp']):
+            try:
+                conn = http.client.HTTPSConnection(SUPABASE_HOST, timeout=10)
+                qs = urllib.parse.urlencode({
+                    'message_id': f'eq.{message_id}',
+                    'select': 'message_id,group_id,chat_id,type,timestamp,media_mime_type',
+                    'limit': '1',
+                })
+                conn.request('GET', f'/rest/v1/whatsapp_messages?{qs}', headers={
+                    'apikey': os.environ.get('SUPABASE_SERVICE_KEY', ''),
+                    'Authorization': f"Bearer {os.environ.get('SUPABASE_SERVICE_KEY', '')}",
+                })
+                r = conn.getresponse()
+                rows = json.loads(r.read().decode('utf-8') or '[]')
+                if rows:
+                    row = rows[0]
+                    meta['chat_id'] = meta['chat_id'] or row.get('group_id') or row.get('chat_id')
+                    meta['type'] = meta['type'] or row.get('type')
+                    meta['timestamp'] = meta['timestamp'] or row.get('timestamp')
+                    meta['mime'] = meta['mime'] or row.get('media_mime_type')
+            except Exception as e:
+                print(f'[Recover] Supabase lookup failed: {e}')
+
+        # Resolve instance_name. wa_groups.instance_name é a fonte de verdade.
+        if not meta['instance_name'] and meta['chat_id']:
+            try:
+                conn = http.client.HTTPSConnection(SUPABASE_HOST, timeout=10)
+                qs = urllib.parse.urlencode({
+                    'group_jid': f"eq.{meta['chat_id']}",
+                    'select': 'instance_name', 'limit': '1',
+                })
+                conn.request('GET', f'/rest/v1/wa_groups?{qs}', headers={
+                    'apikey': os.environ.get('SUPABASE_SERVICE_KEY', ''),
+                    'Authorization': f"Bearer {os.environ.get('SUPABASE_SERVICE_KEY', '')}",
+                })
+                r = conn.getresponse()
+                rows = json.loads(r.read().decode('utf-8') or '[]')
+                if rows:
+                    meta['instance_name'] = rows[0].get('instance_name')
+            except Exception as e:
+                print(f'[Recover] Instance lookup failed: {e}')
+
+        instance = meta['instance_name'] or 'producao002'  # default conhecido
+
+        if not meta['chat_id'] or not meta['type'] or not meta['timestamp']:
+            self._send_json({
+                'error': 'incomplete metadata after lookup',
+                'meta': meta,
+            }, 400)
+            return
+
+        # Step 2: chama Evolution
+        evo_payload = json.dumps({
+            'message': {
+                'key': {
+                    'id': message_id,
+                    'remoteJid': meta['chat_id'],
+                    'fromMe': False,
+                },
+            },
+        }).encode('utf-8')
+
+        evo_url = f'{EVOLUTION_BASE}/chat/getBase64FromMediaMessage/{instance}'
+        evo_req = urllib.request.Request(evo_url, data=evo_payload, method='POST')
+        evo_req.add_header('Content-Type', 'application/json')
+        evo_req.add_header('apikey', EVOLUTION_API_KEY)
+        try:
+            evo_resp = urllib.request.urlopen(evo_req, timeout=45)
+            evo_data = json.loads(evo_resp.read().decode('utf-8'))
+        except urllib.error.HTTPError as he:
+            err_body = ''
+            try: err_body = he.read().decode('utf-8')[:500]
+            except Exception: pass
+            self._send_json({
+                'error': f'Evolution returned {he.code}',
+                'detail': err_body,
+                'meta': meta,
+            }, 502)
+            return
+        except Exception as e:
+            self._send_json({'error': f'Evolution call failed: {e}', 'meta': meta}, 502)
+            return
+
+        b64 = evo_data.get('base64') or evo_data.get('media') or ''
+        if not b64:
+            self._send_json({
+                'error': 'Evolution returned no base64',
+                'evo_response_keys': list(evo_data.keys()) if isinstance(evo_data, dict) else None,
+                'meta': meta,
+            }, 502)
+            return
+
+        try:
+            binary = base64.b64decode(b64)
+        except Exception as e:
+            self._send_json({'error': f'base64 decode failed: {e}'}, 500)
+            return
+
+        if len(binary) == 0:
+            self._send_json({'error': 'empty binary after decode', 'meta': meta}, 502)
+            return
+
+        # Step 3: deduz extensão + upload S3
+        ext_by_type = {
+            'audioMessage': 'oga',
+            'imageMessage': 'jpg',
+            'videoMessage': 'mp4',
+            'documentMessage': 'bin',
+            'stickerMessage': 'webp',
+        }
+        ext = ext_by_type.get(meta['type'], 'bin')
+        if meta['mime']:
+            mlow = meta['mime'].lower()
+            if 'jpeg' in mlow or 'jpg' in mlow: ext = 'jpg'
+            elif 'png' in mlow: ext = 'png'
+            elif 'webp' in mlow: ext = 'webp'
+            elif 'mp4' in mlow: ext = 'mp4'
+            elif 'pdf' in mlow: ext = 'pdf'
+            elif 'ogg' in mlow: ext = 'oga'
+
+        # Resolve instance UUID — Evolution paths usam UUID, não nome
+        instance_uuid = os.environ.get('EVOLUTION_INSTANCE_UUID', '34f920b5-83b9-470f-9775-c662cf23d482')
+        try:
+            ts_ms = int(datetime.fromisoformat(meta['timestamp'].replace('Z', '+00:00')).timestamp() * 1000)
+        except Exception:
+            ts_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+
+        s3_key = f"evolution-api/{instance_uuid}/{meta['chat_id']}/{meta['type']}/{ts_ms}_{message_id}.{ext}"
+        content_type = meta['mime'] or 'application/octet-stream'
+        try:
+            status, _body = s3_put_object(s3_key, binary, content_type=content_type)
+            if status not in (200, 201, 204):
+                self._send_json({'error': f'S3 PUT returned {status}', 's3_key': s3_key}, 500)
+                return
+        except Exception as e:
+            self._send_json({'error': f'S3 upload failed: {e}', 's3_key': s3_key}, 500)
+            return
+
+        # Step 4: retorna stream URL
+        stream_url = f'/api/media/stream?key={urllib.parse.quote(s3_key, safe="")}'
+        self._send_json({
+            'recovered': True,
+            'message_id': message_id,
+            'bytes': len(binary),
+            's3_key': s3_key,
+            'stream_url': stream_url,
+            'mime': content_type,
+        })
 
     def _handle_instance_uuid(self):
         """Get the actual UUID of the Evolution instance from S3 bucket"""

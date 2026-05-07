@@ -788,7 +788,7 @@ function operon() {
     _extracao: null,
     _extracaoLoading: false,
     _extracaoDownloading: false,
-    _extracaoProgress: { done: 0, total: 0, errors: 0 },
+    _extracaoProgress: { done: 0, total: 0, errors: 0, recovered: 0 },
 
     // --- API Integration State ---
     _menteesWithEmail: [],
@@ -6676,7 +6676,7 @@ function operon() {
         return;
       }
       this._extracaoDownloading = true;
-      this._extracaoProgress = { done: 0, total: 0, errors: 0 };
+      this._extracaoProgress = { done: 0, total: 0, errors: 0, recovered: 0 };
       try {
         const zip = new JSZip();
         const safeName = (this._extracao.mentee.nome || 'mentee')
@@ -6770,32 +6770,73 @@ function operon() {
           return `${CONFIG.API_BASE}/api/media/stream?${params.toString()}`;
         };
 
+        const tryDownload = async (url) => {
+          const resp = await fetch(url, { mode: 'cors' });
+          if (!resp.ok) throw new Error('HTTP ' + resp.status);
+          const blob = await resp.blob();
+          if (blob.size === 0) throw new Error('empty body');
+          return blob;
+        };
+
+        const saveBlob = (m, blob) => {
+          const ext = m.file_name?.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase()
+                   || extByType[m.type]
+                   || extFromMime(m.media_mime_type);
+          const ts = (m.timestamp || '').replace(/[:.]/g, '-').slice(0, 19);
+          const idShort = (m.message_id || 'msg').slice(-12);
+          const fname = m.file_name
+            ? `${ts}_${idShort}_${slug(m.file_name)}`
+            : `${ts}_${idShort}_${m.type || 'media'}.${ext}`;
+          mediaFolder.file(fname, blob);
+        };
+
+        const recoverViaEvolution = async (m) => {
+          // Backfill: pede ao backend pra recriptografar via Evolution API + upload S3 + retorna stream URL
+          const resp = await fetch(`${CONFIG.API_BASE}/api/media/recover-binary`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message_id: m.message_id,
+              chat_id: chatId,
+              type: m.type,
+              timestamp: m.timestamp,
+              media_mime_type: m.media_mime_type,
+            }),
+          });
+          if (!resp.ok) {
+            const err = await resp.text().catch(() => '');
+            throw new Error(`recover-binary HTTP ${resp.status}: ${err.slice(0, 120)}`);
+          }
+          const data = await resp.json();
+          if (!data.stream_url) throw new Error('recover-binary: no stream_url returned');
+          // Stream URL é relativa — precisa prefixar API_BASE
+          const fullUrl = data.stream_url.startsWith('http') ? data.stream_url : `${CONFIG.API_BASE}${data.stream_url}`;
+          return tryDownload(fullUrl);
+        };
+
         const fetchOne = async (m) => {
-          // Estratégia: primeiro tenta o stream proxy do backend (Hetzner durável + fallback),
-          // se não conseguir construir a key OU se backend retornar 404, cai no fetch direto da URL.
+          // Estratégia em 3 camadas (mais durável → mais frágil):
+          //   1. Hetzner S3 via /api/media/stream (cache do pipeline) — funciona em ~80-90% dos casos
+          //   2. URL WhatsApp direta (signed CDN URL) — funciona pra mídias <24h
+          //   3. Backfill via Evolution recover-binary (recriptografa + upload S3) — last resort durável
           const streamUrl = buildStreamUrl(m);
-          const tryUrls = streamUrl ? [streamUrl, m.media_url] : [m.media_url];
+          const attempts = [];
+          if (streamUrl) attempts.push({ kind: 'hetzner-stream', fn: () => tryDownload(streamUrl) });
+          if (m.media_url) attempts.push({ kind: 'whatsapp-cdn', fn: () => tryDownload(m.media_url) });
+          if (m.message_id) attempts.push({ kind: 'evolution-recover', fn: () => recoverViaEvolution(m) });
+
           let lastErr = null;
-          for (const url of tryUrls) {
-            if (!url) continue;
+          let lastKind = null;
+          for (const { kind, fn } of attempts) {
             try {
-              const resp = await fetch(url, { mode: 'cors' });
-              if (!resp.ok) { lastErr = new Error('HTTP ' + resp.status); continue; }
-              const blob = await resp.blob();
-              if (blob.size === 0) { lastErr = new Error('empty body'); continue; }
-              const ext = m.file_name?.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase()
-                       || extByType[m.type]
-                       || extFromMime(m.media_mime_type);
-              const ts = (m.timestamp || '').replace(/[:.]/g, '-').slice(0, 19);
-              const idShort = (m.message_id || 'msg').slice(-12);
-              const fname = m.file_name
-                ? `${ts}_${idShort}_${slug(m.file_name)}`
-                : `${ts}_${idShort}_${m.type || 'media'}.${ext}`;
-              mediaFolder.file(fname, blob);
+              const blob = await fn();
+              saveBlob(m, blob);
               this._extracaoProgress.done += 1;
+              if (kind === 'evolution-recover') this._extracaoProgress.recovered = (this._extracaoProgress.recovered || 0) + 1;
               return;
             } catch (e) {
               lastErr = e;
+              lastKind = kind;
             }
           }
           errors.push({
@@ -6804,6 +6845,7 @@ function operon() {
             timestamp: m.timestamp,
             sender: m.sender_name,
             url: m.media_url,
+            last_attempt: lastKind,
             error: lastErr?.message || String(lastErr) || 'unknown',
           });
           this._extracaoProgress.errors += 1;
@@ -6840,7 +6882,9 @@ function operon() {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
+        const recovered = this._extracaoProgress.recovered || 0;
         const summary = `ZIP baixado: ${this._extracao.stats.total} msgs · ${this._extracaoProgress.done}/${mediaMsgs.length} mídias` +
+          (recovered > 0 ? ` · ${recovered} recuperadas via Evolution` : '') +
           (errors.length ? ` · ${errors.length} falhas (ver _media_errors.txt)` : '');
         this.toast?.(summary, errors.length ? 'warning' : 'success');
       } catch (e) {

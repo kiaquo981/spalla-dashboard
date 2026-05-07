@@ -3596,11 +3596,11 @@
                   <div style="padding:10px 12px;background:#f0f9ff;border-left:3px solid #0ea5e9;border-radius:4px;font-size:12px;color:#075985;line-height:1.5">
                     <strong>ZIP inclui:</strong>
                     <br/>• <code>_chat.txt</code> — histórico no formato WhatsApp (UNION de <code>whatsapp_messages</code> + <code>interacoes_mentoria</code> dedup por <code>message_id</code>)
-                    <br/>• <code>media/</code> — imagens, áudios, vídeos, PDFs, docs (Hetzner S3 via <code>/api/media/stream</code> com fallback automático pra URL WhatsApp)
+                    <br/>• <code>media/</code> — imagens, áudios, vídeos, PDFs, docs com <strong>3 camadas de recuperação</strong>: 1) Hetzner S3, 2) URL WhatsApp, 3) Backfill via Evolution API (recriptografa mídia perdida)
                     <br/>• <code>transcricoes_audio.txt</code> — transcrições Whisper isoladas
                     <br/>• <code>analises_periodicas.txt</code> — sumarizações geradas pelo Scraper v34 (resumo, tópicos, sentimento, gaps)
                     <br/>• <code>_raw_data.json</code> — dump completo pra reprocessamento
-                    <br/>• <code>_media_errors.txt</code> — só se algo falhar
+                    <br/>• <code>_media_errors.txt</code> — só se as 3 camadas falharem
                   </div>
                 </div>
               </div>
