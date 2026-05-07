@@ -6792,9 +6792,11 @@ function operon() {
 
         const recoverViaEvolution = async (m) => {
           // Backfill: pede ao backend pra recriptografar via Evolution API + upload S3 + retorna stream URL
+          const headers = { 'Content-Type': 'application/json' };
+          if (this.auth?.accessToken) headers['Authorization'] = `Bearer ${this.auth.accessToken}`;
           const resp = await fetch(`${CONFIG.API_BASE}/api/media/recover-binary`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({
               message_id: m.message_id,
               chat_id: chatId,

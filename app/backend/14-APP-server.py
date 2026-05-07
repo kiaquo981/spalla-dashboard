@@ -4947,7 +4947,13 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
              body: {message: {key: {id: msgId, remoteJid: chatId, fromMe: false}}}
           3. Decode base64, deduz extensão, upload S3 com key padrão Evolution.
           4. Retorna stream URL pro frontend retentar.
+
+        Auth: aceita JWT (frontend logado) OU X-API-Key (n8n / cron).
         """
+        auth = check_auth_any(self.headers)
+        if not auth:
+            self._send_json({'error': 'unauthorized — provide X-API-Key or Bearer JWT'}, 401)
+            return
         try:
             length = int(self.headers.get('Content-Length', 0) or 0)
             raw = self.rfile.read(length).decode('utf-8') if length else '{}'
