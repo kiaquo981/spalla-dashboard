@@ -6560,6 +6560,21 @@ function operon() {
         this._extracaoLoading = false;
         return;
       }
+      // Lookup instância por group_jid (multi-instance Evolution: producao002, spalla_u9, etc).
+      // Hetzner S3 paths usam o UUID da instância dona do grupo. Sem isso, mídia da Mariza não aparece.
+      let groupInstanceName = null;
+      let groupInstanceUuid = null;
+      try {
+        const { data: instRow } = await this.supabase
+          .from('vw_wa_group_instance')
+          .select('instance_name,instance_uuid')
+          .eq('group_jid', groupJid)
+          .maybeSingle();
+        if (instRow) {
+          groupInstanceName = instRow.instance_name || null;
+          groupInstanceUuid = instRow.instance_uuid || null;
+        }
+      } catch (_) { /* ignore — fallback pra hardcoded */ }
       try {
         // 1) whatsapp_messages — fonte primária com media_url + caption + duration
         const [waRes, intRes, anaRes] = await Promise.all([
@@ -6643,6 +6658,8 @@ function operon() {
         this._extracao = {
           mentee: profile,
           groupJid,
+          instanceName: groupInstanceName,
+          instanceUuid: groupInstanceUuid,
           messages,
           transcriptions,
           interacoes,
@@ -6757,8 +6774,11 @@ function operon() {
 
         // Constrói S3 key da Hetzner pro padrão indexado pelo Evolution:
         //   evolution-api/{instanceUuid}/{chatId}/{mediaType}/{tsMs}_{msgId}.{ext}
-        // Backend /api/media/stream tenta Hetzner primeiro, cai no fallback se a key não bate.
-        const instanceUuid = (typeof EVOLUTION_CONFIG !== 'undefined' && EVOLUTION_CONFIG?.INSTANCE_UUID) || '';
+        // Multi-instance: usa UUID da instância dona DESTE grupo (lookup no load).
+        // Fallback: EVOLUTION_CONFIG.INSTANCE_UUID (UUID hardcoded antigo da producao002).
+        const instanceUuid = this._extracao.instanceUuid
+          || (typeof EVOLUTION_CONFIG !== 'undefined' && EVOLUTION_CONFIG?.INSTANCE_UUID)
+          || '';
         const chatId = this._extracao.groupJid;
         const buildStreamUrl = (m) => {
           if (!instanceUuid || !chatId || !m.message_id || !m.timestamp) return null;
@@ -6803,6 +6823,8 @@ function operon() {
               type: m.type,
               timestamp: m.timestamp,
               media_mime_type: m.media_mime_type,
+              instance_name: this._extracao.instanceName || undefined,
+              instance_uuid: this._extracao.instanceUuid || undefined,
             }),
           });
           if (!resp.ok) {

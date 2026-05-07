@@ -4998,13 +4998,16 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 print(f'[Recover] Supabase lookup failed: {e}')
 
-        # Resolve instance_name. wa_groups.instance_name é a fonte de verdade.
-        if not meta['instance_name'] and meta['chat_id']:
+        # Resolve instance_name + instance_uuid via wa_groups (fonte de verdade pós-mig 2026-05-07).
+        # Multi-instância: producao002 (Kaique), spalla_u9 (Mariza), spalla_u8, etc — cada uma com UUID
+        # próprio nos paths Hetzner S3. Sem esse lookup, mídia da Mariza nunca aparecia.
+        meta['instance_uuid'] = body.get('instance_uuid')
+        if (not meta['instance_name'] or not meta['instance_uuid']) and meta['chat_id']:
             try:
                 conn = http.client.HTTPSConnection(SUPABASE_HOST, timeout=10)
                 qs = urllib.parse.urlencode({
                     'group_jid': f"eq.{meta['chat_id']}",
-                    'select': 'instance_name', 'limit': '1',
+                    'select': 'instance_name,instance_uuid', 'limit': '1',
                 })
                 conn.request('GET', f'/rest/v1/wa_groups?{qs}', headers={
                     'apikey': os.environ.get('SUPABASE_SERVICE_KEY', ''),
@@ -5013,7 +5016,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 r = conn.getresponse()
                 rows = json.loads(r.read().decode('utf-8') or '[]')
                 if rows:
-                    meta['instance_name'] = rows[0].get('instance_name')
+                    meta['instance_name'] = meta['instance_name'] or rows[0].get('instance_name')
+                    meta['instance_uuid'] = meta['instance_uuid'] or rows[0].get('instance_uuid')
             except Exception as e:
                 print(f'[Recover] Instance lookup failed: {e}')
 
@@ -5095,8 +5099,13 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             elif 'pdf' in mlow: ext = 'pdf'
             elif 'ogg' in mlow: ext = 'oga'
 
-        # Resolve instance UUID — Evolution paths usam UUID, não nome
-        instance_uuid = os.environ.get('EVOLUTION_INSTANCE_UUID', '34f920b5-83b9-470f-9775-c662cf23d482')
+        # Resolve instance UUID — Evolution paths usam UUID, não nome.
+        # Prioridade: meta (do lookup wa_groups) > env var > hardcoded antigo (last resort).
+        instance_uuid = (
+            meta.get('instance_uuid')
+            or os.environ.get('EVOLUTION_INSTANCE_UUID')
+            or '34f920b5-83b9-470f-9775-c662cf23d482'
+        )
         try:
             ts_ms = int(datetime.fromisoformat(meta['timestamp'].replace('Z', '+00:00')).timestamp() * 1000)
         except Exception:
