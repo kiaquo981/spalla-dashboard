@@ -648,6 +648,7 @@ function operon() {
 
     // --- Media Cache ---
     waMediaUrls: {},  // messageId → presigned URL
+    waChatInstanceCache: {},  // chat_id (group_jid) → instance_uuid (lookup vw_wa_group_instance, cached)
 
     // Task organization — loaded dynamically from god_spaces + god_lists + god_statuses
     spaces: [],
@@ -10933,6 +10934,11 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const groupJid = chat.remoteJid || chat.id;
       this._loadingGroupJid = groupJid;
 
+      // Pre-aquece cache de instance_uuid pra esse chat — todos os loadWaMedia
+      // subsequentes (1 por bolha) leem do cache em vez de reconstruir UUID errado.
+      // Não bloqueia (fire-and-forget) — se demorar, primeiras bolhas usam fallback.
+      this._resolveChatInstanceUuid(groupJid);
+
       // Zera o badge de não-lidas localmente (UI responde imediatamente)
       // e dispara o markAsRead na Evolution em background (persiste no servidor)
       if (chat && (chat.unreadCount > 0 || chat.unread > 0)) {
@@ -11217,10 +11223,52 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       return 'text';
     },
 
+    // Resolve instance_uuid pra um chat_id (group_jid) via vw_wa_group_instance.
+    // Cacheia em this.waChatInstanceCache pra não consultar pra cada bolha de mídia.
+    // Retorna o UUID via Promise. Sincronamente devolve o cached se existe.
+    async _resolveChatInstanceUuid(chatId) {
+      if (!chatId) return null;
+      if (Object.prototype.hasOwnProperty.call(this.waChatInstanceCache, chatId)) {
+        return this.waChatInstanceCache[chatId]; // pode ser null (negative cache)
+      }
+      try {
+        const { data } = await this.supabase
+          .from('vw_wa_group_instance')
+          .select('instance_uuid,instance_name')
+          .eq('group_jid', chatId)
+          .maybeSingle();
+        const uuid = data?.instance_uuid || null;
+        this.waChatInstanceCache[chatId] = uuid;
+        return uuid;
+      } catch (_) {
+        this.waChatInstanceCache[chatId] = null;
+        return null;
+      }
+    },
+
+    // Versão síncrona — só pega do cache. Retorna null se não tiver. Usado no render quente.
+    _getCachedChatInstanceUuid(chatId) {
+      if (!chatId) return null;
+      const v = this.waChatInstanceCache[chatId];
+      return v || null;
+    },
+
     // Eagerly load media URLs for all messages after they're fetched
-    eagerlyLoadWaMediaUrls(messages) {
+    async eagerlyLoadWaMediaUrls(messages) {
       if (!Array.isArray(messages)) return;
       if (!this.waMediaUrls) this.waMediaUrls = {};
+
+      // 1. Pre-warm cache de instance_uuid pelos remoteJids únicos das messages
+      const jids = new Set();
+      for (const msg of messages) {
+        const j = msg?.key?.remoteJid;
+        if (j) jids.add(j);
+      }
+      // Resolve em paralelo (cache curto-circuita repeats)
+      await Promise.all(Array.from(jids).map(j => this._resolveChatInstanceUuid(j)));
+
+      // Fallback UUID — só usa se nenhum lookup tiver êxito (legado)
+      const fallbackUuid = (typeof EVOLUTION_CONFIG !== 'undefined' ? EVOLUTION_CONFIG?.INSTANCE_UUID : null) || 'default';
 
       let updated = false;
       for (const msg of messages) {
@@ -11239,10 +11287,9 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
         else if (msg._mediaUrl) {
           const url = msg._mediaUrl;
           if (url.includes('mmg.whatsapp.net')) {
-            // Temporary WhatsApp URL — construct S3 fallback key
-            // S3 path: evolution-api/{INSTANCE_UUID}/{chatId}/{messageType}/{timestamp}_{msgId}.{ext}
-            const instanceUuid = (typeof EVOLUTION_CONFIG !== 'undefined' ? EVOLUTION_CONFIG?.INSTANCE_UUID : null) || 'default';
+            // Temporary WhatsApp URL — construct S3 fallback key com UUID DINÂMICO da instância dona do grupo
             const chatId = msg.key?.remoteJid || this.ui.whatsappSelectedChat?.remoteJid || 'unknown';
+            const instanceUuid = this._getCachedChatInstanceUuid(chatId) || fallbackUuid;
             const mediaType = msg._contentType === 'image' ? 'imageMessage' : msg._contentType === 'video' ? 'videoMessage' : msg._contentType === 'document' ? 'documentMessage' : 'audioMessage';
             const ts = msg.messageTimestamp ? Math.floor(msg.messageTimestamp * 1000) : Date.now();
             const ext = mediaType === 'audioMessage' ? 'oga' : mediaType === 'imageMessage' ? 'jpg' : mediaType === 'videoMessage' ? 'mp4' : 'bin';
@@ -11292,9 +11339,24 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
       if (!mediaType) return '';
 
-      // Get Evolution instance UUID and chat ID
-      const instanceId = (typeof EVOLUTION_CONFIG !== 'undefined' ? EVOLUTION_CONFIG?.INSTANCE_UUID : null) || this._waActiveInstance().instance || 'default';
-      const chatId = this.ui.whatsappSelectedChat?.remoteJid || this.ui.whatsappSelectedChat?.id || 'unknown';
+      // Get Evolution instance UUID and chat ID — UUID dinâmico via cache
+      // (preenchido por _resolveChatInstanceUuid quando seleciona chat).
+      const chatId = msg.key?.remoteJid || this.ui.whatsappSelectedChat?.remoteJid || this.ui.whatsappSelectedChat?.id || 'unknown';
+      const cachedUuid = this._getCachedChatInstanceUuid(chatId);
+      // Se não tem cache ainda, dispara lookup async em background pra próxima render pegar.
+      if (!cachedUuid && chatId !== 'unknown' && this.supabase) {
+        this._resolveChatInstanceUuid(chatId).then((uuid) => {
+          if (uuid && this.waMediaUrls?.[msgId]) {
+            // Invalida cache da URL pra próxima chamada construir com UUID correto
+            delete this.waMediaUrls[msgId];
+            this.waMediaUrls = { ...this.waMediaUrls };
+          }
+        });
+      }
+      const instanceId = cachedUuid
+        || (typeof EVOLUTION_CONFIG !== 'undefined' ? EVOLUTION_CONFIG?.INSTANCE_UUID : null)
+        || this._waActiveInstance().instance
+        || 'default';
 
       // Build filename
       const timestamp = msg.messageTimestamp ? Math.floor(msg.messageTimestamp * 1000) : Date.now();
