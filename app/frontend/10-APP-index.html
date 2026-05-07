@@ -3540,9 +3540,15 @@
                     <h3 style="margin:0 0 4px;font-size:16px">Extração de Grupo WhatsApp</h3>
                     <p style="margin:0;font-size:13px;color:var(--neutral-500)">Baixa todo o histórico do grupo deste mentorado em formato <code>chat.txt</code> estilo WhatsApp — mensagens, transcrições de áudio, descrições de imagem, URLs de mídia.</p>
                   </div>
-                  <button class="btn btn--primary" @click="downloadExtracaoChat()" :disabled="!_extracao || _extracao.error || _extracaoLoading" style="white-space:nowrap">
+                  <button class="btn btn--primary" @click="downloadExtracaoChat()" :disabled="!_extracao || _extracao.error || _extracaoLoading || _extracaoDownloading" style="white-space:nowrap">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Baixar chat.txt
+                    <span x-show="!_extracaoDownloading">Baixar ZIP (chat + mídias)</span>
+                    <span x-show="_extracaoDownloading">
+                      Baixando…
+                      <template x-if="_extracaoProgress.total > 0">
+                        <span x-text="' ' + _extracaoProgress.done + '/' + _extracaoProgress.total"></span>
+                      </template>
+                    </span>
                   </button>
                 </div>
 
@@ -3586,7 +3592,7 @@
 
                   <!-- Note -->
                   <div style="padding:10px 12px;background:#f0f9ff;border-left:3px solid #0ea5e9;border-radius:4px;font-size:12px;color:#075985">
-                    Inclui transcrição de áudio (Whisper), descrição de imagem (LLM enrich), legendas, URLs de mídia (Hetzner CDN — links válidos enquanto perfil ativo) e metadados de quem enviou + timestamp.
+                    <strong>ZIP inclui:</strong> <code>_chat.txt</code> (formato WhatsApp) + pasta <code>media/</code> com imagens, áudios, vídeos, PDFs e documentos baixados das URLs do WhatsApp CDN. Mídias antigas podem falhar (URLs assinadas expiram em ~24-48h) — falhas vão pro <code>_media_errors.txt</code> com URL pra recuperação manual.
                   </div>
                 </div>
               </div>
@@ -13315,6 +13321,8 @@
   <!-- Operon Editor (BlockNote) -->
   <link rel="stylesheet" href="operon-editor.css?v=1">
   <script src="operon-editor.umd.js?v=1"></script>
+  <!-- JSZip — usado pela tab "Extração de Grupo Wpp" pra empacotar chat.txt + mídias num único ZIP -->
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" integrity="sha384-X9kJyAubVxnP0hcA+AMMs21U445qsnqhnUF8EBlEpP3a42Kh/JwWjlv2ZcvGfphb" crossorigin="anonymous"></script>
   <script>
     document.addEventListener('alpine:init', () => {

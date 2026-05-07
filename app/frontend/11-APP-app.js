@@ -787,6 +787,8 @@ function operon() {
     _detailArquivosSearch: '',
     _extracao: null,
     _extracaoLoading: false,
+    _extracaoDownloading: false,
+    _extracaoProgress: { done: 0, total: 0, errors: 0 },
 
     // --- API Integration State ---
     _menteesWithEmail: [],
@@ -6528,9 +6530,33 @@ function operon() {
       if (!mid || !this.supabase || !profile) return;
       this._extracaoLoading = true;
       this._extracao = null;
-      const groupJid = profile.grupo_whatsapp_id;
+
+      // Fallback chain: profile (vw_god_overview não traz grupo_whatsapp_id) →
+      //   tabela mentorados → wa_groups.group_jid
+      let groupJid = profile.grupo_whatsapp_id;
       if (!groupJid) {
-        this._extracao = { error: 'Mentorado sem grupo WhatsApp cadastrado.' };
+        try {
+          const { data } = await this.supabase
+            .from('mentorados')
+            .select('grupo_whatsapp_id')
+            .eq('id', mid)
+            .maybeSingle();
+          if (data?.grupo_whatsapp_id) groupJid = data.grupo_whatsapp_id;
+        } catch (_) { /* ignore, try next fallback */ }
+      }
+      if (!groupJid) {
+        try {
+          const { data } = await this.supabase
+            .from('wa_groups')
+            .select('group_jid')
+            .eq('mentorado_id', mid)
+            .eq('is_active', true)
+            .maybeSingle();
+          if (data?.group_jid) groupJid = data.group_jid;
+        } catch (_) { /* ignore */ }
+      }
+      if (!groupJid) {
+        this._extracao = { error: 'Mentorado sem grupo WhatsApp cadastrado em mentorados.grupo_whatsapp_id nem wa_groups.' };
         this._extracaoLoading = false;
         return;
       }
@@ -6595,26 +6621,116 @@ function operon() {
       this._extracaoLoading = false;
     },
 
-    downloadExtracaoChat() {
+    async downloadExtracaoChat() {
       if (!this._extracao || this._extracao.error) {
         this.toast?.('Carrega a extração antes de baixar', 'error');
         return;
       }
-      const txt = formatWhatsappExport(this._extracao);
-      const safeName = (this._extracao.mentee.nome || 'mentee')
-        .normalize('NFD').replace(/[̀-ͯ]/g, '')
-        .replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_|_$/g, '');
-      const dateStr = new Date().toISOString().slice(0, 10);
-      const blob = new Blob(['﻿' + txt], { type: 'text/plain;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `chat-${safeName}-${dateStr}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      this.toast?.(`Chat baixado: ${this._extracao.stats.total} mensagens`, 'success');
+      if (typeof JSZip === 'undefined') {
+        this.toast?.('JSZip não carregou. Recarrega a página.', 'error');
+        return;
+      }
+      this._extracaoDownloading = true;
+      this._extracaoProgress = { done: 0, total: 0, errors: 0 };
+      try {
+        const zip = new JSZip();
+        const safeName = (this._extracao.mentee.nome || 'mentee')
+          .normalize('NFD').replace(/[̀-ͯ]/g, '')
+          .replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_|_$/g, '');
+        const dateStr = new Date().toISOString().slice(0, 10);
+
+        // 1) chat.txt na raiz
+        const txt = formatWhatsappExport(this._extracao);
+        zip.file('_chat.txt', '﻿' + txt);
+
+        // 2) baixa cada mídia em paralelo (concurrency limit pra não estourar browser)
+        const mediaMsgs = this._extracao.messages.filter(m => m.media_url);
+        this._extracaoProgress.total = mediaMsgs.length;
+        const errors = [];
+        const mediaFolder = zip.folder('media');
+
+        const extFromMime = (mime) => {
+          if (!mime) return 'bin';
+          const m = mime.toLowerCase();
+          if (m.includes('jpeg') || m.includes('jpg')) return 'jpg';
+          if (m.includes('png')) return 'png';
+          if (m.includes('webp')) return 'webp';
+          if (m.includes('ogg')) return 'ogg';
+          if (m.includes('mp4')) return 'mp4';
+          if (m.includes('mpeg')) return 'mp3';
+          if (m.includes('pdf')) return 'pdf';
+          if (m.includes('zip')) return 'zip';
+          const slash = m.split('/')[1] || 'bin';
+          return slash.split(';')[0].replace(/[^a-z0-9]/g, '') || 'bin';
+        };
+        const slug = (s) => (s || '').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
+
+        const fetchOne = async (m) => {
+          try {
+            const resp = await fetch(m.media_url, { mode: 'cors' });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const blob = await resp.blob();
+            const ext = m.file_name?.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase()
+                     || extFromMime(m.media_mime_type);
+            const ts = (m.timestamp || '').replace(/[:.]/g, '-').slice(0, 19);
+            const idShort = (m.message_id || 'msg').slice(-12);
+            const fname = m.file_name
+              ? `${ts}_${idShort}_${slug(m.file_name)}`
+              : `${ts}_${idShort}_${m.type || 'media'}.${ext}`;
+            mediaFolder.file(fname, blob);
+            this._extracaoProgress.done += 1;
+          } catch (e) {
+            errors.push({
+              message_id: m.message_id,
+              type: m.type,
+              timestamp: m.timestamp,
+              sender: m.sender_name,
+              url: m.media_url,
+              error: e.message || String(e),
+            });
+            this._extracaoProgress.errors += 1;
+          }
+        };
+
+        // Concurrency 6 (suficiente p/ não derrubar o browser)
+        const concurrency = 6;
+        for (let i = 0; i < mediaMsgs.length; i += concurrency) {
+          await Promise.all(mediaMsgs.slice(i, i + concurrency).map(fetchOne));
+        }
+
+        // 3) errors.txt se algo falhou
+        if (errors.length > 0) {
+          const errLines = [
+            `# ${errors.length} mídia(s) não foram baixadas`,
+            `# Razão comum: WhatsApp CDN tem URLs assinadas que expiram em ~24-48h.`,
+            `# Pra mídias antigas, considere baixar pelo backend que tem cache de mídia.`,
+            '',
+            ...errors.map(e =>
+              `[${e.timestamp}] ${e.sender} | ${e.type} | id=${e.message_id}\n  Erro: ${e.error}\n  URL: ${e.url}`
+            ),
+          ];
+          zip.file('_media_errors.txt', errLines.join('\n'));
+        }
+
+        // 4) gera ZIP e baixa
+        const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+        const url = URL.createObjectURL(zipBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `chat-${safeName}-${dateStr}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        const summary = `ZIP baixado: ${this._extracao.stats.total} msgs · ${this._extracaoProgress.done}/${mediaMsgs.length} mídias` +
+          (errors.length ? ` · ${errors.length} falhas (ver _media_errors.txt)` : '');
+        this.toast?.(summary, errors.length ? 'warning' : 'success');
+      } catch (e) {
+        console.error('[ExtracaoWpp] download zip failed:', e);
+        this.toast?.('Falha ao gerar ZIP: ' + (e?.message || e), 'error');
+      }
+      this._extracaoDownloading = false;
     },
 
     get filteredDetailArquivos() {
