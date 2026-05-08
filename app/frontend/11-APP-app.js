@@ -649,6 +649,7 @@ function operon() {
     // --- Media Cache ---
     waMediaUrls: {},  // messageId → presigned URL
     waChatInstanceCache: {},  // chat_id (group_jid) → instance_uuid (lookup vw_wa_group_instance, cached)
+    _waInstanceStatusCache: {},  // instance_name → connection_status (open/close/connecting) — refreshed em loadWaSession
 
     // Task organization — loaded dynamically from god_spaces + god_lists + god_statuses
     spaces: [],
@@ -10373,21 +10374,33 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
 
     // ===================== WHATSAPP PER-USER SESSION =====================
 
-    // Pre-linked Evolution instances per user (skip QR, always connected)
+    // Pre-linked Evolution instances per user — chave por EMAIL (único e estável).
+    // Cada user tem SUA instância (spalla_uX) com SEU número. NUNCA compartilhar
+    // producao002 (instância global Case) ou número de outro user — Mariza
+    // mandando do número do Kaique foi o bug do release de 2026-05-07.
+    //
+    // Pra adicionar novo user: SQL `auth_users` + parear instância dedicada na Evolution.
     _waPrelinkedInstances: {
-      mariza: { instance_name: 'producao002', phone_number: '5511941936764' },
-      kaique: { instance_name: 'producao002', phone_number: '5511941936764' },
-      'kaique rodrigues': { instance_name: 'producao002', phone_number: '5511941936764' },
-      'kaique.azevedoo': { instance_name: 'producao002', phone_number: '5511941936764' },
+      // email                          → instância pessoal
+      'kaique.azevedoo@outlook.com':   { instance_name: 'spalla_u8' },
+      'felipeggv@gmail.com':            { instance_name: 'spalla_u9' },
+      'queilatrizotti@gmail.com':       { instance_name: 'spalla_u4' },
+      'mariza.rg22@gmail.com':          { instance_name: 'spalla_u5' },
     },
 
     _isPrelinkedUser() {
-      // Try full_name first, then email prefix — same fallback chain as other auth lookups
-      let name = (this.auth.currentUser?.full_name || this.auth.currentUser?.user_metadata?.full_name || '').toLowerCase().trim();
-      if (!name) {
-        name = (this.auth.currentUser?.email || '').toLowerCase().split('@')[0];
+      const email = (this.auth.currentUser?.email || '').toLowerCase().trim();
+      if (!email) return null;
+      const link = this._waPrelinkedInstances[email];
+      if (!link) return null;
+      // Importante: só ativar prelinked se instância ESTIVER conectada de fato.
+      // Senão cai no fluxo normal de QR pareamento (loadWaSession).
+      // Sem isso, user com instância disconnected vê tela em loading infinito.
+      const evoStatus = this._waInstanceStatusCache?.[link.instance_name];
+      if (evoStatus && evoStatus !== 'open' && evoStatus !== 'connected') {
+        return null; // força fluxo de QR
       }
-      return this._waPrelinkedInstances[name] || null;
+      return link;
     },
 
     async loadWaSession() {
@@ -10395,15 +10408,39 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       const userId = String(this.auth.currentUser.id);
       if (!userId) return;
 
+      // Pre-aquece cache de status das instâncias pra _isPrelinkedUser decidir corretamente
+      // se deve usar prelinked (instância open) ou cair no fluxo de QR.
+      try {
+        const { data: instRows } = await sb.from('evolution_instances')
+          .select('instance_name,connection_status');
+        if (Array.isArray(instRows)) {
+          this._waInstanceStatusCache = Object.fromEntries(
+            instRows.map(r => [r.instance_name, r.connection_status])
+          );
+        }
+      } catch (_) { /* sem cache, _isPrelinkedUser vai aceitar qualquer prelinked match */ }
+
       // Check if user has a pre-linked instance (no QR needed)
       const prelinked = this._isPrelinkedUser();
       if (prelinked) {
+        // phone_number vem da Evolution (sync diário). NÃO hardcodar — bug histórico
+        // (release 2026-05-07) onde Mariza recebia o número do Kaique.
+        let phoneNumber = null;
+        try {
+          const { data: instRow } = await sb.from('evolution_instances')
+            .select('owner_jid,phone_number')
+            .eq('instance_name', prelinked.instance_name)
+            .maybeSingle();
+          if (instRow) {
+            phoneNumber = instRow.phone_number || (instRow.owner_jid || '').split('@')[0] || null;
+          }
+        } catch (_) { /* phone fica null, frontend mostra "(não disponível)" */ }
         this.data.waSession = {
           id: 'prelinked',
           user_id: userId,
           instance_name: prelinked.instance_name,
           status: 'connected',
-          phone_number: prelinked.phone_number,
+          phone_number: phoneNumber,
           connected_at: new Date().toISOString(),
         };
         this.waVerifyConnection(prelinked.instance_name);
