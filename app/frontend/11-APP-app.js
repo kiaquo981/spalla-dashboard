@@ -3071,7 +3071,13 @@ function operon() {
               zoom_topic: c.zoom_topic,
               senha_call: c.senha_Call || c.senha_call || null,
               status_call: c.status_call || (c.link_gravacao ? 'realizada' : null),
-              horario_call: c.data_call && c.data_call.includes('T') ? c.data_call.substring(11, 16) : null,
+              // data_call vem do Postgres como TIMESTAMPTZ normalizado em UTC.
+              // substring naive (chars 11-16) mostra a hora UTC, não BRT — 16h BRT
+              // virava 19:00 na tela. Sempre converter via toLocaleTimeString com
+              // timeZone:America/Sao_Paulo. Mesmo padrão usado no _supabaseCalls render.
+              horario_call: c.data_call && c.data_call.includes('T')
+                ? new Date(c.data_call).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
+                : null,
               link_plano_acao: c.link_plano_acao || null,
               link_youtube: c.link_youtube || null,
               transcript_completo: c.transcript_completo || null,
@@ -14530,7 +14536,11 @@ this._buildNotifications(); // F2.5 — refresh notification bell after tasks lo
       // If real Supabase calls loaded, use them
       if (this._supabaseCalls?.length) {
         return this._supabaseCalls.map(c => ({
-          call_id: c.call_id, mentorado: c.mentorado_nome, mentorado_id: c.mentorado_id, data: (c.data_call || '').substring(0, 10),
+          // Não usar substring(0,10) — data_call vem em UTC e calls noturnas BRT
+          // (>21h) caem no dia seguinte UTC, mostrando a data errada. Sempre
+          // formatar pelo fuso BRT.
+          call_id: c.call_id, mentorado: c.mentorado_nome, mentorado_id: c.mentorado_id,
+          data: c.data_call ? new Date(c.data_call).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) : '',
           tipo: c.tipo_call || 'acompanhamento', duracao: c.duracao_minutos || 0,
           horario: c.horario_call || null, status_call: c.status_call || null,
           topic: c.zoom_topic || '', resumo: c.resumo || null,

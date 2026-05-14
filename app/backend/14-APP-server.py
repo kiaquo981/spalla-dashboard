@@ -4547,7 +4547,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             }
             call_data = {
                 'mentorado_id': int(mentorado_id),
-                'data_call': f'{data}T{horario}:00+00:00',
+                # horario vem do form em BRT (hora que o user digitou no Spalla).
+                # NUNCA usar +00:00 aqui — o Postgres normaliza pra UTC e o
+                # frontend renderiza +3h adiante. Mesmo offset usado no insert
+                # direto via supabase-js (11-APP-app.js) e no ClickUp milestone.
+                'data_call': f'{data}T{horario}:00-03:00',
                 'tipo': tipo,
                 'tipo_call': tipo_call_map.get(tipo, 'acompanhamento'),
                 'duracao_minutos': duracao,
